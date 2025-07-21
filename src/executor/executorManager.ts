@@ -215,15 +215,6 @@ export class ExecutorManager {
                     }))
                 )
 
-                const hasFrontrun = results.some(
-                    ({ status }) => status === "frontran"
-                )
-
-                // If one userOp in the bundle was frontrun, log it
-                if (hasFrontrun) {
-                    this.logger.info("Bundle has been frontrun")
-                }
-
                 // Drop userOps that were rejected but not frontrun or included
                 const notFoundUserOps = results
                     .filter(({ status }) => status === "not_found")
@@ -238,7 +229,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeSubmittedUserOps({
+                await this.mempool.removeProcessingUserOps({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
