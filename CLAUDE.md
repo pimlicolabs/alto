@@ -125,6 +125,7 @@ pnpm run build:contracts-v08
 - **Strict Mode**: Always enabled with additional checks
 - **Module System**: ESM with `@alto/*` aliases for internal imports
 - **Target**: ESNext for modern JavaScript features
+- **Type Safety**: Never use `any` type - use proper type definitions, `unknown`, or type assertions when needed
 
 ### Coding Conventions
 

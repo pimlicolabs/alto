@@ -179,6 +179,20 @@ export class Mempool {
         )
     }
 
+    async removeProcessingUserOps({
+        userOps,
+        entryPoint
+    }: {
+        userOps: UserOpInfo[]
+        entryPoint: Address
+    }) {
+        await Promise.all(
+            userOps.map(async ({ userOpHash }) => {
+                await this.store.removeSubmitted({ entryPoint, userOpHash })
+            })
+        )
+    }
+
     async removeSubmittedUserOps({
         userOps,
         entryPoint
