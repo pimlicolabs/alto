@@ -206,7 +206,7 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const estimationFallbackTo2xCallGasLimit = new Counter({
+    const altoSecondValidationFailed = new Counter({
         name: "alto_second_validation_failed",
         help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
         labelNames: [] as const,
@@ -238,6 +238,6 @@ export function createMetrics(registry: Registry, register = true) {
         emittedOpEvents,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
-        estimationFallbackTo2xCallGasLimit
+        altoSecondValidationFailed
     }
 }
