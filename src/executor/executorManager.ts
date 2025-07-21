@@ -243,6 +243,8 @@ export class ExecutorManager {
                     userOps: confirmedUserOps
                 })
             } else {
+                this.logger.warn({ reason }, "failed to send bundle")
+
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             }
 
