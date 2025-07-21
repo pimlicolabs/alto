@@ -156,7 +156,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-    }): Promise<SimulateHandleOpResult> {
+    }) {
         const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
         const error = await this.gasEstimationHandler.validateHandleOp({
             userOp,
@@ -167,20 +167,68 @@ export class UnsafeValidator implements InterfaceValidator {
             stateOverrides
         })
 
+        let { callGasLimit, verificationGasLimit } = userOp
+        let paymasterVerificationGasLimit =
+            "paymasterVerificationGasLimit" in userOp
+                ? userOp.paymasterVerificationGasLimit
+                : null
+        // Check if userOperation passes without estimation balance overrides (will throw error if it fails validation)
+        // the errors we are looking for are:
+        // 1. AA31 paymaster deposit too low
+        // 2. AA21 didn't pay prefund
         if (error.result === "failed") {
-            let errorCode: number = ExecutionErrors.UserOperationReverted
+            const data = error.data.toString()
 
-            if (error.data.toString().includes("AA23")) {
-                errorCode = ValidationErrors.SimulateValidation
+            if (data.includes("AA31") || data.includes("AA21")) {
+                throw new RpcError(
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    ExecutionErrors.UserOperationReverted
+                )
             }
 
-            throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${error.data}`,
-                errorCode
+            this.metrics.altoSecondValidationFailed.inc()
+
+            this.logger.warn(
+                { data },
+                "Second validation during eth_estimateUserOperationGas led to a failure"
             )
+
+            // we always have to double the call gas limits as other gas limits happen
+            // before we even get to callGasLimit
+            callGasLimit *= 2n
+            const isPaymasterError =
+                data.includes("AA33") || data.includes("AA36")
+
+            const isVerificationError =
+                data.includes("AA23") ||
+                data.includes("AA13") ||
+                data.includes("AA26") ||
+                data.includes("AA40") ||
+                data.includes("AA41")
+
+            if (isPaymasterError && paymasterVerificationGasLimit) {
+                // paymasterVerificationGasLimit out of gas errors
+                paymasterVerificationGasLimit *= 2n
+            } else if (isVerificationError) {
+                // verificationGasLimit out of gas errors
+                verificationGasLimit *= 2n
+                // we need to increase paymaster fields because they will be
+                // caught after verification gas limit errors
+                if (paymasterVerificationGasLimit) {
+                    paymasterVerificationGasLimit *= 2n
+                }
+            }
         }
 
-        return error
+        return {
+            callGasLimit: callGasLimit,
+            verificationGasLimit: verificationGasLimit,
+            paymasterVerificationGasLimit: paymasterVerificationGasLimit,
+            paymasterPostOpGasLimit:
+                "paymasterPostOpGasLimit" in userOp
+                    ? userOp.paymasterPostOpGasLimit
+                    : null
+        }
     }
 
     async getExecutionResult(args: {

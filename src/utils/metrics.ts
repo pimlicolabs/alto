@@ -206,6 +206,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const altoSecondValidationFailed = new Counter({
+        name: "alto_second_validation_failed",
+        help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
+        labelNames: [] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -230,6 +237,7 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsMinBalance,
         emittedOpEvents,
         walletsProcessingTime,
-        userOpsSubmissionAttempts
+        userOpsSubmissionAttempts,
+        altoSecondValidationFailed
     }
 }
