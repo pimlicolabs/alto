@@ -30,23 +30,21 @@ export type RejectedUserOp = Prettify<
     }
 >
 
-export type BundleResultSuccess = {
-    success: true
-    transactionHash: HexData32
-    transactionRequest: {
-        maxFeePerGas: bigint
-        maxPriorityFeePerGas: bigint
-        nonce: number
-    }
-    userOpsBundled: UserOpInfo[]
-    rejectedUserOps: RejectedUserOp[]
-}
-
-export type BundleResultFailed = {
-    success: false
-    reason: "filterops_failed" | "insufficient_funds" | "generic_error"
-    rejectedUserOps: RejectedUserOp[]
-    recoverableOps: UserOpInfo[]
-}
-
-export type BundleResult = BundleResultSuccess | BundleResultFailed
+export type BundleResult =
+    | {
+          success: true
+          transactionHash: HexData32
+          transactionRequest: {
+              maxFeePerGas: bigint
+              maxPriorityFeePerGas: bigint
+              nonce: number
+          }
+          userOpsBundled: UserOpInfo[]
+          rejectedUserOps: RejectedUserOp[]
+      }
+    | {
+          success: false
+          reason: "filterops_failed" | "insufficient_funds" | "generic_error"
+          rejectedUserOps: RejectedUserOp[]
+          recoverableOps: UserOpInfo[]
+      }

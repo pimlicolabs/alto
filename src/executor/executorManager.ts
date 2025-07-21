@@ -1,14 +1,13 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
 import type {
-    BundleResultFailed,
     BundlingMode,
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
-import type { Address, Block, Hex, WatchBlocksReturnType } from "viem"
+import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
@@ -145,91 +144,6 @@ export class ExecutorManager {
         return await this.gasPriceManager.getBaseFee()
     }
 
-    async handleFailedToBundle({
-        bundleResult,
-        entryPoint,
-        blockReceivedTimestamp,
-        submittedBundle
-    }: {
-        bundleResult: BundleResultFailed
-        entryPoint: Address
-        blockReceivedTimestamp?: number
-        submittedBundle?: SubmittedBundleInfo
-    }) {
-        // Handle case where no bundle was sent.
-        const { rejectedUserOps, recoverableOps, reason } = bundleResult
-
-        // Recover any userOps that can be resubmitted.
-        await this.mempool.resubmitUserOps({
-            userOps: recoverableOps,
-            entryPoint,
-            reason
-        })
-
-        // For rejected userOps, we need to check for frontruns
-        const shouldCheckFrontrun = rejectedUserOps.some(
-            ({ reason }) =>
-                reason.includes("AA25 invalid account nonce") ||
-                reason.includes("AA10 sender already constructed")
-        )
-
-        if (shouldCheckFrontrun) {
-            const timestamp = blockReceivedTimestamp || Date.now()
-            const bundlerTxs = submittedBundle
-                ? [
-                      submittedBundle.transactionHash,
-                      ...submittedBundle.previousTransactionHashes
-                  ]
-                : []
-
-            // Check each rejected userOp for frontrun or included
-            const results = await Promise.all(
-                rejectedUserOps.map(async (userOpInfo) => ({
-                    userOpInfo,
-                    status: await this.userOpMonitor.getUserOpStatus({
-                        userOpInfo,
-                        entryPoint,
-                        bundlerTxs,
-                        blockReceivedTimestamp: timestamp
-                    })
-                }))
-            )
-
-            const hasFrontrun = results.some(
-                ({ status }) => status === "frontran"
-            )
-
-            // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
-            // as it will fail onchain
-            if (hasFrontrun && submittedBundle) {
-                await this.cancelBundle(submittedBundle)
-            }
-
-            // Drop userOps that were rejected but not frontrun or included
-            const notFoundUserOps = results
-                .filter(({ status }) => status === "not_found")
-                .map(({ userOpInfo }) => userOpInfo)
-
-            await this.mempool.dropUserOps(entryPoint, notFoundUserOps)
-
-            // Stop tracking userOps that were included onchain either due to frontrun or included
-            const confirmedUserOps = results
-                .filter(({ status }) =>
-                    ["frontran", "included"].includes(status)
-                )
-                .map(({ userOpInfo }) => userOpInfo)
-
-            await this.mempool.removeSubmittedUserOps({
-                entryPoint,
-                userOps: confirmedUserOps
-            })
-        } else {
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-        }
-
-        return
-    }
-
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
@@ -271,12 +185,71 @@ export class ExecutorManager {
         })
 
         if (!bundleResult.success) {
-            await this.handleFailedToBundle({
-                bundleResult,
-                entryPoint
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            // Recover any userOps that can be resubmitted.
+            await this.mempool.resubmitUserOps({
+                userOps: recoverableOps,
+                entryPoint,
+                reason
             })
 
-            const { rejectedUserOps, reason } = bundleResult
+            // For rejected userOps, we need to check for frontruns
+            const shouldCheckFrontrun = rejectedUserOps.some(
+                ({ reason }) =>
+                    reason.includes("AA25 invalid account nonce") ||
+                    reason.includes("AA10 sender already constructed")
+            )
+
+            if (shouldCheckFrontrun) {
+                // Check each rejected userOp for frontrun or included
+                const results = await Promise.all(
+                    rejectedUserOps.map(async (userOpInfo) => ({
+                        userOpInfo,
+                        status: await this.userOpMonitor.getUserOpStatus({
+                            userOpInfo,
+                            entryPoint,
+                            bundlerTxs: [],
+                            blockReceivedTimestamp: Date.now()
+                        })
+                    }))
+                )
+
+                const hasFrontrun = results.some(
+                    ({ status }) => status === "frontran"
+                )
+
+                // If one userOp in the bundle was frontrun, log it
+                if (hasFrontrun) {
+                    this.logger.info("Bundle has been frontrun")
+                }
+
+                // Drop userOps that were rejected but not frontrun or included
+                const notFoundUserOps = results
+                    .filter(({ status }) => status === "not_found")
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.dropUserOps(entryPoint, notFoundUserOps)
+
+                // Stop tracking userOps that were included onchain either due to frontrun or included
+                const confirmedUserOps = results
+                    .filter(({ status }) =>
+                        ["frontran", "included"].includes(status)
+                    )
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.removeSubmittedUserOps({
+                    entryPoint,
+                    userOps: confirmedUserOps
+                })
+            } else {
+                this.logger.warn(
+                    { reason },
+                    "failed to send bundle transaction"
+                )
+
+                await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+            }
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(wallet)
@@ -550,17 +523,75 @@ export class ExecutorManager {
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
-            await this.handleFailedToBundle({
-                bundleResult,
+            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            // Recover any userOps that can be resubmitted.
+            await this.mempool.resubmitUserOps({
+                userOps: recoverableOps,
                 entryPoint,
-                blockReceivedTimestamp,
-                submittedBundle
+                reason
             })
 
-            this.logger.warn(
-                { reason, oldTxHash },
-                "failed to replace transaction"
+            // For rejected userOps, we need to check for frontruns
+            const shouldCheckFrontrun = rejectedUserOps.some(
+                ({ reason }) =>
+                    reason.includes("AA25 invalid account nonce") ||
+                    reason.includes("AA10 sender already constructed")
             )
+
+            if (shouldCheckFrontrun) {
+                // Check each rejected userOp for frontrun or included
+                const results = await Promise.all(
+                    rejectedUserOps.map(async (userOpInfo) => ({
+                        userOpInfo,
+                        status: await this.userOpMonitor.getUserOpStatus({
+                            userOpInfo,
+                            entryPoint,
+                            bundlerTxs: [
+                                submittedBundle.transactionHash,
+                                ...submittedBundle.previousTransactionHashes
+                            ],
+                            blockReceivedTimestamp
+                        })
+                    }))
+                )
+
+                const hasFrontrun = results.some(
+                    ({ status }) => status === "frontran"
+                )
+
+                // If one userOp in the bundle was frontrun, we need to cancel the entire bundle
+                // as it will fail onchain
+                if (hasFrontrun) {
+                    await this.cancelBundle(submittedBundle)
+                }
+
+                // Drop userOps that were rejected but not frontrun or included
+                const notFoundUserOps = results
+                    .filter(({ status }) => status === "not_found")
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.dropUserOps(entryPoint, notFoundUserOps)
+
+                // Stop tracking userOps that were included onchain either due to frontrun or included
+                const confirmedUserOps = results
+                    .filter(({ status }) =>
+                        ["frontran", "included"].includes(status)
+                    )
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.removeSubmittedUserOps({
+                    entryPoint,
+                    userOps: confirmedUserOps
+                })
+            } else {
+                this.logger.warn(
+                    { oldTxHash, reason },
+                    "failed to replace transaction"
+                )
+
+                await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+            }
 
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(executor)
