@@ -186,23 +186,72 @@ export class ExecutorManager {
 
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            // Recover any userOps that can be resubmitted.
+            await this.mempool.resubmitUserOps({
+                userOps: recoverableOps,
+                entryPoint,
+                reason
+            })
+
+            // For rejected userOps, we need to check for frontruns
+            const shouldCheckFrontrun = rejectedUserOps.some(
+                ({ reason }) =>
+                    reason.includes("AA25 invalid account nonce") ||
+                    reason.includes("AA10 sender already constructed")
+            )
+
+            if (shouldCheckFrontrun) {
+                // Check each rejected userOp for frontrun or included
+                const results = await Promise.all(
+                    rejectedUserOps.map(async (userOpInfo) => ({
+                        userOpInfo,
+                        status: await this.userOpMonitor.getUserOpStatus({
+                            userOpInfo,
+                            entryPoint,
+                            bundlerTxs: [],
+                            blockReceivedTimestamp: Date.now()
+                        })
+                    }))
+                )
+
+                const hasFrontrun = results.some(
+                    ({ status }) => status === "frontran"
+                )
+
+                // If one userOp in the bundle was frontrun, log it
+                if (hasFrontrun) {
+                    this.logger.info("Bundle has been frontrun")
+                }
+
+                // Drop userOps that were rejected but not frontrun or included
+                const notFoundUserOps = results
+                    .filter(({ status }) => status === "not_found")
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.dropUserOps(entryPoint, notFoundUserOps)
+
+                // Stop tracking userOps that were included onchain either due to frontrun or included
+                const confirmedUserOps = results
+                    .filter(({ status }) =>
+                        ["frontran", "included"].includes(status)
+                    )
+                    .map(({ userOpInfo }) => userOpInfo)
+
+                await this.mempool.removeSubmittedUserOps({
+                    entryPoint,
+                    userOps: confirmedUserOps
+                })
+            } else {
+                await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+            }
+
             // Free wallet as no bundle was sent.
             await this.senderManager.markWalletProcessed(wallet)
 
-            // Drop rejected ops
-            await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
             this.metrics.userOpsSubmitted
                 .labels({ status: "failed" })
                 .inc(rejectedUserOps.length)
-
-            // Handle recoverable ops
-            if (recoverableOps.length > 0) {
-                await this.mempool.resubmitUserOps({
-                    userOps: recoverableOps,
-                    entryPoint,
-                    reason
-                })
-            }
 
             if (reason === "filterops_failed" || reason === "generic_error") {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
@@ -490,9 +539,13 @@ export class ExecutorManager {
                 const results = await Promise.all(
                     rejectedUserOps.map(async (userOpInfo) => ({
                         userOpInfo,
-                        status: await this.userOpMonitor.checkUserOpStatus({
+                        status: await this.userOpMonitor.getUserOpStatus({
                             userOpInfo,
-                            submittedBundle,
+                            entryPoint,
+                            bundlerTxs: [
+                                submittedBundle.transactionHash,
+                                ...submittedBundle.previousTransactionHashes
+                            ],
                             blockReceivedTimestamp
                         })
                     }))

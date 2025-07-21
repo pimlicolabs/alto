@@ -181,9 +181,13 @@ export class UserOpMonitor {
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
             rejectedUserOps.map(async (userOpInfo) => {
-                const status = await this.checkUserOpStatus({
+                const status = await this.getUserOpStatus({
                     userOpInfo,
-                    submittedBundle,
+                    entryPoint: submittedBundle.bundle.entryPoint,
+                    bundlerTxs: [
+                        submittedBundle.transactionHash,
+                        ...submittedBundle.previousTransactionHashes
+                    ],
                     blockReceivedTimestamp
                 })
 
@@ -335,24 +339,19 @@ export class UserOpMonitor {
         )
     }
 
-    async checkUserOpStatus({
+    async getUserOpStatus({
         userOpInfo,
-        submittedBundle,
+        entryPoint,
+        bundlerTxs,
         blockReceivedTimestamp,
         blockWaitCount = 0
     }: {
         userOpInfo: UserOpInfo
-        submittedBundle: SubmittedBundleInfo
+        entryPoint: Address
+        bundlerTxs: Hex[]
         blockReceivedTimestamp: number
         blockWaitCount?: number
     }): Promise<"not_found" | "included" | "frontran"> {
-        const {
-            bundle: { entryPoint },
-            transactionHash,
-            previousTransactionHashes
-        } = submittedBundle
-        const bundlerTxs = [transactionHash, ...previousTransactionHashes]
-
         const { userOpHash } = userOpInfo
 
         // Try to find userOp onchain
@@ -418,9 +417,10 @@ export class UserOpMonitor {
             return new Promise((resolve) => {
                 setTimeout(() => {
                     resolve(
-                        this.checkUserOpStatus({
+                        this.getUserOpStatus({
                             userOpInfo,
-                            submittedBundle,
+                            entryPoint,
+                            bundlerTxs,
                             blockReceivedTimestamp,
                             blockWaitCount: blockWaitCount + 1
                         })
