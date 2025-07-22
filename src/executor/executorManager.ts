@@ -295,7 +295,6 @@ export class ExecutorManager {
             transactionHash: submittedBundle.transactionHash
         })
 
-        // Start watching blocks after marking operations as submitted
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
