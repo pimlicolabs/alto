@@ -307,15 +307,16 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
+        // Track bundle and start loop to watch blocks
         this.userOpMonitor.trackBundle(submittedBundle)
+        this.startWatchingBlocks()
+
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             entryPoint: submittedBundle.bundle.entryPoint,
             transactionHash: submittedBundle.transactionHash
         })
 
-        // Start watching blocks after marking operations as submitted
-        this.startWatchingBlocks()
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
@@ -647,7 +648,9 @@ export class ExecutorManager {
             }
         }
 
+        // Track bundle and start loop to watch blocks
         this.userOpMonitor.trackBundle(newTxInfo)
+        this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -660,6 +663,9 @@ export class ExecutorManager {
             },
             "replaced transaction"
         )
+        this.metrics.replacedTransactions
+            .labels({ reason, status: "success" })
+            .inc()
 
         return
     }
