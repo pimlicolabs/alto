@@ -123,16 +123,38 @@ export class ExecutorManager {
             return
         }
 
-        this.unWatch = this.config.publicClient.watchBlocks({
-            onBlock: async (block) => {
-                await this.handleBlock(block)
-            },
-            onError: (error) => {
-                this.logger.error({ error }, "error while watching blocks")
-            },
-            includeTransactions: false,
-            emitMissed: false
-        })
+        // If preconfirmationTime is set, poll at intervals instead of watching blocks
+        if (this.config.preconfirmationTime) {
+            // Set up interval to call handleBlock
+            const intervalId = setInterval(async () => {
+                try {
+                    const block = await this.config.publicClient.getBlock({
+                        blockTag: "pending"
+                    })
+
+                    await this.handleBlock(block)
+                } catch (error) {
+                    this.logger.error({ error }, "error while polling blocks")
+                }
+            }, this.config.preconfirmationTime)
+
+            // Store cleanup function
+            this.unWatch = () => {
+                clearInterval(intervalId)
+            }
+        } else {
+            // Default behavior - watch blocks
+            this.unWatch = this.config.publicClient.watchBlocks({
+                onBlock: async (block) => {
+                    await this.handleBlock(block)
+                },
+                onError: (error) => {
+                    this.logger.error({ error }, "error while watching blocks")
+                },
+                includeTransactions: false,
+                emitMissed: false
+            })
+        }
 
         this.logger.debug("started watching blocks")
     }
@@ -311,6 +333,7 @@ export class ExecutorManager {
         if (this.currentlyHandlingBlock) {
             return
         }
+
         this.currentlyHandlingBlock = true
         const blockReceivedTimestamp = Date.now()
 
