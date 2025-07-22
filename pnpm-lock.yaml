@@ -156,8 +156,8 @@ importers:
         specifier: ^4.35.0
         version: 4.35.0
       viem:
-        specifier: ^2.31.6
-        version: 2.31.7(typescript@5.3.3)(zod@3.22.4)
+        specifier: ^2.33.0
+        version: 2.33.0(typescript@5.3.3)(zod@3.22.4)
       yargs:
         specifier: ^17.7.1
         version: 17.7.2
@@ -1449,13 +1449,6 @@ packages:
     engines: {node: ^14.21.3 || >=16}
     dependencies:
       '@noble/hashes': 1.7.2
-    dev: false
-
-  /@noble/curves@1.9.1:
-    resolution: {integrity: sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==}
-    engines: {node: ^14.21.3 || >=16}
-    dependencies:
-      '@noble/hashes': 1.8.0
     dev: false
 
   /@noble/curves@1.9.2:
@@ -5540,7 +5533,7 @@ packages:
         optional: true
     dependencies:
       '@adraffy/ens-normalize': 1.11.0
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.2
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
@@ -7025,8 +7018,8 @@ packages:
       - zod
     dev: false
 
-  /viem@2.31.7(typescript@5.3.3)(zod@3.22.4):
-    resolution: {integrity: sha512-mpB8Hp6xK77E/b/yJmpAIQcxcOfpbrwWNItjnXaIA8lxZYt4JS433Pge2gg6Hp3PwyFtaUMh01j5L8EXnLTjQQ==}
+  /viem@2.33.0(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-SxBM3CmeU+LWLlBclV9MPdbuFV8mQEl0NeRc9iyYU4a7Xb5sr5oku3s/bRGTPpEP+1hCAHYpM09/ui3/dQ6EsA==}
     peerDependencies:
       typescript: '>=5.0.4'
     peerDependenciesMeta:

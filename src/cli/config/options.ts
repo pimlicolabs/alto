@@ -117,10 +117,10 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "flashblocks-enabled": {
-        description: "Enable flashblocks. Overrides some RPC calls parameters.",
-        type: "boolean",
-        default: false
+    "preconfirmation-time": {
+        description: "Time in milliseconds for preconfirmation (flashblocks)",
+        type: "number",
+        default: undefined
     }
 }
 
