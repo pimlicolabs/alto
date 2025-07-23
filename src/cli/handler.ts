@@ -127,7 +127,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     // let us assume that the block time is at least 2x the polling interval
     const viemChain = getViemChain({ chainId, args })
 
-    let chain: Chain = viemChain ?? {
+    const chain: Chain = viemChain ?? {
         id: chainId,
         name: "chain-name", // isn't important, never used
         nativeCurrency: {
