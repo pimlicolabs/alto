@@ -278,6 +278,7 @@ export const setupServer = async ({
         monitor,
         metrics,
         reputationManager,
+        gasPriceManager,
         eventManager,
         senderManager
     })
