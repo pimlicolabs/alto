@@ -17,7 +17,8 @@ import {
     TransactionReceiptNotFoundError,
     decodeEventLog,
     getAbiItem,
-    getAddress
+    getAddress,
+    Block
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
@@ -145,11 +146,13 @@ export class UserOpMonitor {
     async processRevertedBundle({
         submittedBundle,
         blockReceivedTimestamp,
-        bundleReceipt
+        bundleReceipt,
+        block
     }: {
         submittedBundle: SubmittedBundleInfo
         blockReceivedTimestamp: number
         bundleReceipt: BundleStatus<"reverted">
+        block?: Block
     }) {
         const { bundle } = submittedBundle
         const { blockNumber, transactionHash } = bundleReceipt
@@ -158,7 +161,8 @@ export class UserOpMonitor {
 
         const networkBaseFee = this.config.legacyTransactions
             ? 0n
-            : await this.gasPriceManager.getBaseFee()
+            : (block?.baseFeePerGas ??
+              (await this.gasPriceManager.getBaseFee()))
 
         // make rest of the code non-blocking
         return (async () => {

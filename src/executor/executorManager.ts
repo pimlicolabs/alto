@@ -7,7 +7,7 @@ import type {
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
-import type { Hex, WatchBlocksReturnType } from "viem"
+import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
@@ -140,13 +140,14 @@ export class ExecutorManager {
             }
         } else {
             // Default behavior - watch blocks
-            this.unWatch = this.config.publicClient.watchBlockNumber({
-                onBlockNumber: async () => {
-                    await this.handleBlock()
+            this.unWatch = this.config.publicClient.watchBlocks({
+                onBlock: async (block) => {
+                    await this.handleBlock(block)
                 },
                 onError: (error) => {
                     this.logger.error({ error }, "error while watching blocks")
                 },
+                includeTransactions: false,
                 emitMissed: false
             })
         }
@@ -325,7 +326,7 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock() {
+    private async handleBlock(block?: Block) {
         if (this.currentlyHandlingBlock) {
             return
         }
