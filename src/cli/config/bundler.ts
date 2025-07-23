@@ -101,6 +101,10 @@ export const executorArgsSchema = z.object({
     "utility-wallet-monitor": z.boolean(),
     "utility-wallet-monitor-interval": z.number(),
     "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
+    "gas-price-replacement-threshold": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("110"),
     "gas-limit-rounding-multiple": z
         .string()
         .transform((val) => BigInt(val))

@@ -368,6 +368,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "300"
     },
+    "gas-price-replacement-threshold": {
+        description:
+            "Percentage threshold for replacing transaction due to gas price (e.g. 110 = replace if network gas is 10% higher)",
+        type: "string",
+        require: false,
+        default: "110"
+    },
     "gas-limit-rounding-multiple": {
         description:
             "Value to round transaction gas limit to the nearest multiple of",
