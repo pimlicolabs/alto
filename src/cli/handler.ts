@@ -142,10 +142,11 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         }
     }
 
-    if (args.preconfirmationTime) {
+    if (args.flashblocksPreconfirmationTime) {
         chain = {
             ...chain,
-            experimental_preconfirmationTime: args.preconfirmationTime
+            experimental_preconfirmationTime:
+                args.flashblocksPreconfirmationTime
         }
     }
 

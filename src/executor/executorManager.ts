@@ -124,7 +124,7 @@ export class ExecutorManager {
         }
 
         // If preconfirmationTime is set, poll at intervals instead of watching blocks
-        if (this.config.preconfirmationTime) {
+        if (this.config.flashblocksPreconfirmationTime) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
                 try {
@@ -132,7 +132,7 @@ export class ExecutorManager {
                 } catch (error) {
                     this.logger.error({ error }, "error while polling blocks")
                 }
-            }, this.config.preconfirmationTime)
+            }, this.config.flashblocksPreconfirmationTime)
 
             // Store cleanup function
             this.unWatch = () => {

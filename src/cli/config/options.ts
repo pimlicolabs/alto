@@ -117,7 +117,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "preconfirmation-time": {
+    "flashblocks-preconfirmation-time": {
         description: "Time in milliseconds for preconfirmation (flashblocks)",
         type: "number",
         default: undefined
