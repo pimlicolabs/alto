@@ -8,9 +8,6 @@ import { Registry } from "prom-client"
 import {
     type CallParameters,
     type Chain,
-    type GetBalanceParameters,
-    type GetBlockParameters,
-    type GetTransactionCountParameters,
     createPublicClient,
     createWalletClient,
     fallback,
@@ -142,7 +139,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
-        }
+        },
+        experimental_preconfirmationTime: args.flashblocksPreconfirmationTime
     }
 
     let publicClient = createPublicClient({
@@ -157,52 +155,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         pollingInterval: args.blockTime / 2,
         chain
     })
-
-    // When Flashblocks support is enabled, override the relevant public actions
-    // to always query against the "pending" block tag as per
-    // https://docs.base.org/chain/flashblocks/apps
-    if (args.flashblocksEnabled) {
-        publicClient = publicClient
-            .extend((client) => ({
-                // @ts-ignore
-                async getBlock(args?: GetBlockParameters) {
-                    if (
-                        args?.blockHash !== undefined ||
-                        args?.blockNumber !== undefined
-                    ) {
-                        return await client.getBlock(args)
-                    }
-
-                    return await client.getBlock({
-                        blockTag: "pending"
-                    })
-                },
-                async getBalance(args: GetBalanceParameters) {
-                    if (args.blockNumber !== undefined) {
-                        return await client.getBalance(args)
-                    }
-
-                    return await client.getBalance({
-                        address: args.address,
-                        blockNumber: undefined,
-                        blockTag: "pending"
-                    })
-                },
-                async getTransactionCount(args: GetTransactionCountParameters) {
-                    if (args.blockNumber !== undefined) {
-                        return await client.getTransactionCount(args)
-                    }
-
-                    return await client.getTransactionCount({
-                        address: args.address,
-                        blockNumber: undefined,
-                        blockTag: "pending"
-                    })
-                }
-            }))
-            // @ts-ignore
-            .extend(publicActions)
-    }
 
     // Some permissioned chains require a whitelisted address to make deployments.
     // In order for simulations to work, we need to make our eth_call's from a whitelisted address.

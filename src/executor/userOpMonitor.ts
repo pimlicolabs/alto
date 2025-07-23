@@ -1,5 +1,5 @@
 import type { SenderManager } from "@alto/executor"
-import type { EventManager } from "@alto/handlers"
+import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     Mempool,
@@ -42,6 +42,7 @@ export class UserOpMonitor {
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
     private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
     private receiptCache: Map<HexData32, CachedReceipt> = new Map()
+    private gasPriceManager: GasPriceManager
     private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
     constructor({
@@ -51,7 +52,8 @@ export class UserOpMonitor {
         metrics,
         reputationManager,
         eventManager,
-        senderManager
+        senderManager,
+        gasPriceManager
     }: {
         config: AltoConfig
         mempool: Mempool
@@ -60,6 +62,7 @@ export class UserOpMonitor {
         reputationManager: InterfaceReputationManager
         eventManager: EventManager
         senderManager: SenderManager
+        gasPriceManager: GasPriceManager
     }) {
         this.reputationManager = reputationManager
         this.config = config
@@ -69,6 +72,7 @@ export class UserOpMonitor {
         this.eventManager = eventManager
         this.senderManager = senderManager
         this.cachedLatestBlock = null
+        this.gasPriceManager = gasPriceManager
         this.logger = config.getLogger(
             { module: "userop_monitor" },
             {
@@ -148,12 +152,17 @@ export class UserOpMonitor {
         submittedBundle: SubmittedBundleInfo
         blockReceivedTimestamp: number
         bundleReceipt: BundleStatus<"reverted">
-        block: Block
+        block?: Block
     }) {
         const { bundle } = submittedBundle
         const { blockNumber, transactionHash } = bundleReceipt
 
         await this.freeSubmittedBundle(submittedBundle)
+
+        const networkBaseFee = this.config.legacyTransactions
+            ? 0n
+            : (block?.baseFeePerGas ??
+              (await this.gasPriceManager.getBaseFee()))
 
         // make rest of the code non-blocking
         return (async () => {
@@ -162,7 +171,7 @@ export class UserOpMonitor {
                 userOpBundle: bundle,
                 config: this.config,
                 logger: this.logger,
-                networkBaseFee: block.baseFeePerGas || 0n
+                networkBaseFee
             })
 
             // Resubmit any userOps that we can recover

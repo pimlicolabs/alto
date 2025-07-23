@@ -87,7 +87,7 @@ export const bundlerArgsSchema = z.object({
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
     "rpc-gas-estimate": z.boolean(),
-    "flashblocks-enabled": z.boolean()
+    "flashblocks-preconfirmation-time": z.number().optional()
 })
 
 export const executorArgsSchema = z.object({
