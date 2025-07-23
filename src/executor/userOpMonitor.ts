@@ -11,14 +11,14 @@ import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
+    type Block,
     type Hash,
     type Hex,
     type TransactionReceipt,
     TransactionReceiptNotFoundError,
     decodeEventLog,
     getAbiItem,
-    getAddress,
-    Block
+    getAddress
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
