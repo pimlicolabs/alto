@@ -402,12 +402,12 @@ export class ExecutorManager {
         const { transactionRequest, lastReplaced } = submittedBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
 
-        // Only replace if network gas price is 15% higher than current transaction
+        // Only replace if network gas price is 10% higher than current transaction
         const isGasPriceTooLow =
             networkGasPrice.maxFeePerGas >
-                scaleBigIntByPercent(maxFeePerGas, 115n) ||
+                scaleBigIntByPercent(maxFeePerGas, 110n) ||
             networkGasPrice.maxPriorityFeePerGas >
-                scaleBigIntByPercent(maxPriorityFeePerGas, 115n)
+                scaleBigIntByPercent(maxPriorityFeePerGas, 110n)
 
         const isStuck =
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
