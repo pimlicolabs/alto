@@ -402,13 +402,9 @@ export class ExecutorManager {
         const { transactionRequest, lastReplaced } = submittedBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
 
-        // Only replace if network gas price is higher than current transaction by the configured threshold
-        const threshold = this.config.gasPriceReplacementThreshold
         const isGasPriceTooLow =
-            maxFeePerGas <
-                scaleBigIntByPercent(networkGasPrice.maxFeePerGas, threshold) ||
-            maxPriorityFeePerGas <
-                scaleBigIntByPercent(networkGasPrice.maxPriorityFeePerGas, threshold)
+            maxFeePerGas < networkGasPrice.maxFeePerGas ||
+            maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
 
         const isStuck =
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
