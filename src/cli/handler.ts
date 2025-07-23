@@ -139,15 +139,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         rpcUrls: {
             default: { http: [args.rpcUrl] },
             public: { http: [args.rpcUrl] }
-        }
-    }
-
-    if (args.flashblocksPreconfirmationTime) {
-        chain = {
-            ...chain,
-            experimental_preconfirmationTime:
-                args.flashblocksPreconfirmationTime
-        }
+        },
+        experimental_preconfirmationTime: args.flashblocksPreconfirmationTime
     }
 
     let publicClient = createPublicClient({
