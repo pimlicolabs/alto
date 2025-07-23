@@ -404,10 +404,10 @@ export class ExecutorManager {
 
         // Only replace if network gas price is 15% higher than current transaction
         const isGasPriceTooLow =
-            scaleBigIntByPercent(maxFeePerGas, 115n) <
-                networkGasPrice.maxFeePerGas ||
-            scaleBigIntByPercent(maxPriorityFeePerGas, 115n) <
-                networkGasPrice.maxPriorityFeePerGas
+            networkGasPrice.maxFeePerGas >
+                scaleBigIntByPercent(maxFeePerGas, 115n) ||
+            networkGasPrice.maxPriorityFeePerGas >
+                scaleBigIntByPercent(maxPriorityFeePerGas, 115n)
 
         const isStuck =
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
