@@ -365,7 +365,8 @@ export class ExecutorManager {
                     await this.userOpMonitor.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: receipt
+                        bundleReceipt: receipt,
+                        block
                     })
                 }
 
@@ -401,9 +402,12 @@ export class ExecutorManager {
         const { transactionRequest, lastReplaced } = submittedBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
 
+        // Only replace if network gas price is 10% higher than current transaction
         const isGasPriceTooLow =
-            maxFeePerGas < networkGasPrice.maxFeePerGas ||
-            maxPriorityFeePerGas < networkGasPrice.maxPriorityFeePerGas
+            scaleBigIntByPercent(maxFeePerGas, 110n) <
+                networkGasPrice.maxFeePerGas ||
+            scaleBigIntByPercent(maxPriorityFeePerGas, 110n) <
+                networkGasPrice.maxPriorityFeePerGas
 
         const isStuck =
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
