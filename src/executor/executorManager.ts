@@ -402,11 +402,11 @@ export class ExecutorManager {
         const { transactionRequest, lastReplaced } = submittedBundle
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
 
-        // Only replace if network gas price is 10% higher than current transaction
+        // Only replace if network gas price is 15% higher than current transaction
         const isGasPriceTooLow =
-            scaleBigIntByPercent(maxFeePerGas, 110n) <
+            scaleBigIntByPercent(maxFeePerGas, 115n) <
                 networkGasPrice.maxFeePerGas ||
-            scaleBigIntByPercent(maxPriorityFeePerGas, 110n) <
+            scaleBigIntByPercent(maxPriorityFeePerGas, 115n) <
                 networkGasPrice.maxPriorityFeePerGas
 
         const isStuck =
