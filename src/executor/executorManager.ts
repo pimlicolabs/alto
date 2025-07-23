@@ -7,7 +7,7 @@ import type {
 } from "@alto/types"
 import type { GasPriceParameters } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
-import type { Block, Hex, WatchBlocksReturnType } from "viem"
+import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
@@ -128,11 +128,7 @@ export class ExecutorManager {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
                 try {
-                    const block = await this.config.publicClient.getBlock({
-                        blockTag: "pending"
-                    })
-
-                    await this.handleBlock(block)
+                    await this.handleBlock()
                 } catch (error) {
                     this.logger.error({ error }, "error while polling blocks")
                 }
@@ -144,14 +140,13 @@ export class ExecutorManager {
             }
         } else {
             // Default behavior - watch blocks
-            this.unWatch = this.config.publicClient.watchBlocks({
-                onBlock: async (block) => {
-                    await this.handleBlock(block)
+            this.unWatch = this.config.publicClient.watchBlockNumber({
+                onBlockNumber: async () => {
+                    await this.handleBlock()
                 },
                 onError: (error) => {
                     this.logger.error({ error }, "error while watching blocks")
                 },
-                includeTransactions: false,
                 emitMissed: false
             })
         }
@@ -330,7 +325,7 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock(block: Block) {
+    private async handleBlock() {
         if (this.currentlyHandlingBlock) {
             return
         }
@@ -369,8 +364,7 @@ export class ExecutorManager {
                     await this.userOpMonitor.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: receipt,
-                        block
+                        bundleReceipt: receipt
                     })
                 }
 
