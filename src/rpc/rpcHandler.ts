@@ -109,9 +109,12 @@ export class RpcHandler {
             )
         }
 
+        // Parse and validate the request using the handler's schema
+        const validatedRequest = handler.schema.parse(request)
+
         return await handler.handler({
             rpcHandler: this,
-            params: request.params,
+            params: validatedRequest.params,
             apiVersion
         })
     }

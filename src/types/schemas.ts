@@ -1,5 +1,5 @@
 import { type Hash, type Hex, getAddress, maxUint256, pad } from "viem"
-import { z } from "zod"
+import { z } from "zod/v4"
 
 const hexDataPattern = /^0x[0-9A-Fa-f]*$/
 const addressPattern = /^0x[0-9,a-f,A-F]{40}$/

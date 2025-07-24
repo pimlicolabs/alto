@@ -1,9 +1,16 @@
 import type { ApiVersion } from "@alto/types"
 import type { ReadonlyDeep } from "type-fest"
-import type { z } from "zod"
+import type { z } from "zod/v4"
 import type { RpcHandler } from "./rpcHandler"
 
-export type MethodHandler<T extends z.ZodType = z.ZodType> = {
+// Define the constraint for the schema type
+type MethodSchema = z.ZodObject<{
+    method: z.ZodLiteral<string> | z.ZodString
+    params: z.ZodType
+    result: z.ZodType
+}>
+
+export type MethodHandler<T extends MethodSchema = MethodSchema> = {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
@@ -28,7 +35,7 @@ const freezeDeep = <T>(obj: T): T => {
     return obj as T
 }
 
-export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
+export const createMethodHandler = <T extends MethodSchema>(methodConfig: {
     schema: T
     method: z.infer<T>["method"]
     handler: (args: {
@@ -41,7 +48,7 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
     method: z.infer<T>["method"]
     handler: (args: {
         rpcHandler: RpcHandler
-        params: ReadonlyDeep<z.infer<T>["params"]>
+        params: unknown
         apiVersion: ApiVersion
     }) => Promise<z.infer<T>["result"]> | z.infer<T>["result"]
 } => {
@@ -49,12 +56,19 @@ export const createMethodHandler = <T extends z.ZodType>(methodConfig: {
         schema: methodConfig.schema,
         method: methodConfig.method,
         handler: (args) => {
-            const frozenParams = freezeDeep(args.params)
+            // Parse and validate the full request to get typed params
+            const validatedRequest = methodConfig.schema.parse({
+                method: methodConfig.method,
+                params: args.params,
+                result: undefined // This is just for validation structure
+            })
+            
+            const frozenParams = freezeDeep(validatedRequest.params)
 
-            // Call the handler with frozen params
+            // Call the handler with properly typed and frozen params
             return methodConfig.handler({
                 rpcHandler: args.rpcHandler,
-                params: frozenParams,
+                params: frozenParams as ReadonlyDeep<z.infer<T>["params"]>,
                 apiVersion: args.apiVersion
             })
         }

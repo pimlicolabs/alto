@@ -1,5 +1,5 @@
 import { type Hex, decodeErrorResult } from "viem"
-import { z } from "zod"
+import { z } from "zod/v4"
 import { RpcError } from "."
 import { EntryPointV06Abi } from "./contracts"
 import { type HexData, addressSchema } from "./schemas"

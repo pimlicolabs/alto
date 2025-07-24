@@ -7,12 +7,12 @@ import {
 } from "@alto/types"
 import { type Hex, parseGwei } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
-import { z } from "zod"
+import { z } from "zod/v4"
 
 const logLevel = z.enum(["trace", "debug", "info", "warn", "error", "fatal"])
 
 const rpcMethodNames = bundlerRequestSchema.options.map(
-    (s) => s.shape.method._def.value
+    (s) => s.shape.method.def.type
 ) as [string, ...string[]]
 
 export const bundlerArgsSchema = z.object({
@@ -34,8 +34,8 @@ export const bundlerArgsSchema = z.object({
 
     "gas-price-bump": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("100"),
+        .default("100")
+        .transform((val) => BigInt(val)),
     "gas-price-expiry": z.number().int().min(0),
     "gas-price-multipliers": z
         .string()
@@ -52,8 +52,8 @@ export const bundlerArgsSchema = z.object({
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
     "max-gas-per-bundle": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("20000000"),
+        .default("20000000")
+        .transform((val) => BigInt(val)),
     "rpc-methods": z
         .string()
         .nullable()
@@ -103,13 +103,13 @@ export const executorArgsSchema = z.object({
     "resubmit-multiplier-ceiling": z.string().transform((val) => BigInt(val)),
     "gas-limit-rounding-multiple": z
         .string()
+        .default("4337")
         .transform((val) => BigInt(val))
         .refine(
             (value) => value > 0n,
             "Gas limit rounding multiple must be a positive number"
         )
-        .optional()
-        .default("4337"),
+        .optional(),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
@@ -141,12 +141,12 @@ export const executorArgsSchema = z.object({
         .transform((val) => BigInt(val)),
     "bundler-initial-commission": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("10"),
+        .default("10")
+        .transform((val) => BigInt(val)),
     "arbitrum-gas-bid-multiplier": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("5"),
+        .default("5")
+        .transform((val) => BigInt(val)),
     "binary-search-max-retries": z.number().int().min(1).default(3)
 })
 
@@ -252,12 +252,12 @@ export const gasEstimationArgsSchema = z.object({
     ),
     "binary-search-tolerance-delta": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("1000"),
+        .default("1000")
+        .transform((val) => BigInt(val)),
     "binary-search-gas-allowance": z
         .string()
-        .transform((val) => BigInt(val))
-        .default("1000000"),
+        .default("1000000")
+        .transform((val) => BigInt(val)),
     "v6-call-gas-limit-multiplier": z.string().transform((val) => BigInt(val)),
     "v6-verification-gas-limit-multiplier": z
         .string()

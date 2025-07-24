@@ -19,7 +19,7 @@
 //   }
 
 import { parseGwei } from "viem"
-import { bigint, z } from "zod"
+import { bigint, z } from "zod/v4"
 
 const gasPrice = z
     .object({

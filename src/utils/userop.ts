@@ -25,7 +25,7 @@ import {
     zeroAddress
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
-import { z } from "zod"
+import { z } from "zod/v4"
 import { getAuthorizationStateOverrides } from "./helpers"
 
 // Type predicate check if the UserOperation is V06.

@@ -231,7 +231,7 @@ export class Executor {
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
                     value: request.gas,
-                    multiple: this.config.gasLimitRoundingMultiple
+                    multiple: this.config.gasLimitRoundingMultiple ?? 1n
                 })
 
                 transactionHash = await walletClient.sendTransaction(request)
