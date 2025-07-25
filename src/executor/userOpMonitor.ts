@@ -306,7 +306,7 @@ export class UserOpMonitor {
         const inclusionTimeMs = blockReceivedTimestamp - addedToMempool
         this.logger.info(
             { userOpHash, transactionHash, inclusionTimeMs },
-            `user op included`
+            "user op included"
         )
 
         // Update status
