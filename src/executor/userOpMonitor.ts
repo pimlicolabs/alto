@@ -303,7 +303,11 @@ export class UserOpMonitor {
         const { userOpHash, userOp, submissionAttempts, addedToMempool } =
             userOpInfo
 
-        this.logger.info({ userOpHash, transactionHash }, "user op included")
+        const inclusionTimeMs = blockReceivedTimestamp - addedToMempool
+        this.logger.info(
+            { userOpHash, transactionHash, inclusionTimeMs },
+            "user op included"
+        )
 
         // Update status
         await this.monitor.setUserOpStatus(userOpHash, {
@@ -331,9 +335,7 @@ export class UserOpMonitor {
         }
 
         // Track metrics
-        this.metrics.userOpInclusionDuration.observe(
-            (blockReceivedTimestamp - addedToMempool) / 1000
-        )
+        this.metrics.userOpInclusionDuration.observe(inclusionTimeMs / 1000)
         this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
         // Update reputation
