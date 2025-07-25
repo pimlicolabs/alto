@@ -50,7 +50,6 @@
         "@opentelemetry/sdk-trace-base": "^1.25.1",
         "@opentelemetry/semantic-conventions": "^1.25.1",
         "@pimlico/opentelemetry-instrumentation-viem": "^0.0.4",
-        "@pimlico/schemas": "file:/Users/sergey/pimlico/pimlico-utils/packages/schemas",
         "@sentry/node": "^9.15.0",
         "@types/bull": "^4.10.4",
         "@types/node": "^18.16.3",
