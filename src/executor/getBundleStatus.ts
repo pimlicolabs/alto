@@ -1,4 +1,4 @@
-import type { UserOperationReceipt } from "@alto/types"
+import type { UserOperationReceipt } from "@alto/schemas"
 import type { Logger } from "pino"
 import type { Hex, PublicClient } from "viem"
 import type { SubmittedBundleInfo } from "../types/mempool"

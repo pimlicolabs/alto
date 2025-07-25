@@ -1,11 +1,10 @@
+import { EntryPointV06Abi, EntryPointV07Abi } from "@alto/types"
 import {
-    EntryPointV06Abi,
-    EntryPointV07Abi,
-    type PackedUserOperation,
-    type UserOpInfo,
-    type UserOperation,
-    type UserOperationV07
-} from "@alto/types"
+    PackedUserOperation,
+    UserOpInfo,
+    UserOperation,
+    UserOperationV07
+} from "@alto/schemas"
 import {
     type Logger,
     isVersion06,

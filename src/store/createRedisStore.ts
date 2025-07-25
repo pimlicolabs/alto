@@ -7,7 +7,7 @@ import {
     type UserOpInfo,
     type UserOperation,
     userOperationSchema
-} from "../types/schemas"
+} from "@alto/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
 import { RedisHash } from "./createRedisOutstandingStore"
 import { createMemoryStore } from "./createStore"

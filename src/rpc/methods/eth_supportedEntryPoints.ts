@@ -1,4 +1,4 @@
-import { supportedEntryPointsSchema } from "@alto/types"
+import { supportedEntryPointsSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethSupportedEntryPointsHandler = createMethodHandler({

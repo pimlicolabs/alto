@@ -1,4 +1,4 @@
-import type { HexData32, UserOpInfo } from "@alto/types"
+import type { HexData32, UserOpInfo } from "@alto/schemas"
 import type { Address, Prettify } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"

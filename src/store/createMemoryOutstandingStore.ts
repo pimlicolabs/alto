@@ -1,4 +1,4 @@
-import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { HexData32, UserOpInfo, UserOperation } from "@alto/schemas"
 import type { Logger } from "@alto/utils"
 import type { ConflictingOutstandingType, OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"

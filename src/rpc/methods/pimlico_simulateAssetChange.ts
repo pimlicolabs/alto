@@ -1,13 +1,15 @@
 import {
     ExecutionErrors,
     RpcError,
-    type UserOperation,
-    type UserOperationV06,
-    type UserOperationV07,
     ValidationErrors,
-    pimlicoSimulateAssetChangeSchema,
     pimlicoSimulationsAbi
 } from "@alto/types"
+import {
+    pimlicoSimulateAssetChangeSchema,
+    UserOperation,
+    UserOperationV06,
+    UserOperationV07
+} from "@alto/schemas"
 import {
     isVersion06,
     isVersion07,

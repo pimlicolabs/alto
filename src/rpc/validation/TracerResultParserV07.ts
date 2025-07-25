@@ -5,7 +5,6 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
-    type UserOperationV07,
     ValidationErrors,
     type ValidationResultV07
 } from "@alto/types"
@@ -25,6 +24,7 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
+import { UserOperationV07 } from "@alto/schemas"
 
 interface CallEntry {
     to: string

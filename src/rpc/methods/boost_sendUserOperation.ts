@@ -1,9 +1,6 @@
 import { RpcError } from "@alto/types"
 import { isVersion06, isVersion07 } from "@alto/utils"
-import {
-    type UserOperation,
-    boostSendUserOperationSchema
-} from "../../types/schemas"
+import { boostSendUserOperationSchema, type UserOperation } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
 

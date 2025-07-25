@@ -1,22 +1,19 @@
-import {
-    type Address,
-    type ApiVersion,
-    type ReferencedCodeHashes,
-    RpcError,
-    type UserOperation,
-    ValidationErrors,
-    sendUserOperationSchema
-} from "@alto/types"
+import { type ApiVersion, RpcError, ValidationErrors } from "@alto/types"
 import type * as validation from "@alto/types"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     getAAError
 } from "@alto/utils"
-import type { Hex } from "viem"
+import type { Address, Hex } from "viem"
 import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
+import {
+    ReferencedCodeHashes,
+    sendUserOperationSchema,
+    UserOperation
+} from "@alto/schemas"
 
 const validatePvg = async (
     apiVersion: ApiVersion,

@@ -1,4 +1,4 @@
-import { debugClearReputationSchema } from "@alto/types"
+import { debugClearReputationSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugClearReputationHandler = createMethodHandler({

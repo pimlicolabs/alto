@@ -1,4 +1,4 @@
-import { debugClearStateSchema } from "@alto/types"
+import { debugClearStateSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerClearStateHandler = createMethodHandler({

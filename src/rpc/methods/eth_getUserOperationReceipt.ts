@@ -1,4 +1,5 @@
-import { RpcError, getUserOperationReceiptSchema } from "@alto/types"
+import { RpcError } from "@alto/types"
+import { getUserOperationReceiptSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethGetUserOperationReceiptHandler = createMethodHandler({

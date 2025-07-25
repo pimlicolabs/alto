@@ -1,20 +1,17 @@
 import type { EventManager } from "@alto/handlers"
 import type { MempoolStore } from "@alto/store"
 import {
-    type Address,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
-    type ReferencedCodeHashes,
     type RejectedUserOp,
     RpcError,
     type StorageMap,
-    type UserOpInfo,
-    type UserOperation,
     type UserOperationBundle,
     ValidationErrors,
     type ValidationResult
 } from "@alto/types"
+import { ReferencedCodeHashes, UserOpInfo, UserOperation } from "@alto/schemas"
 import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
@@ -26,7 +23,7 @@ import {
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Hex, getAddress, getContract } from "viem"
+import { Address, type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import type { AltoConfig } from "../createConfig"

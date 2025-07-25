@@ -1,4 +1,4 @@
-import { pimlicoGetUserOperationStatusSchema } from "@alto/types"
+import { pimlicoGetUserOperationStatusSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const pimlicoGetUserOperationStatusHandler = createMethodHandler({

@@ -1,12 +1,5 @@
 import type { EventManager } from "@alto/handlers"
-import type {
-    Address,
-    BundleResult,
-    GasPriceParameters,
-    HexData32,
-    UserOpInfo,
-    UserOperationBundle
-} from "@alto/types"
+import type { Address, HexData32, UserOpInfo } from "@alto/schemas"
 import type { Logger } from "@alto/utils"
 import {
     jsonStringifyWithBigint,
@@ -38,6 +31,11 @@ import {
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
+import {
+    BundleResult,
+    GasPriceParameters,
+    UserOperationBundle
+} from "@alto/types"
 
 type HandleOpsTxParams = {
     gas: bigint

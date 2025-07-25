@@ -1,12 +1,5 @@
-import {
-    type Address,
-    RpcError,
-    type StateOverrides,
-    type UserOperation,
-    ValidationErrors,
-    estimateUserOperationGasSchema
-} from "@alto/types"
-import { parseEther, toHex } from "viem"
+import { RpcError, ValidationErrors } from "@alto/types"
+import { Address, parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
 import {
     calcExecutionPvgComponent,
@@ -15,6 +8,11 @@ import {
 import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
+import {
+    estimateUserOperationGasSchema,
+    StateOverrides,
+    UserOperation
+} from "@alto/schemas"
 
 type GasEstimateResult =
     | {

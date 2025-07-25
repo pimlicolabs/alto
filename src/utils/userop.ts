@@ -6,7 +6,7 @@ import {
     type UserOperationV07,
     logSchema,
     receiptSchema
-} from "@alto/types"
+} from "@alto/schemas"
 import {
     type Address,
     type Hex,

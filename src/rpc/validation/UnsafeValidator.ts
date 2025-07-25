@@ -1,9 +1,6 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
-    StateOverrides,
-    UserOperationV06,
-    UserOperationV07,
     ValidationResult,
     ValidationResultV06,
     ValidationResultV07,
@@ -11,14 +8,11 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
-    type Address,
     EntryPointV06Abi,
     ExecutionErrors,
     type ExecutionResult,
-    type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
-    type UserOperation,
     ValidationErrors,
     type ValidationResultWithAggregation,
     entryPointExecutionErrorSchemaV06,
@@ -28,6 +22,7 @@ import type { Logger, Metrics } from "@alto/utils"
 import { isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
+    Address,
     BaseError,
     ContractFunctionExecutionError,
     type StateOverride,
@@ -42,6 +37,13 @@ import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import {
+    ReferencedCodeHashes,
+    StateOverrides,
+    UserOperation,
+    UserOperationV06,
+    UserOperationV07
+} from "@alto/schemas"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig

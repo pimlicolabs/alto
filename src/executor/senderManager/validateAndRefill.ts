@@ -1,9 +1,10 @@
-import { CallEngineAbi, type HexData } from "@alto/types"
+import { CallEngineAbi } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import { type Address, formatEther, getContract } from "viem"
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
+import { HexData } from "@alto/schemas"
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
 export const validateAndRefillWallets = async ({

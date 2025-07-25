@@ -4,7 +4,7 @@ import {
     type UserOpInfo,
     type UserOperation,
     userOpInfoSchema
-} from "@alto/types"
+} from "@alto/schemas"
 import { type ChainableCommander, Redis } from "ioredis"
 import { toHex } from "viem/utils"
 import type { OutstandingStore } from "."

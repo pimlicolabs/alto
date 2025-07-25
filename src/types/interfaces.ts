@@ -6,7 +6,7 @@ import type {
     UserOperation,
     UserOperationV06,
     UserOperationV07
-} from "./schemas"
+} from "@alto/schemas"
 import type * as validation from "./validation"
 
 export interface InterfaceValidator {

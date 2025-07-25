@@ -1,4 +1,4 @@
-import { debugDumpMempoolSchema } from "@alto/types"
+import { debugDumpMempoolSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerDumpMempoolHandler = createMethodHandler({

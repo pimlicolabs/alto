@@ -1,7 +1,10 @@
-import type { HexData32, UserOperationStatus } from "@alto/types"
 import { Redis } from "ioredis"
 import type { AltoConfig } from "../createConfig"
-import { userOperationStatusSchema } from "../types/schemas"
+import {
+    HexData32,
+    UserOperationStatus,
+    userOperationStatusSchema
+} from "@alto/schemas"
 
 interface UserOperationStatusStore {
     set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>

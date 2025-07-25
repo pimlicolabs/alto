@@ -1,4 +1,9 @@
-import type { Address, HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type {
+    Address,
+    HexData32,
+    UserOpInfo,
+    UserOperation
+} from "@alto/schemas"
 
 // Define the StoreType type
 export type StoreType = "outstanding" | "processing" | "submitted"

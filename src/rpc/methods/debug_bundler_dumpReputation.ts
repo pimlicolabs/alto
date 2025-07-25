@@ -1,4 +1,4 @@
-import { debugDumpReputationSchema } from "@alto/types"
+import { debugDumpReputationSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerDumpReputationHandler = createMethodHandler({

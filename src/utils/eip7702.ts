@@ -1,5 +1,5 @@
 import { type StateOverride, concat } from "viem"
-import type { UserOperation } from "../types/schemas"
+import type { UserOperation } from "@alto/schemas"
 
 export const getEip7702DelegationOverrides = (
     userOps: UserOperation[]

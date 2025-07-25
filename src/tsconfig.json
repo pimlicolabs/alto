@@ -29,6 +29,9 @@
             "@alto/rpc": [
                 "./rpc"
             ],
+            "@alto/schemas": [
+                "./schemas"
+            ],
             "@alto/types": [
                 "./types"
             ],

@@ -4,7 +4,7 @@ import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type { OpEventType } from "../types/schemas"
+import type { OpEventType } from "@alto/schemas"
 import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {

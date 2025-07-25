@@ -62,7 +62,7 @@ export const createMethodHandler = <T extends MethodSchema>(methodConfig: {
                 params: args.params,
                 result: undefined // This is just for validation structure
             })
-            
+
             const frozenParams = freezeDeep(validatedRequest.params)
 
             // Call the handler with properly typed and frozen params

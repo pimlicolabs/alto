@@ -5,8 +5,8 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
-import type { UserOperationReceipt } from "@alto/types"
+import type { SubmittedBundleInfo } from "@alto/types"
+import { HexData32, UserOpInfo, UserOperationReceipt } from "@alto/schemas"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {

@@ -1,13 +1,12 @@
+import { EntryPointV06Abi, EntryPointV07Abi } from "@alto/types"
 import {
-    EntryPointV06Abi,
-    EntryPointV07Abi,
     type HexData32,
     type PackedUserOperation,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
     getUserOperationByHashSchema
-} from "@alto/types"
+} from "@alto/schemas"
 import {
     type Transaction,
     TransactionNotFoundError,

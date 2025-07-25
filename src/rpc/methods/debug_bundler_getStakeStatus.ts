@@ -1,5 +1,6 @@
-import { RpcError, debugGetStakeStatusSchema } from "@alto/types"
+import { RpcError } from "@alto/types"
 import { createMethodHandler } from "../createMethodHandler"
+import { debugGetStakeStatusSchema } from "@alto/schemas"
 
 export const debugGetStakeStatusHandler = createMethodHandler({
     schema: debugGetStakeStatusSchema,

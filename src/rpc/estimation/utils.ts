@@ -1,8 +1,3 @@
-import type {
-    StateOverrides,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/types"
 import { ValidationErrors, executionResultSchema } from "@alto/types"
 import {
     type Logger,
@@ -31,6 +26,11 @@ import type { GasPriceManager } from "../../handlers/gasPriceManager"
 import { getSenderCreatorOverride } from "../../utils/entryPointOverrides"
 import { toViemStateOverrides } from "../../utils/toViemStateOverrides"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import {
+    StateOverrides,
+    UserOperationV06,
+    UserOperationV07
+} from "@alto/schemas"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {

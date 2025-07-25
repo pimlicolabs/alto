@@ -1,12 +1,4 @@
-import {
-    type ApiVersion,
-    type JSONRPCResponse,
-    RpcError,
-    ValidationErrors,
-    altoVersions,
-    bundlerRequestSchema,
-    jsonRpcSchema
-} from "@alto/types"
+import { type ApiVersion, RpcError, ValidationErrors } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
@@ -24,6 +16,12 @@ import type { AltoConfig } from "../createConfig"
 import rpcDecorators, { RpcStatus } from "../utils/fastify-rpc-decorators"
 import RpcReply from "../utils/rpc-reply"
 import type { RpcHandler } from "./rpcHandler"
+import {
+    altoVersions,
+    bundlerRequestSchema,
+    JSONRPCResponse,
+    jsonRpcSchema
+} from "@alto/schemas"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify

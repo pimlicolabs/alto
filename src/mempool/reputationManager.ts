@@ -2,7 +2,6 @@ import {
     EntryPointV06Abi,
     RpcError,
     type StakeInfo,
-    type UserOperation,
     ValidationErrors,
     type ValidationResult,
     type ValidationResultWithAggregation
@@ -15,6 +14,7 @@ import {
 import type { ReadonlyDeep } from "type-fest"
 import { type Address, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { UserOperation } from "@alto/schemas"
 
 export interface InterfaceReputationManager {
     checkReputation(

@@ -1,4 +1,4 @@
-import { chainIdSchema } from "@alto/types"
+import { chainIdSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethChainIdHandler = createMethodHandler({

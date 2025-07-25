@@ -1,10 +1,10 @@
 import {
-    type ApiVersion,
     addressSchema,
     bundlerRequestSchema,
     commaSeperatedAddressPattern,
     hexData32Schema
-} from "@alto/types"
+} from "@alto/schemas"
+import { ApiVersion } from "@alto/types"
 import { type Hex, parseGwei } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"
 import { z } from "zod/v4"

@@ -2,12 +2,11 @@ import crypto from "node:crypto"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
-    MantleBvmGasPriceOracleAbi,
-    OpL1FeeAbi,
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
-} from "@alto/types"
+} from "@alto/schemas"
+import { MantleBvmGasPriceOracleAbi, OpL1FeeAbi } from "@alto/types"
 import {
     type Chain,
     type PublicClient,

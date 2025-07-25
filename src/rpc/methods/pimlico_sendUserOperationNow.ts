@@ -1,10 +1,9 @@
 import {
     RpcError,
-    type UserOpInfo,
     type UserOperationBundle,
-    ValidationErrors,
-    pimlicoSendUserOperationNowSchema
+    ValidationErrors
 } from "@alto/types"
+import { pimlicoSendUserOperationNowSchema, UserOpInfo } from "@alto/schemas"
 import {
     getUserOpHash,
     isVersion07,

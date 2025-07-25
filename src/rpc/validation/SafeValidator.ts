@@ -2,8 +2,6 @@ import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
-    UserOperationV06,
-    UserOperationV07,
     ValidationResult,
     ValidationResultV06,
     ValidationResultV07,
@@ -11,15 +9,12 @@ import type {
     ValidationResultWithAggregationV07
 } from "@alto/types"
 import {
-    type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     EntryPointV06Abi,
-    type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
-    type UserOperation,
     ValidationErrors,
     type ValidationResultWithAggregation,
     pimlicoSimulationsAbi
@@ -33,6 +28,7 @@ import {
     toPackedUserOp
 } from "@alto/utils"
 import {
+    Address,
     type ExecutionRevertedError,
     type Hex,
     decodeErrorResult,
@@ -50,6 +46,12 @@ import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
+import {
+    ReferencedCodeHashes,
+    UserOperation,
+    UserOperationV06,
+    UserOperationV07
+} from "@alto/schemas"
 
 export class SafeValidator
     extends UnsafeValidator

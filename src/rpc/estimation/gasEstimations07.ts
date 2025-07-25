@@ -2,11 +2,10 @@ import type { GasPriceManager } from "@alto/handlers"
 import {
     ExecutionErrors,
     RpcError,
-    type StateOverrides,
-    type UserOperationV07,
     ValidationErrors,
     pimlicoSimulationsAbi
 } from "@alto/types"
+import { StateOverrides, UserOperationV07 } from "@alto/schemas"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, type StateOverride, getContract } from "viem"

@@ -3,7 +3,7 @@ import {
     type StateOverride as ViemStateOverride,
     getAddress
 } from "viem"
-import type { StateOverrides } from "../types/schemas"
+import type { StateOverrides } from "@alto/schemas"
 
 export function toViemStateOverrides(
     stateOverrides?: StateOverrides

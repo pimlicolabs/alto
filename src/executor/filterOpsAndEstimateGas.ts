@@ -1,12 +1,14 @@
 import {
     ArbitrumL1FeeAbi,
     type RejectedUserOp,
-    type UserOpInfo,
-    type UserOperation,
-    type UserOperationBundle,
-    type UserOperationV06,
-    type UserOperationV07
+    type UserOperationBundle
 } from "@alto/types"
+import {
+    UserOpInfo,
+    UserOperation,
+    UserOperationV06,
+    UserOperationV07
+} from "@alto/schemas"
 import {
     type Logger,
     getSerializedHandleOpsTx,

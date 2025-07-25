@@ -9,19 +9,18 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import type { ApiVersion, BundlerRequest } from "@alto/types"
+import type { BundlerRequest, UserOperation } from "@alto/schemas"
 import {
-    type Address,
+    ApiVersion,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
     RpcError,
-    type UserOperation,
     ValidationErrors
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
-import { getContract, zeroAddress } from "viem"
+import { Address, getContract, zeroAddress } from "viem"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
