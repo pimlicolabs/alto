@@ -131,6 +131,17 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         type: "string",
         require: false
     },
+    "redis-userop-receipt-cache-url": {
+        description: "Redis connection URL for user operation receipt cache",
+        type: "string",
+        require: false
+    },
+    "redis-userop-receipt-cache-queue-name": {
+        description: "Redis queue name for user operation receipt cache",
+        type: "string",
+        require: true,
+        default: "receipt-cache"
+    },
     "redis-mempool-concurrency": {
         description: "Number of concurrent jobs to process",
         type: "number",

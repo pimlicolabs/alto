@@ -396,7 +396,7 @@ export const receiptSchema = z.object({
     //type: hexNumberSchema
 })
 
-const userOperationReceiptSchema = z.object({
+export const userOperationReceiptSchema = z.object({
     userOpHash: hexData32Schema,
     entryPoint: addressSchema,
     sender: addressSchema,

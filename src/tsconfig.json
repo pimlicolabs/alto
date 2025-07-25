@@ -40,6 +40,9 @@
             ],
             "@alto/store": [
                 "./store"
+            ],
+            "@alto/receiptCache": [
+                "./receiptCache"
             ]
         }
     },
