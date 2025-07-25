@@ -147,7 +147,8 @@ export const executorArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("5"),
-    "binary-search-max-retries": z.number().int().min(1).default(3)
+    "binary-search-max-retries": z.number().int().min(1).default(3),
+    "watch-blocks-polling-interval": z.number().int().min(0).optional()
 })
 
 export const compatibilityArgsSchema = z.object({

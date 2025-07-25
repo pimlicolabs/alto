@@ -148,7 +148,8 @@ export class ExecutorManager {
                     this.logger.error({ error }, "error while watching blocks")
                 },
                 includeTransactions: false,
-                emitMissed: false
+                emitMissed: false,
+                pollingInterval: this.config.watchBlocksPollingInterval
             })
         }
 

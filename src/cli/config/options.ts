@@ -470,6 +470,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "watch-blocks-polling-interval": {
+        description:
+            "Polling interval for watchBlocks in milliseconds (if undefined, uses blockTime / 4)",
+        type: "number",
+        require: false,
+        default: undefined
     }
 }
 
