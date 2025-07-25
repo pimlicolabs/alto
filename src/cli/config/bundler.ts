@@ -297,6 +297,8 @@ export const gasEstimationArgsSchema = z.object({
 
 export const mempoolArgsSchema = z.object({
     "redis-mempool-url": z.string().optional(),
+    "redis-userop-receipt-cache-url": z.string().optional(),
+    "redis-userop-receipt-cache-queue-name": z.string(),
     "redis-mempool-concurrency": z.number().int().min(0).default(10),
     "redis-mempool-queue-name": z.string(),
     "redis-op-status-url": z.string().optional(),

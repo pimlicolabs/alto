@@ -9,6 +9,8 @@ import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
 import type { UserOperationReceipt } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
+import type { ReceiptCache } from "@alto/receiptCache"
+import { createReceiptCache } from "@alto/receiptCache"
 import {
     type Address,
     type Block,
@@ -25,11 +27,6 @@ import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 
-interface CachedReceipt {
-    receipt: UserOperationReceipt
-    timestamp: number
-}
-
 export class UserOpMonitor {
     private reputationManager: InterfaceReputationManager
     private config: AltoConfig
@@ -41,9 +38,8 @@ export class UserOpMonitor {
     private senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
     private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
-    private receiptCache: Map<HexData32, CachedReceipt> = new Map()
+    private receiptCache: ReceiptCache
     private gasPriceManager: GasPriceManager
-    private readonly receiptTtl = 5 * 60 * 1000 // 5 minutes
 
     constructor({
         config,
@@ -78,6 +74,12 @@ export class UserOpMonitor {
             {
                 level: config.executorLogLevel || config.logLevel
             }
+        )
+
+        // Initialize receipt cache
+        this.receiptCache = createReceiptCache(
+            config,
+            5 * 60 * 1000 // 5 minutes TTL
         )
     }
 
@@ -122,7 +124,7 @@ export class UserOpMonitor {
                 const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
 
                 // Cache the receipt
-                this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
+                await this.receiptCache.set(userOpInfo.userOpHash, userOpReceipt)
 
                 await this.processIncludedUserOp(
                     userOpInfo,
@@ -248,34 +250,6 @@ export class UserOpMonitor {
         return latestBlock
     }
 
-    private cacheReceipt(userOpHash: Hex, receipt: UserOperationReceipt) {
-        this.pruneReceiptCache()
-        this.receiptCache.set(userOpHash, {
-            receipt,
-            timestamp: Date.now()
-        })
-    }
-
-    private getCachedReceipt(
-        userOpHash: Hex
-    ): UserOperationReceipt | undefined {
-        const cached = this.receiptCache.get(userOpHash)
-        if (!cached) {
-            return undefined
-        }
-        return cached.receipt
-    }
-
-    private pruneReceiptCache(): void {
-        const now = Date.now()
-        const expiredEntries = Array.from(this.receiptCache.entries()).filter(
-            ([_, cached]) => now - cached.timestamp > this.receiptTtl
-        )
-
-        for (const [userOpHash] of expiredEntries) {
-            this.receiptCache.delete(userOpHash)
-        }
-    }
 
     // Free executors and remove userOps from mempool.
     private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
@@ -377,7 +351,7 @@ export class UserOpMonitor {
                 const { blockNumber, transactionHash } = receipt
 
                 // Cache the receipt
-                this.cacheReceipt(userOpInfo.userOpHash, userOpReceipt)
+                await this.receiptCache.set(userOpInfo.userOpHash, userOpReceipt)
 
                 await this.processIncludedUserOp(
                     userOpInfo,
@@ -453,7 +427,7 @@ export class UserOpMonitor {
 
     async getUserOpReceipt(userOpHash: HexData32) {
         // Check cache first
-        const cached = this.getCachedReceipt(userOpHash)
+        const cached = await this.receiptCache.get(userOpHash)
         if (cached) {
             return cached
         }
@@ -551,7 +525,7 @@ export class UserOpMonitor {
         const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
-        this.cacheReceipt(userOpHash, userOpReceipt)
+        await this.receiptCache.set(userOpHash, userOpReceipt)
 
         return userOpReceipt
     }
