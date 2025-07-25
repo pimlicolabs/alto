@@ -30,12 +30,6 @@ export const createMemoryReceiptCache = (ttl: number): ReceiptCache => {
                 return undefined
             }
 
-            // Check if expired
-            if (Date.now() - cached.timestamp > ttl) {
-                cache.delete(userOpHash)
-                return undefined
-            }
-
             return cached.receipt
         },
 
