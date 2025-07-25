@@ -1,12 +1,12 @@
 import type { UserOperationReceipt } from "@alto/types"
 import { userOperationReceiptSchema } from "@alto/types"
-import type { AltoConfig } from "../createConfig"
-import Redis from "ioredis"
-import { toHex, type Hex } from "viem"
-import type { ReceiptCache } from "./index"
 import type { Logger } from "@alto/utils"
 import { asyncCallWithTimeout } from "@alto/utils"
 import * as sentry from "@sentry/node"
+import Redis from "ioredis"
+import { type Hex, toHex } from "viem"
+import type { AltoConfig } from "../createConfig"
+import type { ReceiptCache } from "./index"
 
 const serializeReceipt = (receipt: UserOperationReceipt): string => {
     // Convert BigInts to hex strings for JSON serialization

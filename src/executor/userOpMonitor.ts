@@ -5,12 +5,12 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
+import type { ReceiptCache } from "@alto/receiptCache"
+import { createReceiptCache } from "@alto/receiptCache"
 import type { HexData32, SubmittedBundleInfo, UserOpInfo } from "@alto/types"
 import type { UserOperationReceipt } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
-import type { ReceiptCache } from "@alto/receiptCache"
-import { createReceiptCache } from "@alto/receiptCache"
 import {
     type Address,
     type Block,
@@ -124,7 +124,10 @@ export class UserOpMonitor {
                 const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
 
                 // Cache the receipt
-                await this.receiptCache.set(userOpInfo.userOpHash, userOpReceipt)
+                await this.receiptCache.set(
+                    userOpInfo.userOpHash,
+                    userOpReceipt
+                )
 
                 await this.processIncludedUserOp(
                     userOpInfo,
@@ -250,7 +253,6 @@ export class UserOpMonitor {
         return latestBlock
     }
 
-
     // Free executors and remove userOps from mempool.
     private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
         const { executor, bundle } = submittedBundle
@@ -351,7 +353,10 @@ export class UserOpMonitor {
                 const { blockNumber, transactionHash } = receipt
 
                 // Cache the receipt
-                await this.receiptCache.set(userOpInfo.userOpHash, userOpReceipt)
+                await this.receiptCache.set(
+                    userOpInfo.userOpHash,
+                    userOpReceipt
+                )
 
                 await this.processIncludedUserOp(
                     userOpInfo,
