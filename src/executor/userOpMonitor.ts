@@ -79,7 +79,7 @@ export class UserOpMonitor {
         // Initialize receipt cache
         this.receiptCache = createReceiptCache(
             config,
-            5 * 60 * 1000 // 5 minutes TTL
+            1 * 60 * 1000 // 1 minutes TTL
         )
     }
 
