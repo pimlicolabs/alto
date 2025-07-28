@@ -5,7 +5,7 @@ import {
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07,
-    getUserOperationByHashSchema
+    getUserOperationByHashRequestSchema
 } from "@alto/schemas"
 import {
     type Transaction,
@@ -26,7 +26,7 @@ const userOpEventAbiItem = getAbiItem({
 
 export const ethGetUserOperationByHashHandler = createMethodHandler({
     method: "eth_getUserOperationByHash",
-    schema: getUserOperationByHashSchema,
+    schema: getUserOperationByHashRequestSchema,
     handler: async ({ rpcHandler, params }) => {
         const [userOpHash] = params
 

@@ -1,8 +1,8 @@
-import { debugDumpReputationSchema } from "@alto/schemas"
+import { debugDumpReputationRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerDumpReputationHandler = createMethodHandler({
-    schema: debugDumpReputationSchema,
+    schema: debugDumpReputationRequestSchema,
     method: "debug_bundler_dumpReputation",
     handler: ({ rpcHandler, params }) => {
         const [entryPoint] = params

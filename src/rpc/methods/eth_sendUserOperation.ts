@@ -11,7 +11,7 @@ import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import {
     ReferencedCodeHashes,
-    sendUserOperationSchema,
+    sendUserOperationRequestSchema,
     UserOperation
 } from "@alto/schemas"
 
@@ -220,7 +220,7 @@ export async function addToMempoolIfValid({
 
 export const ethSendUserOperationHandler = createMethodHandler({
     method: "eth_sendUserOperation",
-    schema: sendUserOperationSchema,
+    schema: sendUserOperationRequestSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOp, entryPoint] = params
 

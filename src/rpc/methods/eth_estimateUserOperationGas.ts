@@ -9,7 +9,7 @@ import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import {
-    estimateUserOperationGasSchema,
+    estimateUserOperationGasRequestSchema,
     StateOverrides,
     UserOperation
 } from "@alto/schemas"
@@ -258,7 +258,7 @@ const getGasEstimates = async ({
 
 export const ethEstimateUserOperationGasHandler = createMethodHandler({
     method: "eth_estimateUserOperationGas",
-    schema: estimateUserOperationGasSchema,
+    schema: estimateUserOperationGasRequestSchema,
     handler: async ({ rpcHandler, apiVersion, params }) => {
         const [userOp, entryPoint, stateOverrides] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)

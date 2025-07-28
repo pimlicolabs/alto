@@ -1,8 +1,8 @@
-import { debugClearReputationSchema } from "@alto/schemas"
+import { debugClearReputationRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugClearReputationHandler = createMethodHandler({
-    schema: debugClearReputationSchema,
+    schema: debugClearReputationRequestSchema,
     method: "debug_bundler_clearReputation",
     handler: ({ rpcHandler }) => {
         rpcHandler.ensureDebugEndpointsAreEnabled(

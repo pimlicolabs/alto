@@ -5,7 +5,7 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import {
-    pimlicoSimulateAssetChangeSchema,
+    pimlicoSimulateAssetChangeRequestSchema,
     UserOperation,
     UserOperationV06,
     UserOperationV07
@@ -27,7 +27,7 @@ import {
 
 export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
-    schema: pimlicoSimulateAssetChangeSchema,
+    schema: pimlicoSimulateAssetChangeRequestSchema,
     handler: async ({ rpcHandler, params }) => {
         const [userOp, entryPoint, trackingParams, stateOverrides] = params
         const { addresses, tokens } = trackingParams

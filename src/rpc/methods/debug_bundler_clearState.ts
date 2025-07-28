@@ -1,8 +1,8 @@
-import { debugClearStateSchema } from "@alto/schemas"
+import { debugClearStateRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerClearStateHandler = createMethodHandler({
-    schema: debugClearStateSchema,
+    schema: debugClearStateRequestSchema,
     method: "debug_bundler_clearState",
     handler: ({ rpcHandler }) => {
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_clearState")

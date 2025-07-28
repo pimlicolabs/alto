@@ -1,10 +1,10 @@
-import { pimlicoGetUserOperationGasPriceSchema } from "@alto/schemas"
+import { pimlicoGetUserOperationGasPriceRequestSchema } from "@alto/schemas"
 import { scaleBigIntByPercent } from "../../utils/bigInt"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
     method: "pimlico_getUserOperationGasPrice",
-    schema: pimlicoGetUserOperationGasPriceSchema,
+    schema: pimlicoGetUserOperationGasPriceRequestSchema,
     handler: async ({ rpcHandler }) => {
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await rpcHandler.gasPriceManager.getGasPrice()

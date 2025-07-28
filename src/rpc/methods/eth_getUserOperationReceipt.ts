@@ -1,10 +1,10 @@
 import { RpcError } from "@alto/types"
-import { getUserOperationReceiptSchema } from "@alto/schemas"
+import { getUserOperationReceiptRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethGetUserOperationReceiptHandler = createMethodHandler({
     method: "eth_getUserOperationReceipt",
-    schema: getUserOperationReceiptSchema,
+    schema: getUserOperationReceiptRequestSchema,
     handler: async ({ rpcHandler, params }) => {
         const [userOpHash] = params
         try {

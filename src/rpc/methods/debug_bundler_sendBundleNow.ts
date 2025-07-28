@@ -1,9 +1,9 @@
 import { createMethodHandler } from "../createMethodHandler"
-import { debugSendBundleNowSchema } from "@alto/schemas"
+import { debugSendBundleNowRequestSchema } from "@alto/schemas"
 
 export const debugBundlerSendBundleNowHandler = createMethodHandler({
     method: "debug_bundler_sendBundleNow",
-    schema: debugSendBundleNowSchema,
+    schema: debugSendBundleNowRequestSchema,
     handler: async ({ rpcHandler }) => {
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_sendBundleNow")
 

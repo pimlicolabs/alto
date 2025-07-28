@@ -28,6 +28,16 @@
         ".": {
             "import": "./esm/index.js",
             "require": "./esm/index.js"
+        },
+        "./schemas": {
+            "import": "./esm/schemas/index.js",
+            "require": "./esm/schemas/index.js",
+            "types": "./lib/schemas/index.d.ts"
+        },
+        "./types": {
+            "import": "./esm/types/index.js",
+            "require": "./esm/types/index.js",
+            "types": "./lib/types/index.d.ts"
         }
     },
     "scripts": {

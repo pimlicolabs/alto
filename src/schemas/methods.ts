@@ -14,19 +14,19 @@ import {
     userOperationSchema
 } from "./userop"
 
-const chainIdSchema = z.object({
+const chainIdRequestSchema = z.object({
     method: z.literal("eth_chainId"),
     params: z.tuple([]),
     result: hexNumberSchema
 })
 
-const supportedEntryPointsSchema = z.object({
+const supportedEntryPointsRequestSchema = z.object({
     method: z.literal("eth_supportedEntryPoints"),
     params: z.tuple([]),
     result: z.array(addressSchema)
 })
 
-const estimateUserOperationGasSchema = z.object({
+const estimateUserOperationGasRequestSchema = z.object({
     method: z.literal("eth_estimateUserOperationGas"),
     params: z
         .tuple([z.looseObject({}), addressSchema, z.looseObject({}).optional()])
@@ -67,7 +67,7 @@ const estimateUserOperationGasSchema = z.object({
     ])
 })
 
-const sendUserOperationSchema = z.object({
+const sendUserOperationRequestSchema = z.object({
     method: z.literal("eth_sendUserOperation"),
     params: z
         .tuple([z.looseObject({}), addressSchema])
@@ -87,11 +87,12 @@ const sendUserOperationSchema = z.object({
     result: hexData32Schema
 })
 
-const boostSendUserOperationSchema = sendUserOperationSchema.extend({
-    method: z.literal("boost_sendUserOperation")
-})
+const boostSendUserOperationRequestSchema =
+    sendUserOperationRequestSchema.extend({
+        method: z.literal("boost_sendUserOperation")
+    })
 
-const getUserOperationByHashSchema = z.object({
+const getUserOperationByHashRequestSchema = z.object({
     method: z.literal("eth_getUserOperationByHash"),
     params: z.tuple([hexData32Schema]),
     result: z
@@ -105,45 +106,47 @@ const getUserOperationByHashSchema = z.object({
         .nullable()
 })
 
-const getUserOperationReceiptSchema = z.object({
+const getUserOperationReceiptRequestSchema = z.object({
     method: z.literal("eth_getUserOperationReceipt"),
     params: z.tuple([hexData32Schema]),
     result: userOperationReceiptSchema.nullable()
 })
 
-const debugClearStateSchema = z.object({
+const debugClearStateRequestSchema = z.object({
     method: z.literal("debug_bundler_clearState"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-const debugClearMempoolSchema = z.object({
+const debugClearMempoolRequestSchema = z.object({
     method: z.literal("debug_bundler_clearMempool"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-const debugDumpMempoolSchema = z.object({
+const debugDumpMempoolRequestSchema = z.object({
     method: z.literal("debug_bundler_dumpMempool"),
     params: z.tuple([addressSchema]),
     result: z.array(userOperationSchema)
 })
 
-const debugSendBundleNowSchema = z.object({
+const debugSendBundleNowRequestSchema = z.object({
     method: z.literal("debug_bundler_sendBundleNow"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-const debugSetBundlingModeSchema = z.object({
+const debugSetBundlingModeRequestSchema = z.object({
     method: z.literal("debug_bundler_setBundlingMode"),
     params: z.tuple([z.enum(["manual", "auto"])]),
     result: z.literal("ok")
 })
 
-type BundlingMode = z.infer<typeof debugSetBundlingModeSchema>["params"][0]
+type BundlingMode = z.infer<
+    typeof debugSetBundlingModeRequestSchema
+>["params"][0]
 
-const debugSetReputationSchema = z.object({
+const debugSetReputationRequestSchema = z.object({
     method: z.literal("debug_bundler_setReputation"),
     params: z.tuple([
         z.array(
@@ -158,7 +161,7 @@ const debugSetReputationSchema = z.object({
     result: z.literal("ok")
 })
 
-const debugDumpReputationSchema = z.object({
+const debugDumpReputationRequestSchema = z.object({
     method: z.literal("debug_bundler_dumpReputation"),
     params: z.tuple([addressSchema]),
     result: z.array(
@@ -171,13 +174,13 @@ const debugDumpReputationSchema = z.object({
     )
 })
 
-const debugClearReputationSchema = z.object({
+const debugClearReputationRequestSchema = z.object({
     method: z.literal("debug_bundler_clearReputation"),
     params: z.tuple([]),
     result: z.literal("ok")
 })
 
-const debugGetStakeStatusSchema = z.object({
+const debugGetStakeStatusRequestSchema = z.object({
     method: z.literal("debug_bundler_getStakeStatus"),
     params: z.tuple([addressSchema, addressSchema]),
     result: z.object({
@@ -198,19 +201,19 @@ const debugGetStakeStatusSchema = z.object({
     })
 })
 
-const pimlicoGetUserOperationStatusSchema = z.object({
+const pimlicoGetUserOperationStatusRequestSchema = z.object({
     method: z.literal("pimlico_getUserOperationStatus"),
     params: z.tuple([hexData32Schema]),
     result: userOperationStatusSchema
 })
 
-const pimlicoGetUserOperationGasPriceSchema = z.object({
+const pimlicoGetUserOperationGasPriceRequestSchema = z.object({
     method: z.literal("pimlico_getUserOperationGasPrice"),
     params: z.tuple([]),
     result: gasPriceSchema
 })
 
-const pimlicoSendUserOperationNowSchema = z.object({
+const pimlicoSendUserOperationNowRequestSchema = z.object({
     method: z.literal("pimlico_sendUserOperationNow"),
     params: z
         .tuple([z.looseObject({}), addressSchema])
@@ -228,7 +231,7 @@ const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema.nullable()
 })
 
-const pimlicoSimulateAssetChangeSchema = z.object({
+const pimlicoSimulateAssetChangeRequestSchema = z.object({
     method: z.literal("pimlico_simulateAssetChange"),
     params: z
         .tuple([
@@ -273,76 +276,52 @@ const pimlicoSimulateAssetChangeSchema = z.object({
 })
 
 const bundlerRequestSchema = z.discriminatedUnion("method", [
-    chainIdSchema.omit({ result: true }),
-    supportedEntryPointsSchema.omit({ result: true }),
-    estimateUserOperationGasSchema.omit({ result: true }),
-    sendUserOperationSchema.omit({ result: true }),
-    boostSendUserOperationSchema.omit({ result: true }),
-    getUserOperationByHashSchema.omit({ result: true }),
-    getUserOperationReceiptSchema.omit({ result: true }),
-    debugClearStateSchema.omit({ result: true }),
-    debugClearMempoolSchema.omit({ result: true }),
-    debugDumpMempoolSchema.omit({ result: true }),
-    debugSendBundleNowSchema.omit({ result: true }),
-    debugSetBundlingModeSchema.omit({ result: true }),
-    debugSetReputationSchema.omit({ result: true }),
-    debugDumpReputationSchema.omit({ result: true }),
-    debugClearReputationSchema.omit({ result: true }),
-    debugGetStakeStatusSchema.omit({ result: true }),
-    pimlicoGetUserOperationStatusSchema.omit({ result: true }),
-    pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true }),
-    pimlicoSimulateAssetChangeSchema.omit({ result: true })
+    chainIdRequestSchema.omit({ result: true }),
+    supportedEntryPointsRequestSchema.omit({ result: true }),
+    estimateUserOperationGasRequestSchema.omit({ result: true }),
+    sendUserOperationRequestSchema.omit({ result: true }),
+    boostSendUserOperationRequestSchema.omit({ result: true }),
+    getUserOperationByHashRequestSchema.omit({ result: true }),
+    getUserOperationReceiptRequestSchema.omit({ result: true }),
+    debugClearStateRequestSchema.omit({ result: true }),
+    debugClearMempoolRequestSchema.omit({ result: true }),
+    debugDumpMempoolRequestSchema.omit({ result: true }),
+    debugSendBundleNowRequestSchema.omit({ result: true }),
+    debugSetBundlingModeRequestSchema.omit({ result: true }),
+    debugSetReputationRequestSchema.omit({ result: true }),
+    debugDumpReputationRequestSchema.omit({ result: true }),
+    debugClearReputationRequestSchema.omit({ result: true }),
+    debugGetStakeStatusRequestSchema.omit({ result: true }),
+    pimlicoGetUserOperationStatusRequestSchema.omit({ result: true }),
+    pimlicoGetUserOperationGasPriceRequestSchema.omit({ result: true }),
+    pimlicoSendUserOperationNowRequestSchema.omit({ result: true }),
+    pimlicoSimulateAssetChangeRequestSchema.omit({ result: true })
 ])
 
 type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
-const bundlerRpcSchema = z.union([
-    chainIdSchema,
-    supportedEntryPointsSchema,
-    estimateUserOperationGasSchema,
-    sendUserOperationSchema,
-    boostSendUserOperationSchema,
-    getUserOperationByHashSchema,
-    getUserOperationReceiptSchema,
-    debugClearStateSchema,
-    debugClearMempoolSchema,
-    debugDumpMempoolSchema,
-    debugSendBundleNowSchema,
-    debugSetBundlingModeSchema,
-    debugSetReputationSchema,
-    debugDumpReputationSchema,
-    debugClearReputationSchema,
-    debugGetStakeStatusSchema,
-    pimlicoGetUserOperationStatusSchema,
-    pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoSimulateAssetChangeSchema
-])
-
 export {
-    chainIdSchema,
-    supportedEntryPointsSchema,
-    estimateUserOperationGasSchema,
-    sendUserOperationSchema,
-    boostSendUserOperationSchema,
-    getUserOperationByHashSchema,
-    getUserOperationReceiptSchema,
-    debugClearStateSchema,
-    debugClearMempoolSchema,
-    debugDumpMempoolSchema,
-    debugSendBundleNowSchema,
-    debugSetBundlingModeSchema,
-    debugSetReputationSchema,
-    debugDumpReputationSchema,
-    debugClearReputationSchema,
-    debugGetStakeStatusSchema,
-    pimlicoGetUserOperationStatusSchema,
-    pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoSimulateAssetChangeSchema,
+    chainIdRequestSchema,
+    supportedEntryPointsRequestSchema,
+    estimateUserOperationGasRequestSchema,
+    sendUserOperationRequestSchema,
+    boostSendUserOperationRequestSchema,
+    getUserOperationByHashRequestSchema,
+    getUserOperationReceiptRequestSchema,
+    debugClearStateRequestSchema,
+    debugClearMempoolRequestSchema,
+    debugDumpMempoolRequestSchema,
+    debugSendBundleNowRequestSchema,
+    debugSetBundlingModeRequestSchema,
+    debugSetReputationRequestSchema,
+    debugDumpReputationRequestSchema,
+    debugClearReputationRequestSchema,
+    debugGetStakeStatusRequestSchema,
+    pimlicoGetUserOperationStatusRequestSchema,
+    pimlicoGetUserOperationGasPriceRequestSchema,
+    pimlicoSendUserOperationNowRequestSchema,
+    pimlicoSimulateAssetChangeRequestSchema,
     bundlerRequestSchema,
-    bundlerRpcSchema,
     type BundlerRequest,
     type BundlingMode
 }

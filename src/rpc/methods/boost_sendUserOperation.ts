@@ -1,6 +1,9 @@
 import { RpcError } from "@alto/types"
 import { isVersion06, isVersion07 } from "@alto/utils"
-import { boostSendUserOperationSchema, type UserOperation } from "@alto/schemas"
+import {
+    boostSendUserOperationRequestSchema,
+    type UserOperation
+} from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
 
@@ -35,7 +38,7 @@ const validateUserOp = ({ userOp }: { userOp: UserOperation }) => {
 
 export const boostSendUserOperationHandler = createMethodHandler({
     method: "boost_sendUserOperation",
-    schema: boostSendUserOperationSchema,
+    schema: boostSendUserOperationRequestSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOp, entryPoint] = params
 

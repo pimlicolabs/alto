@@ -1,9 +1,9 @@
-import { debugSetReputationSchema } from "@alto/schemas"
+import { debugSetReputationRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugSetReputationHandler = createMethodHandler({
     method: "debug_bundler_setReputation",
-    schema: debugSetReputationSchema,
+    schema: debugSetReputationRequestSchema,
     handler: ({ rpcHandler, params }) => {
         const [args, address] = params
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")

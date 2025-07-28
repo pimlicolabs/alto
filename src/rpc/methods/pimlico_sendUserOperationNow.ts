@@ -3,7 +3,10 @@ import {
     type UserOperationBundle,
     ValidationErrors
 } from "@alto/types"
-import { pimlicoSendUserOperationNowSchema, UserOpInfo } from "@alto/schemas"
+import {
+    pimlicoSendUserOperationNowRequestSchema,
+    UserOpInfo
+} from "@alto/schemas"
 import {
     getUserOpHash,
     isVersion07,
@@ -15,7 +18,7 @@ import { createMethodHandler } from "../createMethodHandler"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
-    schema: pimlicoSendUserOperationNowSchema,
+    schema: pimlicoSendUserOperationNowRequestSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
         if (!rpcHandler.config.enableInstantBundlingEndpoint) {
             throw new RpcError(

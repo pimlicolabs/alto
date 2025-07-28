@@ -1,9 +1,9 @@
-import { debugSetBundlingModeSchema } from "@alto/schemas"
+import { debugSetBundlingModeRequestSchema } from "@alto/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerSetBundlingModeHandler = createMethodHandler({
     method: "debug_bundler_setBundlingMode",
-    schema: debugSetBundlingModeSchema,
+    schema: debugSetBundlingModeRequestSchema,
     handler: async ({ rpcHandler, params }) => {
         const [bundlingMode] = params
         rpcHandler.ensureDebugEndpointsAreEnabled(

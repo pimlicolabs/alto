@@ -1,9 +1,9 @@
 import { RpcError } from "@alto/types"
 import { createMethodHandler } from "../createMethodHandler"
-import { debugGetStakeStatusSchema } from "@alto/schemas"
+import { debugGetStakeStatusRequestSchema } from "@alto/schemas"
 
 export const debugGetStakeStatusHandler = createMethodHandler({
-    schema: debugGetStakeStatusSchema,
+    schema: debugGetStakeStatusRequestSchema,
     method: "debug_bundler_getStakeStatus",
     handler: async ({ rpcHandler, params }) => {
         const [address, entryPoint] = params
@@ -17,10 +17,11 @@ export const debugGetStakeStatusHandler = createMethodHandler({
             address
         )
 
-        const response = debugGetStakeStatusSchema.shape.result.safeParse({
-            isStaked: stakeStatus.isStaked,
-            stakeInfo: stakeStatus.stakeInfo
-        })
+        const response =
+            debugGetStakeStatusRequestSchema.shape.result.safeParse({
+                isStaked: stakeStatus.isStaked,
+                stakeInfo: stakeStatus.stakeInfo
+            })
 
         if (!response.success) {
             throw new RpcError("Internal error: response validation failed")

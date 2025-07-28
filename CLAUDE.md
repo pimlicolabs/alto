@@ -103,7 +103,6 @@ pnpm run build:contracts-v08
 ### Adding a New RPC Endpoint
 1. Add the schema for your new endpoint in `src/types/schemas.ts`:
    - Define the schema using Zod (e.g., `pimlicoNewEndpointSchema`)
-   - Add it to `bundlerRpcSchema` union
 2. Create a new file in `src/rpc/methods/` following the naming convention (e.g., `pimlico_newEndpoint.ts`)
 3. Implement the endpoint handler following the existing pattern using `createMethodHandler`
 4. Import and register the handler in `src/rpc/methods/index.ts`
