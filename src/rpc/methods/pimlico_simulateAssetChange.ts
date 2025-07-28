@@ -69,9 +69,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             stateOverride = getFilterOpsStateOverride({
                 version: "0.6",
                 entryPoint,
-                baseFeePerGas: await rpcHandler.gasPriceManager
-                    .getBaseFee()
-                    .catch(() => 0n)
+                baseFeePerGas: await rpcHandler.gasPriceManager.getBaseFee()
             })
         } else if (is07 || is08) {
             stateOverride = await prepareSimulationOverrides07({

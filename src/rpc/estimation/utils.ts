@@ -312,7 +312,7 @@ export async function prepareSimulationOverrides07({
 
     // Add baseFee override for v0.7 EntryPoint simulations
     if (config.codeOverrideSupport) {
-        const baseFee = await gasPriceManager.getBaseFee().catch(() => 0n)
+        const baseFee = await gasPriceManager.getBaseFee()
         if (baseFee > 0n) {
             const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
             const value = toHex(baseFee, { size: 32 })

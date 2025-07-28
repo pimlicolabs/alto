@@ -51,7 +51,7 @@ export class GasPriceManager {
             setInterval(async () => {
                 try {
                     if (this.config.legacyTransactions === false) {
-                        await this.updateBaseFee()
+                        await this.tryUpdateBaseFee()
                     }
 
                     await this.tryUpdateGasPrice()
@@ -75,7 +75,7 @@ export class GasPriceManager {
             await Promise.all([
                 this.tryUpdateGasPrice(),
                 this.config.legacyTransactions === false
-                    ? this.updateBaseFee()
+                    ? this.tryUpdateBaseFee()
                     : Promise.resolve()
             ])
         } catch (error) {
@@ -320,7 +320,8 @@ export class GasPriceManager {
         }
     }
 
-    private async updateBaseFee(): Promise<bigint> {
+    // This method throws if it can't get a valid RPC response.
+    private async tryUpdateBaseFee(): Promise<bigint> {
         try {
             const latestBlock = await this.config.publicClient.getBlock()
             if (latestBlock.baseFeePerGas === null) {
@@ -333,6 +334,7 @@ export class GasPriceManager {
             return baseFee
         } catch (e) {
             this.logger.error(e, "Failed to update base fee")
+            sentry.captureException(e)
             throw e
         }
     }
@@ -344,18 +346,21 @@ export class GasPriceManager {
             }
 
             if (this.config.gasPriceRefreshInterval === 0) {
-                return await this.updateBaseFee()
+                return await this.tryUpdateBaseFee()
             }
 
             let baseFee = await this.baseFeePerGasQueue.getLatestValue()
             if (!baseFee) {
-                baseFee = await this.updateBaseFee()
+                baseFee = await this.tryUpdateBaseFee()
             }
 
             return baseFee
         } catch (e) {
-            this.logger.error(e, "Failed to get base fee")
-            throw new RpcError("Failed to get base fee")
+            this.logger.error(e, "Failed to get base fee, returning 0n")
+
+            // Save 0n to the queue for the missing baseFee case
+            this.baseFeePerGasQueue.saveValue(0n)
+            return 0n
         }
     }
 
@@ -407,12 +412,20 @@ export class GasPriceManager {
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {
-        let maxBaseFeePerGas = await this.baseFeePerGasQueue.getMaxValue()
-        if (!maxBaseFeePerGas) {
-            maxBaseFeePerGas = await this.getBaseFee()
-        }
+        try {
+            let maxBaseFeePerGas = await this.baseFeePerGasQueue.getMaxValue()
+            if (!maxBaseFeePerGas) {
+                maxBaseFeePerGas = await this.getBaseFee()
+            }
 
-        return maxBaseFeePerGas
+            return maxBaseFeePerGas
+        } catch (e) {
+            this.logger.error(
+                e,
+                "Failed to get max base fee per gas, returning 0n"
+            )
+            return 0n
+        }
     }
 
     public async getHighestMaxFeePerGas(): Promise<bigint> {
