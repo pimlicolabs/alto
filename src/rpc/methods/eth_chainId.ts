@@ -1,4 +1,4 @@
-import { chainIdRequestSchema } from "@alto/schemas"
+import { chainIdRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethChainIdHandler = createMethodHandler({

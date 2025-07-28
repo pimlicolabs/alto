@@ -1,6 +1,6 @@
 import { RpcError } from "@alto/types"
 import { createMethodHandler } from "../createMethodHandler"
-import { debugGetStakeStatusRequestSchema } from "@alto/schemas"
+import { debugGetStakeStatusRequestSchema } from "@pimlico/schemas"
 
 export const debugGetStakeStatusHandler = createMethodHandler({
     schema: debugGetStakeStatusRequestSchema,

@@ -1,5 +1,6 @@
 import type { EventManager } from "@alto/handlers"
-import type { Address, HexData32, UserOpInfo } from "@alto/schemas"
+import type { UserOpInfo } from "@alto/schemas"
+import { Address, HexData32 } from "@pimlico/schemas"
 import type { Logger } from "@alto/utils"
 import {
     jsonStringifyWithBigint,

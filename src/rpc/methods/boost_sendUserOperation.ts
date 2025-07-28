@@ -3,7 +3,7 @@ import { isVersion06, isVersion07 } from "@alto/utils"
 import {
     boostSendUserOperationRequestSchema,
     type UserOperation
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
 

@@ -8,7 +8,7 @@ import {
     ValidationErrors,
     type ValidationResult
 } from "@alto/types"
-import { UserOperationV06 } from "@alto/schemas"
+import { type UserOperationV06 } from "@pimlico/schemas"
 import type { Abi, AbiFunction } from "abitype"
 // This file contains references to validation rules, in the format [xxx-###]
 // where xxx is OP/STO/COD/EP/SREP/EREP/UREP/ALT, and ### is a number

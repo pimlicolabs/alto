@@ -1,5 +1,4 @@
-// biome-ignore lint/style/noNamespaceImport: explicitly make it clear when sentry is used
-import type { StateOverrides } from "@alto/schemas"
+import { type StateOverrides } from "@pimlico/schemas"
 import * as sentry from "@sentry/node"
 import {
     type Account,

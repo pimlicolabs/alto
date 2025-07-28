@@ -6,7 +6,7 @@ import {
     type UserOperationV06,
     type UserOperationV07,
     getUserOperationByHashRequestSchema
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import {
     type Transaction,
     TransactionNotFoundError,

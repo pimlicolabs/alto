@@ -1,4 +1,5 @@
-import type { HexData32, UserOpInfo, UserOperation } from "@alto/schemas"
+import type { UserOpInfo } from "@alto/schemas"
+import { type HexData32, type UserOperation } from "@pimlico/schemas"
 import type { Logger } from "@alto/utils"
 import type { ConflictingOutstandingType, OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"

@@ -9,7 +9,7 @@ import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import type { UserOpMonitor } from "./userOpMonitor"
 import { getUserOpHashes } from "./utils"
-import { BundlingMode } from "@alto/schemas"
+import { type BundlingMode } from "@pimlico/schemas"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms

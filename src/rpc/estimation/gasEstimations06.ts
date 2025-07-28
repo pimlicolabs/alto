@@ -1,5 +1,4 @@
-import type { StateOverrides } from "@alto/schemas"
-import type { UserOperationV06 } from "@alto/schemas"
+import { type StateOverrides, type UserOperationV06 } from "@pimlico/schemas"
 import type { Logger } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, getContract } from "viem"

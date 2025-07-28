@@ -6,10 +6,10 @@ import {
 } from "@alto/types"
 import {
     pimlicoSimulateAssetChangeRequestSchema,
-    UserOperation,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/schemas"
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07
+} from "@pimlico/schemas"
 import {
     isVersion06,
     isVersion07,

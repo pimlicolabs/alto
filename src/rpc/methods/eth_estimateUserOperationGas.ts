@@ -10,9 +10,9 @@ import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import {
     estimateUserOperationGasRequestSchema,
-    StateOverrides,
-    UserOperation
-} from "@alto/schemas"
+    type StateOverrides,
+    type UserOperation
+} from "@pimlico/schemas"
 
 type GasEstimateResult =
     | {

@@ -6,7 +6,7 @@ import {
     type UserOperationV07,
     logSchema,
     receiptSchema
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import {
     type Address,
     type Hex,

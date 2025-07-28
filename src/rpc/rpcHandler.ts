@@ -9,7 +9,7 @@ import type {
     Mempool,
     Monitor
 } from "@alto/mempool"
-import type { BundlerRequest, UserOperation } from "@alto/schemas"
+import { UserOperation, BundlerRequest } from "@pimlico/schemas"
 import {
     ApiVersion,
     EntryPointV06Abi,

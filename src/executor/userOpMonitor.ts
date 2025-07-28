@@ -6,7 +6,8 @@ import type {
     Monitor
 } from "@alto/mempool"
 import type { SubmittedBundleInfo } from "@alto/types"
-import { HexData32, UserOpInfo, UserOperationReceipt } from "@alto/schemas"
+import { type UserOpInfo } from "@alto/schemas"
+import { HexData32, type UserOperationReceipt } from "@pimlico/schemas"
 import type { Logger, Metrics } from "@alto/utils"
 import { parseUserOpReceipt } from "@alto/utils"
 import {

@@ -3,7 +3,7 @@ import {
     bundlerRequestSchema,
     commaSeperatedAddressPattern,
     hexData32Schema
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import { ApiVersion } from "@alto/types"
 import { type Hex, parseGwei } from "viem"
 import { type Account, privateKeyToAccount } from "viem/accounts"

@@ -1,10 +1,10 @@
 import { Redis } from "ioredis"
 import type { AltoConfig } from "../createConfig"
 import {
-    HexData32,
-    UserOperationStatus,
+    type HexData32,
+    type UserOperationStatus,
     userOperationStatusSchema
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 
 interface UserOperationStatusStore {
     set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>

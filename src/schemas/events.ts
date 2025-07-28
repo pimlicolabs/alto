@@ -1,5 +1,5 @@
+import { hexData32Schema } from "@pimlico/schemas"
 import { z } from "zod/v4"
-import { hexData32Schema } from "./common"
 
 const opEventType = z.union([
     z.object({

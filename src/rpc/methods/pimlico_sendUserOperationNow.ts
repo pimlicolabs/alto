@@ -3,10 +3,7 @@ import {
     type UserOperationBundle,
     ValidationErrors
 } from "@alto/types"
-import {
-    pimlicoSendUserOperationNowRequestSchema,
-    UserOpInfo
-} from "@alto/schemas"
+import { type UserOpInfo } from "@alto/schemas"
 import {
     getUserOpHash,
     isVersion07,
@@ -15,6 +12,7 @@ import {
 } from "@alto/utils"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { createMethodHandler } from "../createMethodHandler"
+import { pimlicoSendUserOperationNowRequestSchema } from "@pimlico/schemas"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",

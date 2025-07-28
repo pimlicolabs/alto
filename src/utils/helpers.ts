@@ -1,4 +1,4 @@
-import type { StateOverrides, UserOperation } from "@alto/schemas"
+import type { StateOverrides, UserOperation } from "@pimlico/schemas"
 import { BaseError, type RawContractError, concat, getAddress } from "viem"
 import type { SignedAuthorization } from "viem"
 

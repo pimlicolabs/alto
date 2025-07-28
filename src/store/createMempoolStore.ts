@@ -1,4 +1,4 @@
-import type { HexData32, UserOperation } from "@alto/schemas"
+import { type HexData32, type UserOperation } from "@pimlico/schemas"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"

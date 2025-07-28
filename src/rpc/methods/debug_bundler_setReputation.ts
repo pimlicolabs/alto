@@ -1,4 +1,4 @@
-import { debugSetReputationRequestSchema } from "@alto/schemas"
+import { debugSetReputationRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugSetReputationHandler = createMethodHandler({

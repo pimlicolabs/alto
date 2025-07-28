@@ -5,7 +5,7 @@ import {
     type UserOperation,
     type UserOperationV06,
     type UserOperationV07
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import { MantleBvmGasPriceOracleAbi, OpL1FeeAbi } from "@alto/types"
 import {
     type Chain,

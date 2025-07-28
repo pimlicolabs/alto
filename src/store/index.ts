@@ -1,9 +1,5 @@
-import type {
-    Address,
-    HexData32,
-    UserOpInfo,
-    UserOperation
-} from "@alto/schemas"
+import type { UserOpInfo } from "@alto/schemas"
+import { Address, HexData32, UserOperation } from "@pimlico/schemas"
 
 // Define the StoreType type
 export type StoreType = "outstanding" | "processing" | "submitted"

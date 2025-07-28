@@ -1,4 +1,4 @@
-import { debugClearStateRequestSchema } from "@alto/schemas"
+import { debugClearStateRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerClearStateHandler = createMethodHandler({

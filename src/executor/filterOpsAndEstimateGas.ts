@@ -4,11 +4,11 @@ import {
     type UserOperationBundle
 } from "@alto/types"
 import {
-    UserOpInfo,
-    UserOperation,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/schemas"
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07
+} from "@pimlico/schemas"
+import { UserOpInfo } from "@alto/schemas"
 import {
     type Logger,
     getSerializedHandleOpsTx,

@@ -1,6 +1,9 @@
 import type { GasPriceManager } from "@alto/handlers"
-import type { StateOverrides } from "@alto/schemas"
-import type { UserOperation, UserOperationV07 } from "@alto/schemas"
+import {
+    type StateOverrides,
+    type UserOperation,
+    type UserOperationV07
+} from "@pimlico/schemas"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"

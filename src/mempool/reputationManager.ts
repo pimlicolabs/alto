@@ -14,7 +14,7 @@ import {
 import type { ReadonlyDeep } from "type-fest"
 import { type Address, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { UserOperation } from "@alto/schemas"
+import { type UserOperation } from "@pimlico/schemas"
 
 export interface InterfaceReputationManager {
     checkReputation(

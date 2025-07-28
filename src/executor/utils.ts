@@ -1,10 +1,10 @@
 import { EntryPointV06Abi, EntryPointV07Abi } from "@alto/types"
 import {
-    PackedUserOperation,
-    UserOpInfo,
-    UserOperation,
-    UserOperationV07
-} from "@alto/schemas"
+    type PackedUserOperation,
+    type UserOperation,
+    type UserOperationV07
+} from "@pimlico/schemas"
+import { UserOpInfo } from "@alto/schemas"
 import {
     type Logger,
     isVersion06,

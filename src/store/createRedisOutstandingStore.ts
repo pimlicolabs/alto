@@ -1,10 +1,8 @@
 import {
     type Address,
     type HexData32,
-    type UserOpInfo,
-    type UserOperation,
-    userOpInfoSchema
-} from "@alto/schemas"
+    type UserOperation
+} from "@pimlico/schemas"
 import { type ChainableCommander, Redis } from "ioredis"
 import { toHex } from "viem/utils"
 import type { OutstandingStore } from "."
@@ -14,6 +12,7 @@ import {
     isVersion06,
     isVersion07
 } from "../utils/userop"
+import { UserOpInfo, userOpInfoSchema } from "@alto/schemas"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>

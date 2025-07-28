@@ -1,4 +1,4 @@
-import { pimlicoGetUserOperationGasPriceRequestSchema } from "@alto/schemas"
+import { pimlicoGetUserOperationGasPriceRequestSchema } from "@pimlico/schemas"
 import { scaleBigIntByPercent } from "../../utils/bigInt"
 import { createMethodHandler } from "../createMethodHandler"
 

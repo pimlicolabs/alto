@@ -10,10 +10,10 @@ import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import {
-    ReferencedCodeHashes,
     sendUserOperationRequestSchema,
-    UserOperation
-} from "@alto/schemas"
+    type UserOperation
+} from "@pimlico/schemas"
+import { ReferencedCodeHashes } from "@alto/schemas"
 
 const validatePvg = async (
     apiVersion: ApiVersion,

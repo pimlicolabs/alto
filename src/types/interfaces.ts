@@ -1,12 +1,12 @@
 import type { Address } from "viem"
 import type { SimulateHandleOpResult } from "../rpc/estimation/types"
-import type {
-    ReferencedCodeHashes,
+import type { ReferencedCodeHashes } from "@alto/schemas"
+import {
     StateOverrides,
     UserOperation,
     UserOperationV06,
     UserOperationV07
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 import type * as validation from "./validation"
 
 export interface InterfaceValidator {

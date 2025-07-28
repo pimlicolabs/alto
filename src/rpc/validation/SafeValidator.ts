@@ -47,11 +47,11 @@ import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
 import { debug_traceCall } from "./tracer"
 import {
-    ReferencedCodeHashes,
-    UserOperation,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/schemas"
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07
+} from "@pimlico/schemas"
+import { ReferencedCodeHashes } from "@alto/schemas"
 
 export class SafeValidator
     extends UnsafeValidator

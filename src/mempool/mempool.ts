@@ -11,7 +11,8 @@ import {
     ValidationErrors,
     type ValidationResult
 } from "@alto/types"
-import { ReferencedCodeHashes, UserOpInfo, UserOperation } from "@alto/schemas"
+import { type ReferencedCodeHashes, UserOpInfo } from "@alto/schemas"
+import { type UserOperation } from "@pimlico/schemas"
 import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,

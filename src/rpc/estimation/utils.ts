@@ -30,7 +30,7 @@ import {
     StateOverrides,
     UserOperationV06,
     UserOperationV07
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 
 export function parseFailedOpWithRevert(data: Hex) {
     try {

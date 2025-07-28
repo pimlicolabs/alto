@@ -5,7 +5,7 @@ import {
     ValidationErrors,
     pimlicoSimulationsAbi
 } from "@alto/types"
-import { StateOverrides, UserOperationV07 } from "@alto/schemas"
+import { type StateOverrides, type UserOperationV07 } from "@pimlico/schemas"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, type StateOverride, getContract } from "viem"

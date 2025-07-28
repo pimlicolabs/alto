@@ -1,4 +1,4 @@
-import { debugDumpMempoolRequestSchema } from "@alto/schemas"
+import { debugDumpMempoolRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerDumpMempoolHandler = createMethodHandler({

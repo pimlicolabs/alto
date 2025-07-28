@@ -1,4 +1,4 @@
-import { supportedEntryPointsRequestSchema } from "@alto/schemas"
+import { supportedEntryPointsRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethSupportedEntryPointsHandler = createMethodHandler({

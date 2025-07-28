@@ -1,5 +1,5 @@
 import { createMethodHandler } from "../createMethodHandler"
-import { debugSendBundleNowRequestSchema } from "@alto/schemas"
+import { debugSendBundleNowRequestSchema } from "@pimlico/schemas"
 
 export const debugBundlerSendBundleNowHandler = createMethodHandler({
     method: "debug_bundler_sendBundleNow",

@@ -21,7 +21,7 @@ import {
     bundlerRequestSchema,
     JSONRPCResponse,
     jsonRpcSchema
-} from "@alto/schemas"
+} from "@pimlico/schemas"
 
 // jsonBigIntOverride.ts
 const originalJsonStringify = JSON.stringify

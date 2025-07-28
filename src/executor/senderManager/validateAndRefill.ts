@@ -4,7 +4,7 @@ import { type Address, formatEther, getContract } from "viem"
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
-import { HexData } from "@alto/schemas"
+import { type HexData } from "@pimlico/schemas"
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
 export const validateAndRefillWallets = async ({

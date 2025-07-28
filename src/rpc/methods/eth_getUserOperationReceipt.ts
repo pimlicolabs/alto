@@ -1,5 +1,5 @@
 import { RpcError } from "@alto/types"
-import { getUserOperationReceiptRequestSchema } from "@alto/schemas"
+import { getUserOperationReceiptRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const ethGetUserOperationReceiptHandler = createMethodHandler({

@@ -24,7 +24,7 @@ import {
     toFunctionSelector
 } from "viem"
 import type { BundlerTracerResult } from "./BundlerCollectorTracerV07"
-import { UserOperationV07 } from "@alto/schemas"
+import { type UserOperationV07 } from "@pimlico/schemas"
 
 interface CallEntry {
     to: string

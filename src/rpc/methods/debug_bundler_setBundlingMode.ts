@@ -1,4 +1,4 @@
-import { debugSetBundlingModeRequestSchema } from "@alto/schemas"
+import { debugSetBundlingModeRequestSchema } from "@pimlico/schemas"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const debugBundlerSetBundlingModeHandler = createMethodHandler({

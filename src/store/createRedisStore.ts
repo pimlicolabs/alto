@@ -2,12 +2,8 @@ import Redis from "ioredis"
 import { type Address, toHex } from "viem"
 import type { Store } from "."
 import type { AltoConfig } from "../createConfig"
-import {
-    type HexData32,
-    type UserOpInfo,
-    type UserOperation,
-    userOperationSchema
-} from "@alto/schemas"
+import type { UserOpInfo } from "@alto/schemas"
+import { HexData32, UserOperation, userOperationSchema } from "@pimlico/schemas"
 import { isVersion06, isVersion07 } from "../utils/userop"
 import { RedisHash } from "./createRedisOutstandingStore"
 import { createMemoryStore } from "./createStore"

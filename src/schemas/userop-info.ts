@@ -1,6 +1,5 @@
+import { hexData32Schema, userOperationSchema } from "@pimlico/schemas"
 import z from "zod/v4"
-import { userOperationSchema } from "./userop"
-import { hexData32Schema } from "./common"
 
 const referencedCodeHashesSchema = z.object({
     addresses: z.array(z.string()),

@@ -38,12 +38,12 @@ import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
 import {
-    ReferencedCodeHashes,
     StateOverrides,
-    UserOperation,
-    UserOperationV06,
-    UserOperationV07
-} from "@alto/schemas"
+    type UserOperation,
+    type UserOperationV06,
+    type UserOperationV07
+} from "@pimlico/schemas"
+import { ReferencedCodeHashes } from "@alto/schemas"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
