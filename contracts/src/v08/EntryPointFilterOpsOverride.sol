@@ -67,7 +67,8 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
     }
 
     // Can't rely on "immutable" (constructor-initialized) variables" in simulation
-    function _initDomainSeparator() internal {
+    // must be called once before simulation.
+    function initDomainSeparator() external {
         __domainSeparatorV4 = __buildDomainSeparator();
     }
 
@@ -78,7 +79,6 @@ contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManage
 
     /// @inheritdoc IEntryPoint
     function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external nonReentrant {
-        _initDomainSeparator();
         uint256 opslen = ops.length;
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
         unchecked {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {EntryPointFilterOpsOverride08} from "./v08/EntryPointFilterOpsOverride.sol";
 import {EntryPointGasEstimationOverride06 as EpGasEstOverride06} from "./v06/EntryPointGasEstimationOverride.sol";
 import {IEntryPointSimulations} from "./IEntryPointSimulations.sol";
 
@@ -247,6 +248,10 @@ contract PimlicoSimulations {
         external
         returns (FilterOpsResult memory)
     {
+        // Initialize the domain separator.
+        EntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator();
+
+        // Same logic as 0.7
         return this.filterOps07(userOps, beneficiary, IEntryPoint07(address(entryPoint)));
     }
 
