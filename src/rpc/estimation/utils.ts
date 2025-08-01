@@ -296,14 +296,14 @@ export async function prepareSimulationOverrides06({
 export async function prepareSimulationOverrides07({
     userOp,
     queuedUserOps,
-    epSimulationsAddress,
+    entryPoint,
     gasPriceManager,
     userStateOverrides = {},
     config
 }: {
     userOp: UserOperationV07
     queuedUserOps: UserOperationV07[]
-    epSimulationsAddress: Address
+    entryPoint: Address
     gasPriceManager: GasPriceManager
     userStateOverrides?: StateOverrides
     config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
@@ -317,8 +317,10 @@ export async function prepareSimulationOverrides07({
             const slot = keccak256(toHex("BLOCK_BASE_FEE_PER_GAS"))
             const value = toHex(baseFee, { size: 32 })
 
-            mergedStateOverrides[epSimulationsAddress] = {
+            mergedStateOverrides[entryPoint] = {
+                ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
                 stateDiff: {
+                    ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
                     [slot]: value
                 }
             }
