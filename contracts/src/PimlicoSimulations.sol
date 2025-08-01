@@ -248,10 +248,10 @@ contract PimlicoSimulations {
         external
         returns (FilterOpsResult memory)
     {
-        // Initialize the domain separator.
+        // Initialize the EntryPoint's domain separator.
         IEntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator();
 
-        // Same logic as 0.7
+        // 0.8 has the same filterOps logic as 0.7
         return this.filterOps07(userOps, beneficiary, IEntryPoint07(address(entryPoint)));
     }
 
