@@ -19,14 +19,23 @@ import "account-abstraction-v8/utils/Exec.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
+
 import "../SimulationOverrideHelper.sol";
+import "./IEntryPointFilterOpsOverride.sol";
 
 /**
  * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
  * Only one instance required on each chain.
  * @custom:security-contact https://bounty.ethereum.org
  */
-contract EntryPointFilterOpsOverride08 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, ERC165 {
+contract EntryPointFilterOpsOverride08 is
+    IEntryPoint,
+    StakeManager,
+    NonceManager,
+    ReentrancyGuardTransient,
+    ERC165,
+    IEntryPointFilterOpsOverride08
+{
     using UserOperationLib for PackedUserOperation;
 
     /**
