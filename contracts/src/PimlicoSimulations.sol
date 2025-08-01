@@ -249,7 +249,9 @@ contract PimlicoSimulations {
         returns (FilterOpsResult memory)
     {
         // Initialize the EntryPoint's domain separator.
-        IEntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator();
+        // Try-catch as some RPCs don't support code overrides.
+        // In these cases the standard entryPoint will be used and trying to call initDomainSeparator will revert.
+        try IEntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator() {} catch {}
 
         // 0.8 has the same filterOps logic as 0.7
         return this.filterOps07(userOps, beneficiary, IEntryPoint07(address(entryPoint)));
