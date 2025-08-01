@@ -454,7 +454,7 @@ export class GasEstimator07 {
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,
             queuedUserOps,
-            epSimulationsAddress,
+            entryPoint,
             gasPriceManager: this.gasPriceManager,
             userStateOverrides: stateOverrides,
             config: this.config
@@ -505,15 +505,10 @@ export class GasEstimator07 {
         queuedUserOps: UserOperationV07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
-        const { epSimulationsAddress } = this.getSimulationContracts(
-            entryPoint,
-            userOp
-        )
-
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,
             queuedUserOps,
-            epSimulationsAddress,
+            entryPoint,
             gasPriceManager: this.gasPriceManager,
             userStateOverrides: userStateOverrides,
             config: this.config
