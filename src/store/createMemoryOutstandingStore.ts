@@ -208,7 +208,7 @@ export class MemoryOutstanding implements OutstandingStore {
         return Promise.resolve(userOpInfo)
     }
 
-    async add(userOpInfo: UserOpInfo): Promise<void> {
+    async add(userOpInfo: UserOpInfo, isQueued: boolean): Promise<void> {
         const { userOp, userOpHash } = userOpInfo
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSlot = senderNonceSlot(userOp)
@@ -239,8 +239,8 @@ export class MemoryOutstanding implements OutstandingStore {
 
         const lowestUserOpHash = backlogOps[0].userOpHash
 
-        // If lowest, remove any existing userOp with same sender and nonceKey and add current userOp to priorityQueue.
-        if (lowestUserOpHash === userOpHash) {
+        // Only add to priority queue if it's the lowest nonce and not queued (waiting for nonce gap)
+        if (lowestUserOpHash === userOpHash && !isQueued) {
             this.priorityQueue = this.priorityQueue.filter((userOpInfo) => {
                 const pendingUserOp = userOpInfo.userOp
                 const isSameSender = pendingUserOp.sender === userOp.sender

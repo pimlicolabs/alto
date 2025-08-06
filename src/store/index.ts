@@ -31,6 +31,12 @@ export type EntryPointUserOpInfoParam = {
     userOpInfo: UserOpInfo
 }
 
+export type EntryPointUserOpInfoIsQueuedParam = {
+    entryPoint: Address
+    userOpInfo: UserOpInfo
+    isQueued: boolean
+}
+
 export type EntryPointUserOpHashParam = {
     entryPoint: Address
     userOpHash: HexData32
@@ -48,7 +54,7 @@ export type MempoolStore = {
     popOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
 
     // Methods for state handling.
-    addOutstanding: (args: EntryPointUserOpInfoParam) => Promise<void>
+    addOutstanding: (args: EntryPointUserOpInfoIsQueuedParam) => Promise<void>
     addProcessing: (args: EntryPointUserOpInfoParam) => Promise<void>
     addSubmitted: (args: EntryPointUserOpInfoParam) => Promise<void>
 
@@ -82,19 +88,22 @@ export type MempoolStore = {
     clearOutstanding: (entryPoint: Address) => Promise<void>
 }
 
-export type BaseStore = {
+export type Store = {
     add: (op: UserOpInfo) => Promise<void>
     remove: (userOpHash: HexData32) => Promise<boolean>
     contains: (userOpHash: HexData32) => Promise<boolean>
     dumpLocal: () => Promise<UserOpInfo[]>
-}
-
-export type Store = BaseStore & {
     findConflicting: (args: UserOperation) => Promise<ConflictingStoreType>
 }
 
-export type OutstandingStore = BaseStore & {
+export type OutstandingStore = {
+    // Methods to add/remove from store.
+    add: (op: UserOpInfo, isQueued: boolean) => Promise<void>
+    remove: (userOpHash: HexData32) => Promise<boolean>
+    contains: (userOpHash: HexData32) => Promise<boolean>
+    dumpLocal: () => Promise<UserOpInfo[]>
     clear: () => Promise<void>
+
     // Will remove and return the first conflicting userOpInfo
     popConflicting: (args: UserOperation) => Promise<ConflictingOutstandingType>
     validateQueuedLimit: (userOp: UserOperation) => boolean
