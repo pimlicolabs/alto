@@ -306,14 +306,16 @@ export async function restoreShutdownState({
                     for (const userOpInfo of data.outstanding) {
                         await mempool.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfo,
+                            isQueued: false
                         })
                     }
 
                     for (const userOpInfo of data.processing) {
                         await mempool.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfo,
+                            isQueued: false
                         })
                     }
 
