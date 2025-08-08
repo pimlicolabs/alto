@@ -490,7 +490,7 @@ export class UserOpMonitor {
         const getTransactionReceipt = async (
             txHash: HexData32
         ): Promise<TransactionReceipt> => {
-            const maxRetries = 10
+            const maxRetries = 16
 
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 try {
@@ -524,6 +524,10 @@ export class UserOpMonitor {
                         attempt < maxRetries
                     ) {
                         if (attempt < maxRetries - 1) {
+                            // Wait a bit before trying again
+                            await new Promise((resolve) =>
+                                setTimeout(resolve, this.config.blockTime / 4)
+                            )
                             continue
                         }
 
