@@ -490,7 +490,9 @@ export class UserOpMonitor {
         const getTransactionReceipt = async (
             txHash: HexData32
         ): Promise<TransactionReceipt> => {
-            while (true) {
+            const maxRetries = 10
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
                 try {
                     const publicClient = this.config.publicClient
 
@@ -517,13 +519,25 @@ export class UserOpMonitor {
 
                     return transactionReceipt
                 } catch (e) {
-                    if (e instanceof TransactionReceiptNotFoundError) {
-                        continue
+                    if (
+                        e instanceof TransactionReceiptNotFoundError &&
+                        attempt < maxRetries
+                    ) {
+                        if (attempt < maxRetries - 1) {
+                            continue
+                        }
+                        // Max retries reached, likely a reorg
+                        throw new Error(
+                            `Transaction receipt not found after ${maxRetries} attempts for tx ${txHash} - possible chain reorganization`
+                        )
                     }
 
                     throw e
                 }
             }
+
+            // Should never reach here due to the throw in the catch block
+            throw new Error(`Failed to get transaction receipt for ${txHash}`)
         }
 
         const receipt = await getTransactionReceipt(txHash)
