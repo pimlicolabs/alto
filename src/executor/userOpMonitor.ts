@@ -526,9 +526,10 @@ export class UserOpMonitor {
                         if (attempt < maxRetries - 1) {
                             continue
                         }
+
                         // Max retries reached, likely a reorg
                         throw new Error(
-                            `Transaction receipt not found after ${maxRetries} attempts for tx ${txHash} - possible chain reorganization`
+                            `Transaction receipt not found after ${maxRetries} attempts for tx ${txHash}`
                         )
                     }
 
