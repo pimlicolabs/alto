@@ -519,10 +519,7 @@ export class UserOpMonitor {
 
                     return transactionReceipt
                 } catch (e) {
-                    if (
-                        e instanceof TransactionReceiptNotFoundError &&
-                        attempt < maxRetries
-                    ) {
+                    if (e instanceof TransactionReceiptNotFoundError) {
                         if (attempt < maxRetries - 1) {
                             // Wait a bit before trying again
                             await new Promise((resolve) =>
