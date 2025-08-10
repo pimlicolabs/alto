@@ -346,12 +346,11 @@ export class ReputationManager implements InterfaceReputationManager {
             )
         }
 
-        const aggregatorValidationResult = validationResult
-        if (aggregatorValidationResult.aggregatorInfo) {
+        if (validationResult.aggregatorInfo) {
             this.checkReputationStatus(
                 entryPoint,
                 EntityType.Aggregator,
-                aggregatorValidationResult.aggregatorInfo.stakeInfo
+                validationResult.aggregatorInfo.stakeInfo
             )
         }
     }
