@@ -265,7 +265,7 @@ export class UnsafeValidator implements InterfaceValidator {
         return error
     }
 
-    async validateUserOp06(args: {
+    async getValidationResult06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
@@ -440,7 +440,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
-    async validateUserOp07(args: {
+    async getValidationResult07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         entryPoint: Address
@@ -546,7 +546,7 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-    async validateUserOp(args: {
+    async getValidationResult(args: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]
         entryPoint: Address
@@ -561,13 +561,13 @@ export class UnsafeValidator implements InterfaceValidator {
         try {
             let validationResult
             if (isVersion06(userOp)) {
-                validationResult = await this.validateUserOp06({
+                validationResult = await this.getValidationResult06({
                     userOp,
                     entryPoint,
                     codeHashes: referencedContracts
                 })
             } else {
-                validationResult = await this.validateUserOp07({
+                validationResult = await this.getValidationResult07({
                     userOp,
                     queuedUserOps: queuedUserOps as UserOperation07[],
                     entryPoint,
