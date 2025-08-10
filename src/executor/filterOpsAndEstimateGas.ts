@@ -3,9 +3,9 @@ import {
     type RejectedUserOp,
     type UserOpInfo,
     type UserOperation,
-    type UserOperationBundle,
     type UserOperation06,
-    type UserOperation07
+    type UserOperation07,
+    type UserOperationBundle
 } from "@alto/types"
 import {
     type Logger,

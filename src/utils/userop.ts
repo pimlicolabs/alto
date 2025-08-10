@@ -1,9 +1,9 @@
 import {
     type PackedUserOperation,
     type UserOperation,
-    type UserOperationReceipt,
     type UserOperation06,
     type UserOperation07,
+    type UserOperationReceipt,
     logSchema,
     receiptSchema
 } from "@alto/types"
