@@ -5,8 +5,8 @@ import type {
     UserOperation06,
     UserOperation07,
     ValidationResult,
-    ValidationResultV06,
-    ValidationResultV07
+    ValidationResult06,
+    ValidationResult07
 } from "@alto/types"
 import {
     type Address,
@@ -138,7 +138,7 @@ export class SafeValidator
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        ValidationResultV07 & {
+        ValidationResult07 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -203,7 +203,7 @@ export class SafeValidator
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        ValidationResultV06 & {
+        ValidationResult06 & {
             referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
         }
@@ -281,7 +281,7 @@ export class SafeValidator
     async getValidationResultWithTracerV06(
         userOp: UserOperation06,
         entryPoint: Address
-    ): Promise<[ValidationResultV06, BundlerTracerResult]> {
+    ): Promise<[ValidationResult06, BundlerTracerResult]> {
         const stateOverrides = getAuthorizationStateOverrides({
             userOps: [userOp]
         })
@@ -429,7 +429,7 @@ export class SafeValidator
         userOp: UserOperation07,
         queuedUserOps: UserOperation07[],
         entryPoint: Address
-    ): Promise<[ValidationResultV07, BundlerTracerResult]> {
+    ): Promise<[ValidationResult07, BundlerTracerResult]> {
         const packedUserOp = toPackedUserOp(userOp)
         const packedQueuedUserOps = queuedUserOps.map((uop) =>
             toPackedUserOp(uop)
@@ -508,7 +508,7 @@ export class SafeValidator
             throw new RpcError(errorMessage, errorCode)
         }
 
-        const validationResult = args[0] as ValidationResultV07
+        const validationResult = args[0] as ValidationResult07
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,

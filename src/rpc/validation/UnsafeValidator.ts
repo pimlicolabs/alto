@@ -5,8 +5,8 @@ import type {
     UserOperation06,
     UserOperation07,
     ValidationResult,
-    ValidationResultV06,
-    ValidationResultV07
+    ValidationResult06,
+    ValidationResult07
 } from "@alto/types"
 import {
     type Address,
@@ -270,7 +270,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        ValidationResultV06 & {
+        ValidationResult06 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -320,7 +320,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 simulateValidationResult,
                 this.logger,
                 "validation"
-            )) as ValidationResultV06),
+            )) as ValidationResult06),
             storageMap: {}
         }
 
@@ -446,7 +446,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        ValidationResultV07 & {
+        ValidationResult07 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -470,7 +470,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const validationResult =
-            simulateValidationResult.data as ValidationResultV07
+            simulateValidationResult.data as ValidationResult07
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,
