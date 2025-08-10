@@ -4,8 +4,7 @@ import {
     type StakeInfo,
     type UserOperation,
     ValidationErrors,
-    type ValidationResult,
-    type ValidationResultWithAggregation
+    type ValidationResult
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import {
@@ -20,7 +19,7 @@ export interface InterfaceReputationManager {
     checkReputation(
         userOp: UserOperation,
         entryPoint: Address,
-        validationResult: ValidationResult | ValidationResultWithAggregation
+        validationResult: ValidationResult
     ): void
     increaseUserOpSeenStatus(
         userOp: UserOperation,
@@ -111,7 +110,7 @@ export class NullReputationManager implements InterfaceReputationManager {
     checkReputation(
         _userOp: UserOperation,
         _entryPoint: Address,
-        _validationResult: ValidationResult | ValidationResultWithAggregation
+        _validationResult: ValidationResult
     ): void {
         return
     }
@@ -320,7 +319,7 @@ export class ReputationManager implements InterfaceReputationManager {
     checkReputation(
         userOp: UserOperation,
         entryPoint: Address,
-        validationResult: ValidationResult | ValidationResultWithAggregation
+        validationResult: ValidationResult
     ): void {
         this.increaseUserOpCount(userOp)
 
@@ -347,13 +346,11 @@ export class ReputationManager implements InterfaceReputationManager {
             )
         }
 
-        const aggregatorValidationResult =
-            validationResult as ValidationResultWithAggregation
-        if (aggregatorValidationResult.aggregatorInfo) {
+        if (validationResult.aggregatorInfo) {
             this.checkReputationStatus(
                 entryPoint,
                 EntityType.Aggregator,
-                aggregatorValidationResult.aggregatorInfo.stakeInfo
+                validationResult.aggregatorInfo.stakeInfo
             )
         }
     }

@@ -1,9 +1,9 @@
 import {
     type PackedUserOperation,
     type UserOperation,
+    type UserOperation06,
+    type UserOperation07,
     type UserOperationReceipt,
-    type UserOperationV06,
-    type UserOperationV07,
     logSchema,
     receiptSchema
 } from "@alto/types"
@@ -31,14 +31,14 @@ import { getAuthorizationStateOverrides } from "./helpers"
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
     operation: UserOperation
-): operation is UserOperationV06 {
+): operation is UserOperation06 {
     return "initCode" in operation && "paymasterAndData" in operation
 }
 
 // Type predicate to check if the UserOperation is V07.
 export function isVersion07(
     operation: UserOperation
-): operation is UserOperationV07 {
+): operation is UserOperation07 {
     return "factory" in operation && "paymaster" in operation
 }
 
@@ -46,11 +46,11 @@ export function isVersion07(
 export function isVersion08(
     operation: UserOperation,
     entryPointAddress: Address
-): operation is UserOperationV07 {
+): operation is UserOperation07 {
     return entryPointAddress.startsWith("0x4337")
 }
 
-export function getInitCode(unpackedUserOp: UserOperationV07) {
+export function getInitCode(unpackedUserOp: UserOperation07) {
     return unpackedUserOp.factory
         ? concat([
               unpackedUserOp.factory === "0x7702"
@@ -78,7 +78,7 @@ export function unPackInitCode(initCode: Hex) {
     }
 }
 
-export function getAccountGasLimits(unpackedUserOp: UserOperationV07) {
+export function getAccountGasLimits(unpackedUserOp: UserOperation07) {
     return concat([
         pad(toHex(unpackedUserOp.verificationGasLimit), {
             size: 16
@@ -94,7 +94,7 @@ export function unpackAccountGasLimits(accountGasLimits: Hex) {
     }
 }
 
-export function getGasLimits(unpackedUserOp: UserOperationV07) {
+export function getGasLimits(unpackedUserOp: UserOperation07) {
     return concat([
         pad(toHex(unpackedUserOp.maxPriorityFeePerGas), {
             size: 16
@@ -110,7 +110,7 @@ export function unpackGasLimits(gasLimits: Hex) {
     }
 }
 
-export function getPaymasterAndData(unpackedUserOp: UserOperationV07) {
+export function getPaymasterAndData(unpackedUserOp: UserOperation07) {
     return unpackedUserOp.paymaster
         ? concat([
               unpackedUserOp.paymaster,
@@ -147,7 +147,7 @@ export function unpackPaymasterAndData(paymasterAndData: Hex) {
 }
 
 export function toPackedUserOp(
-    unpackedUserOp: UserOperationV07
+    unpackedUserOp: UserOperation07
 ): PackedUserOperation {
     return {
         sender: unpackedUserOp.sender,
@@ -208,7 +208,7 @@ export const getUserOpHashV06 = ({
     entryPointAddress,
     chainId
 }: {
-    userOp: UserOperationV06
+    userOp: UserOperation06
     entryPointAddress: Address
     chainId: number
 }) => {
@@ -376,7 +376,7 @@ export const getUserOpHashV08 = async ({
     entryPointAddress,
     publicClient
 }: {
-    userOp: UserOperationV07
+    userOp: UserOperation07
     entryPointAddress: Address
     chainId: number
     publicClient: PublicClient
@@ -472,7 +472,7 @@ export const getNonceKeyAndSequence = (nonce: bigint) => {
 
 export function toUnpackedUserOp(
     packedUserOp: PackedUserOperation
-): UserOperationV07 {
+): UserOperation07 {
     const { factory, factoryData } = unPackInitCode(packedUserOp.initCode)
 
     const { callGasLimit, verificationGasLimit } = unpackAccountGasLimits(

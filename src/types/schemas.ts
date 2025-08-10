@@ -111,7 +111,7 @@ const signedAuthorizationSchema = z.union([
     })
 ])
 
-const userOperationV06Schema = z
+const userOperation06Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -131,7 +131,7 @@ const userOperationV06Schema = z
         return val
     })
 
-const userOperationV07Schema = z
+const userOperation07Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -171,7 +171,7 @@ const userOperationV07Schema = z
     .strict()
     .transform((val) => val)
 
-const userOperationV08Schema = z
+const userOperation08Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -212,7 +212,7 @@ const userOperationV08Schema = z
     .strict()
     .transform((val) => val)
 
-const partialUserOperationV06Schema = z
+const partialUserOperation06Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -232,7 +232,7 @@ const partialUserOperationV06Schema = z
         return val
     })
 
-const partialUserOperationV07Schema = z
+const partialUserOperation07Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -272,7 +272,7 @@ const partialUserOperationV07Schema = z
     .strict()
     .transform((val) => val)
 
-const partialUserOperationV08Schema = z
+const partialUserOperation08Schema = z
     .object({
         sender: addressSchema,
         nonce: hexNumberSchema,
@@ -329,20 +329,20 @@ const packerUserOperationSchema = z
     .transform((val) => val)
 
 const partialUserOperationSchema = z.union([
-    partialUserOperationV06Schema,
-    partialUserOperationV07Schema,
-    partialUserOperationV08Schema
+    partialUserOperation06Schema,
+    partialUserOperation07Schema,
+    partialUserOperation08Schema
 ])
 
 export const userOperationSchema = z.union([
-    userOperationV06Schema,
-    userOperationV07Schema,
-    userOperationV08Schema
+    userOperation06Schema,
+    userOperation07Schema,
+    userOperation08Schema
 ])
 
-export type UserOperationV06 = z.infer<typeof userOperationV06Schema>
-export type UserOperationV07 = z.infer<typeof userOperationV07Schema>
-export type UserOperationV08 = z.infer<typeof userOperationV08Schema>
+export type UserOperation06 = z.infer<typeof userOperation06Schema>
+export type UserOperation07 = z.infer<typeof userOperation07Schema>
+export type UserOperation08 = z.infer<typeof userOperation08Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 

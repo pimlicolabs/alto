@@ -2,13 +2,11 @@ import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
     StateOverrides,
-    UserOperationV06,
-    UserOperationV07,
+    UserOperation06,
+    UserOperation07,
     ValidationResult,
-    ValidationResultV06,
-    ValidationResultV07,
-    ValidationResultWithAggregationV06,
-    ValidationResultWithAggregationV07
+    ValidationResult06,
+    ValidationResult07
 } from "@alto/types"
 import {
     type Address,
@@ -20,9 +18,8 @@ import {
     type StorageMap,
     type UserOperation,
     ValidationErrors,
-    type ValidationResultWithAggregation,
-    entryPointExecutionErrorSchemaV06,
-    entryPointExecutionErrorSchemaV07
+    entryPointExecutionErrorSchema06,
+    entryPointExecutionErrorSchema07
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { isVersion06 } from "@alto/utils"
@@ -79,12 +76,10 @@ export class UnsafeValidator implements InterfaceValidator {
         errorResult: unknown,
         logger: Logger,
         simulationType: "validation" | "execution"
-    ): Promise<
-        ValidationResult | ValidationResultWithAggregation | ExecutionResult
-    > {
+    ): Promise<ValidationResult | ExecutionResult> {
         const entryPointExecutionErrorSchema = isVersion06
-            ? entryPointExecutionErrorSchemaV06
-            : entryPointExecutionErrorSchemaV07
+            ? entryPointExecutionErrorSchema06
+            : entryPointExecutionErrorSchema07
 
         const entryPointErrorSchemaParsing =
             entryPointExecutionErrorSchema.safeParse(errorResult)
@@ -271,11 +266,11 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getValidationResultV06(args: {
-        userOp: UserOperationV06
+        userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResultV06 | ValidationResultWithAggregationV06) & {
+        ValidationResult06 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -325,7 +320,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 simulateValidationResult,
                 this.logger,
                 "validation"
-            )) as ValidationResultV06 | ValidationResultWithAggregationV06),
+            )) as ValidationResult06),
             storageMap: {}
         }
 
@@ -446,12 +441,12 @@ export class UnsafeValidator implements InterfaceValidator {
     }
 
     async getValidationResultV07(args: {
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResultV07 | ValidationResultWithAggregationV07) & {
+        ValidationResult07 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -475,7 +470,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const validationResult =
-            simulateValidationResult.data as ValidationResultWithAggregationV07
+            simulateValidationResult.data as ValidationResult07
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,
@@ -557,7 +552,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
+        ValidationResult & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -572,7 +567,7 @@ export class UnsafeValidator implements InterfaceValidator {
         }
         return this.getValidationResultV07({
             userOp,
-            queuedUserOps: queuedUserOps as UserOperationV07[],
+            queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint
         })
     }
@@ -583,7 +578,7 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         _referencedContracts?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
+        ValidationResult & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }

@@ -5,9 +5,9 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
-    type UserOperationV07,
+    type UserOperation07,
     ValidationErrors,
-    type ValidationResultV07
+    type ValidationResult07
 } from "@alto/types"
 import { areAddressesEqual, isVersion08 } from "@alto/utils"
 import type { Abi, AbiFunction } from "abitype"
@@ -422,9 +422,9 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
  * @return list of contract addresses referenced by this UserOp
  */
 export function tracerResultParserV07(
-    userOp: UserOperationV07,
+    userOp: UserOperation07,
     tracerResults: BundlerTracerResult,
-    validationResult: ValidationResultV07,
+    validationResult: ValidationResult07,
     entryPointAddress: Address
 ): [string[], StorageMap] {
     // todo: block access to no-code addresses (might need update to tracer)

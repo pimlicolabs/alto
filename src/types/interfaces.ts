@@ -4,8 +4,8 @@ import type {
     ReferencedCodeHashes,
     StateOverrides,
     UserOperation,
-    UserOperationV06,
-    UserOperationV07
+    UserOperation06,
+    UserOperation07
 } from "./schemas"
 import type * as validation from "./validation"
 
@@ -30,29 +30,23 @@ export interface InterfaceValidator {
     }): Promise<SimulateHandleOpResult>
 
     getValidationResultV06(args: {
-        userOp: UserOperationV06
+        userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
+        validation.ValidationResult & {
             storageMap: validation.StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     >
 
     getValidationResultV07(args: {
-        userOp: UserOperationV07
+        userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
+        validation.ValidationResult & {
             storageMap: validation.StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -64,10 +58,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
+        validation.ValidationResult & {
             storageMap: validation.StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -79,10 +70,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
-        (
-            | validation.ValidationResult
-            | validation.ValidationResultWithAggregation
-        ) & {
+        validation.ValidationResult & {
             storageMap: validation.StorageMap
             referencedContracts?: ReferencedCodeHashes
         }

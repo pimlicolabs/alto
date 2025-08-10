@@ -1,7 +1,7 @@
 import type {
     StateOverrides,
-    UserOperationV06,
-    UserOperationV07
+    UserOperation06,
+    UserOperation07
 } from "@alto/types"
 import { ValidationErrors, executionResultSchema } from "@alto/types"
 import {
@@ -72,8 +72,8 @@ export function prepareStateOverride({
     stateOverrides,
     config
 }: {
-    userOps: (UserOperationV06 | UserOperationV07)[]
-    queuedUserOps: (UserOperationV06 | UserOperationV07)[]
+    userOps: (UserOperation06 | UserOperation07)[]
+    queuedUserOps: (UserOperation06 | UserOperation07)[]
     stateOverrides?: StateOverrides
     config: Pick<AltoConfig, "balanceOverride" | "codeOverrideSupport">
 }): StateOverride | undefined {
@@ -262,7 +262,7 @@ export async function prepareSimulationOverrides06({
     useCodeOverride,
     config
 }: {
-    userOp: UserOperationV06
+    userOp: UserOperation06
     entryPoint: Address
     userStateOverrides?: StateOverrides
     useCodeOverride: boolean
@@ -301,8 +301,8 @@ export async function prepareSimulationOverrides07({
     userStateOverrides = {},
     config
 }: {
-    userOp: UserOperationV07
-    queuedUserOps: UserOperationV07[]
+    userOp: UserOperation07
+    queuedUserOps: UserOperation07[]
     entryPoint: Address
     gasPriceManager: GasPriceManager
     userStateOverrides?: StateOverrides
