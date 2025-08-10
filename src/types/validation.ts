@@ -3,6 +3,7 @@ import { z } from "zod"
 import { RpcError } from "."
 import { EntryPointV06Abi } from "./contracts"
 import { type HexData, addressSchema } from "./schemas"
+import type { ReferencedCodeHashes } from "./schemas"
 
 export type StakeInfo = {
     addr?: string
@@ -237,6 +238,20 @@ export type ValidationResult06 = z.infer<typeof validationResultSchema06>
 export type ValidationResult07 = z.infer<typeof validationResultSchema07>
 
 export type ValidationResult = z.infer<typeof validationResultSchema>
+
+export type ValidationResultWithError =
+    | {
+          result: "failed"
+          data: string
+          code: number
+      }
+    | {
+          result: "success"
+          data: ValidationResult & {
+              storageMap: StorageMap
+              referencedContracts?: ReferencedCodeHashes
+          }
+      }
 
 const validationResultErrorSchema = z.object({
     args: validationResultSchema,
