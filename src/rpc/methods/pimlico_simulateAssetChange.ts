@@ -2,8 +2,8 @@ import {
     ExecutionErrors,
     RpcError,
     type UserOperation,
-    type UserOperationV06,
-    type UserOperationV07,
+    type UserOperation06,
+    type UserOperation07,
     ValidationErrors,
     pimlicoSimulateAssetChangeSchema,
     pimlicoSimulationsAbi
@@ -64,7 +64,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             })
         } else if (is07 || is08) {
             stateOverride = await prepareSimulationOverrides07({
-                userOp: userOp as UserOperationV07,
+                userOp: userOp as UserOperation07,
                 queuedUserOps: [],
                 entryPoint,
                 gasPriceManager: rpcHandler.gasPriceManager,
@@ -93,7 +93,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 const { result: simResult } =
                     await pimlicoSimulation.simulate.simulateAssetChange08(
                         [
-                            toPackedUserOp(userOp as UserOperationV07),
+                            toPackedUserOp(userOp as UserOperation07),
                             entryPoint,
                             rpcHandler.config.entrypointSimulationContractV8,
                             addresses,
@@ -116,7 +116,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 const { result: simResult } =
                     await pimlicoSimulation.simulate.simulateAssetChange07(
                         [
-                            toPackedUserOp(userOp as UserOperationV07),
+                            toPackedUserOp(userOp as UserOperation07),
                             entryPoint,
                             rpcHandler.config.entrypointSimulationContractV7,
                             addresses,
@@ -131,7 +131,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 const { result: simResult } =
                     await pimlicoSimulation.simulate.simulateAssetChange06(
                         [
-                            userOp as UserOperationV06,
+                            userOp as UserOperation06,
                             entryPoint,
                             addresses,
                             tokens

@@ -4,8 +4,8 @@ import {
     type UserOpInfo,
     type UserOperation,
     type UserOperationBundle,
-    type UserOperationV06,
-    type UserOperationV07
+    type UserOperation06,
+    type UserOperation07
 } from "@alto/types"
 import {
     type Logger,
@@ -194,7 +194,7 @@ const getFilterOpsResult = async ({
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOp(userOp as UserOperationV07)
+                        toPackedUserOp(userOp as UserOperation07)
                     ),
                     beneficiary,
                     entryPoint
@@ -208,7 +208,7 @@ const getFilterOpsResult = async ({
                 functionName: "filterOps07",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOp(userOp as UserOperationV07)
+                        toPackedUserOp(userOp as UserOperation07)
                     ),
                     beneficiary,
                     entryPoint
@@ -221,7 +221,7 @@ const getFilterOpsResult = async ({
                 abi: pimlicoSimulationsAbi,
                 functionName: "filterOps06",
                 args: [
-                    userOps.map(({ userOp }) => userOp) as UserOperationV06[],
+                    userOps.map(({ userOp }) => userOp) as UserOperation06[],
                     beneficiary,
                     entryPoint
                 ]

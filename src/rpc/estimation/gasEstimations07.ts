@@ -3,7 +3,7 @@ import {
     ExecutionErrors,
     RpcError,
     type StateOverrides,
-    type UserOperationV07,
+    type UserOperation07,
     ValidationErrors,
     pimlicoSimulationsAbi
 } from "@alto/types"
@@ -55,7 +55,7 @@ export class GasEstimator07 {
 
     private getSimulationContracts(
         entryPoint: Address,
-        userOp: UserOperationV07
+        userOp: UserOperation07
     ) {
         const is08 = isVersion08(userOp, entryPoint)
         const epSimulationsAddress = is08
@@ -103,8 +103,8 @@ export class GasEstimator07 {
             | "binarySearchVerificationGas"
             | "binarySearchPaymasterVerificationGas"
             | "binarySearchCallGas"
-        queuedUserOps: UserOperationV07[]
-        targetUserOp: UserOperationV07
+        queuedUserOps: UserOperation07[]
+        targetUserOp: UserOperation07
         stateOverride?: StateOverride
         retryCount?: number
         initialMinGas?: bigint
@@ -200,8 +200,8 @@ export class GasEstimator07 {
         stateOverride
     }: {
         entryPoint: Address
-        queuedUserOps: UserOperationV07[]
-        targetUserOp: UserOperationV07
+        queuedUserOps: UserOperation07[]
+        targetUserOp: UserOperation07
         stateOverride?: StateOverride
     }): Promise<SimulateHandleOpResult> {
         const { pimlicoSimulation, epSimulationsAddress } =
@@ -247,8 +247,8 @@ export class GasEstimator07 {
         retryCount = 0
     }: {
         entryPoint: Address
-        queuedUserOps: UserOperationV07[]
-        targetUserOp: UserOperationV07
+        queuedUserOps: UserOperation07[]
+        targetUserOp: UserOperation07
         stateOverride?: StateOverride
         retryCount?: number
     }): Promise<
@@ -396,8 +396,8 @@ export class GasEstimator07 {
         queuedUserOps
     }: {
         entryPoint: Address
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
     }) {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
@@ -444,8 +444,8 @@ export class GasEstimator07 {
         stateOverrides = {}
     }: {
         entryPoint: Address
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
@@ -501,8 +501,8 @@ export class GasEstimator07 {
         userStateOverrides = {}
     }: {
         entryPoint: Address
-        userOp: UserOperationV07
-        queuedUserOps: UserOperationV07[]
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
         userStateOverrides?: StateOverrides | undefined
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = await prepareSimulationOverrides07({

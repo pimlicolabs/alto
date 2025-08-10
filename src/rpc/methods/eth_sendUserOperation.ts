@@ -60,10 +60,7 @@ const getUserOpValidationResult = async (
     entryPoint: Address
 ): Promise<{
     queuedUserOps: UserOperation[]
-    validationResult: (
-        | validation.ValidationResult
-        | validation.ValidationResultWithAggregation
-    ) & {
+    validationResult: validation.ValidationResult & {
         storageMap: validation.StorageMap
         referencedContracts?: ReferencedCodeHashes
     }

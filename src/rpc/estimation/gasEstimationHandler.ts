@@ -1,6 +1,6 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { UserOperation } from "@alto/types"
-import type { StateOverrides, UserOperationV07 } from "@alto/types"
+import type { StateOverrides, UserOperation07 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"
 import type { Hex } from "viem"
 import type { Address } from "viem"
@@ -44,8 +44,8 @@ export class GasEstimationHandler {
         }
 
         return this.gasEstimator07.validateHandleOp07({
-            userOp: userOp as UserOperationV07,
-            queuedUserOps: queuedUserOps as UserOperationV07[],
+            userOp: userOp as UserOperation07,
+            queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint,
             stateOverrides
         })
@@ -77,8 +77,8 @@ export class GasEstimationHandler {
         }
 
         return this.gasEstimator07.simulateHandleOp07({
-            userOp: userOp as UserOperationV07,
-            queuedUserOps: queuedUserOps as UserOperationV07[],
+            userOp: userOp as UserOperation07,
+            queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint,
             userStateOverrides: stateOverrides
         })

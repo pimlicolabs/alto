@@ -1,4 +1,4 @@
-import type { StateOverrides, UserOperationV06 } from "@alto/types"
+import type { StateOverrides, UserOperation06 } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import type { Hex } from "viem"
 import { type Address, getContract } from "viem"
@@ -35,7 +35,7 @@ export class GasEstimator06 {
         useCodeOverride = true,
         userStateOverrides = undefined
     }: {
-        userOp: UserOperationV06
+        userOp: UserOperation06
         targetAddress: Address
         targetCallData: Hex
         entryPoint: Address

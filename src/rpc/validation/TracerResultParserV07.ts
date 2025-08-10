@@ -5,7 +5,7 @@ import {
     SenderCreatorAbi,
     type StakeInfo,
     type StorageMap,
-    type UserOperationV07,
+    type UserOperation07,
     ValidationErrors,
     type ValidationResultV07
 } from "@alto/types"
@@ -422,7 +422,7 @@ const callsFromEntryPointMethodSigs: { [key: string]: string } = {
  * @return list of contract addresses referenced by this UserOp
  */
 export function tracerResultParserV07(
-    userOp: UserOperationV07,
+    userOp: UserOperation07,
     tracerResults: BundlerTracerResult,
     validationResult: ValidationResultV07,
     entryPointAddress: Address

@@ -5,8 +5,8 @@ import {
     MantleBvmGasPriceOracleAbi,
     OpL1FeeAbi,
     type UserOperation,
-    type UserOperationV06,
-    type UserOperationV07
+    type UserOperation06,
+    type UserOperation07
 } from "@alto/types"
 import {
     type Chain,
@@ -63,12 +63,12 @@ export function encodeUserOp(userOp: UserOperation): Uint8Array {
                         type: "tuple"
                     }
                 ],
-                [p as UserOperationV06]
+                [p as UserOperation06]
             )
         )
     }
     // For v0.7, we need to pack the user operation
-    const packedOp = toPackedUserOp(p as UserOperationV07)
+    const packedOp = toPackedUserOp(p as UserOperation07)
     return toBytes(
         encodeAbiParameters(
             [

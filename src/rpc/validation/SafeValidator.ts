@@ -2,13 +2,11 @@ import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
-    UserOperationV06,
-    UserOperationV07,
+    UserOperation06,
+    UserOperation07,
     ValidationResult,
     ValidationResultV06,
-    ValidationResultV07,
-    ValidationResultWithAggregationV06,
-    ValidationResultWithAggregationV07
+    ValidationResultV07
 } from "@alto/types"
 import {
     type Address,
@@ -21,7 +19,6 @@ import {
     type StorageMap,
     type UserOperation,
     ValidationErrors,
-    type ValidationResultWithAggregation,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
@@ -82,7 +79,7 @@ export class SafeValidator
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResult | ValidationResultWithAggregation) & {
+        ValidationResult & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -136,12 +133,12 @@ export class SafeValidator
     }
 
     async getValidationResultV07(args: {
-        userOp: UserOperationV07
+        userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResultV07 | ValidationResultWithAggregationV07) & {
+        ValidationResultV07 & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
@@ -159,7 +156,7 @@ export class SafeValidator
 
         const [res, tracerResult] = await this.getValidationResultWithTracerV07(
             userOp,
-            queuedUserOps as UserOperationV07[],
+            queuedUserOps as UserOperation07[],
             entryPoint
         )
 
@@ -202,11 +199,11 @@ export class SafeValidator
     }
 
     async getValidationResultV06(args: {
-        userOp: UserOperationV06
+        userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
     }): Promise<
-        (ValidationResultV06 | ValidationResultWithAggregationV06) & {
+        ValidationResultV06 & {
             referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
         }
@@ -282,7 +279,7 @@ export class SafeValidator
     }
 
     async getValidationResultWithTracerV06(
-        userOp: UserOperationV06,
+        userOp: UserOperation06,
         entryPoint: Address
     ): Promise<[ValidationResultV06, BundlerTracerResult]> {
         const stateOverrides = getAuthorizationStateOverrides({
@@ -345,10 +342,10 @@ export class SafeValidator
     }
 
     parseErrorResultV06(
-        userOp: UserOperationV06,
+        userOp: UserOperation06,
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         errorResult: { errorName: string; errorArgs: any }
-    ): ValidationResult | ValidationResultWithAggregation {
+    ): ValidationResult {
         if (!errorResult?.errorName?.startsWith("ValidationResult")) {
             // parse it as FailedOp
             // if its FailedOp, then we have the paymaster param... otherwise its an Error(string)
@@ -429,8 +426,8 @@ export class SafeValidator
     }
 
     async getValidationResultWithTracerV07(
-        userOp: UserOperationV07,
-        queuedUserOps: UserOperationV07[],
+        userOp: UserOperation07,
+        queuedUserOps: UserOperation07[],
         entryPoint: Address
     ): Promise<[ValidationResultV07, BundlerTracerResult]> {
         const packedUserOp = toPackedUserOp(userOp)
@@ -511,7 +508,7 @@ export class SafeValidator
             throw new RpcError(errorMessage, errorCode)
         }
 
-        const validationResult = args[0] as ValidationResultWithAggregationV07
+        const validationResult = args[0] as ValidationResultV07
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,
