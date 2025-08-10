@@ -130,10 +130,10 @@ export class Mempool {
                 )
                 await this.store.removeProcessing({ entryPoint, userOpHash })
                 await this.store.removeSubmitted({ entryPoint, userOpHash })
-                const [success, failureReason] = await this.add(
+                const [success, failureReason] = await this.add({
                     userOp,
                     entryPoint
-                )
+                })
 
                 if (!success) {
                     this.logger.error(
@@ -322,11 +322,17 @@ export class Mempool {
 
     // === Methods for adding userOps / creating bundles === //
 
-    async add(
-        userOp: UserOperation,
-        entryPoint: Address,
+    async add({
+        userOp,
+        entryPoint,
+        referencedContracts,
+        isQueued = false
+    }: {
+        userOp: UserOperation
+        entryPoint: Address
+        isQueued?: boolean
         referencedContracts?: ReferencedCodeHashes
-    ): Promise<[boolean, string]> {
+    }): Promise<[boolean, string]> {
         const userOpHash = await getUserOpHash({
             userOp,
             entryPointAddress: entryPoint,
@@ -381,7 +387,8 @@ export class Mempool {
                 // Re-add to outstanding as it wasn't replaced
                 await this.store.addOutstanding({
                     entryPoint,
-                    userOpInfo: conflicting.userOpInfo
+                    userOpInfo: conflicting.userOpInfo,
+                    isQueued
                 })
 
                 return [false, `${message}, bump the gas price by minimum 10%`]
@@ -406,7 +413,8 @@ export class Mempool {
                 referencedContracts,
                 addedToMempool: Date.now(),
                 submissionAttempts: 0
-            }
+            },
+            isQueued
         })
 
         await this.monitor.setUserOpStatus(userOpHash, {
@@ -771,7 +779,8 @@ export class Mempool {
                     breakLoop = true
                     await this.store.addOutstanding({
                         entryPoint,
-                        userOpInfo
+                        userOpInfo,
+                        isQueued: false
                     })
                     break
                 }
@@ -796,7 +805,8 @@ export class Mempool {
                     if (!skipResult.removeOutstanding) {
                         await this.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfo,
+                            isQueued: false
                         })
                     }
                     continue
@@ -817,7 +827,11 @@ export class Mempool {
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
                     // Put the operation back in the store
-                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfo,
+                        isQueued: false
+                    })
                     break
                 }
 

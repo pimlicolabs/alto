@@ -298,7 +298,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         return deserializeUserOpInfo(userOpInfoStrings[0])
     }
 
-    async add(userOpInfo: UserOpInfo): Promise<void> {
+    async add(userOpInfo: UserOpInfo, isQueued: boolean): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const pendingOpsSet = this.getPendingOpsSet(userOp)
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
@@ -335,8 +335,8 @@ class RedisOutstandingQueue implements OutstandingStore {
             })
         }
 
-        // If lowest nonce, update ready queue with this userOp's gasPrice
-        if (isLowestNonce) {
+        // If lowest nonce and not queued, update ready queue with this userOp's gasPrice
+        if (isLowestNonce && !isQueued) {
             await this.readyOpsQueue.add({
                 member: pendingOpsSet.keyPath,
                 score: Number(userOp.maxFeePerGas),
@@ -407,13 +407,19 @@ class RedisOutstandingQueue implements OutstandingStore {
             // Remove from ready queue
             await this.readyOpsQueue.remove({ member: pendingOpsKey, multi })
 
-            // If we have a next operation, add it to the ready queue
+            // If we have a next operation, check for nonce gap before adding to ready queue
             if (nextOp) {
-                await this.readyOpsQueue.add({
-                    member: pendingOpsKey,
-                    score: Number(nextOp.userOp.maxFeePerGas),
-                    multi
-                })
+                const [, removedNonceSeq] = getNonceKeyAndSequence(userOpInfo.userOp.nonce)
+                const [, nextNonceSeq] = getNonceKeyAndSequence(nextOp.userOp.nonce)
+                
+                // Only promote if the next nonce is exactly one higher (no gap)
+                if (nextNonceSeq === removedNonceSeq + 1n) {
+                    await this.readyOpsQueue.add({
+                        member: pendingOpsKey,
+                        score: Number(nextOp.userOp.maxFeePerGas),
+                        multi
+                    })
+                }
             }
         }
 
@@ -459,10 +465,16 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Check if there are more operations in this set
         if (ops.length > 1) {
             const nextUserOp = deserializeUserOpInfo(ops[1])
-            await this.readyOpsQueue.add({
-                member: pendingOpsKey,
-                score: Number(nextUserOp.userOp.maxFeePerGas)
-            })
+            const [, currentNonceSeq] = getNonceKeyAndSequence(currentUserOp.userOp.nonce)
+            const [, nextNonceSeq] = getNonceKeyAndSequence(nextUserOp.userOp.nonce)
+            
+            // Only promote if the next nonce is exactly one higher (no gap)
+            if (nextNonceSeq === currentNonceSeq + 1n) {
+                await this.readyOpsQueue.add({
+                    member: pendingOpsKey,
+                    score: Number(nextUserOp.userOp.maxFeePerGas)
+                })
+            }
         } else {
             // Delete the empty set
             await pendingOpsSet.delete({})

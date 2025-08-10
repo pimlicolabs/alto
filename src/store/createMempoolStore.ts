@@ -5,6 +5,7 @@ import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type {
     EntryPointUserOpHashParam,
+    EntryPointUserOpInfoIsQueuedParam,
     EntryPointUserOpInfoParam,
     MempoolStore,
     OutstandingStore,
@@ -162,12 +163,13 @@ export const createMempoolStore = ({
         // State handling
         addOutstanding: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfo,
+            isQueued
+        }: EntryPointUserOpInfoIsQueuedParam) => {
             const { outstanding } = getStoreHandlers(entryPoint)
             logAddOperation(userOpInfo.userOpHash, "outstanding")
             try {
-                await outstanding.add(userOpInfo)
+                await outstanding.add(userOpInfo, isQueued)
             } catch (err) {
                 logger.error({ err }, "Failed to add to outstanding mempool")
                 sentry.captureException(err)

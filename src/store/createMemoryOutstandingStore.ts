@@ -1,3 +1,26 @@
+/**
+ * Memory-based Outstanding Operations Queue
+ *
+ * This module implements a dual-queue design pattern for managing pending userOps:
+ *
+ * 1. **Priority Queue**: Contains only the lowest nonce sequence operation for each
+ *    sender-nonceKey combination, sorted by gas price (highest first). This ensures
+ *    the bundler always processes the highest-paying operations that are ready to execute.
+ *
+ * 2. **Pending Operations Map**: Stores all operations grouped by sender-nonceKey slots,
+ *    sorted by nonce sequence within each slot. This maintains operation dependencies
+ *    and ensures correct execution order.
+ *
+ * Key Design Principles:
+ * - Operations with sequential nonces from the same sender must execute in order
+ * - Higher gas price operations get priority when dependencies allow
+ * - Only the lowest nonce sequence for each sender-nonceKey pair enters the priority queue
+ * - When an operation is consumed, the next sequential nonce (if no gap) automatically promotes
+ *
+ * This pattern optimizes for both correctness (respecting nonce ordering) and
+ * profitability (prioritizing higher gas prices) in bundle construction.
+ */
+
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import type { ConflictingOutstandingType, OutstandingStore } from "."
@@ -162,9 +185,19 @@ export class MemoryOutstanding implements OutstandingStore {
             throw new Error("FATAL: No pending userOps for sender")
         }
 
-        // Move next pending userOp into priorityQueue if exist.
+        // Move next pending userOp into priorityQueue if it's the immediate next nonce.
         if (backlogOps.length > 0) {
-            this.addToPriorityQueue(backlogOps[0])
+            const [, poppedNonceSeq] = getNonceKeyAndSequence(
+                userOpInfo.userOp.nonce
+            )
+            const [, nextNonceSeq] = getNonceKeyAndSequence(
+                backlogOps[0].userOp.nonce
+            )
+
+            // Only promote if the next nonce is exactly one higher (no gap)
+            if (nextNonceSeq === poppedNonceSeq + 1n) {
+                this.addToPriorityQueue(backlogOps[0])
+            }
         }
 
         // Cleanup.
@@ -175,7 +208,7 @@ export class MemoryOutstanding implements OutstandingStore {
         return Promise.resolve(userOpInfo)
     }
 
-    async add(userOpInfo: UserOpInfo): Promise<void> {
+    async add(userOpInfo: UserOpInfo, isQueued: boolean): Promise<void> {
         const { userOp, userOpHash } = userOpInfo
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSlot = senderNonceSlot(userOp)
@@ -206,8 +239,8 @@ export class MemoryOutstanding implements OutstandingStore {
 
         const lowestUserOpHash = backlogOps[0].userOpHash
 
-        // If lowest, remove any existing userOp with same sender and nonceKey and add current userOp to priorityQueue.
-        if (lowestUserOpHash === userOpHash) {
+        // Only add to priority queue if it's the lowest nonce and not queued (waiting for nonce gap)
+        if (lowestUserOpHash === userOpHash && !isQueued) {
             this.priorityQueue = this.priorityQueue.filter((userOpInfo) => {
                 const pendingUserOp = userOpInfo.userOp
                 const isSameSender = pendingUserOp.sender === userOp.sender
