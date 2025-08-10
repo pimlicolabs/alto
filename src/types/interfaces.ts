@@ -29,7 +29,7 @@ export interface InterfaceValidator {
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult>
 
-    getValidationResultV06(args: {
+    validateUserOp06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
@@ -40,20 +40,8 @@ export interface InterfaceValidator {
         }
     >
 
-    getValidationResultV07(args: {
+    validateUserOp07(args: {
         userOp: UserOperation07
-        queuedUserOps: UserOperation[]
-        entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        validation.ValidationResult & {
-            storageMap: validation.StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    >
-
-    getValidationResult(args: {
-        userOp: UserOperation
         queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes

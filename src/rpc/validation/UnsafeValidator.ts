@@ -265,7 +265,7 @@ export class UnsafeValidator implements InterfaceValidator {
         return error
     }
 
-    async getValidationResultV06(args: {
+    async validateUserOp06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
@@ -440,7 +440,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
-    async getValidationResultV07(args: {
+    async validateUserOp07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         entryPoint: Address
@@ -546,50 +546,34 @@ export class UnsafeValidator implements InterfaceValidator {
         return res
     }
 
-    getValidationResult(args: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
-        entryPoint: Address
-        codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
-        const { userOp, queuedUserOps, entryPoint, codeHashes } = args
-        if (isVersion06(userOp)) {
-            return this.getValidationResultV06({
-                userOp,
-                entryPoint,
-                codeHashes
-            })
-        }
-        return this.getValidationResultV07({
-            userOp,
-            queuedUserOps: queuedUserOps as UserOperation07[],
-            entryPoint
-        })
-    }
-
     async validateUserOp(args: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]
         entryPoint: Address
-        _referencedContracts?: ReferencedCodeHashes
+        referencedContracts?: ReferencedCodeHashes
     }): Promise<
         ValidationResult & {
             storageMap: StorageMap
             referencedContracts?: ReferencedCodeHashes
         }
     > {
-        const { userOp, queuedUserOps, entryPoint } = args
+        const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
         try {
-            const validationResult = await this.getValidationResult({
-                userOp,
-                queuedUserOps,
-                entryPoint
-            })
+            let validationResult
+            if (isVersion06(userOp)) {
+                validationResult = await this.validateUserOp06({
+                    userOp,
+                    entryPoint,
+                    codeHashes: referencedContracts
+                })
+            } else {
+                validationResult = await this.validateUserOp07({
+                    userOp,
+                    queuedUserOps: queuedUserOps as UserOperation07[],
+                    entryPoint,
+                    codeHashes: referencedContracts
+                })
+            }
 
             this.metrics.userOpsValidationSuccess.inc()
 

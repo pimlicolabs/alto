@@ -73,35 +73,6 @@ export class SafeValidator
         this.senderManager = senderManager
     }
 
-    async validateUserOp(args: {
-        userOp: UserOperation
-        queuedUserOps: UserOperation[]
-        entryPoint: Address
-        referencedContracts?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
-        const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
-        try {
-            const validationResult = await this.getValidationResult({
-                userOp,
-                queuedUserOps,
-                entryPoint,
-                codeHashes: referencedContracts
-            })
-
-            this.metrics.userOpsValidationSuccess.inc()
-
-            return validationResult
-        } catch (e) {
-            this.metrics.userOpsValidationFailure.inc()
-            throw e
-        }
-    }
-
     async getCodeHashes(addresses: string[]): Promise<ReferencedCodeHashes> {
         const deployData = encodeDeployData({
             abi: CodeHashGetterAbi,
@@ -132,7 +103,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV07(args: {
+    async validateUserOp07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
@@ -198,7 +169,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV06(args: {
+    async validateUserOp06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
