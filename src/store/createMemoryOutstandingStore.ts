@@ -229,13 +229,11 @@ export class MemoryOutstanding implements OutstandingStore {
         // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
         backlogOps.push(userOpInfo)
 
-        backlogOps
-            .map((sop) => sop.userOp)
-            .sort((a, b) => {
-                const [, aNonceSeq] = getNonceKeyAndSequence(a.nonce)
-                const [, bNonceSeq] = getNonceKeyAndSequence(b.nonce)
-                return Number(aNonceSeq) - Number(bNonceSeq)
-            })
+        backlogOps.sort((a, b) => {
+            const [, aNonceSeq] = getNonceKeyAndSequence(a.userOp.nonce)
+            const [, bNonceSeq] = getNonceKeyAndSequence(b.userOp.nonce)
+            return Number(aNonceSeq) - Number(bNonceSeq)
+        })
 
         const lowestUserOpHash = backlogOps[0].userOpHash
 
@@ -264,26 +262,12 @@ export class MemoryOutstanding implements OutstandingStore {
             const [mempoolNonceKey, mempoolNonceSequence] =
                 getNonceKeyAndSequence(mempoolUserOp.nonce)
 
-            let isPaymasterSame = false
-
-            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
-                isPaymasterSame =
-                    mempoolUserOp.paymaster === userOp.paymaster &&
-                    !(
-                        mempoolUserOp.sender === userOp.sender &&
-                        mempoolNonceKey === nonceKey &&
-                        mempoolNonceSequence === nonceSequence
-                    ) &&
-                    userOp.paymaster !== null
-            }
-
             // Filter operations with the same sender and nonce key
             // but with a lower nonce sequence
             return (
-                (mempoolUserOp.sender === userOp.sender &&
-                    mempoolNonceKey === nonceKey &&
-                    mempoolNonceSequence < nonceSequence) ||
-                isPaymasterSame
+                mempoolUserOp.sender === userOp.sender &&
+                mempoolNonceKey === nonceKey &&
+                mempoolNonceSequence < nonceSequence
             )
         })
 

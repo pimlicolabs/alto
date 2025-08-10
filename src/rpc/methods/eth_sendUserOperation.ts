@@ -1,7 +1,6 @@
 import {
     type Address,
     type ApiVersion,
-    type ReferencedCodeHashes,
     RpcError,
     type UserOperation,
     ValidationErrors,
@@ -60,10 +59,7 @@ const getUserOpValidationResult = async (
     entryPoint: Address
 ): Promise<{
     queuedUserOps: UserOperation[]
-    validationResult: validation.ValidationResult & {
-        storageMap: validation.StorageMap
-        referencedContracts?: ReferencedCodeHashes
-    }
+    validationResultWithError: validation.ValidationResultWithError
 }> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
@@ -77,16 +73,9 @@ const getUserOpValidationResult = async (
             entryPoint
         })
 
-    if (validationResultWithError.result === "failed") {
-        throw new RpcError(
-            validationResultWithError.data,
-            validationResultWithError.code
-        )
-    }
-
     return {
         queuedUserOps,
-        validationResult: validationResultWithError.data
+        validationResultWithError
     }
 }
 
@@ -108,7 +97,7 @@ export async function addToMempoolIfValid({
     // Execute multiple async operations in parallel
     const [
         userOpHash,
-        { queuedUserOps, validationResult },
+        { queuedUserOps, validationResultWithError },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
         [preMempoolSuccess, preMempoolError],
@@ -174,7 +163,7 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        rpcHandler.mempool.add({ userOp, entryPoint })
+        rpcHandler.mempool.add({ userOp, entryPoint, isQueued: true })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }
@@ -194,6 +183,14 @@ export async function addToMempoolIfValid({
         }
         return { result: "added", userOpHash }
     }
+
+    if (validationResultWithError.result === "failed") {
+        throw new RpcError(
+            validationResultWithError.data,
+            validationResultWithError.code
+        )
+    }
+    const validationResult = validationResultWithError.data
 
     // ERC-7562 scope rule validation
     rpcHandler.reputationManager.checkReputation(
