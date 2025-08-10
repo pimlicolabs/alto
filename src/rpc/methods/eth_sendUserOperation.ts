@@ -70,15 +70,23 @@ const getUserOpValidationResult = async (
             userOp,
             entryPoint
         })
-    const validationResult = await rpcHandler.validator.getValidationResult({
-        userOp,
-        queuedUserOps,
-        entryPoint
-    })
+    const validationResultWithError =
+        await rpcHandler.validator.getValidationResult({
+            userOp,
+            queuedUserOps,
+            entryPoint
+        })
+
+    if (validationResultWithError.result === "failed") {
+        throw new RpcError(
+            validationResultWithError.data,
+            validationResultWithError.code
+        )
+    }
 
     return {
         queuedUserOps,
-        validationResult
+        validationResult: validationResultWithError.data
     }
 }
 

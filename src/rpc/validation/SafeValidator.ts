@@ -17,7 +17,6 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
-    type StorageMap,
     type UserOperation,
     ValidationErrors,
     pimlicoSimulationsAbi
