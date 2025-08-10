@@ -124,10 +124,10 @@ const stakeInfoSchema = z.object({
     unstakeDelaySec: z.bigint()
 })
 
-const validationResultSchema06 = z.union([
-    // Without aggregation
-    z
-        .tuple([
+const validationResultSchema06 = z
+    .union([
+        // Without aggregation - 4 element tuple
+        z.tuple([
             z.object({
                 preOpGas: z.bigint(),
                 prefund: z.bigint(),
@@ -142,19 +142,9 @@ const validationResultSchema06 = z.union([
             stakeInfoSchema,
             stakeInfoSchema.optional(),
             stakeInfoSchema.optional()
-        ])
-        .transform((val) => {
-            return {
-                returnInfo: val[0],
-                senderInfo: val[1],
-                factoryInfo: val[2],
-                paymasterInfo: val[3],
-                aggregatorInfo: undefined
-            }
-        }),
-    // With aggregation
-    z
-        .tuple([
+        ]),
+        // With aggregation - 5 element tuple
+        z.tuple([
             z.object({
                 preOpGas: z.bigint(),
                 prefund: z.bigint(),
@@ -174,21 +164,19 @@ const validationResultSchema06 = z.union([
                 stakeInfo: stakeInfoSchema
             })
         ])
-        .transform((val) => {
-            return {
-                returnInfo: val[0],
-                senderInfo: val[1],
-                factoryInfo: val[2],
-                paymasterInfo: val[3],
-                aggregatorInfo: val[4]
-            }
-        })
-])
+    ])
+    .transform((val) => ({
+        returnInfo: val[0],
+        senderInfo: val[1],
+        factoryInfo: val[2],
+        paymasterInfo: val[3],
+        aggregatorInfo: val[4]
+    }))
 
-const validationResultSchema07 = z.union([
-    // Without aggregation
-    z
-        .tuple([
+const validationResultSchema07 = z
+    .union([
+        // Without aggregation - 4 element tuple
+        z.tuple([
             z.object({
                 preOpGas: z.bigint(),
                 prefund: z.bigint(),
@@ -206,19 +194,9 @@ const validationResultSchema07 = z.union([
             stakeInfoSchema,
             stakeInfoSchema.optional(),
             stakeInfoSchema.optional()
-        ])
-        .transform((val) => {
-            return {
-                returnInfo: val[0],
-                senderInfo: val[1],
-                factoryInfo: val[2],
-                paymasterInfo: val[3],
-                aggregatorInfo: undefined
-            }
-        }),
-    // With aggregation
-    z
-        .tuple([
+        ]),
+        // With aggregation - 5 element tuple
+        z.tuple([
             z.object({
                 preOpGas: z.bigint(),
                 prefund: z.bigint(),
@@ -241,16 +219,14 @@ const validationResultSchema07 = z.union([
                 stakeInfo: stakeInfoSchema
             })
         ])
-        .transform((val) => {
-            return {
-                returnInfo: val[0],
-                senderInfo: val[1],
-                factoryInfo: val[2],
-                paymasterInfo: val[3],
-                aggregatorInfo: val[4]
-            }
-        })
-])
+    ])
+    .transform((val) => ({
+        returnInfo: val[0],
+        senderInfo: val[1],
+        factoryInfo: val[2],
+        paymasterInfo: val[3],
+        aggregatorInfo: val[4]
+    }))
 
 export const validationResultSchema = z.union([
     validationResultSchema06,
