@@ -102,20 +102,6 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const userOpsValidationSuccess = new Counter({
-        name: "alto_user_operations_validation_success_total",
-        help: "Number of user operations successfully validated",
-        labelNames: [] as const,
-        registers
-    })
-
-    const userOpsValidationFailure = new Counter({
-        name: "alto_user_operations_validation_failure_total",
-        help: "Number of user operations failed to validate",
-        labelNames: [] as const,
-        registers
-    })
-
     const userOpInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
         help: "Duration of user operation inclusion from first submission to inclusion on-chain",
@@ -224,8 +210,6 @@ export function createMetrics(registry: Registry, register = true) {
         bundlesIncluded,
         bundlesSubmitted,
         userOpsReceived,
-        userOpsValidationSuccess,
-        userOpsValidationFailure,
         userOpInclusionDuration,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,

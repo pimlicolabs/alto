@@ -6,7 +6,8 @@ import type {
     UserOperation07,
     ValidationResult,
     ValidationResult06,
-    ValidationResult07
+    ValidationResult07,
+    ValidationResultWithError
 } from "@alto/types"
 import {
     type Address,
@@ -108,20 +109,16 @@ export class SafeValidator
         queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult07 & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
+    }): Promise<ValidationResultWithError> {
         const { userOp, queuedUserOps, entryPoint, codeHashes } = args
         if (codeHashes && codeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(codeHashes.addresses)
             if (hash !== codeHashes.hash) {
-                throw new RpcError(
-                    "code hashes mismatch",
-                    ValidationErrors.OpcodeValidation
-                )
+                return {
+                    result: "failed",
+                    data: "code hashes mismatch",
+                    code: ValidationErrors.OpcodeValidation
+                }
             }
         }
 
@@ -143,29 +140,36 @@ export class SafeValidator
 
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         if ((res as any) === "0x") {
-            throw new Error(
-                "simulateValidation reverted with no revert string!"
-            )
+            return {
+                result: "failed",
+                data: "simulateValidation reverted with no revert string!",
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
         if (res.returnInfo.accountSigFailed) {
-            throw new RpcError(
-                "Invalid UserOp signature",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOp signature",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         if (res.returnInfo.paymasterSigFailed) {
-            throw new RpcError(
-                "Invalid UserOp paymasterData",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOp paymasterData",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         return {
-            ...res,
-            referencedContracts,
-            storageMap
+            result: "success",
+            data: {
+                ...res,
+                referencedContracts,
+                storageMap
+            }
         }
     }
 
@@ -173,20 +177,16 @@ export class SafeValidator
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult06 & {
-            referencedContracts?: ReferencedCodeHashes
-            storageMap: StorageMap
-        }
-    > {
+    }): Promise<ValidationResultWithError> {
         const { userOp, entryPoint, codeHashes } = args
         if (codeHashes && codeHashes.addresses.length > 0) {
             const { hash } = await this.getCodeHashes(codeHashes.addresses)
             if (hash !== codeHashes.hash) {
-                throw new RpcError(
-                    "code hashes mismatch",
-                    ValidationErrors.OpcodeValidation
-                )
+                return {
+                    result: "failed",
+                    data: "code hashes mismatch",
+                    code: ValidationErrors.OpcodeValidation
+                }
             }
         }
 
@@ -207,9 +207,11 @@ export class SafeValidator
 
         // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
         if ((res as any) === "0x") {
-            throw new Error(
-                "simulateValidation reverted with no revert string!"
-            )
+            return {
+                result: "failed",
+                data: "simulateValidation reverted with no revert string!",
+                code: ValidationErrors.SimulateValidation
+            }
         }
         const validationResult = {
             ...res,
@@ -218,10 +220,11 @@ export class SafeValidator
         }
 
         if (validationResult.returnInfo.sigFailed) {
-            throw new RpcError(
-                "Invalid UserOp signature or paymaster signature",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOp signature or paymaster signature",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         const now = Date.now() / 1000
@@ -233,20 +236,25 @@ export class SafeValidator
         })
 
         if (validationResult.returnInfo.validAfter > now - 5) {
-            throw new RpcError(
-                "User operation is not valid yet",
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: "User operation is not valid yet",
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
         if (validationResult.returnInfo.validUntil < now + 30) {
-            throw new RpcError(
-                "expires too soon",
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: "expires too soon",
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
-        return validationResult
+        return {
+            result: "success",
+            data: validationResult
+        }
     }
 
     async getValidationResultWithTracerV06(

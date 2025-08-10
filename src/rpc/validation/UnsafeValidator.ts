@@ -6,7 +6,8 @@ import type {
     UserOperation07,
     ValidationResult,
     ValidationResult06,
-    ValidationResult07
+    ValidationResult07,
+    ValidationResultWithError
 } from "@alto/types"
 import {
     type Address,
@@ -15,7 +16,6 @@ import {
     type ExecutionResult,
     type ReferencedCodeHashes,
     RpcError,
-    type StorageMap,
     type UserOperation,
     ValidationErrors,
     entryPointExecutionErrorSchema06,
@@ -269,12 +269,7 @@ export class UnsafeValidator implements InterfaceValidator {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult06 & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
+    }): Promise<ValidationResultWithError> {
         const { userOp, entryPoint } = args
         const entryPointContract = getContract({
             address: entryPoint,
@@ -325,10 +320,11 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (validationResult.returnInfo.sigFailed) {
-            throw new RpcError(
-                "Invalid UserOperation signature or paymaster signature",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOperation signature or paymaster signature",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         const now = Date.now() / 1000
@@ -343,31 +339,37 @@ export class UnsafeValidator implements InterfaceValidator {
             validationResult.returnInfo.validAfter > now &&
             this.config.expirationCheck
         ) {
-            throw new RpcError(
-                "User operation is not valid yet",
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: "User operation is not valid yet",
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
         if (
             this.config.expirationCheck &&
             validationResult.returnInfo.validUntil < now + 5
         ) {
-            throw new RpcError(
-                "expires too soon",
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: "expires too soon",
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
         // validate runtime
         if (runtimeValidation.result === "failed") {
-            throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
-                ValidationErrors.SimulateValidation
-            )
+            return {
+                result: "failed",
+                data: `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
-        return validationResult
+        return {
+            result: "success",
+            data: validationResult
+        }
     }
 
     parseValidationData(validationData: bigint): {
@@ -445,12 +447,7 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOps: UserOperation07[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult07 & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
+    }): Promise<ValidationResultWithError> {
         const { userOp, queuedUserOps, entryPoint } = args
 
         const simulateValidationResult =
@@ -461,12 +458,13 @@ export class UnsafeValidator implements InterfaceValidator {
             })
 
         if (simulateValidationResult.result === "failed") {
-            throw new RpcError(
-                `UserOperation reverted with reason: ${
+            return {
+                result: "failed",
+                data: `UserOperation reverted with reason: ${
                     simulateValidationResult.data as string
                 }`,
-                ValidationErrors.SimulateValidation
-            )
+                code: ValidationErrors.SimulateValidation
+            }
         }
 
         const validationResult =
@@ -510,26 +508,29 @@ export class UnsafeValidator implements InterfaceValidator {
         // this.validateStorageAccessList(userOp, res, accessList)
 
         if (res.returnInfo.accountSigFailed) {
-            throw new RpcError(
-                "Invalid UserOp signature",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOp signature",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         if (res.returnInfo.paymasterSigFailed) {
-            throw new RpcError(
-                "Invalid UserOp paymasterData",
-                ValidationErrors.InvalidSignature
-            )
+            return {
+                result: "failed",
+                data: "Invalid UserOp paymasterData",
+                code: ValidationErrors.InvalidSignature
+            }
         }
 
         const now = Math.floor(Date.now() / 1000)
 
         if (res.returnInfo.validAfter > now) {
-            throw new RpcError(
-                `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
         if (
@@ -537,13 +538,17 @@ export class UnsafeValidator implements InterfaceValidator {
             (res.returnInfo.validUntil == null ||
                 res.returnInfo.validUntil < now + 5)
         ) {
-            throw new RpcError(
-                `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
-                ValidationErrors.ExpiresShortly
-            )
+            return {
+                result: "failed",
+                data: `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
+                code: ValidationErrors.ExpiresShortly
+            }
         }
 
-        return res
+        return {
+            result: "success",
+            data: res
+        }
     }
 
     async getValidationResult(args: {
@@ -551,13 +556,9 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOps: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
-    }): Promise<
-        ValidationResult & {
-            storageMap: StorageMap
-            referencedContracts?: ReferencedCodeHashes
-        }
-    > {
+    }): Promise<ValidationResultWithError> {
         const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
+
         try {
             let validationResult
             if (isVersion06(userOp)) {
@@ -575,13 +576,14 @@ export class UnsafeValidator implements InterfaceValidator {
                 })
             }
 
-            this.metrics.userOpsValidationSuccess.inc()
-
             return validationResult
         } catch (e) {
-            // console.log(e)
-            this.metrics.userOpsValidationFailure.inc()
-            throw e
+            return {
+                result: "failed",
+                data:
+                    e instanceof Error ? e.message : "Unknown validation error",
+                code: ValidationErrors.SimulateValidation
+            }
         }
     }
 }
