@@ -208,8 +208,6 @@ const validationResultErrorSchema = z.object({
     errorName: z.literal("ValidationResult")
 })
 
-// Keep this error schema for backward compatibility with EntryPoint contract errors
-// The ValidationResultWithAggregation error from the contract will be parsed into the regular ValidationResult type
 const validationResultWithAggregationErrorSchema = z.object({
     args: validationResultSchema,
     errorName: z.literal("ValidationResultWithAggregation")
