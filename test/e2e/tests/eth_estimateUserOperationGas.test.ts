@@ -1,5 +1,13 @@
 import { deepHexlify } from "permissionless"
-import { http, type Address, BaseError, type Hex, zeroAddress } from "viem"
+import {
+    http,
+    type Address,
+    BaseError,
+    type Hex,
+    zeroAddress,
+    getContract,
+    createPublicClient
+} from "viem"
 import {
     type EntryPointVersion,
     type UserOperation,
@@ -16,6 +24,7 @@ import {
     getRevertCall
 } from "../src/revertingContract.js"
 import { deployPaymaster } from "../src/testPaymaster.js"
+import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
     getSmartAccountClient,
@@ -330,6 +339,53 @@ describe.each([
                 })
             }).rejects.toThrow(
                 "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
+            )
+        })
+
+        test("Should throw AA25 when estimating userOp with nonce + 1", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const publicClient = createPublicClient({
+                transport: http(anvilRpc),
+                chain: foundry
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: {
+                    public: publicClient
+                }
+            })
+
+            // Get current nonce from entryPoint
+            const currentNonce = (await entryPointContract.read.getNonce([
+                smartAccountClient.account.address,
+                0n // nonce key
+            ])) as bigint
+
+            // Try to estimate with nonce + 1 (should fail with AA25)
+            await expect(async () => {
+                await smartAccountClient.prepareUserOperation({
+                    calls: [
+                        {
+                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    nonce: currentNonce + 1n
+                })
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    details: expect.stringMatching(
+                        /(AA25|Invalid account nonce)/i
+                    )
+                })
             )
         })
 
