@@ -629,7 +629,7 @@ describe.each([
             expect(receipt.success)
         })
 
-        test("Should throw when sending userOp with nonce + 1", async () => {
+        test("Should AA25 throw when sending userOp with nonce + 1", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
