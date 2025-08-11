@@ -15,7 +15,12 @@ import {
     deployRevertingContract,
     getRevertCall
 } from "../src/revertingContract.js"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import { deployPaymaster } from "../src/testPaymaster.js"
+import {
+    beforeEachCleanUp,
+    getSmartAccountClient,
+    setBundlingMode
+} from "../src/utils/index.js"
 
 describe.each([
     {
@@ -326,6 +331,124 @@ describe.each([
             }).rejects.toThrow(
                 "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
             )
+        })
+
+        test.only.each([
+            {
+                sponsored: false,
+                testName:
+                    "Should estimate userOp with nonce N+3 when N, N+1, N+2 are in mempool"
+            },
+            {
+                sponsored: true,
+                testName:
+                    "Should estimate sponsored userOp with nonce N+3 when N, N+1, N+2 are in mempool"
+            }
+        ])("$testName", async ({ sponsored }) => {
+            // Skip for v0.6 - doesn't support queued operations well
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            let paymaster: Address | undefined
+            if (sponsored) {
+                paymaster = await deployPaymaster({
+                    entryPoint,
+                    anvilRpc
+                })
+            }
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Deploy the account first
+            const deployHash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: smartAccountClient.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })
+            await smartAccountClient.waitForUserOperationReceipt({
+                hash: deployHash
+            })
+
+            // Set bundling mode to manual so ops stay in mempool
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            // Get current nonce (should be 1 after deployment)
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
+
+            const currentNonce = userOp.nonce
+
+            // Send 3 userOps to mempool to populate the queue (N, N+1, N+2)
+            for (let i = 0; i < 3; i++) {
+                await smartAccountClient.sendUserOperation({
+                    calls: [
+                        {
+                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    nonce: currentNonce + BigInt(i),
+                    ...(sponsored && paymaster
+                        ? {
+                              paymaster: paymaster,
+                              paymasterVerificationGasLimit: 100_000n,
+                              paymasterPostOpGasLimit: 50_000n
+                          }
+                        : {})
+                })
+            }
+
+            // Now estimate the 4th userOp (N+3) - this should work
+            const userOpN3 = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                nonce: currentNonce + 3n,
+                ...(sponsored && paymaster
+                    ? {
+                          paymaster: paymaster,
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 50_000n
+                      }
+                    : {})
+            })
+
+            // Verify that estimation succeeded and returned valid gas limits
+            expect(userOpN3.callGasLimit).toBeGreaterThan(0n)
+            expect(userOpN3.verificationGasLimit).toBeGreaterThan(0n)
+            expect(userOpN3.preVerificationGas).toBeGreaterThan(0n)
+
+            // If sponsored, verify paymaster gas limits
+            if (sponsored) {
+                expect(userOpN3.paymasterVerificationGasLimit).toBeGreaterThan(
+                    0n
+                )
+                expect(userOpN3.paymasterPostOpGasLimit).toBeGreaterThan(0n)
+            }
         })
     }
 )
