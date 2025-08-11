@@ -239,20 +239,6 @@ export type ValidationResult07 = z.infer<typeof validationResultSchema07>
 
 export type ValidationResult = z.infer<typeof validationResultSchema>
 
-export type ValidationResultWithError =
-    | {
-          result: "failed"
-          data: string
-          code: number
-      }
-    | {
-          result: "success"
-          data: ValidationResult & {
-              storageMap: StorageMap
-              referencedContracts?: ReferencedCodeHashes
-          }
-      }
-
 const validationResultErrorSchema = z.object({
     args: validationResultSchema,
     errorName: z.literal("ValidationResult")
