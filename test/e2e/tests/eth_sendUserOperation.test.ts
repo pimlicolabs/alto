@@ -628,5 +628,157 @@ describe.each([
 
             expect(receipt.success)
         })
+
+        test("Should throw when sending userOp with nonce + 1", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: {
+                    public: publicClient
+                }
+            })
+
+            // Get current nonce
+            const currentNonce = (await entryPointContract.read.getNonce([
+                client.account.address,
+                0n // nonce key
+            ])) as bigint
+
+            // Try to send with nonce + 1 (should fail)
+            await expect(async () => {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: VALUE,
+                            data: "0x"
+                        }
+                    ],
+                    nonce: currentNonce + 1n
+                })
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    name: "UserOperationExecutionError",
+                    details: expect.stringMatching(
+                        /(AA25|Invalid account nonce)/i
+                    )
+                })
+            )
+        })
+
+        test.each([
+            {
+                sponsored: false,
+                testName: "Should bundle 10 userOps sent sequentially"
+            },
+            {
+                sponsored: true,
+                testName: "Should bundle 10 sponsored userOps sent sequentially"
+            }
+        ])("$testName", async ({ sponsored }) => {
+            // Skip for v0.6 - doesn't support queued userOps
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Deploy the account and wait for confirmation
+            const deployHash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: client.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })
+            await client.waitForUserOperationReceipt({ hash: deployHash })
+
+            // Now switch to manual bundling for the test
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: {
+                    public: publicClient
+                }
+            })
+
+            // Get starting nonce after deployment
+            const startNonce = (await entryPointContract.read.getNonce([
+                client.account.address,
+                0n // nonce key
+            ])) as bigint
+
+            const userOpHashes: Hex[] = []
+            const numOps = 10
+
+            // Send 10 userOps with incremental nonces (with or without paymaster)
+            for (let i = 0; i < numOps; i++) {
+                const userOpHash = await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: parseEther("0.001"),
+                            data: "0x"
+                        }
+                    ],
+                    nonce: startNonce + BigInt(i),
+                    ...(sponsored
+                        ? {
+                              paymaster: paymaster,
+                              paymasterVerificationGasLimit: 100_000n,
+                              paymasterPostOpGasLimit: 50_000n
+                          }
+                        : {})
+                })
+                userOpHashes.push(userOpHash)
+            }
+
+            // Bundle them all
+            await sendBundleNow({ altoRpc })
+
+            // Verify all receipts are successful
+            const receipts = await Promise.all(
+                userOpHashes.map(async (hash) => {
+                    const receipt = await client.waitForUserOperationReceipt({
+                        hash
+                    })
+                    return receipt
+                })
+            )
+
+            // Verify all ops were included
+            expect(receipts.every((receipt) => receipt.success)).toEqual(true)
+
+            // Verify final nonce is correct
+            const finalNonce = (await entryPointContract.read.getNonce([
+                client.account.address,
+                0n
+            ])) as bigint
+            expect(finalNonce).toEqual(startNonce + BigInt(numOps))
+
+            // If sponsored, verify paymaster was used.
+            if (sponsored) {
+                expect(
+                    receipts.every((receipt) => receipt.paymaster === paymaster)
+                ).toEqual(true)
+            }
+        })
     }
 )
