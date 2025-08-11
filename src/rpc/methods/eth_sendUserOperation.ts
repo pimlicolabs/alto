@@ -4,9 +4,11 @@ import {
     RpcError,
     type UserOperation,
     ValidationErrors,
-    sendUserOperationSchema
+    sendUserOperationSchema,
+    StorageMap,
+    ValidationResult
 } from "@alto/types"
-import type * as validation from "@alto/types"
+import { ReferencedCodeHashes } from "@alto/types"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
@@ -59,9 +61,9 @@ const getUserOpValidationResult = async (
     entryPoint: Address
 ): Promise<{
     queuedUserOps: UserOperation[]
-    validationResult: validation.ValidationResult & {
-        storageMap: validation.StorageMap
-        referencedContracts?: validation.ReferencedCodeHashes
+    validationResult: ValidationResult & {
+        storageMap: StorageMap
+        referencedContracts?: ReferencedCodeHashes
     }
 }> => {
     const queuedUserOps: UserOperation[] =
