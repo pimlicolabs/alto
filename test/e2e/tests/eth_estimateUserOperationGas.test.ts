@@ -333,7 +333,7 @@ describe.each([
             )
         })
 
-        test.only.each([
+        test.each([
             {
                 sponsored: false,
                 testName:
