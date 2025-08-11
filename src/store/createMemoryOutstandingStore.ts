@@ -16,9 +16,6 @@
  * - Higher gas price operations get priority when dependencies allow
  * - Only the lowest nonce sequence for each sender-nonceKey pair enters the priority queue
  * - When an operation is consumed, the next sequential nonce (if no gap) automatically promotes
- *
- * This pattern optimizes for both correctness (respecting nonce ordering) and
- * profitability (prioritizing higher gas prices) in bundle construction.
  */
 
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
