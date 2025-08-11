@@ -12,7 +12,8 @@ import {
     type UserOpInfo,
     type UserOperation,
     type UserOperationBundle,
-    ValidationErrors
+    ValidationErrors,
+    ValidationResult
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import {
@@ -569,28 +570,28 @@ export class Mempool {
             }
         }
 
-        let queuedUserOps: UserOperation[] = []
+        let validationResult: ValidationResult & { storageMap: StorageMap }
+        try {
+            let queuedUserOps: UserOperation[] = []
 
-        if (!isUserOpV06) {
-            queuedUserOps = await this.getQueuedOutstandingUserOps({
-                userOp,
-                entryPoint
-            })
-        }
+            if (!isUserOpV06) {
+                queuedUserOps = await this.getQueuedOutstandingUserOps({
+                    userOp,
+                    entryPoint
+                })
+            }
 
-        const validationResultWithError =
-            await this.validator.getValidationResult({
+            validationResult = await this.validator.getValidationResult({
                 userOp,
                 queuedUserOps,
                 entryPoint,
                 referencedContracts
             })
-
-        if (validationResultWithError.result === "failed") {
+        } catch (e) {
             this.logger.error(
                 {
                     userOpHash,
-                    error: validationResultWithError.data
+                    error: JSON.stringify(e)
                 },
                 "2nd Validation error"
             )
@@ -598,7 +599,7 @@ export class Mempool {
             this.reputationManager.decreaseUserOpSeenStatus(
                 userOp,
                 entryPoint,
-                validationResultWithError.data
+                e instanceof RpcError ? e.message : JSON.stringify(e)
             )
             return {
                 skip: true,
@@ -609,8 +610,6 @@ export class Mempool {
                 storageMap
             }
         }
-
-        const validationResult = validationResultWithError.data
 
         for (const storageAddress of Object.keys(validationResult.storageMap)) {
             const address = getAddress(storageAddress)

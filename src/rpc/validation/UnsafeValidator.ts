@@ -2,12 +2,12 @@ import type { GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceValidator,
     StateOverrides,
+    StorageMap,
     UserOperation06,
     UserOperation07,
     ValidationResult,
     ValidationResult06,
-    ValidationResult07,
-    ValidationResultWithError
+    ValidationResult07
 } from "@alto/types"
 import {
     type Address,
@@ -39,6 +39,7 @@ import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
+import { ValidationResultWithError } from "../../esm/types"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -269,7 +270,12 @@ export class UnsafeValidator implements InterfaceValidator {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError> {
+    }): Promise<
+        ValidationResult06 & {
+            referencedContracts?: ReferencedCodeHashes
+            storageMap: StorageMap
+        }
+    > {
         const { userOp, entryPoint } = args
         const entryPointContract = getContract({
             address: entryPoint,
@@ -320,11 +326,10 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         if (validationResult.returnInfo.sigFailed) {
-            return {
-                result: "failed",
-                data: "Invalid UserOperation signature or paymaster signature",
-                code: ValidationErrors.InvalidSignature
-            }
+            throw new RpcError(
+                "Invalid UserOperation signature or paymaster signature",
+                ValidationErrors.InvalidSignature
+            )
         }
 
         const now = Date.now() / 1000
@@ -339,37 +344,31 @@ export class UnsafeValidator implements InterfaceValidator {
             validationResult.returnInfo.validAfter > now &&
             this.config.expirationCheck
         ) {
-            return {
-                result: "failed",
-                data: "User operation is not valid yet",
-                code: ValidationErrors.ExpiresShortly
-            }
+            throw new RpcError(
+                "User operation is not valid yet",
+                ValidationErrors.ExpiresShortly
+            )
         }
 
         if (
             this.config.expirationCheck &&
             validationResult.returnInfo.validUntil < now + 5
         ) {
-            return {
-                result: "failed",
-                data: "expires too soon",
-                code: ValidationErrors.ExpiresShortly
-            }
+            throw new RpcError(
+                "expires too soon",
+                ValidationErrors.ExpiresShortly
+            )
         }
 
         // validate runtime
         if (runtimeValidation.result === "failed") {
-            return {
-                result: "failed",
-                data: `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
-                code: ValidationErrors.SimulateValidation
-            }
+            throw new RpcError(
+                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                ValidationErrors.SimulateValidation
+            )
         }
 
-        return {
-            result: "success",
-            data: validationResult
-        }
+        return validationResult
     }
 
     parseValidationData(validationData: bigint): {
@@ -447,7 +446,12 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOps: UserOperation07[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError> {
+    }): Promise<
+        ValidationResult07 & {
+            referencedContracts?: ReferencedCodeHashes
+            storageMap: StorageMap
+        }
+    > {
         const { userOp, queuedUserOps, entryPoint } = args
 
         const simulateValidationResult =
@@ -458,13 +462,12 @@ export class UnsafeValidator implements InterfaceValidator {
             })
 
         if (simulateValidationResult.result === "failed") {
-            return {
-                result: "failed",
-                data: `UserOperation reverted with reason: ${
+            throw new RpcError(
+                `UserOperation reverted with reason: ${
                     simulateValidationResult.data as string
                 }`,
-                code: ValidationErrors.SimulateValidation
-            }
+                ValidationErrors.SimulateValidation
+            )
         }
 
         const validationResult =
