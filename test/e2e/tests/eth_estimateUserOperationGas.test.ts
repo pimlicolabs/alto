@@ -48,6 +48,7 @@ describe.each([
     "$entryPointVersion supports eth_estimateUserOperationGas",
     ({ entryPointVersion, entryPoint }) => {
         let revertingContract: Address
+        let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -57,6 +58,10 @@ describe.each([
                 anvilRpc
             })
             await beforeEachCleanUp({ anvilRpc, altoRpc })
+            paymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc
+            })
         })
 
         test("Should throw if EntryPoint is not supported", async () => {
@@ -401,17 +406,9 @@ describe.each([
                     "Should estimate sponsored userOp with nonce N+3 when N, N+1, N+2 are in mempool"
             }
         ])("$testName", async ({ sponsored }) => {
-            // Skip for v0.6 - doesn't support queued operations well
+            // Skip for v0.6 - doesn't support queued userOps
             if (entryPointVersion === "0.6") {
                 return
-            }
-
-            let paymaster: Address | undefined
-            if (sponsored) {
-                paymaster = await deployPaymaster({
-                    entryPoint,
-                    anvilRpc
-                })
             }
 
             const smartAccountClient = await getSmartAccountClient({
@@ -464,7 +461,7 @@ describe.each([
                         }
                     ],
                     nonce: currentNonce + BigInt(i),
-                    ...(sponsored && paymaster
+                    ...(sponsored
                         ? {
                               paymaster: paymaster,
                               paymasterVerificationGasLimit: 100_000n,
