@@ -39,7 +39,6 @@ import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
 import type { SimulateHandleOpResult } from "../estimation/types"
-import { ValidationResultWithError } from "../../esm/types"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -511,29 +510,26 @@ export class UnsafeValidator implements InterfaceValidator {
         // this.validateStorageAccessList(userOp, res, accessList)
 
         if (res.returnInfo.accountSigFailed) {
-            return {
-                result: "failed",
-                data: "Invalid UserOp signature",
-                code: ValidationErrors.InvalidSignature
-            }
+            throw new RpcError(
+                "Invalid UserOp signature",
+                ValidationErrors.InvalidSignature
+            )
         }
 
         if (res.returnInfo.paymasterSigFailed) {
-            return {
-                result: "failed",
-                data: "Invalid UserOp paymasterData",
-                code: ValidationErrors.InvalidSignature
-            }
+            throw new RpcError(
+                "Invalid UserOp paymasterData",
+                ValidationErrors.InvalidSignature
+            )
         }
 
         const now = Math.floor(Date.now() / 1000)
 
         if (res.returnInfo.validAfter > now) {
-            return {
-                result: "failed",
-                data: `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
-                code: ValidationErrors.ExpiresShortly
-            }
+            throw new RpcError(
+                `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
         }
 
         if (
@@ -541,17 +537,13 @@ export class UnsafeValidator implements InterfaceValidator {
             (res.returnInfo.validUntil == null ||
                 res.returnInfo.validUntil < now + 5)
         ) {
-            return {
-                result: "failed",
-                data: `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
-                code: ValidationErrors.ExpiresShortly
-            }
+            throw new RpcError(
+                `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
+                ValidationErrors.ExpiresShortly
+            )
         }
 
-        return {
-            result: "success",
-            data: res
-        }
+        return res
     }
 
     async getValidationResult(args: {
@@ -559,34 +551,30 @@ export class UnsafeValidator implements InterfaceValidator {
         queuedUserOps: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError> {
+    }): Promise<
+        ValidationResult & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    > {
         const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
 
-        try {
-            let validationResult
-            if (isVersion06(userOp)) {
-                validationResult = await this.getValidationResult06({
-                    userOp,
-                    entryPoint,
-                    codeHashes: referencedContracts
-                })
-            } else {
-                validationResult = await this.getValidationResult07({
-                    userOp,
-                    queuedUserOps: queuedUserOps as UserOperation07[],
-                    entryPoint,
-                    codeHashes: referencedContracts
-                })
-            }
-
-            return validationResult
-        } catch (e) {
-            return {
-                result: "failed",
-                data:
-                    e instanceof Error ? e.message : "Unknown validation error",
-                code: ValidationErrors.SimulateValidation
-            }
+        let validationResult
+        if (isVersion06(userOp)) {
+            validationResult = await this.getValidationResult06({
+                userOp,
+                entryPoint,
+                codeHashes: referencedContracts
+            })
+        } else {
+            validationResult = await this.getValidationResult07({
+                userOp,
+                queuedUserOps: queuedUserOps as UserOperation07[],
+                entryPoint,
+                codeHashes: referencedContracts
+            })
         }
+
+        return validationResult
     }
 }
