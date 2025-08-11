@@ -1,5 +1,13 @@
 import { deepHexlify } from "permissionless"
-import { http, type Address, BaseError, type Hex, zeroAddress } from "viem"
+import {
+    http,
+    type Address,
+    BaseError,
+    type Hex,
+    createPublicClient,
+    getContract,
+    zeroAddress
+} from "viem"
 import {
     type EntryPointVersion,
     type UserOperation,
@@ -15,7 +23,13 @@ import {
     deployRevertingContract,
     getRevertCall
 } from "../src/revertingContract.js"
-import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
+import { deployPaymaster } from "../src/testPaymaster.js"
+import { getEntryPointAbi } from "../src/utils/entrypoint.js"
+import {
+    beforeEachCleanUp,
+    getSmartAccountClient,
+    setBundlingMode
+} from "../src/utils/index.js"
 
 describe.each([
     {
@@ -34,6 +48,7 @@ describe.each([
     "$entryPointVersion supports eth_estimateUserOperationGas",
     ({ entryPointVersion, entryPoint }) => {
         let revertingContract: Address
+        let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
@@ -43,6 +58,10 @@ describe.each([
                 anvilRpc
             })
             await beforeEachCleanUp({ anvilRpc, altoRpc })
+            paymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc
+            })
         })
 
         test("Should throw if EntryPoint is not supported", async () => {
@@ -326,6 +345,163 @@ describe.each([
             }).rejects.toThrow(
                 "Invalid EIP-7702 authorization: Cannot delegate to the zero address."
             )
+        })
+
+        test("Should throw AA25 when estimating userOp with nonce + 1", async () => {
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const publicClient = createPublicClient({
+                transport: http(anvilRpc),
+                chain: foundry
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: {
+                    public: publicClient
+                }
+            })
+
+            // Get current nonce from entryPoint
+            const currentNonce = (await entryPointContract.read.getNonce([
+                smartAccountClient.account.address,
+                0n // nonce key
+            ])) as bigint
+
+            // Try to estimate with nonce + 1 (should fail with AA25)
+            await expect(async () => {
+                await smartAccountClient.prepareUserOperation({
+                    calls: [
+                        {
+                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    nonce: currentNonce + 1n
+                })
+            }).rejects.toThrowError(
+                expect.objectContaining({
+                    details: expect.stringMatching(
+                        /(AA25|Invalid account nonce)/i
+                    )
+                })
+            )
+        })
+
+        test.each([
+            {
+                sponsored: false,
+                testName:
+                    "Should estimate userOp with nonce N+3 when N, N+1, N+2 are in mempool"
+            },
+            {
+                sponsored: true,
+                testName:
+                    "Should estimate sponsored userOp with nonce N+3 when N, N+1, N+2 are in mempool"
+            }
+        ])("$testName", async ({ sponsored }) => {
+            // Skip for v0.6 - doesn't support queued userOps
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Deploy the account first
+            const deployHash = await smartAccountClient.sendUserOperation({
+                calls: [
+                    {
+                        to: smartAccountClient.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })
+            await smartAccountClient.waitForUserOperationReceipt({
+                hash: deployHash
+            })
+
+            // Set bundling mode to manual so ops stay in mempool
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            // Get current nonce (should be 1 after deployment)
+            const userOp = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })
+
+            const currentNonce = userOp.nonce
+
+            // Send 3 userOps to mempool to populate the queue (N, N+1, N+2)
+            for (let i = 0; i < 3; i++) {
+                await smartAccountClient.sendUserOperation({
+                    calls: [
+                        {
+                            to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    nonce: currentNonce + BigInt(i),
+                    ...(sponsored
+                        ? {
+                              paymaster: paymaster,
+                              paymasterVerificationGasLimit: 100_000n,
+                              paymasterPostOpGasLimit: 50_000n
+                          }
+                        : {})
+                })
+            }
+
+            // Now estimate the 4th userOp (N+3) - this should work
+            const userOpN3 = await smartAccountClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                nonce: currentNonce + 3n,
+                ...(sponsored && paymaster
+                    ? {
+                          paymaster: paymaster,
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 50_000n
+                      }
+                    : {})
+            })
+
+            // Verify that estimation succeeded and returned valid gas limits
+            expect(userOpN3.callGasLimit).toBeGreaterThan(0n)
+            expect(userOpN3.verificationGasLimit).toBeGreaterThan(0n)
+            expect(userOpN3.preVerificationGas).toBeGreaterThan(0n)
+
+            // If sponsored, verify paymaster gas limits
+            if (sponsored) {
+                expect(userOpN3.paymasterVerificationGasLimit).toBeGreaterThan(
+                    0n
+                )
+                expect(userOpN3.paymasterPostOpGasLimit).toBeGreaterThan(0n)
+            }
         })
     }
 )
