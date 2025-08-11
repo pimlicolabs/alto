@@ -559,22 +559,19 @@ export class UnsafeValidator implements InterfaceValidator {
     > {
         const { userOp, queuedUserOps, entryPoint, referencedContracts } = args
 
-        let validationResult
         if (isVersion06(userOp)) {
-            validationResult = await this.getValidationResult06({
+            return await this.getValidationResult06({
                 userOp,
-                entryPoint,
-                codeHashes: referencedContracts
-            })
-        } else {
-            validationResult = await this.getValidationResult07({
-                userOp,
-                queuedUserOps: queuedUserOps as UserOperation07[],
                 entryPoint,
                 codeHashes: referencedContracts
             })
         }
 
-        return validationResult
+        return await this.getValidationResult07({
+            userOp,
+            queuedUserOps: queuedUserOps as UserOperation07[],
+            entryPoint,
+            codeHashes: referencedContracts
+        })
     }
 }
