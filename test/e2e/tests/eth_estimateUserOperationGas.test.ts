@@ -4,9 +4,9 @@ import {
     type Address,
     BaseError,
     type Hex,
-    zeroAddress,
+    createPublicClient,
     getContract,
-    createPublicClient
+    zeroAddress
 } from "viem"
 import {
     type EntryPointVersion,
