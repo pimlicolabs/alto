@@ -3,7 +3,6 @@ import { z } from "zod"
 import { RpcError } from "."
 import { EntryPointV06Abi } from "./contracts"
 import { type HexData, addressSchema } from "./schemas"
-import type { ReferencedCodeHashes } from "./schemas"
 
 export type StakeInfo = {
     addr?: string

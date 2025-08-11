@@ -59,23 +59,25 @@ const getUserOpValidationResult = async (
     entryPoint: Address
 ): Promise<{
     queuedUserOps: UserOperation[]
-    validationResultWithError: validation.ValidationResultWithError
+    validationResult: validation.ValidationResult & {
+        storageMap: validation.StorageMap
+        referencedContracts?: validation.ReferencedCodeHashes
+    }
 }> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
             userOp,
             entryPoint
         })
-    const validationResultWithError =
-        await rpcHandler.validator.getValidationResult({
-            userOp,
-            queuedUserOps,
-            entryPoint
-        })
+    const validationResult = await rpcHandler.validator.getValidationResult({
+        userOp,
+        queuedUserOps,
+        entryPoint
+    })
 
     return {
         queuedUserOps,
-        validationResultWithError
+        validationResult
     }
 }
 
@@ -97,7 +99,7 @@ export async function addToMempoolIfValid({
     // Execute multiple async operations in parallel
     const [
         userOpHash,
-        { queuedUserOps, validationResultWithError },
+        { queuedUserOps, validationResult },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
         [preMempoolSuccess, preMempoolError],
@@ -183,14 +185,6 @@ export async function addToMempoolIfValid({
         }
         return { result: "added", userOpHash }
     }
-
-    if (validationResultWithError.result === "failed") {
-        throw new RpcError(
-            validationResultWithError.data,
-            validationResultWithError.code
-        )
-    }
-    const validationResult = validationResultWithError.data
 
     // ERC-7562 scope rule validation
     rpcHandler.reputationManager.checkReputation(
