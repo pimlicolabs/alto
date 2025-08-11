@@ -7,7 +7,12 @@ import type {
     UserOperation06,
     UserOperation07
 } from "./schemas"
-import { ValidationResultWithError } from "./validation"
+import {
+    ValidationResult07,
+    StorageMap,
+    ValidationResult06,
+    ValidationResult
+} from "./validation"
 
 export interface InterfaceValidator {
     validateHandleOp(args: {
@@ -33,19 +38,34 @@ export interface InterfaceValidator {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError>
+    }): Promise<
+        ValidationResult06 & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    >
 
     getValidationResult07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError>
+    }): Promise<
+        ValidationResult07 & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    >
 
     getValidationResult(args: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]
         entryPoint: Address
         referencedContracts?: ReferencedCodeHashes
-    }): Promise<ValidationResultWithError>
+    }): Promise<
+        ValidationResult & {
+            storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
+        }
+    >
 }
