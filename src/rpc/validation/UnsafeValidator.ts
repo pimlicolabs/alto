@@ -271,8 +271,8 @@ export class UnsafeValidator implements InterfaceValidator {
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         ValidationResult06 & {
-            referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
         }
     > {
         const { userOp, entryPoint } = args
@@ -447,8 +447,8 @@ export class UnsafeValidator implements InterfaceValidator {
         codeHashes?: ReferencedCodeHashes
     }): Promise<
         ValidationResult07 & {
-            referencedContracts?: ReferencedCodeHashes
             storageMap: StorageMap
+            referencedContracts?: ReferencedCodeHashes
         }
     > {
         const { userOp, queuedUserOps, entryPoint } = args
