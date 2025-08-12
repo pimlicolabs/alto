@@ -432,10 +432,10 @@ contract PimlicoSimulations {
     // @notice Simulate asset changes for EntryPoint 0.8
     function simulateAssetChange08(
         PackedUserOperation calldata userOp,
-        IEntryPoint08 entryPoint,
         address entryPointSimulations,
-        address[] calldata owners,
+        IEntryPoint08 entryPoint,
         address[] calldata tokens,
+        address[] calldata owners,
         address[] calldata spenders
     ) external returns (BalanceChange[] memory, AllowanceChange[] memory) {
         // Initialize the EntryPoint's domain separator.
@@ -444,17 +444,17 @@ contract PimlicoSimulations {
         try IEntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator() {} catch {}
 
         return this.simulateAssetChange07(
-            userOp, IEntryPoint07(address(entryPoint)), entryPointSimulations, owners, tokens, spenders
+            userOp, entryPointSimulations, IEntryPoint07(address(entryPoint)), tokens, owners, spenders
         );
     }
 
     // @notice Simulate asset changes for EntryPoint 0.7
     function simulateAssetChange07(
         PackedUserOperation calldata userOp,
-        IEntryPoint07 entryPoint,
         address entryPointSimulations,
-        address[] calldata owners,
+        IEntryPoint07 entryPoint,
         address[] calldata tokens,
+        address[] calldata owners,
         address[] calldata spenders
     ) external returns (BalanceChange[] memory balanceChanges, AllowanceChange[] memory allowanceChanges) {
         (AssetBalance[] memory balancesBefore, AssetAllowance[] memory allowancesBefore) =
@@ -514,8 +514,8 @@ contract PimlicoSimulations {
     function simulateAssetChange06(
         UserOperation calldata userOp,
         IEntryPoint06 entryPoint,
-        address[] calldata owners,
         address[] calldata tokens,
+        address[] calldata owners,
         address[] calldata spenders
     ) external returns (BalanceChange[] memory balanceChanges, AllowanceChange[] memory allowanceChanges) {
         (AssetBalance[] memory balancesBefore, AssetAllowance[] memory allowancesBefore) =

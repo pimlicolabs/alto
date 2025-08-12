@@ -86,7 +86,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
 
         // Verify results
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
@@ -145,7 +145,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
 
         // Verify results - should have 2 token changes
         assertEq(changes.length, 2, "Should have 2 token changes");
@@ -231,7 +231,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
 
         // Verify we have changes for tracked tokens only
         assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
@@ -277,7 +277,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
@@ -315,7 +315,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Expect revert with AA25 error
         address[] memory spenders = new address[](0);
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
-        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, owners, tokens, spenders);
+        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
     }
 
     // ============================================
@@ -351,7 +351,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
 
         // Verify results
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
@@ -408,7 +408,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
 
         // Verify results
         assertEq(changes.length, 2, "Should have 2 token changes");
@@ -488,7 +488,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
 
         // Verify we have changes for tracked tokens only
         assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
@@ -534,7 +534,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), owners, tokens, spenders);
+            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
@@ -572,7 +572,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Expect revert with AA25 error
         address[] memory spenders = new address[](0);
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
-        pimlicoSim.simulateAssetChange07(userOp, entryPoint07, address(entryPointSimulations07), owners, tokens, spenders);
+        pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
     }
 
     // ============================================
@@ -608,7 +608,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes (v0.8 uses v0.7 format)
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), owners, tokens, spenders
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
         );
 
         // Verify results
@@ -666,7 +666,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), owners, tokens, spenders
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
         );
 
         // Verify results
@@ -747,7 +747,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), owners, tokens, spenders
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
         );
 
         // Verify we have changes for tracked tokens only
@@ -794,7 +794,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Simulate asset changes
         address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), owners, tokens, spenders
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
         );
 
         // Should only have gas cost change
@@ -834,7 +834,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address[] memory spenders = new address[](0);
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
         pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), entryPoint08, address(entryPointSimulations08), owners, tokens, spenders
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
         );
     }
 
