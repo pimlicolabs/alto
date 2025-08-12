@@ -287,6 +287,51 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
+    // Test simulateAssetChange06 with ERC20 allowance changes
+    function testSimulateAssetChange06_AllowanceChange() public {
+        uint256 salt = 0;
+        address spender = address(0x5678);
+        uint256 approveAmount = 500e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory06.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+
+        // Create call to approve tokens
+        bytes memory approveData = abi.encodeWithSelector(token1.approve.selector, spender, approveAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: approveData});
+        bytes memory paymasterAndData = "";
+        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
+
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
+
+        // Record allowance before simulation
+        uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
+
+        // Track owners, tokens, and spenders
+        address[] memory owners = new address[](1);
+        owners[0] = userOp.sender;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
+
+        address[] memory spenders = new address[](1);
+        spenders[0] = spender;
+
+        // Simulate asset changes
+        (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) =
+            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
+
+        // Verify allowance changes
+        assertEq(allowanceChanges.length, 1, "Should have 1 allowance change");
+        assertEq(allowanceChanges[0].owner, userOp.sender);
+        assertEq(allowanceChanges[0].token, address(token1));
+        assertEq(allowanceChanges[0].spender, spender);
+        assertEq(allowanceChanges[0].allowanceBefore, allowanceBeforeSim, "Allowance before should match");
+        assertEq(allowanceChanges[0].allowanceAfter, approveAmount, "Allowance after should be the approved amount");
+    }
+
     // Test simulateAssetChange06 with invalid nonce (should revert with AA25)
     function testSimulateAssetChange06_InvalidNonce() public {
         uint256 salt = 0;
@@ -350,8 +395,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate asset changes
         address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
 
         // Verify results
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
@@ -407,8 +453,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate asset changes
         address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
 
         // Verify results
         assertEq(changes.length, 2, "Should have 2 token changes");
@@ -487,8 +534,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate asset changes
         address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
 
         // Verify we have changes for tracked tokens only
         assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
@@ -533,8 +581,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate asset changes
         address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
 
         // Should only have gas cost change
         assertEq(changes.length, 1, "Should only have 1 change for gas");
@@ -542,6 +591,52 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
+    }
+
+    // Test simulateAssetChange07 with ERC20 allowance changes
+    function testSimulateAssetChange07_AllowanceChange() public {
+        uint256 salt = 0;
+        address spender = address(0x5678);
+        uint256 approveAmount = 500e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory07.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+
+        // Create call to approve tokens
+        bytes memory approveData = abi.encodeWithSelector(token1.approve.selector, spender, approveAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: approveData});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
+
+        // Record allowance before simulation
+        uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
+
+        // Track owners, tokens, and spenders
+        address[] memory owners = new address[](1);
+        owners[0] = userOp.sender;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
+
+        address[] memory spenders = new address[](1);
+        spenders[0] = spender;
+
+        // Simulate asset changes
+        (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
+
+        // Verify allowance changes
+        assertEq(allowanceChanges.length, 1, "Should have 1 allowance change");
+        assertEq(allowanceChanges[0].owner, userOp.sender);
+        assertEq(allowanceChanges[0].token, address(token1));
+        assertEq(allowanceChanges[0].spender, spender);
+        assertEq(allowanceChanges[0].allowanceBefore, allowanceBeforeSim, "Allowance before should match");
+        assertEq(allowanceChanges[0].allowanceAfter, approveAmount, "Allowance after should be the approved amount");
     }
 
     // Test simulateAssetChange07 with invalid nonce (should revert with AA25)
@@ -572,7 +667,9 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Expect revert with AA25 error
         address[] memory spenders = new address[](0);
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
-        pimlicoSim.simulateAssetChange07(userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders);
+        pimlicoSim.simulateAssetChange07(
+            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+        );
     }
 
     // ============================================
@@ -803,6 +900,52 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(changes[0].token, ETH_ADDRESS);
         assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
+    }
+
+    // Test simulateAssetChange08 with ERC20 allowance changes
+    function testSimulateAssetChange08_AllowanceChange() public {
+        uint256 salt = 0;
+        address spender = address(0x5678);
+        uint256 approveAmount = 500e18;
+
+        // Mint tokens to the account that will be created
+        address sender = accountFactory08.getAddress(owner, salt);
+        token1.mint(sender, 1000e18);
+
+        // Create call to approve tokens
+        bytes memory approveData = abi.encodeWithSelector(token1.approve.selector, spender, approveAmount);
+        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: approveData});
+        bytes memory paymasterAndData = "";
+        PackedUserOperation08 memory userOp = createSignedUserOp08(salt, call, paymasterAndData);
+
+        // Fund the account for gas
+        vm.deal(userOp.sender, 1 ether);
+
+        // Record allowance before simulation
+        uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
+
+        // Track owners, tokens, and spenders
+        address[] memory owners = new address[](1);
+        owners[0] = userOp.sender;
+
+        address[] memory tokens = new address[](1);
+        tokens[0] = address(token1);
+
+        address[] memory spenders = new address[](1);
+        spenders[0] = spender;
+
+        // Simulate asset changes (v0.8 uses v0.7 format)
+        (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange08(
+            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+        );
+
+        // Verify allowance changes
+        assertEq(allowanceChanges.length, 1, "Should have 1 allowance change");
+        assertEq(allowanceChanges[0].owner, userOp.sender);
+        assertEq(allowanceChanges[0].token, address(token1));
+        assertEq(allowanceChanges[0].spender, spender);
+        assertEq(allowanceChanges[0].allowanceBefore, allowanceBeforeSim, "Allowance before should match");
+        assertEq(allowanceChanges[0].allowanceAfter, approveAmount, "Allowance after should be the approved amount");
     }
 
     // Test simulateAssetChange08 with invalid nonce (should revert with AA25)
