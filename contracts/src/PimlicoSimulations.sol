@@ -354,28 +354,45 @@ contract PimlicoSimulations {
         uint256 amount;
     }
 
-    // @notice Result struct for asset change simulations
-    struct AssetChange {
+    // @notice Result struct for allowance queries
+    struct AssetAllowance {
+        address owner;
+        address token;
+        address spender;
+        uint256 amount;
+    }
+
+    // @notice Result struct for balance change simulations
+    struct BalanceChange {
         address addr;
         address token;
         uint256 balanceBefore;
         uint256 balanceAfter;
     }
 
-    // @notice Get current balances for specified addresses and tokens
-    // @dev Returns an array of Balance structs showing address, token, and amount
+    // @notice Result struct for allowance change simulations
+    struct AllowanceChange {
+        address owner;
+        address token;
+        address spender;
+        uint256 allowanceBefore;
+        uint256 allowanceAfter;
+    }
+
+    // @notice Get both balances and allowances in a single call
     // @dev Use 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE for native token
-    function getBalances(address[] calldata addresses, address[] calldata tokens)
+    function getBalancesAndAllowances(address[] calldata owners, address[] calldata tokens, address[] calldata spenders)
         public
         view
-        returns (AssetBalance[] memory)
+        returns (AssetBalance[] memory balances, AssetAllowance[] memory allowances)
     {
-        uint256 totalBalances = addresses.length * tokens.length;
-        AssetBalance[] memory balances = new AssetBalance[](totalBalances);
-        uint256 index = 0;
+        // Get balances
+        uint256 totalBalances = owners.length * tokens.length;
+        balances = new AssetBalance[](totalBalances);
+        uint256 balanceIndex = 0;
 
-        for (uint256 i = 0; i < addresses.length; i++) {
-            address addr = addresses[i];
+        for (uint256 i = 0; i < owners.length; i++) {
+            address addr = owners[i];
 
             for (uint256 j = 0; j < tokens.length; j++) {
                 uint256 amount;
@@ -385,11 +402,31 @@ contract PimlicoSimulations {
                     amount = ERC20(tokens[j]).balanceOf(addr);
                 }
 
-                balances[index++] = AssetBalance({addr: addr, token: tokens[j], amount: amount});
+                balances[balanceIndex++] = AssetBalance({addr: addr, token: tokens[j], amount: amount});
             }
         }
 
-        return balances;
+        // Get allowances
+        uint256 totalAllowances = owners.length * tokens.length * spenders.length;
+        allowances = new AssetAllowance[](totalAllowances);
+        uint256 allowanceIndex = 0;
+
+        for (uint256 i = 0; i < owners.length; i++) {
+            for (uint256 j = 0; j < tokens.length; j++) {
+                for (uint256 k = 0; k < spenders.length; k++) {
+                    uint256 amount = 0;
+                    // Native token has no allowances
+                    if (tokens[j] != address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE)) {
+                        amount = ERC20(tokens[j]).allowance(owners[i], spenders[k]);
+                    }
+
+                    allowances[allowanceIndex++] =
+                        AssetAllowance({owner: owners[i], token: tokens[j], spender: spenders[k], amount: amount});
+                }
+            }
+        }
+
+        return (balances, allowances);
     }
 
     // @notice Simulate asset changes for EntryPoint 0.8
@@ -397,11 +434,17 @@ contract PimlicoSimulations {
         PackedUserOperation calldata userOp,
         IEntryPoint08 entryPoint,
         address entryPointSimulations,
-        address[] calldata addresses,
-        address[] calldata tokens
-    ) external returns (AssetChange[] memory) {
+        address[] calldata owners,
+        address[] calldata tokens,
+        address[] calldata spenders
+    ) external returns (BalanceChange[] memory, AllowanceChange[] memory) {
+        // Initialize the EntryPoint's domain separator.
+        // Try-catch as some RPCs don't support code overrides.
+        // In these cases the standard entryPoint will be used and trying to call initDomainSeparator will revert.
+        try IEntryPointFilterOpsOverride08(payable(address(entryPoint))).initDomainSeparator() {} catch {}
+
         return this.simulateAssetChange07(
-            userOp, IEntryPoint07(address(entryPoint)), entryPointSimulations, addresses, tokens
+            userOp, IEntryPoint07(address(entryPoint)), entryPointSimulations, owners, tokens, spenders
         );
     }
 
@@ -410,17 +453,19 @@ contract PimlicoSimulations {
         PackedUserOperation calldata userOp,
         IEntryPoint07 entryPoint,
         address entryPointSimulations,
-        address[] calldata addresses,
-        address[] calldata tokens
-    ) external returns (AssetChange[] memory) {
-        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
+        address[] calldata owners,
+        address[] calldata tokens,
+        address[] calldata spenders
+    ) external returns (BalanceChange[] memory balanceChanges, AllowanceChange[] memory allowanceChanges) {
+        (AssetBalance[] memory balancesBefore, AssetAllowance[] memory allowancesBefore) =
+            this.getBalancesAndAllowances(owners, tokens, spenders);
 
         // Encode the simulateHandleOpSingle call with our target and targetCallData
         bytes memory simulateHandleOpCallData = abi.encodeWithSelector(
             IEntryPointSimulations.simulateHandleOpSingle.selector,
             userOp,
             address(this),
-            abi.encodeWithSelector(this.getBalances.selector, addresses, tokens)
+            abi.encodeWithSelector(this.getBalancesAndAllowances.selector, owners, tokens, spenders)
         );
 
         // Use _simulateEntryPoint to execute through delegateAndRevert
@@ -435,14 +480,14 @@ contract PimlicoSimulations {
             Exec.revertWithData(executionResult.targetResult);
         }
 
-        // Decode the balances from the targetResult
-        AssetBalance[] memory balancesAfter = abi.decode(executionResult.targetResult, (AssetBalance[]));
+        // Decode the balances and allowances from the targetResult
+        (AssetBalance[] memory balancesAfter, AssetAllowance[] memory allowancesAfter) =
+            abi.decode(executionResult.targetResult, (AssetBalance[], AssetAllowance[]));
 
-        // Calculate differences
-        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
-
+        // Calculate balance differences
+        balanceChanges = new BalanceChange[](balancesBefore.length);
         for (uint256 i = 0; i < balancesBefore.length; i++) {
-            assetChanges[i] = AssetChange({
+            balanceChanges[i] = BalanceChange({
                 addr: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
@@ -450,21 +495,37 @@ contract PimlicoSimulations {
             });
         }
 
-        return assetChanges;
+        // Calculate allowance differences
+        allowanceChanges = new AllowanceChange[](allowancesBefore.length);
+        for (uint256 i = 0; i < allowancesBefore.length; i++) {
+            allowanceChanges[i] = AllowanceChange({
+                owner: allowancesBefore[i].owner,
+                token: allowancesBefore[i].token,
+                spender: allowancesBefore[i].spender,
+                allowanceBefore: allowancesBefore[i].amount,
+                allowanceAfter: allowancesAfter[i].amount
+            });
+        }
+
+        return (balanceChanges, allowanceChanges);
     }
 
     // @notice Simulate asset changes for EntryPoint 0.6
     function simulateAssetChange06(
         UserOperation calldata userOp,
         IEntryPoint06 entryPoint,
-        address[] calldata addresses,
-        address[] calldata tokens
-    ) external returns (AssetChange[] memory) {
-        AssetBalance[] memory balancesBefore = this.getBalances(addresses, tokens);
+        address[] calldata owners,
+        address[] calldata tokens,
+        address[] calldata spenders
+    ) external returns (BalanceChange[] memory balanceChanges, AllowanceChange[] memory allowanceChanges) {
+        (AssetBalance[] memory balancesBefore, AssetAllowance[] memory allowancesBefore) =
+            this.getBalancesAndAllowances(owners, tokens, spenders);
         AssetBalance[] memory balancesAfter;
+        AssetAllowance[] memory allowancesAfter;
 
         address target = address(this);
-        bytes memory targetCallData = abi.encodeWithSelector(this.getBalances.selector, addresses, tokens);
+        bytes memory targetCallData =
+            abi.encodeWithSelector(this.getBalancesAndAllowances.selector, owners, tokens, spenders);
 
         try entryPoint.simulateHandleOp(userOp, target, targetCallData) {
             revert("simulateHandleOp must revert");
@@ -506,15 +567,14 @@ contract PimlicoSimulations {
                 Exec.revertWithData(targetResult);
             }
 
-            // Decode the balances from the targetResult
-            balancesAfter = abi.decode(targetResult, (AssetBalance[]));
+            // Decode the balances and allowances from the targetResult
+            (balancesAfter, allowancesAfter) = abi.decode(targetResult, (AssetBalance[], AssetAllowance[]));
         }
 
-        // Calculate differences
-        AssetChange[] memory assetChanges = new AssetChange[](balancesBefore.length);
-
+        // Calculate balance differences
+        balanceChanges = new BalanceChange[](balancesBefore.length);
         for (uint256 i = 0; i < balancesBefore.length; i++) {
-            assetChanges[i] = AssetChange({
+            balanceChanges[i] = BalanceChange({
                 addr: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
@@ -522,6 +582,18 @@ contract PimlicoSimulations {
             });
         }
 
-        return assetChanges;
+        // Calculate allowance differences
+        allowanceChanges = new AllowanceChange[](allowancesBefore.length);
+        for (uint256 i = 0; i < allowancesBefore.length; i++) {
+            allowanceChanges[i] = AllowanceChange({
+                owner: allowancesBefore[i].owner,
+                token: allowancesBefore[i].token,
+                spender: allowancesBefore[i].spender,
+                allowanceBefore: allowancesBefore[i].amount,
+                allowanceAfter: allowancesAfter[i].amount
+            });
+        }
+
+        return (balanceChanges, allowanceChanges);
     }
 }
