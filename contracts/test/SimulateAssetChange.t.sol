@@ -63,51 +63,28 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 0.5 ether;
 
-        // Create call to transfer ETH
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
+        // Setup
+        UserOperation06 memory userOp = createSignedUserOp06(salt, _createTransferCall(recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
 
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record balances before simulation
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
         uint256 recipientBalanceBeforeSim = recipient.balance;
 
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
-
-        // Verify results
-        assertEq(changes.length, 2, "Should have 2 ETH balance changes");
-
-        // Verify sender's balances
-        assertEq(changes[0].addr, userOp.sender);
-        assertEq(changes[0].token, ETH_ADDRESS);
-        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match current balance");
-        assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "Sender balance should decrease");
-        assertLt(changes[0].balanceAfter, senderBalanceBeforeSim - transferAmount, "Sender should pay transfer + gas");
-
-        // Verify recipient's balances
-        assertEq(changes[1].addr, recipient);
-        assertEq(changes[1].token, ETH_ADDRESS);
-        assertEq(
-            changes[1].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match current balance"
+        // Simulate
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
+            userOp,
+            entryPoint06,
+            _createTokens(ETH_ADDRESS),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
         );
-        assertEq(
-            changes[1].balanceAfter,
-            recipientBalanceBeforeSim + transferAmount,
-            "Recipient should receive exact transfer amount"
+
+        // Verify
+        assertEq(changes.length, 2, "Should have 2 ETH balance changes");
+        _verifyBalanceChange(changes[0], userOp.sender, ETH_ADDRESS, senderBalanceBeforeSim, changes[0].balanceAfter);
+        assertLt(changes[0].balanceAfter, senderBalanceBeforeSim - transferAmount, "Sender should pay transfer + gas");
+        _verifyBalanceChange(
+            changes[1], recipient, ETH_ADDRESS, recipientBalanceBeforeSim, recipientBalanceBeforeSim + transferAmount
         );
     }
 
@@ -117,65 +94,39 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 100e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory06.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
+        // Setup
+        _mintTokens(salt, 1000e18, 0);
+        UserOperation06 memory userOp =
+            createSignedUserOp06(salt, _createTokenTransferCall(address(token1), recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
 
-        // Create call to transfer tokens
-        bytes memory transferData = abi.encodeWithSelector(token1.transfer.selector, recipient, transferAmount);
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: transferData});
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
-
-        // Fund the account for gas
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record token balances before simulation
         uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
         uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
 
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
+        // Simulate
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
+            userOp,
+            entryPoint06,
+            _createTokens(address(token1)),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
+        );
 
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
-
-        // Verify results - should have 2 token changes
+        // Verify
         assertEq(changes.length, 2, "Should have 2 token changes");
-
-        // Verify sender's token balances
-        assertEq(changes[0].addr, userOp.sender);
-        assertEq(changes[0].token, address(token1));
-        assertEq(
-            changes[0].balanceBefore,
+        _verifyBalanceChange(
+            changes[0],
+            userOp.sender,
+            address(token1),
             senderTokenBalanceBeforeSim,
-            "Sender token balanceBefore should match actual balance"
+            senderTokenBalanceBeforeSim - transferAmount
         );
-        assertEq(
-            changes[0].balanceAfter,
-            senderTokenBalanceBeforeSim - transferAmount,
-            "Sender should have initial balance minus transfer"
-        );
-
-        // Verify recipient's token balances
-        assertEq(changes[1].addr, recipient);
-        assertEq(changes[1].token, address(token1));
-        assertEq(
-            changes[1].balanceBefore,
+        _verifyBalanceChange(
+            changes[1],
+            recipient,
+            address(token1),
             recipientTokenBalanceBeforeSim,
-            "Recipient token balanceBefore should match actual balance"
-        );
-        assertEq(
-            changes[1].balanceAfter,
-            recipientTokenBalanceBeforeSim + transferAmount,
-            "Recipient should have initial balance plus transfer"
+            recipientTokenBalanceBeforeSim + transferAmount
         );
     }
 
@@ -187,67 +138,33 @@ contract SimulateAssetChangeTest is UserOpHelper {
         uint256 token1Amount = 50e18;
         uint256 token2Amount = 75e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory06.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
-        token2.mint(sender, 1000e18);
-
-        // Create array of calls for batch execution
+        // Setup
+        _mintTokens(salt, 1000e18, 1000e18);
         UserOpHelper.Call[] memory calls = new UserOpHelper.Call[](3);
+        calls[0] = _createTransferCall(recipient, ethAmount);
+        calls[1] = _createTokenTransferCall(address(token1), recipient, token1Amount);
+        calls[2] = _createTokenTransferCall(address(token2), recipient, token2Amount);
 
-        // ETH transfer
-        calls[0] = UserOpHelper.Call({to: recipient, value: ethAmount, data: ""});
+        UserOperation06 memory userOp = createSignedUserOp06(salt, calls, "");
+        _setupAccountWithFunds(salt, 1 ether);
 
-        // Token1 transfer
-        calls[1] = UserOpHelper.Call({
-            to: address(token1),
-            value: 0,
-            data: abi.encodeWithSelector(token1.transfer.selector, recipient, token1Amount)
-        });
+        // Simulate
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
+            userOp,
+            entryPoint06,
+            _createTokens(address(token1), address(token2)),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
+        );
 
-        // Token2 transfer
-        calls[2] = UserOpHelper.Call({
-            to: address(token2),
-            value: 0,
-            data: abi.encodeWithSelector(token2.transfer.selector, recipient, token2Amount)
-        });
-
-        // Create user operation with the batch calls
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, calls, paymasterAndData);
-
-        // Fund the account for gas and ETH transfer
-        vm.deal(userOp.sender, 1 ether);
-
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(token1);
-        tokens[1] = address(token2);
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
-
-        // Verify we have changes for tracked tokens only
+        // Verify
         assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
-
-        // Count changes by type
         uint256 token1Changes = 0;
         uint256 token2Changes = 0;
-
         for (uint256 i = 0; i < changes.length; i++) {
-            if (changes[i].token == address(token1)) {
-                token1Changes++;
-            } else if (changes[i].token == address(token2)) {
-                token2Changes++;
-            }
+            if (changes[i].token == address(token1)) token1Changes++;
+            else if (changes[i].token == address(token2)) token2Changes++;
         }
-
         assertEq(token1Changes, 2, "Should have 2 token1 changes");
         assertEq(token2Changes, 2, "Should have 2 token2 changes");
     }
@@ -256,34 +173,20 @@ contract SimulateAssetChangeTest is UserOpHelper {
     function testSimulateAssetChange06_NoChanges() public {
         uint256 salt = 0;
 
-        // Create a no-op call
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
-
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record balance before simulation
+        // Setup
+        UserOperation06 memory userOp =
+            createSignedUserOp06(salt, UserOpHelper.Call({to: address(0), value: 0, data: ""}), "");
+        _setupAccountWithFunds(salt, 1 ether);
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
 
-        // Track only the sender
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
+        // Simulate
+        (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
+            userOp, entryPoint06, _createTokens(ETH_ADDRESS), _createOwners(userOp.sender), _createEmptySpenders()
+        );
 
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
-        (PimlicoSimulations.BalanceChange[] memory changes,) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
-
-        // Should only have gas cost change
+        // Verify
         assertEq(changes.length, 1, "Should only have 1 change for gas");
-        assertEq(changes[0].addr, userOp.sender);
-        assertEq(changes[0].token, ETH_ADDRESS);
-        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
+        _verifyBalanceChange(changes[0], userOp.sender, ETH_ADDRESS, senderBalanceBeforeSim, changes[0].balanceAfter);
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
@@ -293,43 +196,24 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address spender = address(0x5678);
         uint256 approveAmount = 500e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory06.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
+        // Setup
+        _mintTokens(salt, 1000e18, 0);
+        UserOperation06 memory userOp =
+            createSignedUserOp06(salt, _createApproveCall(address(token1), spender, approveAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
 
-        // Create call to approve tokens
-        bytes memory approveData = abi.encodeWithSelector(token1.approve.selector, spender, approveAmount);
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: approveData});
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
-
-        // Fund the account for gas
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record allowance before simulation
         uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
 
-        // Track owners, tokens, and spenders
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
+        // Simulate
+        (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange06(
+            userOp, entryPoint06, _createTokens(address(token1)), _createOwners(userOp.sender), _createSpenders(spender)
+        );
 
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
-        address[] memory spenders = new address[](1);
-        spenders[0] = spender;
-
-        // Simulate asset changes
-        (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) =
-            pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
-
-        // Verify allowance changes
+        // Verify
         assertEq(allowanceChanges.length, 1, "Should have 1 allowance change");
-        assertEq(allowanceChanges[0].owner, userOp.sender);
-        assertEq(allowanceChanges[0].token, address(token1));
-        assertEq(allowanceChanges[0].spender, spender);
-        assertEq(allowanceChanges[0].allowanceBefore, allowanceBeforeSim, "Allowance before should match");
-        assertEq(allowanceChanges[0].allowanceAfter, approveAmount, "Allowance after should be the approved amount");
+        _verifyAllowanceChange(
+            allowanceChanges[0], userOp.sender, address(token1), spender, allowanceBeforeSim, approveAmount
+        );
     }
 
     // Test simulateAssetChange06 with invalid nonce (should revert with AA25)
@@ -338,29 +222,20 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 0.1 ether;
 
-        // Create call to transfer ETH
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
-        bytes memory paymasterAndData = "";
-        UserOperation06 memory userOp = createSignedUserOp06(salt, call, paymasterAndData);
+        // Setup
+        UserOperation06 memory userOp = createSignedUserOp06(salt, _createTransferCall(recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
+        userOp.nonce = userOp.nonce + 1; // Make nonce invalid
 
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Increment nonce to make it invalid
-        userOp.nonce = userOp.nonce + 1;
-
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Expect revert with AA25 error
-        address[] memory spenders = new address[](0);
+        // Expect revert
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
-        pimlicoSim.simulateAssetChange06(userOp, entryPoint06, tokens, owners, spenders);
+        pimlicoSim.simulateAssetChange06(
+            userOp,
+            entryPoint06,
+            _createTokens(ETH_ADDRESS),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
+        );
     }
 
     // ============================================
@@ -373,48 +248,38 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 0.5 ether;
 
-        // Create call to transfer ETH
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
-
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record balances before simulation
+        // Setup
+        PackedUserOperation07 memory userOp =
+            createSignedUserOp07(salt, _createTransferCall(recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
         uint256 recipientBalanceBeforeSim = recipient.balance;
 
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
+        // Simulate
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(ETH_ADDRESS),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
         );
 
-        // Verify results
+        // Verify
         assertEq(changes.length, 2, "Should have 2 ETH balance changes");
-
-        // Verify ETH changes
         for (uint256 i = 0; i < changes.length; i++) {
-            assertEq(changes[i].token, ETH_ADDRESS, "All changes should be ETH");
             if (changes[i].addr == userOp.sender) {
-                assertEq(changes[i].balanceBefore, senderBalanceBeforeSim, "Sender balanceBefore should match");
-                assertLt(changes[i].balanceAfter, changes[i].balanceBefore, "Sender ETH should decrease");
+                _verifyBalanceChange(
+                    changes[i], userOp.sender, ETH_ADDRESS, senderBalanceBeforeSim, changes[i].balanceAfter
+                );
                 assertLt(changes[i].balanceAfter, senderBalanceBeforeSim - transferAmount, "Should include gas");
             } else if (changes[i].addr == recipient) {
-                assertEq(changes[i].balanceBefore, recipientBalanceBeforeSim, "Recipient balanceBefore should match");
-                assertEq(
-                    changes[i].balanceAfter,
-                    recipientBalanceBeforeSim + transferAmount,
-                    "Recipient should receive exact amount"
+                _verifyBalanceChange(
+                    changes[i],
+                    recipient,
+                    ETH_ADDRESS,
+                    recipientBalanceBeforeSim,
+                    recipientBalanceBeforeSim + transferAmount
                 );
             }
         }
@@ -426,61 +291,40 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 100e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory07.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
-
-        // Create call to transfer tokens
-        bytes memory transferData = abi.encodeWithSelector(token1.transfer.selector, recipient, transferAmount);
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: transferData});
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
-
-        // Fund the account for gas
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record token balances before simulation
+        // Setup
+        _mintTokens(salt, 1000e18, 0);
+        PackedUserOperation07 memory userOp =
+            createSignedUserOp07(salt, _createTokenTransferCall(address(token1), recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
         uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
         uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
 
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
+        // Simulate
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(address(token1)),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
         );
 
-        // Verify results
+        // Verify
         assertEq(changes.length, 2, "Should have 2 token changes");
-
-        // Verify token changes
-        for (uint256 i = 0; i < changes.length; i++) {
-            assertEq(changes[i].token, address(token1), "All changes should be for token1");
-            if (changes[i].addr == userOp.sender) {
-                assertEq(changes[i].balanceBefore, senderTokenBalanceBeforeSim, "Sender balanceBefore should match");
-                assertEq(
-                    changes[i].balanceAfter,
-                    senderTokenBalanceBeforeSim - transferAmount,
-                    "Sender tokens should decrease"
-                );
-            } else if (changes[i].addr == recipient) {
-                assertEq(
-                    changes[i].balanceBefore, recipientTokenBalanceBeforeSim, "Recipient balanceBefore should match"
-                );
-                assertEq(
-                    changes[i].balanceAfter,
-                    recipientTokenBalanceBeforeSim + transferAmount,
-                    "Recipient tokens should increase"
-                );
-            }
-        }
+        _verifyBalanceChange(
+            changes[0],
+            userOp.sender,
+            address(token1),
+            senderTokenBalanceBeforeSim,
+            senderTokenBalanceBeforeSim - transferAmount
+        );
+        _verifyBalanceChange(
+            changes[1],
+            recipient,
+            address(token1),
+            recipientTokenBalanceBeforeSim,
+            recipientTokenBalanceBeforeSim + transferAmount
+        );
     }
 
     // Test simulateAssetChange07 with multiple asset changes (ETH + tokens)
@@ -491,68 +335,34 @@ contract SimulateAssetChangeTest is UserOpHelper {
         uint256 token1Amount = 50e18;
         uint256 token2Amount = 75e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory07.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
-        token2.mint(sender, 1000e18);
-
-        // Create array of calls for batch execution
+        // Setup
+        _mintTokens(salt, 1000e18, 1000e18);
         UserOpHelper.Call[] memory calls = new UserOpHelper.Call[](3);
+        calls[0] = _createTransferCall(recipient, ethAmount);
+        calls[1] = _createTokenTransferCall(address(token1), recipient, token1Amount);
+        calls[2] = _createTokenTransferCall(address(token2), recipient, token2Amount);
 
-        // ETH transfer
-        calls[0] = UserOpHelper.Call({to: recipient, value: ethAmount, data: ""});
+        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, calls, "");
+        _setupAccountWithFunds(salt, 1 ether);
 
-        // Token1 transfer
-        calls[1] = UserOpHelper.Call({
-            to: address(token1),
-            value: 0,
-            data: abi.encodeWithSelector(token1.transfer.selector, recipient, token1Amount)
-        });
-
-        // Token2 transfer
-        calls[2] = UserOpHelper.Call({
-            to: address(token2),
-            value: 0,
-            data: abi.encodeWithSelector(token2.transfer.selector, recipient, token2Amount)
-        });
-
-        // Create user operation with the batch calls
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, calls, paymasterAndData);
-
-        // Fund the account for gas and ETH transfer
-        vm.deal(userOp.sender, 1 ether);
-
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(token1);
-        tokens[1] = address(token2);
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
+        // Simulate
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(address(token1), address(token2)),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
         );
 
-        // Verify we have changes for tracked tokens only
+        // Verify
         assertEq(changes.length, 4, "Should have 4 total changes (2 token1 + 2 token2)");
-
-        // Count changes by type
         uint256 token1Changes = 0;
         uint256 token2Changes = 0;
-
         for (uint256 i = 0; i < changes.length; i++) {
-            if (changes[i].token == address(token1)) {
-                token1Changes++;
-            } else if (changes[i].token == address(token2)) {
-                token2Changes++;
-            }
+            if (changes[i].token == address(token1)) token1Changes++;
+            else if (changes[i].token == address(token2)) token2Changes++;
         }
-
         assertEq(token1Changes, 2, "Should have 2 token1 changes");
         assertEq(token2Changes, 2, "Should have 2 token2 changes");
     }
@@ -561,35 +371,25 @@ contract SimulateAssetChangeTest is UserOpHelper {
     function testSimulateAssetChange07_NoChanges() public {
         uint256 salt = 0;
 
-        // Create a no-op call
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(0), value: 0, data: ""});
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
-
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record balance before simulation
+        // Setup
+        PackedUserOperation07 memory userOp =
+            createSignedUserOp07(salt, UserOpHelper.Call({to: address(0), value: 0, data: ""}), "");
+        _setupAccountWithFunds(salt, 1 ether);
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
 
-        // Track only the sender
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Simulate asset changes
-        address[] memory spenders = new address[](0);
+        // Simulate
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(ETH_ADDRESS),
+            _createOwners(userOp.sender),
+            _createEmptySpenders()
         );
 
-        // Should only have gas cost change
+        // Verify
         assertEq(changes.length, 1, "Should only have 1 change for gas");
-        assertEq(changes[0].addr, userOp.sender);
-        assertEq(changes[0].token, ETH_ADDRESS);
-        assertEq(changes[0].balanceBefore, senderBalanceBeforeSim, "balanceBefore should match current balance");
+        _verifyBalanceChange(changes[0], userOp.sender, ETH_ADDRESS, senderBalanceBeforeSim, changes[0].balanceAfter);
         assertLt(changes[0].balanceAfter, changes[0].balanceBefore, "ETH should decrease due to gas");
     }
 
@@ -599,44 +399,28 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address spender = address(0x5678);
         uint256 approveAmount = 500e18;
 
-        // Mint tokens to the account that will be created
-        address sender = accountFactory07.getAddress(owner, salt);
-        token1.mint(sender, 1000e18);
-
-        // Create call to approve tokens
-        bytes memory approveData = abi.encodeWithSelector(token1.approve.selector, spender, approveAmount);
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: address(token1), value: 0, data: approveData});
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
-
-        // Fund the account for gas
-        vm.deal(userOp.sender, 1 ether);
-
-        // Record allowance before simulation
+        // Setup
+        _mintTokens(salt, 1000e18, 0);
+        PackedUserOperation07 memory userOp =
+            createSignedUserOp07(salt, _createApproveCall(address(token1), spender, approveAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
         uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
 
-        // Track owners, tokens, and spenders
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
-        address[] memory spenders = new address[](1);
-        spenders[0] = spender;
-
-        // Simulate asset changes
+        // Simulate
         (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(address(token1)),
+            _createOwners(userOp.sender),
+            _createSpenders(spender)
         );
 
-        // Verify allowance changes
+        // Verify
         assertEq(allowanceChanges.length, 1, "Should have 1 allowance change");
-        assertEq(allowanceChanges[0].owner, userOp.sender);
-        assertEq(allowanceChanges[0].token, address(token1));
-        assertEq(allowanceChanges[0].spender, spender);
-        assertEq(allowanceChanges[0].allowanceBefore, allowanceBeforeSim, "Allowance before should match");
-        assertEq(allowanceChanges[0].allowanceAfter, approveAmount, "Allowance after should be the approved amount");
+        _verifyAllowanceChange(
+            allowanceChanges[0], userOp.sender, address(token1), spender, allowanceBeforeSim, approveAmount
+        );
     }
 
     // Test simulateAssetChange07 with invalid nonce (should revert with AA25)
@@ -645,30 +429,21 @@ contract SimulateAssetChangeTest is UserOpHelper {
         address recipient = address(0x1234);
         uint256 transferAmount = 0.1 ether;
 
-        // Create call to transfer ETH
-        UserOpHelper.Call memory call = UserOpHelper.Call({to: recipient, value: transferAmount, data: ""});
-        bytes memory paymasterAndData = "";
-        PackedUserOperation07 memory userOp = createSignedUserOp07(salt, call, paymasterAndData);
+        // Setup
+        PackedUserOperation07 memory userOp =
+            createSignedUserOp07(salt, _createTransferCall(recipient, transferAmount), "");
+        _setupAccountWithFunds(salt, 1 ether);
+        userOp.nonce = userOp.nonce + 1; // Make nonce invalid
 
-        // Fund the account
-        vm.deal(userOp.sender, 1 ether);
-
-        // Increment nonce to make it invalid
-        userOp.nonce = userOp.nonce + 1;
-
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
-        // Expect revert with AA25 error
-        address[] memory spenders = new address[](0);
+        // Expect revert
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
         pimlicoSim.simulateAssetChange07(
-            userOp, address(entryPointSimulations07), entryPoint07, tokens, owners, spenders
+            userOp,
+            address(entryPointSimulations07),
+            entryPoint07,
+            _createTokens(ETH_ADDRESS),
+            _createOwners(userOp.sender, recipient),
+            _createEmptySpenders()
         );
     }
 
@@ -984,6 +759,135 @@ contract SimulateAssetChangeTest is UserOpHelper {
     // ============================================
     // ============== TEST HELPERS ================
     // ============================================
+
+    // Helper to create and fund an account
+    function _setupAccountWithFunds(uint256 salt, uint256 ethAmount) private returns (address) {
+        address sender06 = accountFactory06.getAddress(owner, salt);
+        address sender07 = accountFactory07.getAddress(owner, salt);
+        address sender08 = accountFactory08.getAddress(owner, salt);
+
+        vm.deal(sender06, ethAmount);
+        vm.deal(sender07, ethAmount);
+        vm.deal(sender08, ethAmount);
+
+        return sender06; // They should all be the same address
+    }
+
+    // Helper to mint tokens to account
+    function _mintTokens(uint256 salt, uint256 token1Amount, uint256 token2Amount) private {
+        // Mint to all account factory addresses as they could differ by version
+        address sender06 = accountFactory06.getAddress(owner, salt);
+        address sender07 = accountFactory07.getAddress(owner, salt);
+        address sender08 = accountFactory08.getAddress(owner, salt);
+
+        if (token1Amount > 0) {
+            token1.mint(sender06, token1Amount);
+            token1.mint(sender07, token1Amount);
+            token1.mint(sender08, token1Amount);
+        }
+        if (token2Amount > 0) {
+            token2.mint(sender06, token2Amount);
+            token2.mint(sender07, token2Amount);
+            token2.mint(sender08, token2Amount);
+        }
+    }
+
+    // Helper to create transfer call
+    function _createTransferCall(address to, uint256 value) private pure returns (UserOpHelper.Call memory) {
+        return UserOpHelper.Call({to: to, value: value, data: ""});
+    }
+
+    // Helper to create token transfer call
+    function _createTokenTransferCall(address token, address recipient, uint256 amount)
+        private
+        view
+        returns (UserOpHelper.Call memory)
+    {
+        bytes memory data = abi.encodeWithSelector(token1.transfer.selector, recipient, amount);
+        return UserOpHelper.Call({to: token, value: 0, data: data});
+    }
+
+    // Helper to create approve call
+    function _createApproveCall(address token, address spender, uint256 amount)
+        private
+        view
+        returns (UserOpHelper.Call memory)
+    {
+        bytes memory data = abi.encodeWithSelector(token1.approve.selector, spender, amount);
+        return UserOpHelper.Call({to: token, value: 0, data: data});
+    }
+
+    // Helper to create owners array
+    function _createOwners(address owner1) private pure returns (address[] memory) {
+        address[] memory owners = new address[](1);
+        owners[0] = owner1;
+        return owners;
+    }
+
+    // Helper to create owners array with 2 addresses
+    function _createOwners(address owner1, address owner2) private pure returns (address[] memory) {
+        address[] memory owners = new address[](2);
+        owners[0] = owner1;
+        owners[1] = owner2;
+        return owners;
+    }
+
+    // Helper to create tokens array
+    function _createTokens(address tokenAddr) private pure returns (address[] memory) {
+        address[] memory tokens = new address[](1);
+        tokens[0] = tokenAddr;
+        return tokens;
+    }
+
+    // Helper to create tokens array with 2 tokens
+    function _createTokens(address tokenAddr1, address tokenAddr2) private pure returns (address[] memory) {
+        address[] memory tokens = new address[](2);
+        tokens[0] = tokenAddr1;
+        tokens[1] = tokenAddr2;
+        return tokens;
+    }
+
+    // Helper to create spenders array
+    function _createSpenders(address spender) private pure returns (address[] memory) {
+        address[] memory spenders = new address[](1);
+        spenders[0] = spender;
+        return spenders;
+    }
+
+    // Helper to create empty spenders array
+    function _createEmptySpenders() private pure returns (address[] memory) {
+        return new address[](0);
+    }
+
+    // Helper to verify balance change
+    function _verifyBalanceChange(
+        PimlicoSimulations.BalanceChange memory change,
+        address expectedAddr,
+        address expectedToken,
+        uint256 expectedBefore,
+        uint256 expectedAfter
+    ) private {
+        assertEq(change.addr, expectedAddr, "Address mismatch");
+        assertEq(change.token, expectedToken, "Token mismatch");
+        assertEq(change.balanceBefore, expectedBefore, "Balance before mismatch");
+        assertEq(change.balanceAfter, expectedAfter, "Balance after mismatch");
+    }
+
+    // Helper to verify allowance change
+    function _verifyAllowanceChange(
+        PimlicoSimulations.AllowanceChange memory change,
+        address expectedOwner,
+        address expectedToken,
+        address expectedSpender,
+        uint256 expectedBefore,
+        uint256 expectedAfter
+    ) private {
+        assertEq(change.owner, expectedOwner, "Owner mismatch");
+        assertEq(change.token, expectedToken, "Token mismatch");
+        assertEq(change.spender, expectedSpender, "Spender mismatch");
+        assertEq(change.allowanceBefore, expectedBefore, "Allowance before mismatch");
+        assertEq(change.allowanceAfter, expectedAfter, "Allowance after mismatch");
+    }
 
     function _assertBalanceChange(
         PimlicoSimulations.BalanceChange memory change,
