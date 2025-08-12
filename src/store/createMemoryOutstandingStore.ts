@@ -234,14 +234,28 @@ export class MemoryOutstanding implements OutstandingStore {
             let isPaymasterSame = false
 
             if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
+                // Check if paymasters match and are not null
+                const hasMatchingPaymaster =
+                    userOp.paymaster !== null &&
+                    mempoolUserOp.paymaster === userOp.paymaster
+
+                // Check if this is the same operation
+                const isSameOperation =
+                    mempoolUserOp.sender === userOp.sender &&
+                    mempoolNonceKey === nonceKey &&
+                    mempoolNonceSequence === nonceSequence
+
+                // Check if paymaster should be excluded from queued ops check
+                const excludedPaymasters =
+                    this.config.excludePaymastersFromQueuedOps
+                const isPaymasterExcluded =
+                    userOp.paymaster !== null &&
+                    (excludedPaymasters?.includes(userOp.paymaster) ?? false)
+
                 isPaymasterSame =
-                    mempoolUserOp.paymaster === userOp.paymaster &&
-                    !(
-                        mempoolUserOp.sender === userOp.sender &&
-                        mempoolNonceKey === nonceKey &&
-                        mempoolNonceSequence === nonceSequence
-                    ) &&
-                    userOp.paymaster !== null
+                    hasMatchingPaymaster &&
+                    !isSameOperation &&
+                    !isPaymasterExcluded
             }
 
             // Filter operations with the same sender and nonce key

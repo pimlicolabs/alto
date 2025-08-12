@@ -50,6 +50,18 @@ export const bundlerArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
+    "exclude-paymasters-from-queued-ops": z
+        .string()
+        .optional()
+        .transform((val) => {
+            if (!val || val === "") {
+                return []
+            }
+            const addresses = val.split(",")
+            return addresses.map((address) =>
+                addressSchema.parse(address.trim())
+            )
+        }),
     "max-gas-per-bundle": z
         .string()
         .transform((val) => BigInt(val))

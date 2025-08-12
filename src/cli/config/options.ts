@@ -93,6 +93,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: true
     },
+    "exclude-paymasters-from-queued-ops": {
+        description:
+            "Comma-separated list of paymaster addresses to exclude from queued ops dependency checks",
+        type: "string",
+        require: false
+    },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
         type: "string",
