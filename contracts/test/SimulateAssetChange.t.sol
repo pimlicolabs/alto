@@ -74,9 +74,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
             userOp,
             entryPoint06,
-            _createTokens(ETH_ADDRESS),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -107,9 +106,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
             userOp,
             entryPoint06,
-            _createTokens(address(token1)),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(address(token1), userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -152,9 +150,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
             userOp,
             entryPoint06,
-            _createTokens(address(token1), address(token2)),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(
+                _createTokens(address(token1), address(token2)), _createOwners(userOp.sender, recipient)
+            ),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -181,7 +180,7 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange06(
-            userOp, entryPoint06, _createTokens(ETH_ADDRESS), _createOwners(userOp.sender), _createEmptySpenders()
+            userOp, entryPoint06, _createBalanceQuery(ETH_ADDRESS, userOp.sender), _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -206,7 +205,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
 
         // Simulate
         (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange06(
-            userOp, entryPoint06, _createTokens(address(token1)), _createOwners(userOp.sender), _createSpenders(spender)
+            userOp,
+            entryPoint06,
+            _createBalanceQuery(address(token1), userOp.sender),
+            _createAllowanceQuery(address(token1), userOp.sender, spender)
         );
 
         // Verify
@@ -232,9 +234,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
         pimlicoSim.simulateAssetChange06(
             userOp,
             entryPoint06,
-            _createTokens(ETH_ADDRESS),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
     }
 
@@ -260,9 +261,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(ETH_ADDRESS),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -304,9 +304,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(address(token1)),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(address(token1), userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -350,9 +349,10 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(address(token1), address(token2)),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(
+                _createTokens(address(token1), address(token2)), _createOwners(userOp.sender, recipient)
+            ),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -382,9 +382,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(ETH_ADDRESS),
-            _createOwners(userOp.sender),
-            _createEmptySpenders()
+            _createBalanceQuery(ETH_ADDRESS, userOp.sender),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify
@@ -411,9 +410,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(address(token1)),
-            _createOwners(userOp.sender),
-            _createSpenders(spender)
+            _createBalanceQuery(address(token1), userOp.sender),
+            _createAllowanceQuery(address(token1), userOp.sender, spender)
         );
 
         // Verify
@@ -441,9 +439,8 @@ contract SimulateAssetChangeTest is UserOpHelper {
             userOp,
             address(entryPointSimulations07),
             entryPoint07,
-            _createTokens(ETH_ADDRESS),
-            _createOwners(userOp.sender, recipient),
-            _createEmptySpenders()
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
     }
 
@@ -469,18 +466,13 @@ contract SimulateAssetChangeTest is UserOpHelper {
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
         uint256 recipientBalanceBeforeSim = recipient.balance;
 
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
         // Simulate asset changes (v0.8 uses v0.7 format)
-        address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify results
@@ -527,18 +519,13 @@ contract SimulateAssetChangeTest is UserOpHelper {
         uint256 senderTokenBalanceBeforeSim = token1.balanceOf(userOp.sender);
         uint256 recipientTokenBalanceBeforeSim = token1.balanceOf(recipient);
 
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
         // Simulate asset changes
-        address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQueries(address(token1), userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify results
@@ -607,19 +594,15 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Fund the account for gas and ETH transfer
         vm.deal(userOp.sender, 1 ether);
 
-        // Track owners and tokens
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](2);
-        tokens[0] = address(token1);
-        tokens[1] = address(token2);
-
         // Simulate asset changes
-        address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQueries(
+                _createTokens(address(token1), address(token2)), _createOwners(userOp.sender, recipient)
+            ),
+            _createEmptyAllowanceQueries()
         );
 
         // Verify we have changes for tracked tokens only
@@ -656,17 +639,13 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Record balance before simulation
         uint256 senderBalanceBeforeSim = userOp.sender.balance;
 
-        // Track only the sender
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
         // Simulate asset changes
-        address[] memory spenders = new address[](0);
         (PimlicoSimulations.BalanceChange[] memory changes,) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQuery(ETH_ADDRESS, userOp.sender),
+            _createEmptyAllowanceQueries()
         );
 
         // Should only have gas cost change
@@ -699,19 +678,13 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Record allowance before simulation
         uint256 allowanceBeforeSim = token1.allowance(userOp.sender, spender);
 
-        // Track owners, tokens, and spenders
-        address[] memory owners = new address[](1);
-        owners[0] = userOp.sender;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = address(token1);
-
-        address[] memory spenders = new address[](1);
-        spenders[0] = spender;
-
         // Simulate asset changes (v0.8 uses v0.7 format)
         (, PimlicoSimulations.AllowanceChange[] memory allowanceChanges) = pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQuery(address(token1), userOp.sender),
+            _createAllowanceQuery(address(token1), userOp.sender, spender)
         );
 
         // Verify allowance changes
@@ -740,19 +713,14 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Increment nonce to make it invalid
         userOp.nonce = userOp.nonce + 1;
 
-        // Track owners
-        address[] memory owners = new address[](2);
-        owners[0] = userOp.sender;
-        owners[1] = recipient;
-
-        address[] memory tokens = new address[](1);
-        tokens[0] = ETH_ADDRESS;
-
         // Expect revert with AA25 error
-        address[] memory spenders = new address[](0);
         vm.expectRevert(abi.encodeWithSignature("FailedOp(uint256,string)", 0, "AA25 invalid account nonce"));
         pimlicoSim.simulateAssetChange08(
-            castToVersion07(userOp), address(entryPointSimulations08), entryPoint08, tokens, owners, spenders
+            castToVersion07(userOp),
+            address(entryPointSimulations08),
+            entryPoint08,
+            _createBalanceQueries(ETH_ADDRESS, userOp.sender, recipient),
+            _createEmptyAllowanceQueries()
         );
     }
 
@@ -817,6 +785,62 @@ contract SimulateAssetChangeTest is UserOpHelper {
         return UserOpHelper.Call({to: token, value: 0, data: data});
     }
 
+    // Helper to create BalanceQuery array for single owner and token
+    function _createBalanceQuery(address token, address owner)
+        private
+        pure
+        returns (PimlicoSimulations.BalanceQuery[] memory)
+    {
+        PimlicoSimulations.BalanceQuery[] memory queries = new PimlicoSimulations.BalanceQuery[](1);
+        queries[0] = PimlicoSimulations.BalanceQuery({token: token, owner: owner});
+        return queries;
+    }
+
+    // Helper to create BalanceQuery array for multiple owners with same token
+    function _createBalanceQueries(address token, address owner1, address owner2)
+        private
+        pure
+        returns (PimlicoSimulations.BalanceQuery[] memory)
+    {
+        PimlicoSimulations.BalanceQuery[] memory queries = new PimlicoSimulations.BalanceQuery[](2);
+        queries[0] = PimlicoSimulations.BalanceQuery({token: token, owner: owner1});
+        queries[1] = PimlicoSimulations.BalanceQuery({token: token, owner: owner2});
+        return queries;
+    }
+
+    // Helper to create BalanceQuery array for multiple tokens and owners
+    function _createBalanceQueries(address[] memory tokens, address[] memory owners)
+        private
+        pure
+        returns (PimlicoSimulations.BalanceQuery[] memory)
+    {
+        uint256 totalQueries = tokens.length * owners.length;
+        PimlicoSimulations.BalanceQuery[] memory queries = new PimlicoSimulations.BalanceQuery[](totalQueries);
+        uint256 index = 0;
+        for (uint256 i = 0; i < tokens.length; i++) {
+            for (uint256 j = 0; j < owners.length; j++) {
+                queries[index++] = PimlicoSimulations.BalanceQuery({token: tokens[i], owner: owners[j]});
+            }
+        }
+        return queries;
+    }
+
+    // Helper to create AllowanceQuery array for single query
+    function _createAllowanceQuery(address token, address owner, address spender)
+        private
+        pure
+        returns (PimlicoSimulations.AllowanceQuery[] memory)
+    {
+        PimlicoSimulations.AllowanceQuery[] memory queries = new PimlicoSimulations.AllowanceQuery[](1);
+        queries[0] = PimlicoSimulations.AllowanceQuery({token: token, owner: owner, spender: spender});
+        return queries;
+    }
+
+    // Helper to create empty AllowanceQuery array
+    function _createEmptyAllowanceQueries() private pure returns (PimlicoSimulations.AllowanceQuery[] memory) {
+        return new PimlicoSimulations.AllowanceQuery[](0);
+    }
+
     // Helper to create owners array
     function _createOwners(address owner1) private pure returns (address[] memory) {
         address[] memory owners = new address[](1);
@@ -847,18 +871,6 @@ contract SimulateAssetChangeTest is UserOpHelper {
         return tokens;
     }
 
-    // Helper to create spenders array
-    function _createSpenders(address spender) private pure returns (address[] memory) {
-        address[] memory spenders = new address[](1);
-        spenders[0] = spender;
-        return spenders;
-    }
-
-    // Helper to create empty spenders array
-    function _createEmptySpenders() private pure returns (address[] memory) {
-        return new address[](0);
-    }
-
     // Helper to verify balance change
     function _verifyBalanceChange(
         PimlicoSimulations.BalanceChange memory change,
@@ -887,32 +899,5 @@ contract SimulateAssetChangeTest is UserOpHelper {
         assertEq(change.spender, expectedSpender, "Spender mismatch");
         assertEq(change.allowanceBefore, expectedBefore, "Allowance before mismatch");
         assertEq(change.allowanceAfter, expectedAfter, "Allowance after mismatch");
-    }
-
-    function _assertBalanceChange(
-        PimlicoSimulations.BalanceChange memory change,
-        address expectedOwner,
-        address expectedToken,
-        uint256 expectedBalanceBefore,
-        uint256 expectedBalanceAfter,
-        string memory message
-    ) private {
-        assertEq(change.addr, expectedOwner, string.concat(message, ": account mismatch"));
-        assertEq(change.token, expectedToken, string.concat(message, ": token mismatch"));
-        assertEq(change.balanceBefore, expectedBalanceBefore, string.concat(message, ": balanceBefore mismatch"));
-        assertEq(change.balanceAfter, expectedBalanceAfter, string.concat(message, ": balanceAfter mismatch"));
-    }
-
-    function _findBalanceChange(PimlicoSimulations.BalanceChange[] memory changes, address owner, address token)
-        private
-        pure
-        returns (bool found, uint256 index)
-    {
-        for (uint256 i = 0; i < changes.length; i++) {
-            if (changes[i].addr == owner && changes[i].token == token) {
-                return (true, i);
-            }
-        }
-        return (false, 0);
     }
 }
