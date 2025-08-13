@@ -913,22 +913,51 @@ export const pimlicoSimulationsAbi = [
   },
   {
     "type": "function",
-    "name": "getBalances",
+    "name": "getBalancesAndAllowances",
     "inputs": [
       {
-        "name": "addresses",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "balanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.BalanceQuery[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
       },
       {
-        "name": "tokens",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "allowanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceQuery[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
       }
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "balances",
         "type": "tuple[]",
         "internalType": "struct PimlicoSimulations.AssetBalance[]",
         "components": [
@@ -939,6 +968,33 @@ export const pimlicoSimulationsAbi = [
           },
           {
             "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "allowances",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AssetAllowance[]",
+        "components": [
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
             "type": "address",
             "internalType": "address"
           },
@@ -1328,29 +1384,58 @@ export const pimlicoSimulationsAbi = [
         "internalType": "contract IEntryPoint"
       },
       {
-        "name": "addresses",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "tokens",
-        "type": "address[]",
-        "internalType": "address[]"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
+        "name": "balanceQueries",
         "type": "tuple[]",
-        "internalType": "struct PimlicoSimulations.AssetChange[]",
+        "internalType": "struct PimlicoSimulations.BalanceQuery[]",
         "components": [
           {
-            "name": "addr",
+            "name": "token",
             "type": "address",
             "internalType": "address"
           },
           {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      },
+      {
+        "name": "allowanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceQuery[]",
+        "components": [
+          {
             "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "balanceChanges",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.BalanceChange[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
             "type": "address",
             "internalType": "address"
           },
@@ -1361,6 +1446,38 @@ export const pimlicoSimulationsAbi = [
           },
           {
             "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "allowanceChanges",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceChange[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "allowanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "allowanceAfter",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -1426,39 +1543,68 @@ export const pimlicoSimulationsAbi = [
         ]
       },
       {
-        "name": "entryPoint",
-        "type": "address",
-        "internalType": "contract IEntryPoint"
-      },
-      {
         "name": "entryPointSimulations",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "addresses",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "entryPoint",
+        "type": "address",
+        "internalType": "contract IEntryPoint"
       },
       {
-        "name": "tokens",
-        "type": "address[]",
-        "internalType": "address[]"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
+        "name": "balanceQueries",
         "type": "tuple[]",
-        "internalType": "struct PimlicoSimulations.AssetChange[]",
+        "internalType": "struct PimlicoSimulations.BalanceQuery[]",
         "components": [
           {
-            "name": "addr",
+            "name": "token",
             "type": "address",
             "internalType": "address"
           },
           {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      },
+      {
+        "name": "allowanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceQuery[]",
+        "components": [
+          {
             "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "balanceChanges",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.BalanceChange[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
             "type": "address",
             "internalType": "address"
           },
@@ -1469,6 +1615,38 @@ export const pimlicoSimulationsAbi = [
           },
           {
             "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "allowanceChanges",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceChange[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "allowanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "allowanceAfter",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -1534,39 +1712,68 @@ export const pimlicoSimulationsAbi = [
         ]
       },
       {
-        "name": "entryPoint",
-        "type": "address",
-        "internalType": "contract IEntryPoint"
-      },
-      {
         "name": "entryPointSimulations",
         "type": "address",
         "internalType": "address"
       },
       {
-        "name": "addresses",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "entryPoint",
+        "type": "address",
+        "internalType": "contract IEntryPoint"
       },
       {
-        "name": "tokens",
-        "type": "address[]",
-        "internalType": "address[]"
+        "name": "balanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.BalanceQuery[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
+      },
+      {
+        "name": "allowanceQueries",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceQuery[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          }
+        ]
       }
     ],
     "outputs": [
       {
         "name": "",
         "type": "tuple[]",
-        "internalType": "struct PimlicoSimulations.AssetChange[]",
+        "internalType": "struct PimlicoSimulations.BalanceChange[]",
         "components": [
           {
-            "name": "addr",
+            "name": "token",
             "type": "address",
             "internalType": "address"
           },
           {
-            "name": "token",
+            "name": "owner",
             "type": "address",
             "internalType": "address"
           },
@@ -1577,6 +1784,38 @@ export const pimlicoSimulationsAbi = [
           },
           {
             "name": "balanceAfter",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct PimlicoSimulations.AllowanceChange[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "allowanceBefore",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "allowanceAfter",
             "type": "uint256",
             "internalType": "uint256"
           }

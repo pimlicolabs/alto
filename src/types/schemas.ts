@@ -627,35 +627,57 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema.or(z.null())
 })
 
+// Balance query schema matching Solidity's BalanceQuery struct
+const balanceQuerySchema = z.object({
+    token: addressSchema,
+    owner: addressSchema
+})
+
+// Allowance query schema matching Solidity's AllowanceQuery struct
+const allowanceQuerySchema = z.object({
+    token: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema
+})
+
+// Balance change result schema matching Solidity's BalanceChange struct
+const balanceChangeSchema = z.object({
+    token: addressSchema,
+    owner: addressSchema,
+    balanceBefore: hexNumberSchema,
+    balanceAfter: hexNumberSchema
+})
+
+// Allowance change result schema matching Solidity's AllowanceChange struct
+const allowanceChangeSchema = z.object({
+    token: addressSchema,
+    owner: addressSchema,
+    spender: addressSchema,
+    allowanceBefore: hexNumberSchema,
+    allowanceAfter: hexNumberSchema
+})
+
 export const pimlicoSimulateAssetChangeSchema = z.object({
     method: z.literal("pimlico_simulateAssetChange"),
     params: z.union([
         z.tuple([
             userOperationSchema,
             addressSchema, // entryPoint
-            z.object({
-                addresses: z.array(addressSchema),
-                tokens: z.array(addressSchema)
-            })
+            z.array(balanceQuerySchema), // balanceQueries
+            z.array(allowanceQuerySchema) // allowanceQueries
         ]),
         z.tuple([
             userOperationSchema,
             addressSchema, // entryPoint
-            z.object({
-                addresses: z.array(addressSchema),
-                tokens: z.array(addressSchema)
-            }),
+            z.array(balanceQuerySchema), // balanceQueries
+            z.array(allowanceQuerySchema), // allowanceQueries
             stateOverridesSchema // optional state overrides
         ])
     ]),
-    result: z.array(
-        z.object({
-            address: addressSchema,
-            token: addressSchema,
-            balanceBefore: hexNumberSchema,
-            balanceAfter: hexNumberSchema
-        })
-    )
+    result: z.object({
+        balanceChanges: z.array(balanceChangeSchema),
+        allowanceChanges: z.array(allowanceChangeSchema)
+    })
 })
 
 export const altoVersions = z.enum(["v1", "v2"])
