@@ -20,7 +20,7 @@ import "account-abstraction-v6/core/Helpers.sol";
 import "account-abstraction-v6/core/NonceManager.sol";
 
 import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
-import "../SimulationOverrideHelper.sol";
+import "../utils/SimulationOverrideHelper.sol";
 
 contract EntryPointFilterOpsOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;

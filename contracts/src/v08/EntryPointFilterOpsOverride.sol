@@ -20,7 +20,7 @@ import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
-import "../SimulationOverrideHelper.sol";
+import "../utils/SimulationOverrideHelper.sol";
 import "./IEntryPointFilterOpsOverride.sol";
 
 /**

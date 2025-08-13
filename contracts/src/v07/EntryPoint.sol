@@ -18,7 +18,7 @@ import {ValidationData, _parseValidationData, min} from "account-abstraction-v7/
 
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "../SimulationOverrideHelper.sol";
+import "../utils/SimulationOverrideHelper.sol";
 
 /*
  * Account-Abstraction (EIP-4337) singleton EntryPoint implementation.

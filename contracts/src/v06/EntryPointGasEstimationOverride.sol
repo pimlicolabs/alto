@@ -21,7 +21,7 @@ import "account-abstraction-v6/core/NonceManager.sol";
 
 import "@openzeppelin-v4.8.3/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
-import "../SimulationOverrideHelper.sol";
+import "../utils/SimulationOverrideHelper.sol";
 
 // THIS IS A MODIFIED VERSION OF account-abstraction-v6/core/EntryPoint.sol.
 // THIS CONTRACT IS MEANT TO BE USED AS A CODE OVERRIDE DURING eth_estimateUserOperationGas SIMULATIONS.

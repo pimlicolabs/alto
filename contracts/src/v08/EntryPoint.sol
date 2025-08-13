@@ -19,7 +19,7 @@ import "account-abstraction-v8/core/Helpers.sol";
 
 import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
-import "../SimulationOverrideHelper.sol";
+import "../utils/SimulationOverrideHelper.sol";
 
 /// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/a5ngpwSm/
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardTransient, EIP712 {
