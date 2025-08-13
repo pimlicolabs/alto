@@ -26,19 +26,32 @@ import {
     getSmartAccountClient
 } from "../src/utils/index.js"
 
-type AssetChange = {
-    address: Hex
+type BalanceChange = {
     token: Hex
+    owner: Hex
     balanceBefore: number
     balanceAfter: number
+}
+
+type AllowanceChange = {
+    token: Hex
+    owner: Hex
+    spender: Hex
+    allowanceBefore: number
+    allowanceAfter: number
+}
+
+type SimulateAssetChangeResult = {
+    balanceChanges: BalanceChange[]
+    allowanceChanges: AllowanceChange[]
 }
 
 const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 describe.each([
-    { entryPointVersion: "0.6" as EntryPointVersion }
-    //{ entryPointVersion: "0.7" as EntryPointVersion },
-    //{ entryPointVersion: "0.8" as EntryPointVersion }
+    { entryPointVersion: "0.6" as EntryPointVersion },
+    { entryPointVersion: "0.7" as EntryPointVersion },
+    { entryPointVersion: "0.8" as EntryPointVersion }
 ])(
     "$entryPointVersion supports pimlico_simulateAssetChange",
     ({ entryPointVersion }) => {
@@ -104,34 +117,39 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange
+            const balanceQueries = [
+                {
+                    token: NATIVE_TOKEN_ADDRESS,
+                    owner: smartAccountClient.account.address
+                },
+                { token: NATIVE_TOKEN_ADDRESS, owner: recipient }
+            ]
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokens: [NATIVE_TOKEN_ADDRESS]
-                    }
+                    balanceQueries,
+                    allowanceQueries
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
 
             // Should have 2 entries for ETH changes
-            expect(result.length).toBe(2)
+            expect(result.balanceChanges.length).toBe(2)
 
             // Find the changes for sender and recipient
-            const senderChange = result.find(
-                (r) => r.address === smartAccountClient.account.address
-            ) as AssetChange
-            const recipientChange = result.find(
-                (r) => r.address === recipient
-            ) as AssetChange
+            const senderChange = result.balanceChanges.find(
+                (r) => r.owner === smartAccountClient.account.address
+            ) as BalanceChange
+            const recipientChange = result.balanceChanges.find(
+                (r) => r.owner === recipient
+            ) as BalanceChange
 
             expect(senderChange).toBeDefined()
             expect(recipientChange).toBeDefined()
@@ -170,33 +188,38 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange
+            const balanceQueries = [
+                {
+                    token: erc20Address,
+                    owner: smartAccountClient.account.address
+                },
+                { token: erc20Address, owner: recipient }
+            ]
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokens: [erc20Address]
-                    }
+                    balanceQueries,
+                    allowanceQueries
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
 
             // Verify ERC20 changes
-            expect(result.length).toBe(2)
+            expect(result.balanceChanges.length).toBe(2)
 
-            const senderErc20Change = result.find(
-                (r) => r.address === smartAccountClient.account.address
-            ) as AssetChange
-            const recipientErc20Change = result.find(
-                (r) => r.address === recipient
-            ) as AssetChange
+            const senderErc20Change = result.balanceChanges.find(
+                (r) => r.owner === smartAccountClient.account.address
+            ) as BalanceChange
+            const recipientErc20Change = result.balanceChanges.find(
+                (r) => r.owner === recipient
+            ) as BalanceChange
 
             expect(senderErc20Change).toBeDefined()
             expect(recipientErc20Change).toBeDefined()
@@ -238,27 +261,38 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange with both ETH and ERC20 tracking
+            const balanceQueries = [
+                {
+                    token: NATIVE_TOKEN_ADDRESS,
+                    owner: smartAccountClient.account.address
+                },
+                { token: NATIVE_TOKEN_ADDRESS, owner: recipient1 },
+                { token: NATIVE_TOKEN_ADDRESS, owner: recipient2 },
+                {
+                    token: erc20Address,
+                    owner: smartAccountClient.account.address
+                },
+                { token: erc20Address, owner: recipient1 },
+                { token: erc20Address, owner: recipient2 }
+            ]
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [
-                            smartAccountClient.account.address,
-                            recipient1,
-                            recipient2
-                        ],
-                        tokens: [NATIVE_TOKEN_ADDRESS, erc20Address]
-                    }
+                    balanceQueries,
+                    allowanceQueries
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
 
             // Filter out zero-value changes
-            const nonZeroChanges = result.filter((r) => {
+            const nonZeroChanges = result.balanceChanges.filter((r) => {
                 const diff = r.balanceAfter - r.balanceBefore
                 return diff !== 0
             })
@@ -272,11 +306,11 @@ describe.each([
                 expect(nonZeroChanges.length).toBe(4)
 
                 // Verify recipient1 received ETH
-                const recipient1EthChange = result.find(
+                const recipient1EthChange = result.balanceChanges.find(
                     (r) =>
-                        r.address === recipient1 &&
+                        r.owner === recipient1 &&
                         r.token === NATIVE_TOKEN_ADDRESS
-                ) as AssetChange
+                ) as BalanceChange
                 expect(recipient1EthChange).toBeDefined()
                 const recipient1Diff =
                     recipient1EthChange.balanceAfter -
@@ -284,9 +318,9 @@ describe.each([
                 expect(recipient1Diff).toBe(Number(ethAmount))
 
                 // Verify recipient2 received tokens
-                const recipient2TokenChange = result.find(
-                    (r) => r.address === recipient2 && r.token === erc20Address
-                ) as AssetChange as AssetChange
+                const recipient2TokenChange = result.balanceChanges.find(
+                    (r) => r.owner === recipient2 && r.token === erc20Address
+                ) as BalanceChange
                 expect(recipient2TokenChange).toBeDefined()
                 const recipient2Diff =
                     recipient2TokenChange.balanceAfter -
@@ -294,11 +328,11 @@ describe.each([
                 expect(recipient2Diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
-                const senderErc20Change = result.find(
+                const senderErc20Change = result.balanceChanges.find(
                     (r) =>
-                        r.address === smartAccountClient.account.address &&
+                        r.owner === smartAccountClient.account.address &&
                         r.token === erc20Address
-                ) as AssetChange as AssetChange
+                ) as BalanceChange
                 expect(senderErc20Change).toBeDefined()
                 const senderErc20Diff =
                     senderErc20Change.balanceAfter -
@@ -306,11 +340,11 @@ describe.each([
                 expect(senderErc20Diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (sent ETH + gas fees)
-                const senderEthChange = result.find(
+                const senderEthChange = result.balanceChanges.find(
                     (r) =>
-                        r.address === smartAccountClient.account.address &&
+                        r.owner === smartAccountClient.account.address &&
                         r.token === NATIVE_TOKEN_ADDRESS
-                ) as AssetChange
+                ) as BalanceChange
                 expect(senderEthChange).toBeDefined()
                 const senderEthDiff =
                     senderEthChange.balanceAfter - senderEthChange.balanceBefore
@@ -326,9 +360,9 @@ describe.each([
                 expect(nonZeroChanges.length).toBe(3)
 
                 // Verify recipient2 received tokens
-                const recipient2TokenChange = result.find(
-                    (r) => r.address === recipient2 && r.token === erc20Address
-                ) as AssetChange
+                const recipient2TokenChange = result.balanceChanges.find(
+                    (r) => r.owner === recipient2 && r.token === erc20Address
+                ) as BalanceChange
                 expect(recipient2TokenChange).toBeDefined()
                 const recipient2Diff =
                     recipient2TokenChange.balanceAfter -
@@ -336,11 +370,11 @@ describe.each([
                 expect(recipient2Diff).toBe(Number(tokenAmount))
 
                 // Verify sender's ERC20 change (sent tokens)
-                const senderErc20Change = result.find(
+                const senderErc20Change = result.balanceChanges.find(
                     (r) =>
-                        r.address === smartAccountClient.account.address &&
+                        r.owner === smartAccountClient.account.address &&
                         r.token === erc20Address
-                ) as AssetChange
+                ) as BalanceChange
                 expect(senderErc20Change).toBeDefined()
                 const senderErc20Diff =
                     senderErc20Change.balanceAfter -
@@ -348,11 +382,11 @@ describe.each([
                 expect(senderErc20Diff).toBe(-Number(tokenAmount))
 
                 // Verify sender's ETH change (only gas fees, no ETH transfer)
-                const senderEthChange = result.find(
+                const senderEthChange = result.balanceChanges.find(
                     (r) =>
-                        r.address === smartAccountClient.account.address &&
+                        r.owner === smartAccountClient.account.address &&
                         r.token === NATIVE_TOKEN_ADDRESS
-                ) as AssetChange
+                ) as BalanceChange
                 expect(senderEthChange).toBeDefined()
                 const senderEthDiff =
                     senderEthChange.balanceAfter - senderEthChange.balanceBefore
@@ -373,23 +407,28 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange without tracking ETH
+            const balanceQueries = []
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [smartAccountClient.account.address],
-                        tokens: []
-                    }
+                    balanceQueries,
+                    allowanceQueries
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
+            expect(result.allowanceChanges).toBeDefined()
+            expect(Array.isArray(result.allowanceChanges)).toBe(true)
 
             // Should be empty since we're not tracking any changes
-            expect(result.length).toBe(0)
+            expect(result.balanceChanges.length).toBe(0)
+            expect(result.allowanceChanges.length).toBe(0)
         })
 
         test("should simulate asset changes with no monitored addresses", async () => {
@@ -408,21 +447,26 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange with empty addresses array
+            const balanceQueries = []
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [],
-                        tokens: []
-                    }
+                    balanceQueries,
+                    allowanceQueries
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
-            expect(result.length).toBe(0) // No changes reported when no addresses monitored
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
+            expect(result.allowanceChanges).toBeDefined()
+            expect(Array.isArray(result.allowanceChanges)).toBe(true)
+            expect(result.balanceChanges.length).toBe(0) // No changes reported when no addresses monitored
+            expect(result.allowanceChanges.length).toBe(0)
         })
 
         test("should handle invalid user operation", async () => {
@@ -441,16 +485,22 @@ describe.each([
             userOp.nonce = userOp.nonce + 1n
 
             // Call pimlico_simulateAssetChange and expect it to throw with AA25 error
+            const balanceQueries = [
+                {
+                    token: NATIVE_TOKEN_ADDRESS,
+                    owner: smartAccountClient.account.address
+                }
+            ]
+            const allowanceQueries = []
+
             await expect(
                 bundlerClient.request({
                     method: "pimlico_simulateAssetChange",
                     params: [
                         deepHexlify(userOp),
                         entryPoint,
-                        {
-                            addresses: [smartAccountClient.account.address],
-                            tokens: []
-                        }
+                        balanceQueries,
+                        allowanceQueries
                     ]
                 })
             ).rejects.toThrow(
@@ -491,32 +541,37 @@ describe.each([
             })
 
             // Call pimlico_simulateAssetChange with state overrides and ETH tracking
+            const balanceQueries = [
+                {
+                    token: NATIVE_TOKEN_ADDRESS,
+                    owner: smartAccountClient.account.address
+                },
+                { token: NATIVE_TOKEN_ADDRESS, owner: recipient }
+            ]
+            const allowanceQueries = []
+
             const result = (await bundlerClient.request({
                 method: "pimlico_simulateAssetChange",
                 params: [
                     deepHexlify(userOp),
                     entryPoint,
-                    {
-                        addresses: [
-                            smartAccountClient.account.address,
-                            recipient
-                        ],
-                        tokens: [NATIVE_TOKEN_ADDRESS]
-                    },
+                    balanceQueries,
+                    allowanceQueries,
                     stateOverrides
                 ]
-            })) as AssetChange[]
+            })) as SimulateAssetChangeResult
 
             expect(result).toBeDefined()
-            expect(Array.isArray(result)).toBe(true)
+            expect(result.balanceChanges).toBeDefined()
+            expect(Array.isArray(result.balanceChanges)).toBe(true)
 
             // Find the changes for sender and recipient
-            const recipientChange = result.find(
-                (r) => r.address === recipient
-            ) as AssetChange
-            const senderChange = result.find(
-                (r) => r.address === smartAccountClient.account.address
-            ) as AssetChange
+            const recipientChange = result.balanceChanges.find(
+                (r) => r.owner === recipient
+            ) as BalanceChange
+            const senderChange = result.balanceChanges.find(
+                (r) => r.owner === smartAccountClient.account.address
+            ) as BalanceChange
 
             expect(recipientChange).toBeDefined()
             expect(recipientChange.token).toBe(NATIVE_TOKEN_ADDRESS)
