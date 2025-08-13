@@ -27,13 +27,18 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
     method: "pimlico_simulateAssetChange",
     schema: pimlicoSimulateAssetChangeSchema,
     handler: async ({ rpcHandler, params }) => {
-        const [userOp, entryPoint, trackingParams, stateOverrides] = params
-        const { addresses, tokens } = trackingParams
+        const [
+            userOp,
+            entryPoint,
+            balanceQueries,
+            allowanceQueries,
+            stateOverrides
+        ] = params
 
         const logger = rpcHandler.logger.child({
             entryPoint,
-            addresses,
-            tokens
+            balanceQueries,
+            allowanceQueries
         })
 
         // Check if pimlico simulation contract is configured
@@ -74,11 +79,18 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
         }
 
         try {
-            let result: {
-                addr: Address
+            let balanceChanges: {
+                owner: Address
                 token: Address
                 balanceBefore: bigint
                 balanceAfter: bigint
+            }[]
+            let allowanceChanges: {
+                owner: Address
+                token: Address
+                spender: Address
+                allowanceBefore: bigint
+                allowanceAfter: bigint
             }[]
 
             if (is08) {
@@ -94,16 +106,17 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     await pimlicoSimulation.simulate.simulateAssetChange08(
                         [
                             toPackedUserOp(userOp as UserOperation07),
-                            entryPoint,
                             rpcHandler.config.entrypointSimulationContractV8,
-                            addresses,
-                            tokens
+                            entryPoint,
+                            balanceQueries,
+                            allowanceQueries
                         ],
                         {
                             stateOverride
                         }
                     )
-                result = [...simResult]
+                balanceChanges = [...simResult[0]]
+                allowanceChanges = [...simResult[1]]
             } else if (is07) {
                 if (!rpcHandler.config.entrypointSimulationContractV7) {
                     throw new RpcError(
@@ -117,42 +130,38 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                     await pimlicoSimulation.simulate.simulateAssetChange07(
                         [
                             toPackedUserOp(userOp as UserOperation07),
-                            entryPoint,
                             rpcHandler.config.entrypointSimulationContractV7,
-                            addresses,
-                            tokens
+                            entryPoint,
+                            balanceQueries,
+                            allowanceQueries
                         ],
                         {
                             stateOverride
                         }
                     )
-                result = [...simResult]
+                balanceChanges = [...simResult[0]]
+                allowanceChanges = [...simResult[1]]
             } else {
                 const { result: simResult } =
                     await pimlicoSimulation.simulate.simulateAssetChange06(
                         [
                             userOp as UserOperation06,
                             entryPoint,
-                            addresses,
-                            tokens
+                            balanceQueries,
+                            allowanceQueries
                         ],
                         {
                             stateOverride
                         }
                     )
-                result = [...simResult]
+                balanceChanges = [...simResult[0]]
+                allowanceChanges = [...simResult[1]]
             }
 
-            return result.map(
-                ({ addr: address, token, balanceBefore, balanceAfter }) => {
-                    return {
-                        address,
-                        token,
-                        balanceBefore,
-                        balanceAfter
-                    }
-                }
-            )
+            return {
+                balanceChanges,
+                allowanceChanges
+            }
         } catch (error) {
             const decodedError = decodeSimulateHandleOpError(error, logger)
 
