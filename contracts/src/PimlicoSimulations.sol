@@ -377,16 +377,16 @@ contract PimlicoSimulations {
 
     // @notice Result struct for balance change simulations
     struct BalanceChange {
-        address addr;
         address token;
+        address owner;
         uint256 balanceBefore;
         uint256 balanceAfter;
     }
 
     // @notice Result struct for allowance change simulations
     struct AllowanceChange {
-        address owner;
         address token;
+        address owner;
         address spender;
         uint256 allowanceBefore;
         uint256 allowanceAfter;
@@ -483,7 +483,7 @@ contract PimlicoSimulations {
         balanceChanges = new BalanceChange[](balanceQueries.length);
         for (uint256 i = 0; i < balanceQueries.length; i++) {
             balanceChanges[i] = BalanceChange({
-                addr: balancesBefore[i].addr,
+                owner: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
                 balanceAfter: balancesAfter[i].amount
@@ -569,7 +569,7 @@ contract PimlicoSimulations {
         balanceChanges = new BalanceChange[](balanceQueries.length);
         for (uint256 i = 0; i < balanceQueries.length; i++) {
             balanceChanges[i] = BalanceChange({
-                addr: balancesBefore[i].addr,
+                owner: balancesBefore[i].addr,
                 token: balancesBefore[i].token,
                 balanceBefore: balancesBefore[i].amount,
                 balanceAfter: balancesAfter[i].amount
