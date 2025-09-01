@@ -184,13 +184,10 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     constructor({
         config,
-        entryPoint
-    }: { config: AltoConfig; entryPoint: Address }) {
-        if (!config.enableHorizontalScaling || !config.redisEndpoint) {
-            throw new Error("Redis outstanding store requires horizontal scaling to be enabled with a valid redis-endpoint")
-        }
-
-        this.redis = new Redis(config.redisEndpoint, {})
+        entryPoint,
+        redisEndpoint
+    }: { config: AltoConfig; entryPoint: Address; redisEndpoint: string }) {
+        this.redis = new Redis(redisEndpoint, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
 
@@ -510,10 +507,12 @@ class RedisOutstandingQueue implements OutstandingStore {
 
 export const createRedisOutstandingQueue = ({
     config,
-    entryPoint
+    entryPoint,
+    redisEndpoint
 }: {
     config: AltoConfig
     entryPoint: Address
+    redisEndpoint: string
 }): OutstandingStore => {
-    return new RedisOutstandingQueue({ config, entryPoint })
+    return new RedisOutstandingQueue({ config, entryPoint, redisEndpoint })
 }

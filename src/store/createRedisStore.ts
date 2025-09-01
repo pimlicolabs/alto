@@ -50,17 +50,15 @@ const deserializeUserOp = (data: string): UserOperation => {
 export const createRedisStore = ({
     config,
     storeType,
-    entryPoint
+    entryPoint,
+    redisEndpoint
 }: {
     config: AltoConfig
     storeType: string
     entryPoint: Address
+    redisEndpoint: string
 }): Store => {
-    if (!config.enableHorizontalScaling || !config.redisEndpoint) {
-        throw new Error("Redis store requires horizontal scaling to be enabled with a valid redis-endpoint")
-    }
-
-    const redis = new Redis(config.redisEndpoint, {})
+    const redis = new Redis(redisEndpoint, {})
 
     const factoryLookupKey = `${config.chainId}:${storeType}:factory-lookup:${entryPoint}`
     const conflictingNonceKey = `${config.chainId}:${storeType}:conflicting-nonce:${entryPoint}`

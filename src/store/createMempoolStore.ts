@@ -55,17 +55,20 @@ export const createMempoolStore = ({
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             outstanding = createRedisOutstandingQueue({
                 config,
-                entryPoint
+                entryPoint,
+                redisEndpoint: config.redisEndpoint
             })
             processing = createRedisStore({
                 config,
                 entryPoint,
-                storeType: "processing"
+                storeType: "processing",
+                redisEndpoint: config.redisEndpoint
             })
             submitted = createRedisStore({
                 config,
                 entryPoint,
-                storeType: "submitted"
+                storeType: "submitted",
+                redisEndpoint: config.redisEndpoint
             })
             logger.info(
                 "Using redis for outstanding, processing, submitted mempools"
