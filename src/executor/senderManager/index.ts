@@ -35,7 +35,11 @@ export const getSenderManager = async ({
     metrics
 }: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
     if (config.enableHorizontalScaling && config.redisEndpoint) {
-        return await createRedisSenderManager({ config, metrics })
+        return await createRedisSenderManager({
+            config,
+            metrics,
+            redisEndpoint: config.redisEndpoint
+        })
     }
 
     return createMemorySenderManager({ config, metrics })

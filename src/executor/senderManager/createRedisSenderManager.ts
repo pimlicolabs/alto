@@ -39,12 +39,13 @@ const delay = async (delay: number) => {
 
 export const createRedisSenderManager = async ({
     config,
-    metrics
-}: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
-    if (!config.enableHorizontalScaling || !config.redisEndpoint) {
-        throw new Error("Redis sender manager requires horizontal scaling to be enabled with a valid redis-endpoint")
-    }
-
+    metrics,
+    redisEndpoint
+}: {
+    config: AltoConfig
+    metrics: Metrics
+    redisEndpoint: string
+}): Promise<SenderManager> => {
     const wallets = getAvailableWallets(config)
     metrics.walletsTotal.set(wallets.length)
     metrics.walletsAvailable.set(wallets.length)
@@ -55,7 +56,7 @@ export const createRedisSenderManager = async ({
         }
     )
 
-    const redis = new Redis(config.redisEndpoint)
+    const redis = new Redis(redisEndpoint)
     const redisQueueName = getRedisKeys(config).senderManagerQueue
     const redisQueue = await createRedisQueue({
         redis,

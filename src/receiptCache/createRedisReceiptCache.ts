@@ -25,20 +25,16 @@ const deserializeReceipt = (data: string): UserOperationReceipt => {
 export const createRedisReceiptCache = ({
     config,
     ttl,
+    redisEndpoint,
     logger
 }: {
     config: AltoConfig
     ttl: number
+    redisEndpoint: string
     logger: Logger
 }): ReceiptCache => {
-    if (!config.enableRedisReceiptCache || !config.redisEndpoint) {
-        throw new Error(
-            "Redis receipt cache requires enableRedisReceiptCache to be enabled with a valid redis endpoint"
-        )
-    }
-
     const REDIS_TIMEOUT = 100 // 100ms timeout for all Redis operations
-    const redis = new Redis(config.redisEndpoint)
+    const redis = new Redis(redisEndpoint)
     const redisKeys = getRedisKeys(config)
     const keyPrefix = redisKeys.userOpReceiptCachePrefix
 
