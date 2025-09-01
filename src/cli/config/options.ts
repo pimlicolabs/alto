@@ -9,6 +9,7 @@ import type {
     ILogArgsInput,
     IMempoolArgsInput,
     IOptionsInput,
+    IRedisArgsInput,
     IRpcArgsInput,
     IServerArgsInput
 } from "./bundler"
@@ -124,7 +125,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     }
 }
 
-export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
+export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
     "redis-key": {
         description: "Redis key prefix for all Redis data structures",
         type: "string",
@@ -137,12 +138,14 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         type: "string",
         require: false
     },
-    "redis-mempool-concurrency": {
-        description: "Number of concurrent jobs to process",
-        type: "number",
-        require: false,
-        default: 10
-    },
+    "redis-events-endpoint": {
+        description: "Redis endpoint for userOp events queue",
+        type: "string",
+        require: false
+    }
+}
+
+export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
     "restoration-queue-timeout": {
         description:
             "Timeout in milliseconds for listening to mempool restoration queue (default: 30 minutes)",
@@ -591,11 +594,6 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
 }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
-    "redis-events-endpoint": {
-        description: "Redis endpoint for userOp events queue",
-        type: "string",
-        require: false
-    },
     json: {
         description: "Log in JSON format",
         type: "boolean",

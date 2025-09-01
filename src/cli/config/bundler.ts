@@ -211,7 +211,6 @@ export const rpcArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
-    "redis-events-endpoint": z.string().optional(),
     json: z.boolean(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
@@ -292,9 +291,6 @@ export const gasEstimationArgsSchema = z.object({
 })
 
 export const mempoolArgsSchema = z.object({
-    "redis-key": z.string().default("alto"),
-    "redis-endpoint": z.string().optional(),
-    "redis-mempool-concurrency": z.number().int().min(0).default(10),
     "restoration-queue-timeout": z
         .number()
         .int()
@@ -303,6 +299,12 @@ export const mempoolArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true)
+})
+
+export const redisArgsSchema = z.object({
+    "redis-key": z.string().default("alto"),
+    "redis-endpoint": z.string().optional(),
+    "redis-events-endpoint": z.string().optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>
@@ -332,6 +334,12 @@ export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
 export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
 
+export type IOptions = z.infer<typeof optionArgsSchema>
+export type IOptionsInput = z.input<typeof optionArgsSchema>
+
+export type IRedisArgs = z.infer<typeof redisArgsSchema>
+export type IRedisArgsInput = z.input<typeof redisArgsSchema>
+
 export const optionArgsSchema = z.object({
     ...bundlerArgsSchema.shape,
     ...compatibilityArgsSchema.shape,
@@ -341,8 +349,6 @@ export const optionArgsSchema = z.object({
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
     ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape
+    ...mempoolArgsSchema.shape,
+    ...redisArgsSchema.shape
 })
-
-export type IOptions = z.infer<typeof optionArgsSchema>
-export type IOptionsInput = z.input<typeof optionArgsSchema>
