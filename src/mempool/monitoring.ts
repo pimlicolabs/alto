@@ -1,5 +1,6 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
 import { Redis } from "ioredis"
+import { getRedisKeys } from "../cli/config/redisKeys"
 import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
@@ -39,12 +40,12 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         config: AltoConfig
         ttlSeconds?: number
     }) {
-        if (!config.redisOpStatusUrl) {
-            throw new Error("RedisOpStatusUrl is not configured")
+        if (!config.redisEndpoint) {
+            throw new Error("RedisEndpoint is not configured")
         }
 
-        this.redis = new Redis(config.redisOpStatusUrl)
-        this.keyPrefix = `${config.chainId}:${config.redisOpStatusQueueName}`
+        this.redis = new Redis(config.redisEndpoint)
+        this.keyPrefix = getRedisKeys(config).userOpStatusQueue
         this.ttlSeconds = ttlSeconds
     }
 
@@ -120,7 +121,7 @@ export class Monitor {
     }: { config: AltoConfig; timeout?: number }) {
         this.timeout = timeout
         this.userOpTimeouts = {}
-        this.isUsingRedis = Boolean(config.redisOpStatusUrl)
+        this.isUsingRedis = Boolean(config.redisEndpoint)
 
         if (this.isUsingRedis) {
             this.statusStore = new RedisUserOperationStatusStore({

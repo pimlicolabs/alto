@@ -211,11 +211,7 @@ export const rpcArgsSchema = z.object({
 })
 
 export const logArgsSchema = z.object({
-    "redis-queue-endpoint": z.string().optional(),
-    "redis-event-manager-queue-name": z.preprocess(
-        (v) => (v === "" ? undefined : v),
-        z.string().optional()
-    ),
+    "redis-events-endpoint": z.string().optional(),
     json: z.boolean(),
     "log-level": logLevel,
     "public-client-log-level": logLevel.optional(),
@@ -296,18 +292,9 @@ export const gasEstimationArgsSchema = z.object({
 })
 
 export const mempoolArgsSchema = z.object({
-    "redis-mempool-url": z.string().optional(),
-    "redis-userop-receipt-cache-url": z.string().optional(),
-    "redis-userop-receipt-cache-queue-name": z.string(),
+    "redis-key": z.string().default("alto"),
+    "redis-endpoint": z.string().optional(),
     "redis-mempool-concurrency": z.number().int().min(0).default(10),
-    "redis-mempool-queue-name": z.string(),
-    "redis-op-status-url": z.string().optional(),
-    "redis-op-status-queue-name": z.string(),
-    "redis-sender-manager-url": z.string().optional(),
-    "redis-sender-manager-queue-name": z.string(),
-    "redis-gas-price-queue-url": z.string().optional(),
-    "redis-gas-price-queue-name": z.string(),
-    "redis-shutdown-mempool-url": z.string().optional(),
     "restoration-queue-timeout": z
         .number()
         .int()

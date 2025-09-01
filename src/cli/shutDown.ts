@@ -74,11 +74,11 @@ async function queueOperationsOnShutdownToRedis({
     config: AltoConfig
     logger: Logger
 }) {
-    if (!config.redisShutdownMempoolUrl) {
+    if (!config.redisEndpoint) {
         return
     }
     try {
-        const redis = new Redis(config.redisShutdownMempoolUrl)
+        const redis = new Redis(config.redisEndpoint)
         const queueName = getQueueName(config.publicClient.chain.id)
         const restorationQueue = new Queue(queueName, {
             createClient: () => {
@@ -172,7 +172,7 @@ export function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    if (config.redisShutdownMempoolUrl) {
+    if (config.redisEndpoint) {
         return queueOperationsOnShutdownToRedis({
             mempool,
             userOpMonitor,
@@ -198,8 +198,8 @@ export async function restoreShutdownState({
     logger: Logger
     senderManager: SenderManager
 }) {
-    const redisShutdownMempoolUrl = config.redisShutdownMempoolUrl
-    if (!redisShutdownMempoolUrl) {
+    const redisEndpoint = config.redisEndpoint
+    if (!redisEndpoint) {
         return
     }
     let restorationTimeout: NodeJS.Timeout | null = null
@@ -215,7 +215,7 @@ export async function restoreShutdownState({
                 switch (type) {
                     case "client": {
                         if (!client) {
-                            client = new Redis(redisShutdownMempoolUrl, {
+                            client = new Redis(redisEndpoint, {
                                 ...redisOpts,
                                 enableReadyCheck: false,
                                 maxRetriesPerRequest: null
@@ -225,7 +225,7 @@ export async function restoreShutdownState({
                     }
                     case "subscriber": {
                         if (!subscriber) {
-                            subscriber = new Redis(redisShutdownMempoolUrl, {
+                            subscriber = new Redis(redisEndpoint, {
                                 ...redisOpts,
                                 enableReadyCheck: false,
                                 maxRetriesPerRequest: null
@@ -234,7 +234,7 @@ export async function restoreShutdownState({
                         return subscriber
                     }
                     case "bclient":
-                        return new Redis(redisShutdownMempoolUrl, {
+                        return new Redis(redisEndpoint, {
                             ...redisOpts,
                             enableReadyCheck: false,
                             maxRetriesPerRequest: null

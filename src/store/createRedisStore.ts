@@ -56,11 +56,11 @@ export const createRedisStore = ({
     storeType: string
     entryPoint: Address
 }): Store => {
-    if (!config.redisMempoolUrl) {
-        throw new Error("Missing required redisMempoolUrl")
+    if (!config.redisEndpoint) {
+        throw new Error("Missing required redisEndpoint")
     }
 
-    const redis = new Redis(config.redisMempoolUrl, {})
+    const redis = new Redis(config.redisEndpoint, {})
 
     const factoryLookupKey = `${config.chainId}:${storeType}:factory-lookup:${entryPoint}`
     const conflictingNonceKey = `${config.chainId}:${storeType}:conflicting-nonce:${entryPoint}`

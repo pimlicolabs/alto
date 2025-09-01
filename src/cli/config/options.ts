@@ -125,22 +125,17 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
 }
 
 export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
-    "redis-mempool-url": {
+    "redis-key": {
+        description: "Redis key prefix for all Redis data structures",
+        type: "string",
+        require: false,
+        default: "alto"
+    },
+    "redis-endpoint": {
         description:
-            "Redis connection URL (required if redis-mempool is enabled)",
+            "Common Redis connection URL for all Redis operations (except userOp events)",
         type: "string",
         require: false
-    },
-    "redis-userop-receipt-cache-url": {
-        description: "Redis connection URL for user operation receipt cache",
-        type: "string",
-        require: false
-    },
-    "redis-userop-receipt-cache-queue-name": {
-        description: "Redis queue name for user operation receipt cache",
-        type: "string",
-        require: true,
-        default: "receipt-cache"
     },
     "redis-mempool-concurrency": {
         description: "Number of concurrent jobs to process",
@@ -148,59 +143,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: 10
     },
-    "redis-mempool-queue-name": {
-        description: "Redis mempool queue name",
-        type: "string",
-        require: false,
-        default: "outstanding-mempool"
-    },
-    "redis-op-status-url": {
-        description: "Redis connection URL for user operation status tracking",
-        type: "string",
-        require: false
-    },
-    "redis-op-status-queue-name": {
-        description: "Queue name for user operation status",
-        type: "string",
-        require: false,
-        default: "userop-status"
-    },
-    "redis-gas-price-queue-url": {
-        description:
-            "Redis connection URL (required if redis-gas-price-queue is enabled)",
-        type: "string",
-        require: false
-    },
-    "redis-gas-price-queue-name": {
-        description: "Queue name to store gas prices",
-        type: "string",
-        require: false,
-        default: "gas-price"
-    },
-    "redis-shutdown-mempool-url": {
-        description:
-            "Redis connection URL to store the mempool before shutdown",
-        type: "string",
-        require: false
-    },
     "restoration-queue-timeout": {
         description:
             "Timeout in milliseconds for listening to mempool restoration queue (default: 30 minutes)",
         type: "number",
         require: false,
         default: 30 * 60 * 1000
-    },
-    "redis-sender-manager-url": {
-        description:
-            "Redis connection URL (required if redis-sender-manager is enabled)",
-        type: "string",
-        require: false
-    },
-    "redis-sender-manager-queue-name": {
-        description: "Queue name to executors",
-        type: "string",
-        require: false,
-        default: "sender-manager"
     },
     "mempool-max-parallel-ops": {
         description:
@@ -643,16 +591,10 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
 }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
-    "redis-queue-endpoint": {
-        description: "redis queue endpoint",
+    "redis-events-endpoint": {
+        description: "Redis endpoint for userOp events queue",
         type: "string",
         require: false
-    },
-    "redis-event-manager-queue-name": {
-        description: "redis event manager queue name",
-        type: "string",
-        require: false,
-        default: "UserOperationStatusBullEventsQueue"
     },
     json: {
         description: "Log in JSON format",

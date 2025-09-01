@@ -186,11 +186,11 @@ class RedisOutstandingQueue implements OutstandingStore {
         config,
         entryPoint
     }: { config: AltoConfig; entryPoint: Address }) {
-        if (!config.redisMempoolUrl) {
-            throw new Error("Missing required redisMempoolUrl")
+        if (!config.redisEndpoint) {
+            throw new Error("Missing required redisEndpoint")
         }
 
-        this.redis = new Redis(config.redisMempoolUrl, {})
+        this.redis = new Redis(config.redisEndpoint, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
 

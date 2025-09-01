@@ -3,6 +3,7 @@ import * as sentry from "@sentry/node"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
+import { getRedisKeys } from "../cli/config/redisKeys"
 import type { AltoConfig } from "../createConfig"
 import type { OpEventType } from "../types/schemas"
 import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
@@ -36,14 +37,15 @@ export class EventManager {
         )
         this.metrics = metrics
 
-        if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
+        if (config.redisEventsEndpoint) {
+            const queueName = getRedisKeys(config).eventManagerQueue
             this.logger.info(
-                `Using redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
+                `Using redis with queue name ${queueName} for userOp event queue`
             )
-            const redis = new Redis(config.redisQueueEndpoint)
+            const redis = new Redis(config.redisEventsEndpoint)
 
             this.redisEventManagerQueue = new Queue<QueueMessage>(
-                config.redisEventManagerQueueName,
+                queueName,
                 {
                     createClient: () => {
                         return redis
