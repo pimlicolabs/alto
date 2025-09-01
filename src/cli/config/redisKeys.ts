@@ -23,4 +23,3 @@ export const getRedisKeys = (config: AltoConfig) => {
         eventManagerQueue: `${prefix}:UserOperationStatusBullEventsQueue`
     }
 }
-

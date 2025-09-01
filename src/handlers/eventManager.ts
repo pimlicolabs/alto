@@ -44,14 +44,11 @@ export class EventManager {
             )
             const redis = new Redis(config.redisEventsEndpoint)
 
-            this.redisEventManagerQueue = new Queue<QueueMessage>(
-                queueName,
-                {
-                    createClient: () => {
-                        return redis
-                    }
+            this.redisEventManagerQueue = new Queue<QueueMessage>(queueName, {
+                createClient: () => {
+                    return redis
                 }
-            )
+            })
             return
         }
     }
