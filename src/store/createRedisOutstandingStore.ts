@@ -186,8 +186,8 @@ class RedisOutstandingQueue implements OutstandingStore {
         config,
         entryPoint
     }: { config: AltoConfig; entryPoint: Address }) {
-        if (!config.redisEndpoint) {
-            throw new Error("Missing required redisEndpoint")
+        if (!config.enableHorizontalScaling || !config.redisEndpoint) {
+            throw new Error("Redis outstanding store requires horizontal scaling to be enabled with a valid redis-endpoint")
         }
 
         this.redis = new Redis(config.redisEndpoint, {})

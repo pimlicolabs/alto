@@ -52,7 +52,7 @@ export const createMempoolStore = ({
         let outstanding: OutstandingStore
         let processing: Store
         let submitted: Store
-        if (config.redisEndpoint) {
+        if (config.enableHorizontalScaling && config.redisEndpoint) {
             outstanding = createRedisOutstandingQueue({
                 config,
                 entryPoint

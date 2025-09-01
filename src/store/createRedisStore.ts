@@ -56,8 +56,8 @@ export const createRedisStore = ({
     storeType: string
     entryPoint: Address
 }): Store => {
-    if (!config.redisEndpoint) {
-        throw new Error("Missing required redisEndpoint")
+    if (!config.enableHorizontalScaling || !config.redisEndpoint) {
+        throw new Error("Redis store requires horizontal scaling to be enabled with a valid redis-endpoint")
     }
 
     const redis = new Redis(config.redisEndpoint, {})

@@ -126,6 +126,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
 }
 
 export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
+    "enable-horizontal-scaling": {
+        description: "Enable horizontal scaling using Redis",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "enable-redis-receipt-cache": {
+        description: "Enable Redis for user operation receipt cache",
+        type: "boolean",
+        require: false,
+        default: false
+    },
     "redis-key": {
         description: "Redis key prefix for all Redis data structures",
         type: "string",

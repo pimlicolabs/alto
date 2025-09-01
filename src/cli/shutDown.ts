@@ -74,9 +74,11 @@ async function queueOperationsOnShutdownToRedis({
     config: AltoConfig
     logger: Logger
 }) {
+    // If there is no redis endpoint, then there is no queue to publish to
     if (!config.redisEndpoint) {
         return
     }
+
     try {
         const redis = new Redis(config.redisEndpoint)
         const queueName = getQueueName(config.publicClient.chain.id)
@@ -172,6 +174,11 @@ export function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
+    // When horizontal scaling is enabled, state is already saved between shutdowns.
+    if (config.enableHorizontalScaling) {
+        return
+    }
+
     if (config.redisEndpoint) {
         return queueOperationsOnShutdownToRedis({
             mempool,
@@ -181,7 +188,7 @@ export function persistShutdownState({
         })
     }
 
-    // No queue configured, drop all operations
+    // No queue configured, drop all operations.
     return dropAllOperationsOnShutdown({ mempool, logger, config })
 }
 
@@ -202,6 +209,7 @@ export async function restoreShutdownState({
     if (!redisEndpoint) {
         return
     }
+
     let restorationTimeout: NodeJS.Timeout | null = null
 
     try {

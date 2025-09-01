@@ -19,8 +19,8 @@ class SortedTtlSet {
         keyPrefix: string
         config: AltoConfig
     }) {
-        if (!config.redisEndpoint) {
-            throw new Error("Redis URL not provided")
+        if (!config.enableHorizontalScaling || !config.redisEndpoint) {
+            throw new Error("Redis min-max queue requires horizontal scaling to be enabled with a valid redis-endpoint")
         }
 
         const redis = new Redis(config.redisEndpoint)

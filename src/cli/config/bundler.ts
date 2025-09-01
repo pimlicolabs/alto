@@ -302,6 +302,8 @@ export const mempoolArgsSchema = z.object({
 })
 
 export const redisArgsSchema = z.object({
+    "enable-horizontal-scaling": z.boolean().default(false),
+    "enable-redis-receipt-cache": z.boolean().default(false),
     "redis-key": z.string().default("alto"),
     "redis-endpoint": z.string().optional(),
     "redis-events-endpoint": z.string().optional()

@@ -40,8 +40,8 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         config: AltoConfig
         ttlSeconds?: number
     }) {
-        if (!config.redisEndpoint) {
-            throw new Error("RedisEndpoint is not configured")
+        if (!config.enableHorizontalScaling || !config.redisEndpoint) {
+            throw new Error("Redis monitoring requires horizontal scaling to be enabled with a valid redis-endpoint")
         }
 
         this.redis = new Redis(config.redisEndpoint)
@@ -121,7 +121,7 @@ export class Monitor {
     }: { config: AltoConfig; timeout?: number }) {
         this.timeout = timeout
         this.userOpTimeouts = {}
-        this.isUsingRedis = Boolean(config.redisEndpoint)
+        this.isUsingRedis = Boolean(config.enableHorizontalScaling && config.redisEndpoint)
 
         if (this.isUsingRedis) {
             this.statusStore = new RedisUserOperationStatusStore({

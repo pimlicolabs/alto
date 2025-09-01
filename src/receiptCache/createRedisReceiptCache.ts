@@ -31,8 +31,10 @@ export const createRedisReceiptCache = ({
     ttl: number
     logger: Logger
 }): ReceiptCache => {
-    if (!config.redisEndpoint) {
-        throw new Error("Missing required redisEndpoint")
+    if (!config.enableRedisReceiptCache || !config.redisEndpoint) {
+        throw new Error(
+            "Redis receipt cache requires enableRedisReceiptCache to be enabled with a valid redis endpoint"
+        )
     }
 
     const REDIS_TIMEOUT = 100 // 100ms timeout for all Redis operations

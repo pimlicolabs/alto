@@ -23,7 +23,7 @@ export function createReceiptCache(
         }
     )
 
-    if (config.redisEndpoint) {
+    if (config.enableRedisReceiptCache) {
         logger.info("Using Redis for user operation receipt cache")
         return createRedisReceiptCache({
             config,

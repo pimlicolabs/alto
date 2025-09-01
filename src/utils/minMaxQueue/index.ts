@@ -13,7 +13,7 @@ export const createMinMaxQueue = ({
     config,
     keyPrefix
 }: { config: AltoConfig; keyPrefix: string }): MinMaxQueue => {
-    if (config.redisEndpoint) {
+    if (config.enableHorizontalScaling && config.redisEndpoint) {
         return createRedisMinMaxQueue({
             config,
             keyPrefix

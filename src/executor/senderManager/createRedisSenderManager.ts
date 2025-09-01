@@ -41,8 +41,8 @@ export const createRedisSenderManager = async ({
     config,
     metrics
 }: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
-    if (!config.redisEndpoint) {
-        throw new Error("redisEndpoint is required")
+    if (!config.enableHorizontalScaling || !config.redisEndpoint) {
+        throw new Error("Redis sender manager requires horizontal scaling to be enabled with a valid redis-endpoint")
     }
 
     const wallets = getAvailableWallets(config)

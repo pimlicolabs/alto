@@ -25,6 +25,20 @@ import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
 
 const preFlightChecks = async (config: AltoConfig): Promise<void> => {
+    // Check horizontal scaling configuration
+    if (config.enableHorizontalScaling && !config.redisEndpoint) {
+        throw new Error(
+            "Horizontal scaling is enabled but redis-endpoint is not configured."
+        )
+    }
+
+    // Check Redis receipt cache configuration
+    if (config.enableRedisReceiptCache && !config.redisEndpoint) {
+        throw new Error(
+            "Redis receipt cache is enabled but redis-endpoint is not configured."
+        )
+    }
+
     for (const entrypoint of config.entrypoints) {
         const entryPointCode = await config.publicClient.getCode({
             address: entrypoint
