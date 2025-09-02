@@ -70,9 +70,17 @@ export const createMempoolStore = ({
                 storeType: "submitted",
                 redisEndpoint: config.redisEndpoint
             })
-            logger.info(
-                "Using redis for outstanding, processing, submitted mempools"
-            )
+            
+            // Log the Redis keys being used
+            const outstandingKey = `${config.chainId}:outstanding:pending-queue:${entryPoint}`
+            const processingKey = `${config.chainId}:processing:*:${entryPoint}`
+            const submittedKey = `${config.chainId}:submitted:*:${entryPoint}`
+            
+            logger.info({
+                outstandingKey,
+                processingKey,
+                submittedKey
+            }, "Using redis for outstanding, processing, submitted mempools with keys")
         } else {
             outstanding = createMemoryOutstandingQueue({
                 config
