@@ -306,7 +306,8 @@ export const redisArgsSchema = z.object({
     "enable-redis-receipt-cache": z.boolean().default(false),
     "redis-key-prefix": z.string().default("alto"),
     "redis-endpoint": z.string().optional(),
-    "redis-events-endpoint": z.string().optional()
+    "redis-events-queue-endpoint": z.string().optional(),
+    "redis-events-queue-name": z.string().optional()
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

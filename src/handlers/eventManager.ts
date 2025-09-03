@@ -37,12 +37,12 @@ export class EventManager {
         )
         this.metrics = metrics
 
-        if (config.redisEventsEndpoint) {
-            const queueName = getRedisKeys(config).eventManagerQueue
+        if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
+            const queueName = config.redisEventsQueueName
             this.logger.info(
                 `Using redis with queue name ${queueName} for userOp event queue`
             )
-            const redis = new Redis(config.redisEventsEndpoint)
+            const redis = new Redis(config.redisEventsQueueEndpoint)
 
             this.redisEventManagerQueue = new Queue<QueueMessage>(queueName, {
                 createClient: () => {
