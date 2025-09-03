@@ -20,6 +20,6 @@ export const getRedisKeys = (config: AltoConfig) => {
         senderManagerQueue: `${prefix}:sender-manager`,
 
         // Event manager queue
-        eventManagerQueue: `${prefix}:UserOperationStatusBullEventsQueue`
+        eventManagerQueue: "UserOperationStatusBullEventsQueue"
     }
 }
