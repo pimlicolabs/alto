@@ -50,17 +50,15 @@ const deserializeUserOp = (data: string): UserOperation => {
 export const createRedisStore = ({
     config,
     storeType,
-    entryPoint
+    entryPoint,
+    redisEndpoint
 }: {
     config: AltoConfig
     storeType: string
     entryPoint: Address
+    redisEndpoint: string
 }): Store => {
-    if (!config.redisMempoolUrl) {
-        throw new Error("Missing required redisMempoolUrl")
-    }
-
-    const redis = new Redis(config.redisMempoolUrl, {})
+    const redis = new Redis(redisEndpoint, {})
 
     const factoryLookupKey = `${config.chainId}:${storeType}:factory-lookup:${entryPoint}`
     const conflictingNonceKey = `${config.chainId}:${storeType}:conflicting-nonce:${entryPoint}`

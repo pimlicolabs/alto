@@ -2,6 +2,7 @@ import type { Metrics } from "@alto/utils"
 import Redis from "ioredis"
 import type { Account } from "viem"
 import { getAvailableWallets } from "."
+import { getRedisKeys } from "../../cli/config/redisKeys"
 import type { AltoConfig } from "../../createConfig"
 import type { SenderManager } from "../senderManager"
 
@@ -38,12 +39,13 @@ const delay = async (delay: number) => {
 
 export const createRedisSenderManager = async ({
     config,
-    metrics
-}: { config: AltoConfig; metrics: Metrics }): Promise<SenderManager> => {
-    if (!config.redisSenderManagerUrl) {
-        throw new Error("redisSenderManagerUrl is required")
-    }
-
+    metrics,
+    redisEndpoint
+}: {
+    config: AltoConfig
+    metrics: Metrics
+    redisEndpoint: string
+}): Promise<SenderManager> => {
     const wallets = getAvailableWallets(config)
     metrics.walletsTotal.set(wallets.length)
     metrics.walletsAvailable.set(wallets.length)
@@ -54,8 +56,8 @@ export const createRedisSenderManager = async ({
         }
     )
 
-    const redis = new Redis(config.redisSenderManagerUrl)
-    const redisQueueName = `${config.chainId}:${config.redisSenderManagerQueueName}`
+    const redis = new Redis(redisEndpoint)
+    const redisQueueName = getRedisKeys(config).senderManagerQueue
     const redisQueue = await createRedisQueue({
         redis,
         name: redisQueueName,

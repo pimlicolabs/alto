@@ -36,20 +36,18 @@ export class EventManager {
         )
         this.metrics = metrics
 
-        if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
+        if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
+            const queueName = config.redisEventsQueueName
             this.logger.info(
-                `Using redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
+                `Using redis with queue name ${queueName} for userOp event queue`
             )
-            const redis = new Redis(config.redisQueueEndpoint)
+            const redis = new Redis(config.redisEventsQueueEndpoint)
 
-            this.redisEventManagerQueue = new Queue<QueueMessage>(
-                config.redisEventManagerQueueName,
-                {
-                    createClient: () => {
-                        return redis
-                    }
+            this.redisEventManagerQueue = new Queue<QueueMessage>(queueName, {
+                createClient: () => {
+                    return redis
                 }
-            )
+            })
             return
         }
     }

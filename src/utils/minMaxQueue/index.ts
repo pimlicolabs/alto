@@ -13,10 +13,11 @@ export const createMinMaxQueue = ({
     config,
     keyPrefix
 }: { config: AltoConfig; keyPrefix: string }): MinMaxQueue => {
-    if (config.redisGasPriceQueueUrl) {
+    if (config.enableHorizontalScaling && config.redisEndpoint) {
         return createRedisMinMaxQueue({
             config,
-            keyPrefix
+            keyPrefix,
+            redisEndpoint: config.redisEndpoint
         })
     }
 

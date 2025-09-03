@@ -184,13 +184,10 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     constructor({
         config,
-        entryPoint
-    }: { config: AltoConfig; entryPoint: Address }) {
-        if (!config.redisMempoolUrl) {
-            throw new Error("Missing required redisMempoolUrl")
-        }
-
-        this.redis = new Redis(config.redisMempoolUrl, {})
+        entryPoint,
+        redisEndpoint
+    }: { config: AltoConfig; entryPoint: Address; redisEndpoint: string }) {
+        this.redis = new Redis(redisEndpoint, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
 
@@ -510,10 +507,12 @@ class RedisOutstandingQueue implements OutstandingStore {
 
 export const createRedisOutstandingQueue = ({
     config,
-    entryPoint
+    entryPoint,
+    redisEndpoint
 }: {
     config: AltoConfig
     entryPoint: Address
+    redisEndpoint: string
 }): OutstandingStore => {
-    return new RedisOutstandingQueue({ config, entryPoint })
+    return new RedisOutstandingQueue({ config, entryPoint, redisEndpoint })
 }

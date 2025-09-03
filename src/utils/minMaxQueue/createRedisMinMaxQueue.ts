@@ -14,16 +14,14 @@ class SortedTtlSet {
 
     constructor({
         keyPrefix,
-        config
+        config,
+        redisEndpoint
     }: {
         keyPrefix: string
         config: AltoConfig
+        redisEndpoint: string
     }) {
-        if (!config.redisGasPriceQueueUrl) {
-            throw new Error("Redis URL not provided")
-        }
-
-        const redis = new Redis(config.redisGasPriceQueueUrl)
+        const redis = new Redis(redisEndpoint)
         const queueValidity = config.gasPriceExpiry
 
         const redisKey = `${config.chainId}:${keyPrefix}`
@@ -133,13 +131,16 @@ class SortedTtlSet {
 
 export const createRedisMinMaxQueue = ({
     config,
-    keyPrefix
+    keyPrefix,
+    redisEndpoint
 }: {
     config: AltoConfig
     keyPrefix: string
+    redisEndpoint: string
 }): MinMaxQueue => {
     const queue = new SortedTtlSet({
         config,
+        redisEndpoint,
         keyPrefix: `${keyPrefix}:minMaxQueue`
     })
 

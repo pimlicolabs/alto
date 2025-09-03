@@ -337,13 +337,16 @@ export const setupServer = async ({
         }
     )
 
-    restoreShutdownState({
-        mempool,
-        userOpMonitor,
-        config,
-        logger: shutdownLogger,
-        senderManager
-    })
+    // Ignore when horizontal scaling is enabled, because state is already saved between shutdowns.
+    if (!config.enableHorizontalScaling) {
+        restoreShutdownState({
+            mempool,
+            userOpMonitor,
+            config,
+            logger: shutdownLogger,
+            senderManager
+        })
+    }
 
     server.start()
 
