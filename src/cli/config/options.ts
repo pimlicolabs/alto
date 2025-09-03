@@ -571,7 +571,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
 }
 
 export const logOptions: CliCommandOptions<ILogArgsInput> = {
-    "redis-queue-endpoint": {
+    "redis-events-queue-endpoint": {
         description: "redis queue endpoint",
         type: "string",
         require: false

@@ -36,11 +36,14 @@ export class EventManager {
         )
         this.metrics = metrics
 
-        if (config.redisQueueEndpoint && config.redisEventManagerQueueName) {
+        if (
+            config.redisEventsQueueEndpoint &&
+            config.redisEventManagerQueueName
+        ) {
             this.logger.info(
                 `Using redis with queue name ${config.redisEventManagerQueueName} for userOp event queue`
             )
-            const redis = new Redis(config.redisQueueEndpoint)
+            const redis = new Redis(config.redisEventsQueueEndpoint)
 
             this.redisEventManagerQueue = new Queue<QueueMessage>(
                 config.redisEventManagerQueueName,
@@ -184,11 +187,7 @@ export class EventManager {
     }
 
     // emits when the userOperation was dropped from the internal mempool
-    emitDropped(
-        userOperationHash: Hex,
-        reason?: string,
-        aaError?: string
-    ) {
+    emitDropped(userOperationHash: Hex, reason?: string, aaError?: string) {
         this.emitEvent({
             userOperationHash,
             event: {
