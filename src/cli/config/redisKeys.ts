@@ -1,7 +1,7 @@
 import type { AltoConfig } from "../../createConfig"
 
 export const getRedisKeys = (config: AltoConfig) => {
-    const prefix = `${config.chainId}:${config.redisKey}`
+    const prefix = `${config.redisKeyPrefix}:${config.chainId}`
 
     return {
         // Mempool queue

@@ -138,7 +138,7 @@ export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
         require: false,
         default: false
     },
-    "redis-key": {
+    "redis-key-prefix": {
         description: "Redis key prefix for all Redis data structures",
         type: "string",
         require: false,
