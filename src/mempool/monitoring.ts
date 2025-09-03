@@ -42,13 +42,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         ttlSeconds?: number
         redisEndpoint: string
     }) {
-        if (!config.enableHorizontalScaling || !config.redisEndpoint) {
-            throw new Error(
-                "Redis monitoring requires horizontal scaling to be enabled with a valid redis-endpoint"
-            )
-        }
-
-        this.redis = new Redis(config.redisEndpoint)
+        this.redis = new Redis(redisEndpoint)
         this.keyPrefix = getRedisKeys(config).userOpStatusQueue
         this.ttlSeconds = ttlSeconds
     }
