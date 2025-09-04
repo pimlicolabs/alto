@@ -351,6 +351,9 @@ export class GasPriceManager {
 
             let baseFee = await this.baseFeePerGasQueue.getLatestValue()
             if (!baseFee) {
+                this.logger.info(
+                    "[DEBUG] No baseFeePerGas in queue, trying to update"
+                )
                 baseFee = await this.tryUpdateBaseFee()
             }
 
