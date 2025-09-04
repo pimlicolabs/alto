@@ -140,6 +140,9 @@ importers:
       opentelemetry-instrumentation-fetch-node:
         specifier: ^1.2.3
         version: 1.2.3(@opentelemetry/api@1.9.0)
+      ox:
+        specifier: ^0.9.4
+        version: 0.9.4(typescript@5.3.3)(zod@3.22.4)
       pino:
         specifier: ^8.15.0
         version: 8.18.0
@@ -1449,6 +1452,13 @@ packages:
     engines: {node: ^14.21.3 || >=16}
     dependencies:
       '@noble/hashes': 1.7.2
+    dev: false
+
+  /@noble/curves@1.9.1:
+    resolution: {integrity: sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==}
+    engines: {node: ^14.21.3 || >=16}
+    dependencies:
+      '@noble/hashes': 1.8.0
     dev: false
 
   /@noble/curves@1.9.2:
@@ -2970,6 +2980,21 @@ packages:
         optional: true
     dependencies:
       typescript: 5.8.3
+    dev: false
+
+  /abitype@1.1.0(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-6Vh4HcRxNMLA0puzPjM5GBgT4aAcFGKZzSgAXvuZ27shJP6NEpielTuqbBmZILR5/xd0PizkBGy5hReKz9jl5A==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3.22.0 || ^4.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.3.3
+      zod: 3.22.4
     dev: false
 
   /abort-controller@3.0.0:
@@ -5559,6 +5584,28 @@ packages:
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
       abitype: 1.0.8(typescript@5.3.3)(zod@3.22.4)
+      eventemitter3: 5.0.1
+      typescript: 5.3.3
+    transitivePeerDependencies:
+      - zod
+    dev: false
+
+  /ox@0.9.4(typescript@5.3.3)(zod@3.22.4):
+    resolution: {integrity: sha512-zcBpfAjNBe3WzPsqQT08b2ITLjCEx+lfk1dVM2/JAnyrLYxnpACqbd+wN5UkH336YFT/6SgJ6akBzqOTM7KUGQ==}
+    deprecated: reverted proxy packages
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      '@adraffy/ens-normalize': 1.11.0
+      '@noble/ciphers': 1.3.0
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.1.0(typescript@5.3.3)(zod@3.22.4)
       eventemitter3: 5.0.1
       typescript: 5.3.3
     transitivePeerDependencies:

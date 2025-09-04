@@ -86,7 +86,7 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
             return null
         }
 
-        let op: UserOperation06 | UserOperation07
+        let userOp: UserOperation06 | UserOperation07
         try {
             const decoded = decodeFunctionData({
                 abi: [...EntryPointV06Abi, ...EntryPointV07Abi],
@@ -97,8 +97,8 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
                 return null
             }
 
-            const ops = decoded.args[0]
-            const foundOp = ops.find(
+            const userOps = decoded.args[0]
+            const foundOp = userOps.find(
                 (op: UserOperation06 | PackedUserOperation) =>
                     op.sender === userOperationEvent.args.sender &&
                     op.nonce === userOperationEvent.args.nonce
@@ -115,9 +115,9 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
             const handleOpsV07Selector = toFunctionSelector(handleOpsV07AbiItem)
 
             if (slice(tx.input, 0, 4) === handleOpsV07Selector) {
-                op = toUnpackedUserOp(foundOp as PackedUserOperation)
+                userOp = toUnpackedUserOp(foundOp as PackedUserOperation)
             } else {
-                op = foundOp as UserOperation06
+                userOp = foundOp as UserOperation06
             }
         } catch {
             return null
@@ -125,7 +125,7 @@ export const ethGetUserOperationByHashHandler = createMethodHandler({
 
         return {
             userOperation: Object.fromEntries(
-                Object.entries(op).filter(([_, v]) => v !== null)
+                Object.entries(userOp).filter(([_, v]) => v !== null)
             ) as UserOperation,
             entryPoint: getAddress(tx.to),
             transactionHash: txHash,
