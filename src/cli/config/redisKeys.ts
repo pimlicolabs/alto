@@ -16,10 +16,6 @@ export const getRedisKeys = (config: AltoConfig) => {
         // Gas price queue
         gasPriceQueue: `${prefix}:gas-price`,
 
-        // Sender manager queue
-        senderManagerQueue: `${prefix}:sender-manager`,
-
-        // Event manager queue
-        eventManagerQueue: `${prefix}:UserOperationStatusBullEventsQueue`
+        senderManagerQueue: `${prefix}:sender-manager`
     }
 }

@@ -150,10 +150,16 @@ export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
         type: "string",
         require: false
     },
-    "redis-events-endpoint": {
+    "redis-events-queue-endpoint": {
         description: "Redis endpoint for userOp events queue",
         type: "string",
         require: false
+    },
+    "redis-events-queue-name": {
+        description: "Queue name for userOp events",
+        type: "string",
+        require: false,
+        default: "UserOperationStatusBullEventsQueue"
     }
 }
 
