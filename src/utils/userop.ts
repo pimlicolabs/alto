@@ -7,6 +7,7 @@ import {
     logSchema,
     receiptSchema
 } from "@alto/types"
+import { UserOperation as UserOperationUtils } from "ox/erc4337"
 import {
     type Address,
     type Hex,
@@ -24,7 +25,6 @@ import {
     toPackedUserOperation
 } from "viem/account-abstraction"
 import { z } from "zod"
-import { UserOperation as UserOperationUtils } from "ox/erc4337"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
