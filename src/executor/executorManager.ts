@@ -84,38 +84,62 @@ export class ExecutorManager {
     }
 
     async autoScalingBundling() {
+        const startTime = Date.now()
         const now = Date.now()
+        
+        // Step 1: Filter opsCount
+        const filterStartTime = Date.now()
         this.opsCount = this.opsCount.filter(
             (timestamp) => now - timestamp < RPM_WINDOW
         )
+        this.logger.info(`[DEBUG] Filter opsCount: ${Date.now() - filterStartTime}ms`)
 
+        // Step 2: Get bundles from mempool
+        const getBundlesStartTime = Date.now()
         const bundles = await this.mempool.getBundles()
+        this.logger.info(`[DEBUG] Get bundles from mempool: ${Date.now() - getBundlesStartTime}ms`)
 
         if (bundles.length > 0) {
-            // Count total ops and add timestamps
+            // Step 3: Count total ops and add timestamps
+            const countOpsStartTime = Date.now()
             const totalOps = bundles.reduce(
                 (sum, bundle) => sum + bundle.userOps.length,
                 0
             )
             this.opsCount.push(...new Array(totalOps).fill(Date.now()))
+            this.logger.info(`[DEBUG] Count and track ops: ${Date.now() - countOpsStartTime}ms`)
         }
 
-        // Send bundles to executor
+        // Step 4: Send bundles to executor
+        const sendBundlesStartTime = Date.now()
         for (const bundle of bundles) {
+            const sendSingleBundleStartTime = Date.now()
             this.sendBundleToExecutor(bundle)
+            this.logger.info(`[DEBUG] Send single bundle to executor: ${Date.now() - sendSingleBundleStartTime}ms`)
+        }
+        if (bundles.length > 0) {
+            this.logger.info(`[DEBUG] Send all bundles to executor: ${Date.now() - sendBundlesStartTime}ms`)
         }
 
         const rpm = this.opsCount.length
 
-        // Calculate next interval with linear scaling
+        // Step 5: Calculate next interval
+        const calcIntervalStartTime = Date.now()
         const nextInterval: number = Math.min(
             this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
             this.config.maxBundleInterval // Cap at configured max interval
         )
+        this.logger.info(`[DEBUG] Calculate next interval: ${Date.now() - calcIntervalStartTime}ms`)
 
+        // Step 6: Schedule next run
+        const scheduleStartTime = Date.now()
         if (this.bundlingMode === "auto") {
             setTimeout(this.autoScalingBundling.bind(this), nextInterval)
         }
+        this.logger.info(`[DEBUG] Schedule next run: ${Date.now() - scheduleStartTime}ms`)
+
+        // Log total time
+        this.logger.info(`[DEBUG] Total autoScalingBundling execution: ${Date.now() - startTime}ms`)
     }
 
     startWatchingBlocks(): void {
@@ -165,13 +189,17 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
+        const startTime = Date.now()
         const { entryPoint, userOps, version } = userOpBundle
         if (userOps.length === 0) {
             return undefined
         }
 
+        const getWalletStartTime = Date.now()
         const wallet = await this.senderManager.getWallet()
+        this.logger.info(`[DEBUG - sendBundleToExecutor.getWallet] Get wallet: ${Date.now() - getWalletStartTime}ms`)
 
+        const getParamsStartTime = Date.now()
         const [gasPriceParams, baseFee, nonce] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice(),
             this.getBaseFee(),
@@ -182,18 +210,25 @@ export class ExecutorManager {
         ]).catch((_) => {
             return []
         })
+        this.logger.info(`[DEBUG - sendBundleToExecutor.getParams] Get gas params and nonce: ${Date.now() - getParamsStartTime}ms`)
 
         if (!gasPriceParams || nonce === undefined) {
             // Free executor if failed to get initial params.
+            const markWalletStartTime = Date.now()
             await this.senderManager.markWalletProcessed(wallet)
+            this.logger.info(`[DEBUG - sendBundleToExecutor.markWalletProcessed] Mark wallet processed: ${Date.now() - markWalletStartTime}ms`)
+            
+            const resubmitStartTime = Date.now()
             await this.mempool.resubmitUserOps({
                 userOps,
                 entryPoint,
                 reason: "Failed to get nonce and gas parameters for bundling"
             })
+            this.logger.info(`[DEBUG - sendBundleToExecutor.resubmitUserOps] Resubmit userOps: ${Date.now() - resubmitStartTime}ms`)
             return undefined
         }
 
+        const bundleStartTime = Date.now()
         const bundleResult = await this.executor.bundle({
             executor: wallet,
             userOpBundle,
@@ -201,16 +236,19 @@ export class ExecutorManager {
             networkBaseFee: baseFee,
             nonce
         })
+        this.logger.info(`[DEBUG - sendBundleToExecutor.executor.bundle] Execute bundle: ${Date.now() - bundleStartTime}ms`)
 
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
 
             // Recover any userOps that can be resubmitted.
+            const resubmitStartTime = Date.now()
             await this.mempool.resubmitUserOps({
                 userOps: recoverableOps,
                 entryPoint,
                 reason
             })
+            this.logger.info(`[DEBUG - sendBundleToExecutor.resubmitUserOps] Resubmit recoverable ops: ${Date.now() - resubmitStartTime}ms`)
 
             // For rejected userOps, we need to check for frontruns
             const shouldCheckFrontrun = rejectedUserOps.some(
@@ -221,6 +259,7 @@ export class ExecutorManager {
 
             if (shouldCheckFrontrun) {
                 // Check each rejected userOp for frontrun or included
+                const frontrunCheckStartTime = Date.now()
                 const results = await Promise.all(
                     rejectedUserOps.map(async (userOpInfo) => ({
                         userOpInfo,
@@ -232,6 +271,7 @@ export class ExecutorManager {
                         })
                     }))
                 )
+                this.logger.info(`[DEBUG - sendBundleToExecutor.getUserOpStatus] Check frontrun status: ${Date.now() - frontrunCheckStartTime}ms`)
 
                 // Drop userOps that were rejected but not frontrun or included
                 const notFoundUserOps = results
@@ -261,7 +301,9 @@ export class ExecutorManager {
             }
 
             // Free wallet as no bundle was sent.
+            const markWalletProcessedStartTime = Date.now()
             await this.senderManager.markWalletProcessed(wallet)
+            this.logger.info(`[DEBUG - sendBundleToExecutor.markWalletProcessed] Mark wallet processed (failure): ${Date.now() - markWalletProcessedStartTime}ms`)
 
             this.metrics.userOpsSubmitted
                 .labels({ status: "failed" })
@@ -271,6 +313,7 @@ export class ExecutorManager {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
 
+            this.logger.info(`[DEBUG - sendBundleToExecutor] Total send bundle time (failed): ${Date.now() - startTime}ms`)
             return undefined
         }
 
@@ -304,18 +347,29 @@ export class ExecutorManager {
         }
 
         // Track bundle and start loop to watch blocks
+        const trackBundleStartTime = Date.now()
         this.userOpMonitor.trackBundle(submittedBundle)
+        this.logger.info(`[DEBUG - sendBundleToExecutor.trackBundle] Track bundle: ${Date.now() - trackBundleStartTime}ms`)
+        
+        const startWatchingStartTime = Date.now()
         this.startWatchingBlocks()
+        this.logger.info(`[DEBUG - sendBundleToExecutor.startWatchingBlocks] Start watching blocks: ${Date.now() - startWatchingStartTime}ms`)
 
+        const markSubmittedStartTime = Date.now()
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             entryPoint: submittedBundle.bundle.entryPoint,
             transactionHash: submittedBundle.transactionHash
         })
+        this.logger.info(`[DEBUG - sendBundleToExecutor.markUserOpsAsSubmitted] Mark userOps as submitted: ${Date.now() - markSubmittedStartTime}ms`)
 
+        const dropUserOpsStartTime = Date.now()
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
+        this.logger.info(`[DEBUG - sendBundleToExecutor.dropUserOps] Drop rejected userOps: ${Date.now() - dropUserOpsStartTime}ms`)
+        
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
-
+        
+        this.logger.info(`[DEBUG - sendBundleToExecutor] Total send bundle time: ${Date.now() - startTime}ms`)
         return transactionHash
     }
 

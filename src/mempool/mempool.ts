@@ -685,20 +685,26 @@ export class Mempool {
     public async getBundles(
         maxBundleCount?: number
     ): Promise<UserOperationBundle[]> {
+        const startTime = Date.now()
+        
         const bundlePromises = this.config.entrypoints.map(
             async (entryPoint) => {
-                return await this.process({
+                const entryPointStartTime = Date.now()
+                const result = await this.process({
                     entryPoint,
                     maxGasLimit: this.config.maxGasPerBundle,
                     minOpsPerBundle: 1,
                     maxBundleCount
                 })
+                this.logger.info(`[DEBUG - getBundles.process] EntryPoint ${entryPoint}: ${Date.now() - entryPointStartTime}ms`)
+                return result
             }
         )
 
         const bundlesNested = await Promise.all(bundlePromises)
         const bundles = bundlesNested.flat()
-
+        
+        this.logger.info(`[DEBUG - getBundles] Total: ${Date.now() - startTime}ms`)
         return bundles
     }
 
@@ -714,8 +720,13 @@ export class Mempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
+        const processStartTime = Date.now()
+        
         // Check if there are any operations in the store
+        const peekStartTime = Date.now()
         const firstOp = await this.store.peekOutstanding(entryPoint)
+        this.logger.info(`[DEBUG - process.peekOutstanding] Initial peek: ${Date.now() - peekStartTime}ms`)
+        
         if (!firstOp) {
             return []
         }
@@ -753,7 +764,11 @@ export class Mempool {
             let paymasterDeposit: { [paymaster: string]: bigint } = {}
             let stakedEntityCount: { [addr: string]: number } = {}
             let senders = new Set<string>()
+            
+            const getKnownEntitiesStartTime = Date.now()
             let knownEntities = await this.getKnownEntities(entryPoint)
+            this.logger.info(`[DEBUG - process.getKnownEntities] Get known entities: ${Date.now() - getKnownEntitiesStartTime}ms`)
+            
             let storageMap: StorageMap = {}
 
             if (breakLoop) {
@@ -761,8 +776,13 @@ export class Mempool {
             }
 
             // Keep adding ops to current bundle
+            const bundleLoopStartTime = Date.now()
+            let opsProcessed = 0
             while (await this.store.peekOutstanding(entryPoint)) {
+                const popStartTime = Date.now()
                 const userOpInfo = await this.store.popOutstanding(entryPoint)
+                this.logger.info(`[DEBUG - process.popOutstanding] Pop userOp: ${Date.now() - popStartTime}ms`)
+                
                 if (!userOpInfo) {
                     break
                 }
@@ -781,6 +801,7 @@ export class Mempool {
                 const { userOp } = userOpInfo
 
                 // Check if we should skip this operation
+                const shouldSkipStartTime = Date.now()
                 const skipResult = await this.shouldSkip({
                     userOpInfo,
                     paymasterDeposit,
@@ -790,6 +811,7 @@ export class Mempool {
                     storageMap,
                     entryPoint
                 })
+                this.logger.info(`[DEBUG - process.shouldSkip] Check skip: ${Date.now() - shouldSkipStartTime}ms`)
 
                 if (skipResult.skip) {
                     // Re-add to outstanding
@@ -801,6 +823,8 @@ export class Mempool {
                     }
                     continue
                 }
+                
+                opsProcessed++
 
                 const beneficiary =
                     this.config.utilityPrivateKey?.address ||
@@ -834,12 +858,15 @@ export class Mempool {
                 // Add op to current bundle
                 currentBundle.userOps.push(userOpInfo)
             }
+            
+            this.logger.info(`[DEBUG - process.bundleLoop] Processed ${opsProcessed} ops in: ${Date.now() - bundleLoopStartTime}ms`)
 
             if (currentBundle.userOps.length > 0) {
                 bundles.push(currentBundle)
             }
         }
-
+        
+        this.logger.info(`[DEBUG - process] Total process time for ${bundles.length} bundles: ${Date.now() - processStartTime}ms`)
         return bundles
     }
 

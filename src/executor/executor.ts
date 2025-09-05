@@ -351,6 +351,7 @@ export class Executor {
         networkBaseFee: bigint
         nonce: number
     }): Promise<BundleResult> {
+        const bundleStartTime = Date.now()
         const { entryPoint, userOps } = userOpBundle
 
         const isReplacementTx = userOpBundle.submissionAttempts > 0
@@ -360,12 +361,14 @@ export class Executor {
             entryPoint
         })
 
+        const filterOpsStartTime = Date.now()
         const filterOpsResult = await filterOpsAndEstimateGas({
             networkBaseFee,
             userOpBundle,
             config: this.config,
             logger: childLogger
         })
+        this.logger.info(`[DEBUG - bundle.filterOpsAndEstimateGas] Filter ops and estimate gas: ${Date.now() - filterOpsStartTime}ms`)
 
         if (filterOpsResult.status === "unhandled_error") {
             childLogger.error(
@@ -438,6 +441,7 @@ export class Executor {
                 }
             }
 
+            const sendTxStartTime = Date.now()
             transactionHash = await this.sendHandleOpsTransaction({
                 txParam: {
                     account: executor,
@@ -448,6 +452,7 @@ export class Executor {
                 },
                 gasOpts
             })
+            this.logger.info(`[DEBUG - bundle.sendHandleOpsTransaction] Send transaction: ${Date.now() - sendTxStartTime}ms`)
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -532,6 +537,8 @@ export class Executor {
             },
             "submitted bundle transaction"
         )
+        
+        this.logger.info(`[DEBUG - bundle] Total bundle execution time: ${Date.now() - bundleStartTime}ms`)
 
         return bundleResult
     }
