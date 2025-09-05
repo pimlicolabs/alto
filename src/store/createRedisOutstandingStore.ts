@@ -14,6 +14,7 @@ import {
     isVersion06,
     isVersion07
 } from "../utils/userop"
+import type { Logger } from "pino"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
@@ -176,6 +177,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
     private chainId: number
     private entryPoint: Address
+    private logger: Logger
 
     // Redis data structures
     private readyOpsQueue: RedisSortedSet // gasPrice -> pendingOpsKey
@@ -185,11 +187,13 @@ class RedisOutstandingQueue implements OutstandingStore {
     constructor({
         config,
         entryPoint,
-        redisEndpoint
-    }: { config: AltoConfig; entryPoint: Address; redisEndpoint: string }) {
+        redisEndpoint,
+        logger
+    }: { config: AltoConfig; entryPoint: Address; redisEndpoint: string; logger: Logger }) {
         this.redis = new Redis(redisEndpoint, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
+        this.logger = logger
 
         // Initialize Redis data structures
         const factoryLookupKey = `${this.chainId}:outstanding:factory-lookup:${this.entryPoint}`
@@ -277,35 +281,44 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async peek(): Promise<UserOpInfo | undefined> {
+        const startTime = Date.now()
         // Get highest gas price operation's key
         const pendingOpsKeys = await this.readyOpsQueue.getByRankRange(0, 0)
+        this.logger.info(`[DEBUG - redis.peek.getHighestGasPrice] ${Date.now() - startTime}ms`)
 
         if (pendingOpsKeys.length === 0) {
             return undefined
         }
 
         // Get the lowest nonce operation from the pendingOpsKey
+        const getLowestNonceStartTime = Date.now()
         const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0])
         const userOpInfoStrings = await pendingOpsSet.getByRankRange(0, 0)
+        this.logger.info(`[DEBUG - redis.peek.getLowestNonce] ${Date.now() - getLowestNonceStartTime}ms`)
 
         if (userOpInfoStrings.length === 0) {
             return undefined
         }
 
-        return deserializeUserOpInfo(userOpInfoStrings[0])
+        const result = deserializeUserOpInfo(userOpInfoStrings[0])
+        this.logger.info(`[DEBUG - redis.peek.total] ${Date.now() - startTime}ms`)
+        return result
     }
 
     async add(userOpInfo: UserOpInfo): Promise<void> {
+        const startTime = Date.now()
         const { userOpHash, userOp } = userOpInfo
         const pendingOpsSet = this.getPendingOpsSet(userOp)
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
 
         // check if this will be the lowest nonce operation
         // We need this info before starting the transaction
+        const checkExistingStartTime = Date.now()
         const existingOps = await pendingOpsSet.getByRankRange(0, 0)
         const isLowestNonce =
             existingOps.length === 0 ||
             userOp.nonce < deserializeUserOpInfo(existingOps[0]).userOp.nonce
+        this.logger.info(`[DEBUG - redis.add.checkExisting] ${Date.now() - checkExistingStartTime}ms`)
 
         const multi = this.redis.multi()
 
@@ -341,7 +354,10 @@ class RedisOutstandingQueue implements OutstandingStore {
             })
         }
 
+        const execStartTime = Date.now()
         await multi.exec()
+        this.logger.info(`[DEBUG - redis.add.exec] ${Date.now() - execStartTime}ms`)
+        this.logger.info(`[DEBUG - redis.add.total] ${Date.now() - startTime}ms`)
     }
 
     async remove(userOpHash: HexData32): Promise<boolean> {
@@ -421,8 +437,11 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async pop(): Promise<UserOpInfo | undefined> {
+        const startTime = Date.now()
         // Pop highest gas price operation
+        const popMaxStartTime = Date.now()
         const pendingOpsKey = await this.readyOpsQueue.popMax()
+        this.logger.info(`[DEBUG - redis.pop.popMax] ${Date.now() - popMaxStartTime}ms`)
 
         if (!pendingOpsKey) {
             return undefined
@@ -431,7 +450,9 @@ class RedisOutstandingQueue implements OutstandingStore {
         const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
 
         // Get the operations from the set (limited to 2 for efficiency)
+        const getRangeStartTime = Date.now()
         const ops = await pendingOpsSet.getByRankRange(0, 1)
+        this.logger.info(`[DEBUG - redis.pop.getRankRange] ${Date.now() - getRangeStartTime}ms`)
 
         if (ops.length === 0) {
             return undefined
@@ -451,20 +472,27 @@ class RedisOutstandingQueue implements OutstandingStore {
         })
 
         // Execute transaction
+        const execStartTime = Date.now()
         await multi.exec()
+        this.logger.info(`[DEBUG - redis.pop.exec] ${Date.now() - execStartTime}ms`)
 
         // Check if there are more operations in this set
         if (ops.length > 1) {
+            const reAddStartTime = Date.now()
             const nextUserOp = deserializeUserOpInfo(ops[1])
             await this.readyOpsQueue.add({
                 member: pendingOpsKey,
                 score: Number(nextUserOp.userOp.maxFeePerGas)
             })
+            this.logger.info(`[DEBUG - redis.pop.reAddNext] ${Date.now() - reAddStartTime}ms`)
         } else {
             // Delete the empty set
+            const deleteStartTime = Date.now()
             await pendingOpsSet.delete({})
+            this.logger.info(`[DEBUG - redis.pop.deleteEmpty] ${Date.now() - deleteStartTime}ms`)
         }
 
+        this.logger.info(`[DEBUG - redis.pop.total] ${Date.now() - startTime}ms`)
         return currentUserOp
     }
 
@@ -508,11 +536,13 @@ class RedisOutstandingQueue implements OutstandingStore {
 export const createRedisOutstandingQueue = ({
     config,
     entryPoint,
-    redisEndpoint
+    redisEndpoint,
+    logger
 }: {
     config: AltoConfig
     entryPoint: Address
     redisEndpoint: string
+    logger: Logger
 }): OutstandingStore => {
-    return new RedisOutstandingQueue({ config, entryPoint, redisEndpoint })
+    return new RedisOutstandingQueue({ config, entryPoint, redisEndpoint, logger })
 }

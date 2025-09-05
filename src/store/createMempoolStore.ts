@@ -56,7 +56,8 @@ export const createMempoolStore = ({
             outstanding = createRedisOutstandingQueue({
                 config,
                 entryPoint,
-                redisEndpoint: config.redisEndpoint
+                redisEndpoint: config.redisEndpoint,
+                logger
             })
             processing = createRedisStore({
                 config,

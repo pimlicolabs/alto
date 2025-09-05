@@ -568,18 +568,22 @@ export class Mempool {
             let queuedUserOps: UserOperation[] = []
 
             if (!isUserOpV06) {
+                const getQueuedStartTime = Date.now()
                 queuedUserOps = await this.getQueuedOutstandingUserOps({
                     userOp,
                     entryPoint
                 })
+                this.logger.info(`[DEBUG - shouldSkip.getQueued] Get queued ops: ${Date.now() - getQueuedStartTime}ms`)
             }
 
+            const validateStartTime = Date.now()
             validationResult = await this.validator.validateUserOp({
                 userOp,
                 queuedUserOps,
                 entryPoint,
                 referencedContracts
             })
+            this.logger.info(`[DEBUG - shouldSkip.validate] Validate userOp: ${Date.now() - validateStartTime}ms`)
         } catch (e) {
             this.logger.error(
                 {
@@ -631,6 +635,7 @@ export class Mempool {
 
         if (paymaster) {
             if (paymasterDeposit[paymaster] === undefined) {
+                const balanceStartTime = Date.now()
                 const entryPointContract = getContract({
                     abi: isUserOpV06 ? EntryPointV06Abi : EntryPointV07Abi,
                     address: entryPoint,
@@ -640,6 +645,7 @@ export class Mempool {
                 })
                 paymasterDeposit[paymaster] =
                     await entryPointContract.read.balanceOf([paymaster])
+                this.logger.info(`[DEBUG - shouldSkip.balance] Get paymaster balance: ${Date.now() - balanceStartTime}ms`)
             }
             if (
                 paymasterDeposit[paymaster] <
@@ -778,10 +784,23 @@ export class Mempool {
             // Keep adding ops to current bundle
             const bundleLoopStartTime = Date.now()
             let opsProcessed = 0
-            while (await this.store.peekOutstanding(entryPoint)) {
+            let totalPopTime = 0
+            let totalSkipCheckTime = 0
+            let totalGasCalcTime = 0
+            let totalStoreTime = 0
+            let peekCount = 0
+            let skippedCount = 0
+            
+            let peekResult = await this.store.peekOutstanding(entryPoint)
+            while (peekResult) {
+                peekCount++
+                const opStartTime = Date.now()
+                
                 const popStartTime = Date.now()
                 const userOpInfo = await this.store.popOutstanding(entryPoint)
-                this.logger.info(`[DEBUG - process.popOutstanding] Pop userOp: ${Date.now() - popStartTime}ms`)
+                const popTime = Date.now() - popStartTime
+                totalPopTime += popTime
+                this.logger.info(`[DEBUG - process.pop] Op #${peekCount}: pop ${popTime}ms`)
                 
                 if (!userOpInfo) {
                     break
@@ -811,16 +830,24 @@ export class Mempool {
                     storageMap,
                     entryPoint
                 })
-                this.logger.info(`[DEBUG - process.shouldSkip] Check skip: ${Date.now() - shouldSkipStartTime}ms`)
+                const skipTime = Date.now() - shouldSkipStartTime
+                totalSkipCheckTime += skipTime
+                this.logger.info(`[DEBUG - process.skip] Op #${peekCount}: skip check ${skipTime}ms, skip=${skipResult.skip}`)
 
                 if (skipResult.skip) {
+                    skippedCount++
                     // Re-add to outstanding
                     if (!skipResult.removeOutstanding) {
+                        const reAddStartTime = Date.now()
                         await this.store.addOutstanding({
                             entryPoint,
                             userOpInfo
                         })
+                        const reAddTime = Date.now() - reAddStartTime
+                        totalStoreTime += reAddTime
+                        this.logger.info(`[DEBUG - process.reAdd] Op #${peekCount}: re-add ${reAddTime}ms`)
                     }
+                    this.logger.info(`[DEBUG - process.opTotal] Op #${peekCount} (skipped): ${Date.now() - opStartTime}ms total`)
                     continue
                 }
                 
@@ -830,10 +857,14 @@ export class Mempool {
                     this.config.utilityPrivateKey?.address ||
                     privateKeyToAddress(generatePrivateKey())
 
+                const gasCalcStartTime = Date.now()
                 gasUsed += calculateAA95GasFloor({
                     userOps: [userOp],
                     beneficiary
                 })
+                const gasCalcTime = Date.now() - gasCalcStartTime
+                totalGasCalcTime += gasCalcTime
+                this.logger.info(`[DEBUG - process.gasCalc] Op #${peekCount}: gas calc ${gasCalcTime}ms`)
 
                 // Only break on gas limit if we've hit minOpsPerBundle
                 if (
@@ -841,7 +872,11 @@ export class Mempool {
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
                     // Put the operation back in the store
+                    const putBackStartTime = Date.now()
                     await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    const putBackTime = Date.now() - putBackStartTime
+                    totalStoreTime += putBackTime
+                    this.logger.info(`[DEBUG - process.putBack] Op #${peekCount}: put back (gas limit) ${putBackTime}ms`)
                     break
                 }
 
@@ -852,14 +887,31 @@ export class Mempool {
                 senders = skipResult.senders
                 storageMap = skipResult.storageMap
 
+                const storeStartTime = Date.now()
                 this.reputationManager.decreaseUserOpCount(userOp)
                 this.store.addProcessing({ entryPoint, userOpInfo })
+                const storeTime = Date.now() - storeStartTime
+                totalStoreTime += storeTime
+                this.logger.info(`[DEBUG - process.store] Op #${peekCount}: store ops ${storeTime}ms`)
 
                 // Add op to current bundle
                 currentBundle.userOps.push(userOpInfo)
+                
+                const opTotalTime = Date.now() - opStartTime
+                this.logger.info(`[DEBUG - process.opTotal] Op #${peekCount} (accepted): ${opTotalTime}ms total`)
+                
+                // Check for next op
+                const peekStartTime = Date.now()
+                peekResult = await this.store.peekOutstanding(entryPoint)
+                if (peekResult) {
+                    this.logger.info(`[DEBUG - process.peek] Peek next op: ${Date.now() - peekStartTime}ms`)
+                }
             }
             
-            this.logger.info(`[DEBUG - process.bundleLoop] Processed ${opsProcessed} ops in: ${Date.now() - bundleLoopStartTime}ms`)
+            const bundleLoopTime = Date.now() - bundleLoopStartTime
+            this.logger.info(`[DEBUG - process.bundleLoop] Processed ${opsProcessed} ops in: ${bundleLoopTime}ms`)
+            this.logger.info(`[DEBUG - process.bundleLoop.stats] Checked: ${peekCount}, Accepted: ${opsProcessed}, Skipped: ${skippedCount}`)
+            this.logger.info(`[DEBUG - process.bundleLoop.timing] Breakdown - Pop: ${totalPopTime}ms (avg ${peekCount > 0 ? Math.round(totalPopTime/peekCount) : 0}ms), Skip: ${totalSkipCheckTime}ms (avg ${peekCount > 0 ? Math.round(totalSkipCheckTime/peekCount) : 0}ms), Gas: ${totalGasCalcTime}ms, Store: ${totalStoreTime}ms`)
 
             if (currentBundle.userOps.length > 0) {
                 bundles.push(currentBundle)
