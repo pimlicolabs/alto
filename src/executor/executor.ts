@@ -188,18 +188,31 @@ export class Executor {
 
     async sendHandleOpsTransaction({
         txParam,
-        gasOpts
+        gasOpts,
+        childLogger,
+        submissionAttempts
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
+        childLogger: Logger
+        submissionAttempts: number
     }) {
         const {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            walletClient,
-            publicClient
+            walletClients,
+            publicClient,
+            privateEndpointSubmissionAttempts
         } = this.config
+
+        // Use private wallet for configured number of attempts if available, then switch to public
+        const usePrivateEndpoint =
+            walletClients.private &&
+            submissionAttempts < privateEndpointSubmissionAttempts
+        const walletClient = usePrivateEndpoint
+            ? walletClients.private
+            : walletClients.public
 
         const { entryPoint, userOps, account, gas, nonce } = txParam
 
@@ -235,6 +248,20 @@ export class Executor {
                 })
 
                 transactionHash = await walletClient.sendTransaction(request)
+
+                childLogger.info(
+                    {
+                        transactionRequest: {
+                            maxFeePerGas: request.maxFeePerGas,
+                            maxPriorityFeePerGas: request.maxPriorityFeePerGas,
+                            nonce: request.nonce
+                        },
+                        txHash: transactionHash,
+                        opHashes: getUserOpHashes(txParam.userOps),
+                        isPrivate: usePrivateEndpoint
+                    },
+                    "submitted bundle transaction"
+                )
 
                 break
             } catch (e: unknown) {
@@ -353,9 +380,8 @@ export class Executor {
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
-        const isReplacementTx = userOpBundle.submissionAttempts > 0
         let childLogger = this.logger.child({
-            isReplacementTx,
+            submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
@@ -399,7 +425,7 @@ export class Executor {
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
-            isReplacementTx,
+            submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
         })
@@ -446,7 +472,9 @@ export class Executor {
                     userOps: userOpsToBundle,
                     entryPoint
                 },
-                gasOpts
+                childLogger,
+                gasOpts,
+                submissionAttempts: userOpBundle.submissionAttempts
             })
 
             this.eventManager.emitSubmitted({
@@ -523,15 +551,6 @@ export class Executor {
                 nonce
             }
         }
-
-        childLogger.info(
-            {
-                transactionRequest: bundleResult.transactionRequest,
-                txHash: transactionHash,
-                opHashes: getUserOpHashes(userOpsBundled)
-            },
-            "submitted bundle transaction"
-        )
 
         return bundleResult
     }

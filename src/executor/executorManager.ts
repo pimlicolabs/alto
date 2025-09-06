@@ -438,7 +438,8 @@ export class ExecutorManager {
             transactionHash
         } = submittedBundle
 
-        const { walletClient, publicClient, blockTime } = this.config
+        const { walletClients, publicClient, blockTime } = this.config
+        const walletClient = walletClients.public
         const logger = this.logger.child({
             userOps: getUserOpHashes(userOps)
         })
