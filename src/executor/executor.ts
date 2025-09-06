@@ -208,7 +208,8 @@ export class Executor {
 
         // Use private wallet for configured number of attempts if available, then switch to public
         const usePrivateEndpoint =
-            walletClients.private && submissionAttempts < privateEndpointSubmissionAttempts
+            walletClients.private &&
+            submissionAttempts < privateEndpointSubmissionAttempts
         const walletClient = usePrivateEndpoint
             ? walletClients.private
             : walletClients.public
