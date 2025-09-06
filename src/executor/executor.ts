@@ -380,9 +380,8 @@ export class Executor {
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
-        const isReplacementTx = userOpBundle.submissionAttempts > 0
         let childLogger = this.logger.child({
-            isReplacementTx,
+            submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
@@ -426,7 +425,7 @@ export class Executor {
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
-            isReplacementTx,
+            submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
         })
