@@ -202,12 +202,13 @@ export class Executor {
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
             walletClients,
-            publicClient
+            publicClient,
+            privateEndpointSubmissionAttempts
         } = this.config
 
-        // Use private wallet for first 3 attempts if available, then switch to public
+        // Use private wallet for configured number of attempts if available, then switch to public
         const usePrivateEndpoint =
-            walletClients.private && submissionAttempts < 3
+            walletClients.private && submissionAttempts < privateEndpointSubmissionAttempts
         const walletClient = usePrivateEndpoint
             ? walletClients.private
             : walletClients.public
