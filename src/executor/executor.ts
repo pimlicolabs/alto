@@ -197,9 +197,10 @@ export class Executor {
             executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
-            walletClient,
+            walletClients,
             publicClient
         } = this.config
+        const walletClient = walletClients.public
 
         const { entryPoint, userOps, account, gas, nonce } = txParam
 

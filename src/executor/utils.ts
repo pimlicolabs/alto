@@ -165,7 +165,7 @@ export async function flushStuckTransaction({
     logger: Logger
 }) {
     const publicClient = config.publicClient
-    const walletClient = config.walletClient
+    const walletClient = config.walletClients.public
 
     const latestNonce = await publicClient.getTransactionCount({
         address: wallet.address,

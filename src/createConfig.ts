@@ -15,7 +15,10 @@ export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
         options?: ChildLoggerOptions<ChildCustomLevels>
     ) => Logger<ChildCustomLevels>
     readonly publicClient: PublicClient<Transport, Chain>
-    readonly walletClient: WalletClient<Transport, Chain>
+    readonly walletClients: {
+        readonly private?: WalletClient<Transport, Chain>
+        readonly public: WalletClient<Transport, Chain>
+    }
     readonly chainId: number
     readonly utilityWalletAddress: Address
 }
@@ -24,7 +27,10 @@ export function createConfig(
     config: CamelCasedProperties<IOptions> & {
         logger: Logger
         publicClient: PublicClient<Transport, Chain>
-        walletClient: WalletClient<Transport, Chain>
+        walletClients: {
+            private?: WalletClient<Transport, Chain> | undefined
+            public: WalletClient<Transport, Chain>
+        }
     }
 ): AltoConfig {
     const { logger, ...rest } = config

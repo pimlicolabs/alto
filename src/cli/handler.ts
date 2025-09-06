@@ -9,10 +9,9 @@ import {
     type CallParameters,
     type Chain,
     createPublicClient,
-    createWalletClient,
-    fallback,
     formatEther,
-    publicActions
+    publicActions,
+    createWalletClient
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
@@ -192,18 +191,18 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
-    const walletClient = createWalletClient({
-        transport: args.sendTransactionRpcUrl
-            ? fallback(
-                  [
-                      createWalletTransport(args.sendTransactionRpcUrl),
-                      createWalletTransport(args.rpcUrl)
-                  ],
-                  { rank: false }
-              )
-            : createWalletTransport(args.rpcUrl),
-        chain
-    })
+    const walletClients = {
+        private: args.sendTransactionRpcUrl
+            ? createWalletClient({
+                  transport: createWalletTransport(args.sendTransactionRpcUrl),
+                  chain
+              })
+            : undefined,
+        public: createWalletClient({
+            transport: createWalletTransport(args.rpcUrl),
+            chain
+        })
+    }
 
     // if flag is set, use utility wallet to deploy the simulations contract
     if (args.deploySimulationsContract) {
@@ -231,7 +230,12 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         )
     }
 
-    const config = createConfig({ ...args, logger, publicClient, walletClient })
+    const config = createConfig({
+        ...args,
+        logger,
+        publicClient,
+        walletClients
+    })
 
     const gasPriceManager = new GasPriceManager(config)
 
