@@ -204,11 +204,13 @@ export class Executor {
             walletClients,
             publicClient
         } = this.config
+
         // Use private wallet for first 3 attempts if available, then switch to public
-        const walletClient =
+        const usePrivateEndpoint =
             walletClients.private && submissionAttempts < 3
-                ? walletClients.private
-                : walletClients.public
+        const walletClient = usePrivateEndpoint
+            ? walletClients.private
+            : walletClients.public
 
         const { entryPoint, userOps, account, gas, nonce } = txParam
 
@@ -245,11 +247,6 @@ export class Executor {
 
                 transactionHash = await walletClient.sendTransaction(request)
 
-                const endpointType =
-                    walletClients.private && submissionAttempts < 3
-                        ? "private"
-                        : "public"
-
                 childLogger.info(
                     {
                         transactionRequest: {
@@ -259,7 +256,7 @@ export class Executor {
                         },
                         txHash: transactionHash,
                         opHashes: getUserOpHashes(txParam.userOps),
-                        endpointType
+                        isPrivate: usePrivateEndpoint
                     },
                     "submitted bundle transaction"
                 )
