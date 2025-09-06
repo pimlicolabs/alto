@@ -9,27 +9,48 @@ import type { SenderManager } from "../senderManager"
 async function createRedisQueue({
     redis,
     name,
-    entries
+    entries,
+    logger
 }: {
     redis: Redis
     name: string
     entries: string[]
+    logger?: any
 }) {
+    const startTime = Date.now()
     const hasElements = await redis.llen(name)
+    logger?.info(`[DEBUG - redis.llen] ${Date.now() - startTime}ms`)
 
     // Ensure queue is populated on startup
     // Avoids race case where queue is populated twice due to multi (atomic txs)
     if (hasElements === 0) {
+        const multiStartTime = Date.now()
         const multi = redis.multi()
         multi.del(name)
         multi.rpush(name, ...entries)
         await multi.exec()
+        logger?.info(`[DEBUG - redis.multiExec] ${Date.now() - multiStartTime}ms`)
     }
 
     return {
-        llen: () => redis.llen(name),
-        pop: () => redis.rpop(name),
-        push: (entry: string) => redis.lpush(name, entry)
+        llen: async () => {
+            const startTime = Date.now()
+            const result = await redis.llen(name)
+            logger?.info(`[DEBUG - redis.llen] ${Date.now() - startTime}ms`)
+            return result
+        },
+        pop: async () => {
+            const startTime = Date.now()
+            const result = await redis.rpop(name)
+            logger?.info(`[DEBUG - redis.rpop] ${Date.now() - startTime}ms`)
+            return result
+        },
+        push: async (entry: string) => {
+            const startTime = Date.now()
+            const result = await redis.lpush(name, entry)
+            logger?.info(`[DEBUG - redis.lpush] ${Date.now() - startTime}ms`)
+            return result
+        }
     }
 }
 
@@ -61,7 +82,8 @@ export const createRedisSenderManager = async ({
     const redisQueue = await createRedisQueue({
         redis,
         name: redisQueueName,
-        entries: wallets.map((w) => w.address)
+        entries: wallets.map((w) => w.address),
+        logger
     })
 
     // Track active wallets for this instance
@@ -73,6 +95,7 @@ export const createRedisSenderManager = async ({
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
+            const startTime = Date.now()
             logger.trace("waiting for wallet ")
 
             let walletAddress: string | null = null
@@ -100,9 +123,11 @@ export const createRedisSenderManager = async ({
                 metrics.walletsAvailable.set(len)
             })
 
+            logger.info(`[DEBUG - redis.getWallet] ${Date.now() - startTime}ms`)
             return wallet
         },
         markWalletProcessed: async (wallet: Account) => {
+            const startTime = Date.now()
             if (activeWallets.delete(wallet)) {
                 await redisQueue.push(wallet.address)
                 const len = await redisQueue.llen()
@@ -113,6 +138,7 @@ export const createRedisSenderManager = async ({
                     "Attempted to mark a wallet as processed that wasn't active"
                 )
             }
+            logger.info(`[DEBUG - redis.markWalletProcessed] ${Date.now() - startTime}ms`)
         },
         getActiveWallets: () => {
             return [...activeWallets]

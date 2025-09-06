@@ -54,7 +54,8 @@ const isDeployment = (userOp: UserOperation): boolean => {
 class RedisSortedSet {
     constructor(
         private redis: Redis,
-        private keyName: string
+        private keyName: string,
+        private logger?: Logger
     ) {}
 
     get keyPath(): string {
@@ -70,7 +71,9 @@ class RedisSortedSet {
         score: number
         multi?: ChainableCommander | Redis
     }): Promise<void> {
+        const startTime = Date.now()
         await multi.zadd(this.keyPath, score, member)
+        this.logger?.info(`[DEBUG - RedisSortedSet.add] ${Date.now() - startTime}ms`)
     }
 
     async remove({
@@ -80,18 +83,27 @@ class RedisSortedSet {
         member: string
         multi?: ChainableCommander | Redis
     }): Promise<void> {
+        const startTime = Date.now()
         await multi.zrem(this.keyPath, member)
+        this.logger?.info(`[DEBUG - RedisSortedSet.remove] ${Date.now() - startTime}ms`)
     }
 
-    getByScoreRange(min: number, max: number): Promise<string[]> {
-        return Promise.resolve(this.redis.zrangebyscore(this.keyPath, min, max))
+    async getByScoreRange(min: number, max: number): Promise<string[]> {
+        const startTime = Date.now()
+        const result = await this.redis.zrangebyscore(this.keyPath, min, max)
+        this.logger?.info(`[DEBUG - RedisSortedSet.getByScoreRange] ${Date.now() - startTime}ms`)
+        return result
     }
 
-    getByRankRange(start: number, stop: number): Promise<string[]> {
-        return Promise.resolve(this.redis.zrange(this.keyPath, start, stop))
+    async getByRankRange(start: number, stop: number): Promise<string[]> {
+        const startTime = Date.now()
+        const result = await this.redis.zrange(this.keyPath, start, stop)
+        this.logger?.info(`[DEBUG - RedisSortedSet.getByRankRange] ${Date.now() - startTime}ms`)
+        return result
     }
 
     async popMax(): Promise<string | undefined> {
+        const startTime = Date.now()
         type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
 
         const result = (await this.redis.zmpop(
@@ -102,10 +114,12 @@ class RedisSortedSet {
             1
         )) as ZmpopResult
 
+        this.logger?.info(`[DEBUG - RedisSortedSet.popMax] ${Date.now() - startTime}ms`)
         return result && result[1].length > 0 ? result[1][0][0] : undefined
     }
 
     async popMin(): Promise<string | undefined> {
+        const startTime = Date.now()
         type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
 
         const result = (await this.redis.zmpop(
@@ -116,6 +130,7 @@ class RedisSortedSet {
             1
         )) as ZmpopResult
 
+        this.logger?.info(`[DEBUG - RedisSortedSet.popMin] ${Date.now() - startTime}ms`)
         return result && result[1].length > 0 ? result[1][0][0] : undefined
     }
 
@@ -124,14 +139,17 @@ class RedisSortedSet {
     }: {
         multi?: ChainableCommander | Redis
     }): Promise<void> {
+        const startTime = Date.now()
         await multi.del(this.keyPath)
+        this.logger?.info(`[DEBUG - RedisSortedSet.delete] ${Date.now() - startTime}ms`)
     }
 }
 
 export class RedisHash {
     constructor(
         private redis: Redis,
-        private keyName: string
+        private keyName: string,
+        private logger?: Logger
     ) {}
 
     get keyPath(): string {
@@ -147,11 +165,16 @@ export class RedisHash {
         value: string
         multi?: ChainableCommander | Redis
     }): Promise<void> {
+        const startTime = Date.now()
         await multi.hset(this.keyPath, key, value)
+        this.logger?.info(`[DEBUG - RedisHash.set] ${Date.now() - startTime}ms`)
     }
 
-    get(field: string): Promise<string | null> {
-        return Promise.resolve(this.redis.hget(this.keyPath, field))
+    async get(field: string): Promise<string | null> {
+        const startTime = Date.now()
+        const result = await this.redis.hget(this.keyPath, field)
+        this.logger?.info(`[DEBUG - RedisHash.get] ${Date.now() - startTime}ms`)
+        return result
     }
 
     async delete({
@@ -161,15 +184,23 @@ export class RedisHash {
         key: string
         multi?: ChainableCommander | Redis
     }): Promise<void> {
+        const startTime = Date.now()
         await multi.hdel(this.keyPath, key)
+        this.logger?.info(`[DEBUG - RedisHash.delete] ${Date.now() - startTime}ms`)
     }
 
     async exists(field: string): Promise<boolean> {
-        return (await this.redis.hexists(this.keyPath, field)) === 1
+        const startTime = Date.now()
+        const result = (await this.redis.hexists(this.keyPath, field)) === 1
+        this.logger?.info(`[DEBUG - RedisHash.exists] ${Date.now() - startTime}ms`)
+        return result
     }
 
-    getAll(): Promise<Record<string, string>> {
-        return Promise.resolve(this.redis.hgetall(this.keyPath))
+    async getAll(): Promise<Record<string, string>> {
+        const startTime = Date.now()
+        const result = await this.redis.hgetall(this.keyPath)
+        this.logger?.info(`[DEBUG - RedisHash.getAll] ${Date.now() - startTime}ms`)
+        return result
     }
 }
 
@@ -200,14 +231,14 @@ class RedisOutstandingQueue implements OutstandingStore {
         const userOpHashLookupKey = `${this.chainId}:outstanding:user-op-hash-index:${this.entryPoint}`
         const readyOpsQueueKey = `${this.chainId}:outstanding:pending-queue:${this.entryPoint}`
 
-        this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey)
-        this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey)
-        this.factoryLookup = new RedisHash(this.redis, factoryLookupKey)
+        this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey, this.logger)
+        this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey, this.logger)
+        this.factoryLookup = new RedisHash(this.redis, factoryLookupKey, this.logger)
     }
 
     // Helpers
     private getPendingOpsSet(userOp: UserOperation): RedisSortedSet {
-        return new RedisSortedSet(this.redis, this.getPendingOpsKey(userOp))
+        return new RedisSortedSet(this.redis, this.getPendingOpsKey(userOp), this.logger)
     }
 
     private getPendingOpsKey(userOp: UserOperation): string {
@@ -217,11 +248,15 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    contains(userOpHash: HexData32): Promise<boolean> {
-        return Promise.resolve(this.userOpHashLookup.exists(userOpHash))
+    async contains(userOpHash: HexData32): Promise<boolean> {
+        const startTime = Date.now()
+        const result = await this.userOpHashLookup.exists(userOpHash)
+        this.logger.info(`[DEBUG - redis.contains] ${Date.now() - startTime}ms`)
+        return result
     }
 
     async popConflicting(userOp: UserOperation) {
+        const startTime = Date.now()
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOpsSet = this.getPendingOpsSet(userOp)
 
@@ -254,7 +289,8 @@ class RedisOutstandingQueue implements OutstandingStore {
                 if (pendingOpsKey) {
                     const conflictingPendingOpsSet = new RedisSortedSet(
                         this.redis,
-                        pendingOpsKey
+                        pendingOpsKey,
+                        this.logger
                     )
                     const ops = await conflictingPendingOpsSet.getByRankRange(
                         0,
@@ -277,6 +313,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             }
         }
 
+        this.logger.info(`[DEBUG - redis.popConflicting] ${Date.now() - startTime}ms`)
         return undefined
     }
 
@@ -292,7 +329,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Get the lowest nonce operation from the pendingOpsKey
         const getLowestNonceStartTime = Date.now()
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0])
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0], this.logger)
         const userOpInfoStrings = await pendingOpsSet.getByRankRange(0, 0)
         this.logger.info(`[DEBUG - redis.peek.getLowestNonce] ${Date.now() - getLowestNonceStartTime}ms`)
 
@@ -361,6 +398,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async remove(userOpHash: HexData32): Promise<boolean> {
+        const startTime = Date.now()
         // Get the userOp info from the secondary index
         const pendingOpsKey = await this.userOpHashLookup.get(userOpHash)
         if (!pendingOpsKey) {
@@ -368,7 +406,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         }
 
         // Get all pending operations for this key
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey, this.logger)
         const ops = await pendingOpsSet.getByRankRange(0, -1)
 
         if (ops.length === 0) {
@@ -433,6 +471,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Execute transaction
         await multi.exec()
 
+        this.logger.info(`[DEBUG - redis.remove] ${Date.now() - startTime}ms`)
         return true
     }
 
@@ -447,7 +486,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             return undefined
         }
 
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
+        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey, this.logger)
 
         // Get the operations from the set (limited to 2 for efficiency)
         const getRangeStartTime = Date.now()
@@ -497,13 +536,14 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
+        const startTime = Date.now()
         const pendingOpsSet = this.getPendingOpsSet(userOp)
 
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
         const pendingOps = await pendingOpsSet.getByRankRange(0, -1)
 
         // Filter operations with nonce sequence less than the current one
-        return pendingOps
+        const result = pendingOps
             .map(deserializeUserOpInfo)
             .filter((opInfo) => {
                 const [, opNonceSeq] = getNonceKeyAndSequence(
@@ -512,6 +552,9 @@ class RedisOutstandingQueue implements OutstandingStore {
                 return opNonceSeq < nonceSequence
             })
             .map((opInfo) => opInfo.userOp)
+        
+        this.logger.info(`[DEBUG - redis.getQueuedUserOps] ${Date.now() - startTime}ms`)
+        return result
     }
 
     // These methods aren't implemented
