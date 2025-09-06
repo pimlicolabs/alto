@@ -73,7 +73,10 @@ class RedisSortedSet {
     }): Promise<void> {
         const startTime = Date.now()
         await multi.zadd(this.keyPath, score, member)
-        this.logger?.info(`[DEBUG - RedisSortedSet.add] ${Date.now() - startTime}ms`)
+        // Only log if not part of a multi transaction
+        if (multi === this.redis) {
+            this.logger?.info(`[DEBUG - RedisSortedSet.add] ${Date.now() - startTime}ms`)
+        }
     }
 
     async remove({
@@ -85,7 +88,10 @@ class RedisSortedSet {
     }): Promise<void> {
         const startTime = Date.now()
         await multi.zrem(this.keyPath, member)
-        this.logger?.info(`[DEBUG - RedisSortedSet.remove] ${Date.now() - startTime}ms`)
+        // Only log if not part of a multi transaction
+        if (multi === this.redis) {
+            this.logger?.info(`[DEBUG - RedisSortedSet.remove] ${Date.now() - startTime}ms`)
+        }
     }
 
     async getByScoreRange(min: number, max: number): Promise<string[]> {
@@ -141,7 +147,10 @@ class RedisSortedSet {
     }): Promise<void> {
         const startTime = Date.now()
         await multi.del(this.keyPath)
-        this.logger?.info(`[DEBUG - RedisSortedSet.delete] ${Date.now() - startTime}ms`)
+        // Only log if not part of a multi transaction
+        if (multi === this.redis) {
+            this.logger?.info(`[DEBUG - RedisSortedSet.delete] ${Date.now() - startTime}ms`)
+        }
     }
 }
 
@@ -167,7 +176,10 @@ export class RedisHash {
     }): Promise<void> {
         const startTime = Date.now()
         await multi.hset(this.keyPath, key, value)
-        this.logger?.info(`[DEBUG - RedisHash.set] ${Date.now() - startTime}ms`)
+        // Only log if not part of a multi transaction
+        if (multi === this.redis) {
+            this.logger?.info(`[DEBUG - RedisHash.set] ${Date.now() - startTime}ms`)
+        }
     }
 
     async get(field: string): Promise<string | null> {
@@ -186,7 +198,10 @@ export class RedisHash {
     }): Promise<void> {
         const startTime = Date.now()
         await multi.hdel(this.keyPath, key)
-        this.logger?.info(`[DEBUG - RedisHash.delete] ${Date.now() - startTime}ms`)
+        // Only log if not part of a multi transaction
+        if (multi === this.redis) {
+            this.logger?.info(`[DEBUG - RedisHash.delete] ${Date.now() - startTime}ms`)
+        }
     }
 
     async exists(field: string): Promise<boolean> {
@@ -357,7 +372,9 @@ class RedisOutstandingQueue implements OutstandingStore {
             userOp.nonce < deserializeUserOpInfo(existingOps[0]).userOp.nonce
         this.logger.info(`[DEBUG - redis.add.checkExisting] ${Date.now() - checkExistingStartTime}ms`)
 
+        const multiStartTime = Date.now()
         const multi = this.redis.multi()
+        let opsCount = 0
 
         // Add to pendingOps sorted set with nonceSeq as score
         await pendingOpsSet.add({
@@ -365,6 +382,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             score: Number(nonceSeq),
             multi
         })
+        opsCount++
 
         // Add to userOpHash lookup
         await this.userOpHashLookup.set({
@@ -372,6 +390,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             value: pendingOpsSet.keyPath,
             multi
         })
+        opsCount++
 
         // Track factory deployments if needed
         if (isDeployment(userOp)) {
@@ -380,6 +399,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 value: userOpHash,
                 multi
             })
+            opsCount++
         }
 
         // If lowest nonce, update ready queue with this userOp's gasPrice
@@ -389,8 +409,11 @@ class RedisOutstandingQueue implements OutstandingStore {
                 score: Number(userOp.maxFeePerGas),
                 multi
             })
+            opsCount++
         }
 
+        this.logger.info(`[DEBUG - redis.add.multiPrepare] ${Date.now() - multiStartTime}ms (${opsCount} ops)`)
+        
         const execStartTime = Date.now()
         await multi.exec()
         this.logger.info(`[DEBUG - redis.add.exec] ${Date.now() - execStartTime}ms`)
