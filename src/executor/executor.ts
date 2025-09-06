@@ -190,12 +190,12 @@ export class Executor {
         txParam,
         gasOpts,
         childLogger,
-        submissionAttempts = 0
+        submissionAttempts
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
         childLogger: Logger
-        submissionAttempts?: number
+        submissionAttempts: number
     }) {
         const {
             executorGasMultiplier,
