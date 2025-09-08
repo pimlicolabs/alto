@@ -46,7 +46,16 @@ export class EventManager {
             this.redisEventManagerQueue = new Queue<QueueMessage>(queueName, {
                 createClient: () => {
                     return redis
-                }
+                },
+                defaultJobOptions: {
+                    attempts: 3,
+                    backoff: {
+                        type: "fixed",
+                        delay: 30000
+                    },
+                    removeOnComplete: true,
+                    removeOnFail: true
+                }    
             })
             return
         }
