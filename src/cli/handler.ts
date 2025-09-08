@@ -195,10 +195,13 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const walletClients = {
         private: args.sendTransactionRpcUrl
             ? createWalletClient({
-                  transport: fallback([
-                      createWalletTransport(args.sendTransactionRpcUrl),
-                      createWalletTransport(args.rpcUrl)
-                  ]),
+                  transport: fallback(
+                      [
+                          createWalletTransport(args.sendTransactionRpcUrl),
+                          createWalletTransport(args.rpcUrl)
+                      ],
+                      { rank: false }
+                  ),
                   chain
               })
             : undefined,
