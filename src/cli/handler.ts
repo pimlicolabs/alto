@@ -11,7 +11,8 @@ import {
     createPublicClient,
     createWalletClient,
     formatEther,
-    publicActions
+    publicActions,
+    fallback
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
@@ -194,7 +195,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const walletClients = {
         private: args.sendTransactionRpcUrl
             ? createWalletClient({
-                  transport: createWalletTransport(args.sendTransactionRpcUrl),
+                  transport: fallback([
+                      createWalletTransport(args.sendTransactionRpcUrl),
+                      createWalletTransport(args.rpcUrl)
+                  ]),
                   chain
               })
             : undefined,
