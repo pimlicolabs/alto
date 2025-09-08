@@ -28,7 +28,7 @@ export function createConfig(
         logger: Logger
         publicClient: PublicClient<Transport, Chain>
         walletClients: {
-            private?: WalletClient<Transport, Chain> | undefined
+            private?: WalletClient<Transport, Chain>
             public: WalletClient<Transport, Chain>
         }
     }
