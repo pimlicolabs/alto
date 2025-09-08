@@ -10,9 +10,9 @@ import {
     type Chain,
     createPublicClient,
     createWalletClient,
+    fallback,
     formatEther,
-    publicActions,
-    fallback
+    publicActions
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
