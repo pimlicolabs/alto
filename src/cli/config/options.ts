@@ -450,6 +450,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "private-endpoint-submission-attempts": {
+        description:
+            "Number of submission attempts to use private RPC endpoint before switching to public",
+        type: "number",
+        require: false,
+        default: 3
     }
 }
 
