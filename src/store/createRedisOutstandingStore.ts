@@ -276,25 +276,6 @@ class RedisOutstandingQueue implements OutstandingStore {
         return undefined
     }
 
-    async peek(): Promise<UserOpInfo | undefined> {
-        // Get highest gas price operation's key
-        const pendingOpsKeys = await this.readyOpsQueue.getByRankRange(0, 0)
-
-        if (pendingOpsKeys.length === 0) {
-            return undefined
-        }
-
-        // Get the lowest nonce operation from the pendingOpsKey
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKeys[0])
-        const userOpInfoStrings = await pendingOpsSet.getByRankRange(0, 0)
-
-        if (userOpInfoStrings.length === 0) {
-            return undefined
-        }
-
-        return deserializeUserOpInfo(userOpInfoStrings[0])
-    }
-
     async add(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const pendingOpsSet = this.getPendingOpsSet(userOp)

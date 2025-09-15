@@ -714,29 +714,30 @@ export class Mempool {
         minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        // Check if there are any operations in the store
-        const firstOp = await this.store.peekOutstanding(entryPoint)
-        if (!firstOp) {
+        const bundles: UserOperationBundle[] = []
+
+        // Try to pop first op directly - no peek needed
+        let nextOp = await this.store.popOutstanding(entryPoint)
+        if (!nextOp) {
             return []
         }
 
-        // Get EntryPoint version
-        const bundles: UserOperationBundle[] = []
-        const seenOps = new Set()
-        let breakLoop = false
-
         // Process operations until no more are available or we hit maxBundleCount
-        while (await this.store.peekOutstanding(entryPoint)) {
-            // If maxBundles is set and we reached the limit, break
+        while (nextOp) {
+            // If maxBundles is set and we reached the limit, put back the op and break
             if (maxBundleCount && bundles.length >= maxBundleCount) {
+                await this.store.addOutstanding({
+                    entryPoint,
+                    userOpInfo: nextOp
+                })
                 break
             }
 
-            // Derive version
+            // Derive version from the first op of this bundle
             let version: EntryPointVersion
-            if (isVersion08(firstOp.userOp, entryPoint)) {
+            if (isVersion08(nextOp.userOp, entryPoint)) {
                 version = "0.8"
-            } else if (isVersion07(firstOp.userOp)) {
+            } else if (isVersion07(nextOp.userOp)) {
                 version = "0.7"
             } else {
                 version = "0.6"
@@ -756,33 +757,16 @@ export class Mempool {
             let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
-            if (breakLoop) {
-                break
-            }
+            // Process current op for this bundle
+            let currentOp: UserOpInfo | undefined = nextOp
 
             // Keep adding ops to current bundle
-            while (await this.store.peekOutstanding(entryPoint)) {
-                const userOpInfo = await this.store.popOutstanding(entryPoint)
-                if (!userOpInfo) {
-                    break
-                }
-
-                if (seenOps.has(userOpInfo.userOpHash)) {
-                    breakLoop = true
-                    await this.store.addOutstanding({
-                        entryPoint,
-                        userOpInfo
-                    })
-                    break
-                }
-
-                seenOps.add(userOpInfo.userOpHash)
-
-                const { userOp } = userOpInfo
+            while (currentOp) {
+                const { userOp } = currentOp
 
                 // Check if we should skip this operation
                 const skipResult = await this.shouldSkip({
-                    userOpInfo,
+                    userOpInfo: currentOp,
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
@@ -796,9 +780,11 @@ export class Mempool {
                     if (!skipResult.removeOutstanding) {
                         await this.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfo: currentOp
                         })
                     }
+                    // Pop next op for this bundle
+                    currentOp = await this.store.popOutstanding(entryPoint)
                     continue
                 }
 
@@ -817,7 +803,11 @@ export class Mempool {
                     currentBundle.userOps.length >= minOpsPerBundle
                 ) {
                     // Put the operation back in the store
-                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfo: currentOp
+                    })
+                    currentOp = undefined
                     break
                 }
 
@@ -829,15 +819,23 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOpCount(userOp)
-                this.store.addProcessing({ entryPoint, userOpInfo })
+                this.store.addProcessing({ entryPoint, userOpInfo: currentOp })
 
                 // Add op to current bundle
-                currentBundle.userOps.push(userOpInfo)
+                currentBundle.userOps.push(currentOp)
+
+                // Pop next op for this bundle
+                currentOp = await this.store.popOutstanding(entryPoint)
             }
 
             if (currentBundle.userOps.length > 0) {
                 bundles.push(currentBundle)
             }
+
+            // Set nextOp for outer loop
+            // If currentOp is defined, use it as nextOp (it was already popped)
+            // Otherwise pop a new one
+            nextOp = currentOp || (await this.store.popOutstanding(entryPoint))
         }
 
         return bundles
