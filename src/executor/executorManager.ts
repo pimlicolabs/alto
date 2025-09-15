@@ -247,7 +247,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeProcessingUserOps({
+                await this.mempool.removeSubmittedUserOps({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
