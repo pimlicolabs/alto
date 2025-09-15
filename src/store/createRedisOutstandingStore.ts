@@ -470,19 +470,16 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
         const pendingOpsSet = this.getPendingOpsSet(userOp)
-
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOps = await pendingOpsSet.getByRankRange(0, -1)
 
-        // Filter operations with nonce sequence less than the current one
+        // Only fetch operations with nonce sequence less than the current one.
+        const pendingOps = await pendingOpsSet.getByScoreRange(
+            0,
+            Number(nonceSequence) - 1
+        )
+
         return pendingOps
             .map(deserializeUserOpInfo)
-            .filter((opInfo) => {
-                const [, opNonceSeq] = getNonceKeyAndSequence(
-                    opInfo.userOp.nonce
-                )
-                return opNonceSeq < nonceSequence
-            })
             .map((opInfo) => opInfo.userOp)
     }
 
