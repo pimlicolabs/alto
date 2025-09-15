@@ -28,10 +28,9 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
         const result = userOpInfoSchema.safeParse(parsed)
 
         if (!result.success) {
-            throw new Error(
-                `Failed to parse UserOpInfo: ${result.error.message}`
-            )
+            throw new Error(result.error.message)
         }
+
         return result.data
     } catch (error) {
         if (error instanceof Error) {
@@ -39,6 +38,7 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
                 `UserOpInfo deserialization failed: ${error.message}`
             )
         }
+
         throw new Error("UserOpInfo deserialization failed with unknown error")
     }
 }
@@ -200,7 +200,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async remove(userOpHash: HexData32): Promise<boolean> {
-        // Get the userOp info from the secondary index
+        // Get the pendingOpsKey from the secondary index
         const pendingOpsKey = await this.redis.hget(
             this.userOpIndexKey,
             userOpHash
@@ -209,8 +209,8 @@ class RedisOutstandingQueue implements OutstandingStore {
             return false
         }
 
-        // Get the operation to remove (only need first 2 for checking)
-        const ops = await this.redis.zrange(pendingOpsKey, 0, 1)
+        // Fetch all operations from the set (needed to find the specific one)
+        const ops = await this.redis.zrange(pendingOpsKey, 0, -1)
 
         if (ops.length === 0) {
             return false
@@ -222,30 +222,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             .find((op) => op.userOpHash === userOpHash)
 
         if (!userOpInfo) {
-            // If not in first 2, need to fetch more
-            const allOps = await this.redis.zrange(pendingOpsKey, 0, -1)
-            const found = allOps
-                .map(deserializeUserOpInfo)
-                .find((op) => op.userOpHash === userOpHash)
-
-            if (!found) {
-                return false
-            }
-
-            // Use the Lua script for atomic removal
-            const result = (await this.redis.call(
-                "atomicRemove",
-                pendingOpsKey,
-                this.userOpIndexKey,
-                this.factoryIndexKey,
-                this.readyQueueKey,
-                userOpHash,
-                serializeUserOpInfo(found),
-                isDeployment(found.userOp) ? "1" : "0",
-                found.userOp.sender
-            )) as number
-
-            return result === 1
+            return false
         }
 
         // Use the Lua script for atomic removal
