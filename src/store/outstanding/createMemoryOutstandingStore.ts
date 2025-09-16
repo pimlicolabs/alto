@@ -1,12 +1,12 @@
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import type { ConflictingOutstandingType, OutstandingStore } from "."
-import type { AltoConfig } from "../createConfig"
+import type { ConflictingOutstandingType, OutstandingStore } from "./"
+import type { AltoConfig } from "../../createConfig"
 import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07
-} from "../utils/userop"
+} from "../../utils/userop"
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender

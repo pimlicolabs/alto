@@ -95,8 +95,8 @@ export class Mempool {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.addSubmitted({ entryPoint, userOpInfo })
+                //await this.store.removeProcessing({ entryPoint, userOpHash })
+                //await this.store.addSubmitted({ entryPoint, userOpInfo })
                 await this.monitor.setUserOpStatus(userOpHash, {
                     status: "submitted",
                     transactionHash
@@ -128,8 +128,8 @@ export class Mempool {
                     },
                     "resubmitting user operation"
                 )
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                //await this.store.removeProcessing({ entryPoint, userOpHash })
+                //await this.store.removeSubmitted({ entryPoint, userOpHash })
                 const [success, failureReason] = await this.add(
                     userOp,
                     entryPoint
@@ -156,8 +156,8 @@ export class Mempool {
         await Promise.all(
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                //await this.store.removeProcessing({ entryPoint, userOpHash })
+                //await this.store.removeSubmitted({ entryPoint, userOpHash })
                 this.eventManager.emitDropped(
                     userOpHash,
                     reason,
@@ -186,11 +186,11 @@ export class Mempool {
         userOps: UserOpInfo[]
         entryPoint: Address
     }) {
-        await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
-            })
-        )
+        //await Promise.all(
+        //    userOps.map(async ({ userOpHash }) => {
+        //        await this.store.removeSubmitted({ entryPoint, userOpHash })
+        //    })
+        //)
     }
 
     async removeSubmittedUserOps({
@@ -200,11 +200,11 @@ export class Mempool {
         userOps: UserOpInfo[]
         entryPoint: Address
     }) {
-        await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
-            })
-        )
+        //await Promise.all(
+        //    userOps.map(async ({ userOpHash }) => {
+        //        await this.store.removeSubmitted({ entryPoint, userOpHash })
+        //    })
+        //)
     }
 
     // === Methods for dropping mempool entries === //
@@ -334,19 +334,15 @@ export class Mempool {
             publicClient: this.config.publicClient
         })
 
-        // Check if the exact same userOperation is already in the mempool.
-        if (await this.store.isInMempool({ userOpHash, entryPoint })) {
-            return [false, "Already known"]
-        }
-
-        // Check if there is a conflicting userOp already being processed
-        const validation = await this.store.validateSubmittedOrProcessing({
+        // Check for mempool conflicts (duplicate hash or conflicting nonce/deployment)
+        const mempoolCheck = await this.store.checkMempoolConflicts({
+            userOpHash,
             entryPoint,
             userOp
         })
 
-        if (!validation.valid) {
-            return [false, validation.reason]
+        if (!mempoolCheck.valid) {
+            return [false, mempoolCheck.reason]
         }
 
         // Check if there is a userOp we can replace
@@ -819,7 +815,7 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOpCount(userOp)
-                this.store.addProcessing({ entryPoint, userOpInfo: currentOp })
+                //this.store.addProcessing({ entryPoint, userOpInfo: currentOp })
 
                 // Add op to current bundle
                 currentBundle.userOps.push(currentOp)

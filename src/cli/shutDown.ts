@@ -326,10 +326,10 @@ export async function restoreShutdownState({
                     }
 
                     for (const userOpInfo of data.submitted) {
-                        await mempool.store.addSubmitted({
-                            entryPoint,
-                            userOpInfo
-                        })
+                        //await mempool.store.addSubmitted({
+                        //    entryPoint,
+                        //    userOpInfo
+                        //})
                     }
 
                     for (const submittedBundle of data.pendingBundles) {
