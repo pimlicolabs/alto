@@ -1,4 +1,4 @@
-import type { SenderManager, UserOpMonitor } from "@alto/executor"
+import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool } from "@alto/mempool"
 import {
     recoverableJsonParseWithBigint,
@@ -65,12 +65,12 @@ async function dropAllOperationsOnShutdown({
 
 async function queueOperationsOnShutdownToRedis({
     mempool,
-    userOpMonitor,
+    bundleManager,
     config,
     logger
 }: {
     mempool: Mempool
-    userOpMonitor: UserOpMonitor
+    bundleManager: BundleManager
     config: AltoConfig
     logger: Logger
 }) {
@@ -104,7 +104,7 @@ async function queueOperationsOnShutdownToRedis({
                             mempool.dumpOutstanding(entryPoint),
                             mempool.dumpSubmittedOps(entryPoint),
                             mempool.dumpProcessing(entryPoint),
-                            userOpMonitor.getPendingBundles()
+                            bundleManager.getPendingBundles()
                         ])
 
                     if (
@@ -165,12 +165,12 @@ async function queueOperationsOnShutdownToRedis({
 
 export function persistShutdownState({
     mempool,
-    userOpMonitor,
+    bundleManager,
     config,
     logger
 }: {
     mempool: Mempool
-    userOpMonitor: UserOpMonitor
+    bundleManager: BundleManager
     config: AltoConfig
     logger: Logger
 }) {
@@ -182,7 +182,7 @@ export function persistShutdownState({
     if (config.redisEndpoint) {
         return queueOperationsOnShutdownToRedis({
             mempool,
-            userOpMonitor,
+            bundleManager,
             config,
             logger
         })
@@ -194,13 +194,13 @@ export function persistShutdownState({
 
 export async function restoreShutdownState({
     mempool,
-    userOpMonitor,
+    bundleManager,
     config,
     logger,
     senderManager
 }: {
     mempool: Mempool
-    userOpMonitor: UserOpMonitor
+    bundleManager: BundleManager
     config: AltoConfig
     logger: Logger
     senderManager: SenderManager
@@ -333,7 +333,7 @@ export async function restoreShutdownState({
                     }
 
                     for (const submittedBundle of data.pendingBundles) {
-                        userOpMonitor.trackBundle(submittedBundle)
+                        bundleManager.trackBundle(submittedBundle)
                         if (senderManager.lockWallet) {
                             senderManager.lockWallet(submittedBundle.executor)
                         }
