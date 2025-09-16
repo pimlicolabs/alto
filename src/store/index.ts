@@ -61,14 +61,15 @@ export type MempoolStore = {
     dumpSubmitted: (entryPoint: Address) => Promise<UserOpInfo[]>
 
     // Methods for userOp validation before adding to mempool.
-    isInMempool: (args: EntryPointUserOpHashParam) => Promise<boolean>
+    checkDuplicatesAndConflicts: (args: {
+        entryPoint: Address
+        userOp: UserOperation
+        userOpHash: HexData32
+    }) => Promise<ValidationResult>
     popConflictingOustanding: (args: {
         entryPoint: Address
         userOp: UserOperation
     }) => Promise<ConflictingOutstandingType>
-    validateSubmittedOrProcessing: (
-        args: EntryPointUserOpParam
-    ) => Promise<ValidationResult>
     validateSenderLimits: (args: {
         entryPoint: Address
         userOp: UserOperation

@@ -281,14 +281,16 @@ export const createMempoolStore = ({
             return await submitted.dumpLocal()
         },
 
-        // Check if the userOp is already in the mempool
-        isInMempool: async ({
-            userOpHash,
-            entryPoint
-        }: EntryPointUserOpHashParam) => {
+        // Check if the userOp is already in the mempool or conflicts with existing operations
+        checkDuplicatesAndConflicts: async ({
+            entryPoint,
+            userOp,
+            userOpHash
+        }: { entryPoint: Address; userOp: UserOperation; userOpHash: HexData32 }) => {
             const { outstanding, processing, submitted } =
                 getStoreHandlers(entryPoint)
 
+            // Check if the exact same userOperation is already in the mempool
             const [inOutstanding, inProcessing, inSubmitted] =
                 await Promise.all([
                     outstanding.contains(userOpHash),
@@ -296,15 +298,14 @@ export const createMempoolStore = ({
                     submitted.contains(userOpHash)
                 ])
 
-            return inOutstanding || inProcessing || inSubmitted
-        },
+            if (inOutstanding || inProcessing || inSubmitted) {
+                return {
+                    valid: false,
+                    reason: "Already known"
+                }
+            }
 
-        validateSubmittedOrProcessing: async ({
-            entryPoint,
-            userOp
-        }: { entryPoint: Address; userOp: UserOperation }) => {
-            const { submitted, processing } = getStoreHandlers(entryPoint)
-
+            // Check for conflicting operations in submitted and processing stores
             const [submittedConflict, processingConflict] = await Promise.all([
                 submitted.findConflicting(userOp),
                 processing.findConflicting(userOp)

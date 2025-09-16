@@ -334,15 +334,11 @@ export class Mempool {
             publicClient: this.config.publicClient
         })
 
-        // Check if the exact same userOperation is already in the mempool.
-        if (await this.store.isInMempool({ userOpHash, entryPoint })) {
-            return [false, "Already known"]
-        }
-
-        // Check if there is a conflicting userOp already being processed
-        const validation = await this.store.validateSubmittedOrProcessing({
+        // Check if the userOp is already known or conflicts with existing operations
+        const validation = await this.store.checkDuplicatesAndConflicts({
             entryPoint,
-            userOp
+            userOp,
+            userOpHash
         })
 
         if (!validation.valid) {
