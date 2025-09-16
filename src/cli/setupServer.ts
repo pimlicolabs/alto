@@ -12,9 +12,9 @@ import type { InterfaceValidator } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
+import { BundleManager } from "../executor/bundleManager"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
-import { UserOpMonitor } from "../executor/userOpMonitor"
 import { createMempoolStore } from "../store/createMempoolStore"
 import { persistShutdownState, restoreShutdownState } from "./shutDown"
 
@@ -113,7 +113,7 @@ const getExecutorManager = ({
     senderManager,
     metrics,
     gasPriceManager,
-    userOpMonitor
+    bundleManager
 }: {
     config: AltoConfig
     executor: Executor
@@ -121,12 +121,12 @@ const getExecutorManager = ({
     senderManager: SenderManager
     metrics: Metrics
     gasPriceManager: GasPriceManager
-    userOpMonitor: UserOpMonitor
+    bundleManager: BundleManager
 }) => {
     return new ExecutorManager({
         config,
         executor,
-        userOpMonitor,
+        bundleManager,
         mempool,
         senderManager,
         metrics,
@@ -142,7 +142,7 @@ const getRpcHandler = ({
     monitor,
     executorManager,
     reputationManager,
-    userOpMonitor,
+    bundleManager,
     metrics,
     gasPriceManager,
     eventManager
@@ -154,7 +154,7 @@ const getRpcHandler = ({
     monitor: Monitor
     executorManager: ExecutorManager
     reputationManager: InterfaceReputationManager
-    userOpMonitor: UserOpMonitor
+    bundleManager: BundleManager
     metrics: Metrics
     eventManager: EventManager
     gasPriceManager: GasPriceManager
@@ -167,7 +167,7 @@ const getRpcHandler = ({
         monitor,
         executorManager,
         reputationManager,
-        userOpMonitor,
+        bundleManager,
         metrics,
         eventManager,
         gasPriceManager
@@ -272,7 +272,7 @@ export const setupServer = async ({
         eventManager
     })
 
-    const userOpMonitor = new UserOpMonitor({
+    const bundleManager = new BundleManager({
         config,
         mempool,
         monitor,
@@ -284,7 +284,7 @@ export const setupServer = async ({
     })
 
     const executorManager = getExecutorManager({
-        userOpMonitor,
+        bundleManager,
         config,
         executor,
         mempool,
@@ -301,7 +301,7 @@ export const setupServer = async ({
         monitor,
         executorManager,
         reputationManager,
-        userOpMonitor,
+        bundleManager,
         metrics,
         gasPriceManager,
         eventManager
@@ -341,7 +341,7 @@ export const setupServer = async ({
     if (!config.enableHorizontalScaling) {
         restoreShutdownState({
             mempool,
-            userOpMonitor,
+            bundleManager,
             config,
             logger: shutdownLogger,
             senderManager
@@ -359,7 +359,7 @@ export const setupServer = async ({
         await persistShutdownState({
             mempool,
             config,
-            userOpMonitor,
+            bundleManager,
             logger: shutdownLogger
         })
 

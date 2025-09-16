@@ -188,7 +188,7 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async ({ userOpHash }) => {
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                await this.store.removeProcessing({ entryPoint, userOpHash })
             })
         )
     }
