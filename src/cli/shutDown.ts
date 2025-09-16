@@ -1,4 +1,4 @@
-import type { SenderManager, BundleManager } from "@alto/executor"
+import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool } from "@alto/mempool"
 import {
     recoverableJsonParseWithBigint,
