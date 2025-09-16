@@ -11,7 +11,7 @@ import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
-import type { UserOpMonitor } from "./userOpMonitor"
+import type { BundleManager } from "./bundleManager"
 import { getUserOpHashes } from "./utils"
 
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
@@ -27,7 +27,7 @@ export class ExecutorManager {
     private gasPriceManager: GasPriceManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
-    private userOpMonitor: UserOpMonitor
+    private bundleManager: BundleManager
     private unWatch: WatchBlocksReturnType | undefined
 
     private currentlyHandlingBlock = false
@@ -39,7 +39,7 @@ export class ExecutorManager {
         metrics,
         gasPriceManager,
         senderManager,
-        userOpMonitor
+        bundleManager
     }: {
         config: AltoConfig
         executor: Executor
@@ -47,7 +47,7 @@ export class ExecutorManager {
         metrics: Metrics
         gasPriceManager: GasPriceManager
         senderManager: SenderManager
-        userOpMonitor: UserOpMonitor
+        bundleManager: BundleManager
     }) {
         this.config = config
         this.executor = executor
@@ -62,7 +62,7 @@ export class ExecutorManager {
         this.gasPriceManager = gasPriceManager
         this.senderManager = senderManager
         this.bundlingMode = this.config.bundleMode
-        this.userOpMonitor = userOpMonitor
+        this.bundleManager = bundleManager
 
         if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
@@ -224,7 +224,7 @@ export class ExecutorManager {
                 const results = await Promise.all(
                     rejectedUserOps.map(async (userOpInfo) => ({
                         userOpInfo,
-                        status: await this.userOpMonitor.getUserOpStatus({
+                        status: await this.bundleManager.getUserOpStatus({
                             userOpInfo,
                             entryPoint,
                             bundlerTxs: [],
@@ -304,7 +304,7 @@ export class ExecutorManager {
         }
 
         // Track bundle and start loop to watch blocks
-        this.userOpMonitor.trackBundle(submittedBundle)
+        this.bundleManager.trackBundle(submittedBundle)
         this.startWatchingBlocks()
 
         await this.mempool.markUserOpsAsSubmitted({
@@ -334,7 +334,7 @@ export class ExecutorManager {
         this.currentlyHandlingBlock = true
         const blockReceivedTimestamp = Date.now()
 
-        const pendingBundles = this.userOpMonitor.getPendingBundles()
+        const pendingBundles = this.bundleManager.getPendingBundles()
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
@@ -343,7 +343,7 @@ export class ExecutorManager {
         }
 
         const [receipts, networkGasPrice, networkBaseFee] = await Promise.all([
-            this.userOpMonitor.getReceipts(pendingBundles),
+            this.bundleManager.getReceipts(pendingBundles),
             this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
@@ -354,7 +354,7 @@ export class ExecutorManager {
         await Promise.all(
             receipts.map(async (receipt, index) => {
                 if (receipt.status === "included") {
-                    await this.userOpMonitor.processIncludedBundle({
+                    await this.bundleManager.processIncludedBundle({
                         submittedBundle: pendingBundles[index],
                         bundleReceipt: receipt,
                         blockReceivedTimestamp
@@ -362,7 +362,7 @@ export class ExecutorManager {
                 }
 
                 if (receipt.status === "reverted") {
-                    await this.userOpMonitor.processRevertedBundle({
+                    await this.bundleManager.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
                         bundleReceipt: receipt,
@@ -410,7 +410,7 @@ export class ExecutorManager {
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
 
         if (isGasPriceTooLow) {
-            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceTransaction({
                 blockReceivedTimestamp,
                 submittedBundle,
@@ -419,7 +419,7 @@ export class ExecutorManager {
                 reason: "gas_price"
             })
         } else if (isStuck) {
-            this.userOpMonitor.stopTrackingBundle(submittedBundle)
+            this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceTransaction({
                 blockReceivedTimestamp,
                 submittedBundle,
@@ -556,7 +556,7 @@ export class ExecutorManager {
                 const results = await Promise.all(
                     rejectedUserOps.map(async (userOpInfo) => ({
                         userOpInfo,
-                        status: await this.userOpMonitor.getUserOpStatus({
+                        status: await this.bundleManager.getUserOpStatus({
                             userOpInfo,
                             entryPoint,
                             bundlerTxs: [
@@ -646,7 +646,7 @@ export class ExecutorManager {
         }
 
         // Track bundle and start loop to watch blocks
-        this.userOpMonitor.trackBundle(newTxInfo)
+        this.bundleManager.trackBundle(newTxInfo)
         this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.

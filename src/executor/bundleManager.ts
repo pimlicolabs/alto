@@ -27,7 +27,7 @@ import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 
-export class UserOpMonitor {
+export class BundleManager {
     private reputationManager: InterfaceReputationManager
     private config: AltoConfig
     private mempool: Mempool
