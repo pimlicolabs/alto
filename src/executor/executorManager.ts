@@ -342,36 +342,37 @@ export class ExecutorManager {
             return
         }
 
-        const [receipts, networkGasPrice, networkBaseFee] = await Promise.all([
-            this.bundleManager.getReceipts(pendingBundles),
-            this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
-                maxFeePerGas: 0n,
-                maxPriorityFeePerGas: 0n
-            })),
-            this.getBaseFee().catch(() => 0n)
-        ])
+        const [bundleStatuses, networkGasPrice, networkBaseFee] =
+            await Promise.all([
+                this.bundleManager.getBundleStatuses(pendingBundles),
+                this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n
+                })),
+                this.getBaseFee().catch(() => 0n)
+            ])
 
         await Promise.all(
-            receipts.map(async (receipt, index) => {
-                if (receipt.status === "included") {
+            bundleStatuses.map(async (bundleStatus, index) => {
+                if (bundleStatus.status === "included") {
                     await this.bundleManager.processIncludedBundle({
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: receipt,
+                        bundleReceipt: bundleStatus,
                         blockReceivedTimestamp
                     })
                 }
 
-                if (receipt.status === "reverted") {
+                if (bundleStatus.status === "reverted") {
                     await this.bundleManager.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: receipt,
+                        bundleReceipt: bundleStatus,
                         block
                     })
                 }
 
                 // can be potentially resubmitted - so we first submit it again to optimize for the speed
-                if (receipt.status === "not_found") {
+                if (bundleStatus.status === "not_found") {
                     this.potentiallyResubmitBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],

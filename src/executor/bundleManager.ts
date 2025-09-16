@@ -87,7 +87,7 @@ export class BundleManager {
         return Array.from(this.pendingBundles.values())
     }
 
-    getReceipts(
+    getBundleStatuses(
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {
         return Promise.all(
