@@ -159,19 +159,6 @@ export const createMempoolStore = ({
                 return undefined
             }
         },
-        peekOutstanding: async (entryPoint: Address) => {
-            try {
-                const { outstanding } = getStoreHandlers(entryPoint)
-                return await outstanding.peek()
-            } catch (err) {
-                logger.error(
-                    { err },
-                    "Failed to peek from outstanding mempool, defaulting to undefined"
-                )
-                sentry.captureException(err)
-                return undefined
-            }
-        },
 
         // State handling
         addOutstanding: async ({
@@ -286,7 +273,11 @@ export const createMempoolStore = ({
             entryPoint,
             userOp,
             userOpHash
-        }: { entryPoint: Address; userOp: UserOperation; userOpHash: HexData32 }) => {
+        }: {
+            entryPoint: Address
+            userOp: UserOperation
+            userOpHash: HexData32
+        }) => {
             const { outstanding, processing, submitted } =
                 getStoreHandlers(entryPoint)
 

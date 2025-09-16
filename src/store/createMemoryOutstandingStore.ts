@@ -139,14 +139,6 @@ export class MemoryOutstanding implements OutstandingStore {
         return false
     }
 
-    peek(): Promise<UserOpInfo | undefined> {
-        if (this.priorityQueue.length === 0) {
-            return Promise.resolve(undefined)
-        }
-
-        return Promise.resolve(this.priorityQueue[0])
-    }
-
     pop(): Promise<UserOpInfo | undefined> {
         const userOpInfo = this.priorityQueue.shift()
 

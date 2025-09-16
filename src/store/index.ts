@@ -44,7 +44,6 @@ export type EntryPointUserOpParam = {
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type MempoolStore = {
     // Methods used for bundling.
-    peekOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
     popOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
 
     // Methods for state handling.
@@ -101,7 +100,6 @@ export type OutstandingStore = BaseStore & {
     validateQueuedLimit: (userOp: UserOperation) => boolean
     validateParallelLimit: (userOp: UserOperation) => boolean
     getQueuedUserOps: (userOp: UserOperation) => Promise<UserOperation[]>
-    peek: () => Promise<UserOpInfo | undefined>
     pop: () => Promise<UserOpInfo | undefined>
 }
 
