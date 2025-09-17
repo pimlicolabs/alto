@@ -83,16 +83,6 @@ export class Mempool {
 
     // === Methods for handling changing userOp state === //
 
-    async trackUserOp({
-        userOpInfo,
-        entryPoint
-    }: {
-        userOpInfo: UserOpInfo
-        entryPoint: Address
-    }) {
-        await this.store.trackUserOp({ entryPoint, userOpInfo })
-    }
-
     async markUserOpsAsSubmitted({
         userOps,
         transactionHash
@@ -791,7 +781,7 @@ export class Mempool {
 
                 this.reputationManager.decreaseUserOpCount(userOp)
                 // Track the operation as active (being bundled).
-                await this.trackUserOp({
+                await this.store.trackUserOp({
                     entryPoint,
                     userOpInfo: currentUserOp
                 })
