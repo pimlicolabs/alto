@@ -2,17 +2,11 @@ import { Redis } from "ioredis"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { UserOperation } from "../types/schemas"
-import {
-    getNonceKeyAndSequence,
-    getUserOpHash,
-    isVersion06,
-    isVersion07
-} from "../utils/userop"
+import { getUserOpHash, isVersion06, isVersion07 } from "../utils/userop"
 
-export interface Entry {
+interface Entry {
     sender: Address
-    nonceKey: bigint // Upper 192 bits of nonce
-    nonceSequence: bigint // Lower 64 bits of nonce
+    nonce: bigint
     isDeployment: boolean // Whether this op deploys the account
 }
 
@@ -61,17 +55,15 @@ class InMemoryProcessingStore implements ProcessingStore {
             publicClient: this.config.publicClient
         })
 
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
         const entry: Entry = {
             sender: userOp.sender,
-            nonceKey,
-            nonceSequence,
+            nonce: userOp.nonce,
             isDeployment: isDeploymentOp(userOp)
         }
         this.trackedOps.set(userOpHash, entry)
 
-        // Track by full nonce (key + sequence)
-        const nonceId = `${entry.sender}:${entry.nonceKey}:${entry.nonceSequence}`
+        // Track by sender and nonce
+        const nonceId = `${entry.sender}:${entry.nonce}`
         this.senderNonces.set(nonceId, userOpHash)
 
         if (entry.isDeployment) {
@@ -83,7 +75,7 @@ class InMemoryProcessingStore implements ProcessingStore {
         const entry = this.trackedOps.get(userOpHash)
         if (!entry) return
 
-        const nonceId = `${entry.sender}:${entry.nonceKey}:${entry.nonceSequence}`
+        const nonceId = `${entry.sender}:${entry.nonce}`
         this.senderNonces.delete(nonceId)
 
         if (entry.isDeployment) {
@@ -122,9 +114,8 @@ class InMemoryProcessingStore implements ProcessingStore {
             }
         }
 
-        // Nonce conflict check (both v0.6 and v0.7 use same logic)
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const nonceId = `${userOp.sender}:${nonceKey}:${nonceSequence}`
+        // Nonce conflict check
+        const nonceId = `${userOp.sender}:${userOp.nonce}`
 
         if (this.senderNonces.has(nonceId)) {
             return {
@@ -146,7 +137,7 @@ class InMemoryProcessingStore implements ProcessingStore {
 class RedisProcessingStore implements ProcessingStore {
     private redis: Redis
     private opsKey: string // hash: userOpHash -> entry
-    private noncesKey: string // hash: "sender:key:sequence" -> userOpHash
+    private noncesKey: string // hash: "sender:nonce" -> userOpHash
     private deployingKey: string // hash: sender -> userOpHash
     private ttlSeconds = 3600
     private config: AltoConfig
@@ -179,11 +170,9 @@ class RedisProcessingStore implements ProcessingStore {
             publicClient: this.config.publicClient
         })
 
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
         const entry: Entry = {
             sender: userOp.sender,
-            nonceKey,
-            nonceSequence,
+            nonce: userOp.nonce,
             isDeployment: isDeploymentOp(userOp)
         }
         const multi = this.redis.multi()
@@ -191,15 +180,14 @@ class RedisProcessingStore implements ProcessingStore {
         // Store op entry
         const serialized = JSON.stringify({
             sender: entry.sender,
-            nonceKey: entry.nonceKey.toString(),
-            nonceSequence: entry.nonceSequence.toString(),
+            nonce: entry.nonce.toString(),
             isDeployment: entry.isDeployment
         })
         multi.hset(this.opsKey, userOpHash, serialized)
         multi.expire(this.opsKey, this.ttlSeconds)
 
         // Store nonce lookup
-        const nonceId = `${entry.sender}:${entry.nonceKey}:${entry.nonceSequence}`
+        const nonceId = `${entry.sender}:${entry.nonce}`
         multi.hset(this.noncesKey, nonceId, userOpHash)
         multi.expire(this.noncesKey, this.ttlSeconds)
 
@@ -224,7 +212,7 @@ class RedisProcessingStore implements ProcessingStore {
         multi.hdel(this.opsKey, userOpHash)
 
         // Remove nonce lookup
-        const nonceId = `${entry.sender}:${entry.nonceKey}:${entry.nonceSequence}`
+        const nonceId = `${entry.sender}:${entry.nonce}`
         multi.hdel(this.noncesKey, nonceId)
 
         // Remove deployment lookup if applicable
@@ -260,8 +248,7 @@ class RedisProcessingStore implements ProcessingStore {
         }
 
         // Check for nonce conflicts
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const nonceId = `${userOp.sender}:${nonceKey}:${nonceSequence}`
+        const nonceId = `${userOp.sender}:${userOp.nonce}`
         const conflictingHash = await this.redis.hget(this.noncesKey, nonceId)
 
         if (conflictingHash) {
