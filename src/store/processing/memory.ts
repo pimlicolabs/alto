@@ -13,7 +13,7 @@ interface Entry {
 export class InMemoryProcessingStore implements ProcessingStore {
     private trackedOps = new Map<Hex, Entry>()
     private senderNonces = new Map<string, Hex>()
-    private deployingSenders = new Map<Address, Hex>()
+    private hasDeployment = new Map<Address, Hex>()
     private config: AltoConfig
     private entryPoint: Address
 
@@ -42,7 +42,7 @@ export class InMemoryProcessingStore implements ProcessingStore {
         this.senderNonces.set(nonceId, userOpHash)
 
         if (entry.isDeployment) {
-            this.deployingSenders.set(entry.sender, userOpHash)
+            this.hasDeployment.set(entry.sender, userOpHash)
         }
     }
 
@@ -54,7 +54,7 @@ export class InMemoryProcessingStore implements ProcessingStore {
         this.senderNonces.delete(nonceId)
 
         if (entry.isDeployment) {
-            this.deployingSenders.delete(entry.sender)
+            this.hasDeployment.delete(entry.sender)
         }
 
         this.trackedOps.delete(userOpHash)
@@ -74,9 +74,9 @@ export class InMemoryProcessingStore implements ProcessingStore {
         const isDeploymentCheck = isDeployment(userOp)
 
         // Deployment conflict: if this is deployment AND sender already deploying
-        if (isDeploymentCheck && this.deployingSenders.has(userOp.sender)) {
+        if (isDeploymentCheck && this.hasDeployment.has(userOp.sender)) {
             return {
-                conflictingHash: this.deployingSenders.get(userOp.sender),
+                conflictingHash: this.hasDeployment.get(userOp.sender),
                 reason: "deployment_conflict"
             }
         }
@@ -92,11 +92,5 @@ export class InMemoryProcessingStore implements ProcessingStore {
         }
 
         return undefined
-    }
-
-    async clear(): Promise<void> {
-        this.trackedOps.clear()
-        this.senderNonces.clear()
-        this.deployingSenders.clear()
     }
 }

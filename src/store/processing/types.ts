@@ -12,5 +12,4 @@ export interface ProcessingStore {
           }
         | undefined
     >
-    clear(): Promise<void>
 }

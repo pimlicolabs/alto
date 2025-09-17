@@ -137,12 +137,4 @@ export class RedisProcessingStore implements ProcessingStore {
 
         return undefined
     }
-
-    async clear(): Promise<void> {
-        const multi = this.redis.multi()
-        multi.del(this.opsKey)
-        multi.del(this.noncesKey)
-        multi.del(this.deployingKey)
-        await multi.exec()
-    }
 }
