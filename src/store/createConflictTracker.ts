@@ -2,26 +2,33 @@ import type { Address, Hex } from "viem"
 import { Redis } from "ioredis"
 import type { AltoConfig } from "../createConfig"
 import type { UserOperation } from "../types/schemas"
-import { getUserOpHash, getNonceKeyAndSequence, isVersion06, isVersion07 } from "../utils/userop"
+import {
+    getUserOpHash,
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07
+} from "../utils/userop"
 
 export interface ConflictTrackerEntry {
     sender: Address
-    nonceKey: bigint      // Upper 192 bits of nonce
-    nonceSequence: bigint  // Lower 64 bits of nonce
-    isDeployment: boolean  // Whether this op deploys the account
+    nonceKey: bigint // Upper 192 bits of nonce
+    nonceSequence: bigint // Lower 64 bits of nonce
+    isDeployment: boolean // Whether this op deploys the account
 }
 
 export interface ConflictTracker {
     track(userOp: UserOperation): Promise<void>
     untrack(userOpHash: Hex): Promise<void>
     isTracked(userOpHash: Hex): Promise<boolean>
-    findConflict(userOp: UserOperation): Promise<{
-        conflictingHash?: Hex
-        reason?: 'nonce_conflict' | 'deployment_conflict'
-    } | undefined>
+    findConflict(userOp: UserOperation): Promise<
+        | {
+              conflictingHash?: Hex
+              reason?: "nonce_conflict" | "deployment_conflict"
+          }
+        | undefined
+    >
     clear(): Promise<void>
 }
-
 
 // Check if operation is a deployment
 export function isDeploymentOp(userOp: UserOperation): boolean {
@@ -90,17 +97,20 @@ class InMemoryConflictTracker implements ConflictTracker {
         return this.trackedOps.has(userOpHash)
     }
 
-    async findConflict(userOp: UserOperation): Promise<{
-        conflictingHash?: Hex
-        reason?: 'nonce_conflict' | 'deployment_conflict'
-    } | undefined> {
+    async findConflict(userOp: UserOperation): Promise<
+        | {
+              conflictingHash?: Hex
+              reason?: "nonce_conflict" | "deployment_conflict"
+          }
+        | undefined
+    > {
         const isDeployment = isDeploymentOp(userOp)
 
         // Deployment conflict: if this is deployment AND sender already deploying
         if (isDeployment && this.deployingSenders.has(userOp.sender)) {
             return {
                 conflictingHash: this.deployingSenders.get(userOp.sender),
-                reason: 'deployment_conflict'
+                reason: "deployment_conflict"
             }
         }
 
@@ -108,7 +118,7 @@ class InMemoryConflictTracker implements ConflictTracker {
         if (this.deployingSenders.has(userOp.sender)) {
             return {
                 conflictingHash: this.deployingSenders.get(userOp.sender),
-                reason: 'deployment_conflict'
+                reason: "deployment_conflict"
             }
         }
 
@@ -119,7 +129,7 @@ class InMemoryConflictTracker implements ConflictTracker {
         if (this.senderNonces.has(nonceId)) {
             return {
                 conflictingHash: this.senderNonces.get(nonceId),
-                reason: 'nonce_conflict'
+                reason: "nonce_conflict"
             }
         }
 
@@ -135,8 +145,8 @@ class InMemoryConflictTracker implements ConflictTracker {
 
 class RedisConflictTracker implements ConflictTracker {
     private redis: Redis
-    private opsKey: string     // hash: userOpHash -> entry
-    private noncesKey: string  // hash: "sender:key:sequence" -> userOpHash
+    private opsKey: string // hash: userOpHash -> entry
+    private noncesKey: string // hash: "sender:key:sequence" -> userOpHash
     private deployingKey: string // hash: sender -> userOpHash
     private ttlSeconds = 3600
     private config: AltoConfig
@@ -230,16 +240,22 @@ class RedisConflictTracker implements ConflictTracker {
         return exists === 1
     }
 
-    async findConflict(userOp: UserOperation): Promise<{
-        conflictingHash?: Hex
-        reason?: 'nonce_conflict' | 'deployment_conflict'
-    } | undefined> {
+    async findConflict(userOp: UserOperation): Promise<
+        | {
+              conflictingHash?: Hex
+              reason?: "nonce_conflict" | "deployment_conflict"
+          }
+        | undefined
+    > {
         // Check for deployment conflicts
-        const deployingHash = await this.redis.hget(this.deployingKey, userOp.sender)
+        const deployingHash = await this.redis.hget(
+            this.deployingKey,
+            userOp.sender
+        )
         if (deployingHash) {
             return {
                 conflictingHash: deployingHash as Hex,
-                reason: 'deployment_conflict'
+                reason: "deployment_conflict"
             }
         }
 
@@ -251,7 +267,7 @@ class RedisConflictTracker implements ConflictTracker {
         if (conflictingHash) {
             return {
                 conflictingHash: conflictingHash as Hex,
-                reason: 'nonce_conflict'
+                reason: "nonce_conflict"
             }
         }
 
@@ -283,3 +299,4 @@ export function createConflictTracker({
     }
     return new InMemoryConflictTracker(config, entryPoint)
 }
+

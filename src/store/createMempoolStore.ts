@@ -182,7 +182,7 @@ export const createMempoolStore = ({
         },
 
         // Conflict tracking methods
-        trackUserOp: async ({
+        registerAsProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
@@ -196,7 +196,7 @@ export const createMempoolStore = ({
                 sentry.captureException(err)
             }
         },
-        untrackUserOp: async ({
+        unregisterAsProcessing: async ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {
