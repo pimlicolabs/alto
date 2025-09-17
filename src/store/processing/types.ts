@@ -1,5 +1,5 @@
-import type { Hex } from "viem"
 import type { UserOperation } from "@alto/types"
+import type { Hex } from "viem"
 
 export interface ProcessingStore {
     startProcessing(userOp: UserOperation): Promise<void>
@@ -14,4 +14,3 @@ export interface ProcessingStore {
     >
     clear(): Promise<void>
 }
-

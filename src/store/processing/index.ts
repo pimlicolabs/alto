@@ -3,8 +3,8 @@ import type { AltoConfig } from "../../createConfig"
 
 import {
     InMemoryProcessingStore,
-    RedisProcessingStore,
-    ProcessingStore
+    type ProcessingStore,
+    RedisProcessingStore
 } from "@alto/store"
 
 // Holds all userOps that have been removed from outstanding pool and are being processed.

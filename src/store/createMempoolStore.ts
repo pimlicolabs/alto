@@ -1,20 +1,20 @@
+import {
+    type EntryPointUserOpHashParam,
+    type EntryPointUserOpInfoParam,
+    type MempoolStore,
+    type OutstandingStore,
+    type ProcessingStore,
+    type StoreType,
+    createOutstandingQueue,
+    createProcessingStore
+} from "@alto/store"
 import type { HexData32, UserOperation } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
-import type {} from "./types"
 import type { AltoConfig } from "../createConfig"
-import {
-    OutstandingStore,
-    createOutstandingQueue,
-    type ProcessingStore,
-    createProcessingStore,
-    EntryPointUserOpHashParam,
-    EntryPointUserOpInfoParam,
-    MempoolStore,
-    StoreType
-} from "@alto/store"
+import type {} from "./types"
 
 export const createMempoolStore = ({
     config,

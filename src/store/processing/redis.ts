@@ -1,9 +1,9 @@
+import type { ProcessingStore } from "@alto/store"
+import type { UserOperation } from "@alto/types"
+import { getUserOpHash, isDeployment } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../../createConfig"
-import type { UserOperation } from "@alto/types"
-import type { ProcessingStore } from "@alto/store"
-import { getUserOpHash, isDeployment } from "@alto/utils"
 
 interface Entry {
     sender: Address
@@ -146,4 +146,3 @@ export class RedisProcessingStore implements ProcessingStore {
         await multi.exec()
     }
 }
-

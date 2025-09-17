@@ -1,11 +1,11 @@
+import {
+    type OutstandingStore,
+    createMemoryOutstandingQueue,
+    createRedisOutstandingQueue
+} from "@alto/store"
 import type { Logger } from "@alto/utils"
 import type { Address } from "viem"
 import type { AltoConfig } from "../../createConfig"
-import {
-    createMemoryOutstandingQueue,
-    createRedisOutstandingQueue,
-    OutstandingStore
-} from "@alto/store"
 
 export const createOutstandingQueue = ({
     config,

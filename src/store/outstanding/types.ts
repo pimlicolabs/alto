@@ -19,4 +19,3 @@ export interface OutstandingStore {
     validateQueuedLimit(userOp: UserOperation): boolean
     validateParallelLimit(userOp: UserOperation): boolean
 }
-

@@ -1,6 +1,6 @@
-import { Address } from "abitype"
-import { UserOpInfo, HexData32, UserOperation } from "../types/schemas"
-import { ConflictingOutstandingType } from "./outstanding"
+import type { Address } from "abitype"
+import type { HexData32, UserOpInfo, UserOperation } from "../types/schemas"
+import type { ConflictingOutstandingType } from "./outstanding"
 
 export type StoreType = "outstanding" | "processing"
 

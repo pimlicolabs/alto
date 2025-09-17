@@ -5,12 +5,12 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
+import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
 import { type ChainableCommander, Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
-import type { OutstandingStore } from "./types"
 import type { AltoConfig } from "../../createConfig"
-import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
+import type { OutstandingStore } from "./types"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>

@@ -1,7 +1,7 @@
-import type { Address, Hex } from "viem"
-import type { AltoConfig } from "../../createConfig"
 import type { UserOperation } from "@alto/types"
 import { getUserOpHash, isDeployment } from "@alto/utils"
+import type { Address, Hex } from "viem"
+import type { AltoConfig } from "../../createConfig"
 import type { ProcessingStore } from "./types"
 
 interface Entry {
