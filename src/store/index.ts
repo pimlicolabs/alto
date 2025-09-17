@@ -78,18 +78,12 @@ export type MempoolStore = {
     clearOutstanding: (entryPoint: Address) => Promise<void>
 }
 
-export type BaseStore = {
+export type OutstandingStore = {
     add: (op: UserOpInfo) => Promise<void>
     remove: (userOpHash: HexData32) => Promise<boolean>
     contains: (userOpHash: HexData32) => Promise<boolean>
     dumpLocal: () => Promise<UserOpInfo[]>
-}
 
-export type Store = BaseStore & {
-    findConflicting: (args: UserOperation) => Promise<ConflictingStoreType>
-}
-
-export type OutstandingStore = BaseStore & {
     clear: () => Promise<void>
     // Will remove and return the first conflicting userOpInfo
     popConflicting: (args: UserOperation) => Promise<ConflictingOutstandingType>

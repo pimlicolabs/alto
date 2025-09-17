@@ -315,13 +315,6 @@ export class MemoryOutstanding implements OutstandingStore {
         this.pendingOps.clear()
         return Promise.resolve()
     }
-
-    // Adding findConflicting method to maintain compatibility with Store interface
-    findConflicting(
-        userOp: UserOperation
-    ): Promise<ConflictingOutstandingType> {
-        return Promise.resolve(this.popConflicting(userOp))
-    }
 }
 
 export const createMemoryOutstandingQueue = ({
