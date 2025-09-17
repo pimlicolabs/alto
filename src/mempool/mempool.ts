@@ -83,20 +83,30 @@ export class Mempool {
 
     // === Methods for handling changing userOp state === //
 
-    async markUserOpsAsSubmitted({
+    async trackUserOps({
         userOps,
-        entryPoint,
-        transactionHash
+        entryPoint
     }: {
         userOps: UserOpInfo[]
         entryPoint: Address
+    }) {
+        await Promise.all(
+            userOps.map(async (userOpInfo) => {
+                await this.store.trackUserOp({ entryPoint, userOpInfo })
+            })
+        )
+    }
+
+    async markUserOpsAsSubmitted({
+        userOps,
+        transactionHash
+    }: {
+        userOps: UserOpInfo[]
         transactionHash: Hex
     }) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
                 const { userOpHash } = userOpInfo
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.addSubmitted({ entryPoint, userOpInfo })
                 await this.monitor.setUserOpStatus(userOpHash, {
                     status: "submitted",
                     transactionHash
@@ -128,8 +138,8 @@ export class Mempool {
                     },
                     "resubmitting user operation"
                 )
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                // Untrack before re-adding to outstanding pool.
+                await this.store.untrackUserOp({ entryPoint, userOpHash })
                 const [success, failureReason] = await this.add(
                     userOp,
                     entryPoint
@@ -156,8 +166,8 @@ export class Mempool {
         await Promise.all(
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                // Untrack the operation since it's being dropped.
+                await this.store.untrackUserOp({ entryPoint, userOpHash })
                 this.eventManager.emitDropped(
                     userOpHash,
                     reason,
@@ -179,7 +189,7 @@ export class Mempool {
         )
     }
 
-    async removeProcessingUserOps({
+    async untrackUserOps({
         userOps,
         entryPoint
     }: {
@@ -188,21 +198,7 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async ({ userOpHash }) => {
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-            })
-        )
-    }
-
-    async removeSubmittedUserOps({
-        userOps,
-        entryPoint
-    }: {
-        userOps: UserOpInfo[]
-        entryPoint: Address
-    }) {
-        await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                await this.store.untrackUserOp({ entryPoint, userOpHash })
             })
         )
     }
@@ -211,14 +207,6 @@ export class Mempool {
 
     async dumpOutstanding(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpOutstanding(entryPoint)
-    }
-
-    async dumpProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
-        return await this.store.dumpProcessing(entryPoint)
-    }
-
-    async dumpSubmittedOps(entryPoint: Address): Promise<UserOpInfo[]> {
-        return await this.store.dumpSubmitted(entryPoint)
     }
 
     // === Methods for entity management === //
@@ -806,9 +794,10 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOpCount(userOp)
-                await this.store.addProcessing({
+                // Track the operation as active (being bundled).
+                await this.trackUserOps({
                     entryPoint,
-                    userOpInfo: currentUserOp
+                    userOps: [currentUserOp]
                 })
 
                 // Add op to current bundle.

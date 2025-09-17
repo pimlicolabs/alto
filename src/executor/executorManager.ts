@@ -247,7 +247,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeProcessingUserOps({
+                await this.mempool.untrackUserOps({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
@@ -309,7 +309,6 @@ export class ExecutorManager {
 
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
-            entryPoint: submittedBundle.bundle.entryPoint,
             transactionHash: submittedBundle.transactionHash
         })
 
@@ -593,7 +592,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeSubmittedUserOps({
+                await this.mempool.untrackUserOps({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
