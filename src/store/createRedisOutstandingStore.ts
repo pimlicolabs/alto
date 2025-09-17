@@ -12,8 +12,7 @@ import type { OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"
 import {
     getNonceKeyAndSequence,
-    isVersion06,
-    isVersion07
+    isDeployment
 } from "../utils/userop"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
@@ -41,14 +40,6 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
         }
         throw new Error("UserOpInfo deserialization failed with unknown error")
     }
-}
-
-const isDeployment = (userOp: UserOperation): boolean => {
-    const isV6Deployment =
-        isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
-    const isV7Deployment =
-        isVersion07(userOp) && !!userOp.factory && userOp.factory !== "0x"
-    return isV6Deployment || isV7Deployment
 }
 
 class RedisSortedSet {

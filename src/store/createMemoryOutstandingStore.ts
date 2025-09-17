@@ -4,6 +4,7 @@ import type { ConflictingOutstandingType, OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"
 import {
     getNonceKeyAndSequence,
+    isDeployment,
     isVersion06,
     isVersion07
 } from "../utils/userop"
@@ -96,26 +97,10 @@ export class MemoryOutstanding implements OutstandingStore {
                 break
             }
 
-            const isConflictingV6Deployment =
-                isVersion06(userOp) &&
-                isVersion06(mempoolUserOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x" &&
-                mempoolUserOp.initCode &&
-                mempoolUserOp.initCode !== "0x" &&
-                isSameSender
-
-            const isConflictingV7Deployment =
-                isVersion07(userOp) &&
-                isVersion07(mempoolUserOp) &&
-                userOp.factory &&
-                userOp.factory !== "0x" &&
-                mempoolUserOp.factory &&
-                mempoolUserOp.factory !== "0x" &&
-                isSameSender
-
             const isConflictingDeployment =
-                isConflictingV6Deployment || isConflictingV7Deployment
+                isSameSender &&
+                isDeployment(userOp) &&
+                isDeployment(mempoolUserOp)
 
             if (isConflictingDeployment) {
                 this.remove(userOpInfo.userOpHash)

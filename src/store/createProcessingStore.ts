@@ -2,7 +2,7 @@ import { Redis } from "ioredis"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { UserOperation } from "../types/schemas"
-import { getUserOpHash, isVersion06, isVersion07 } from "../utils/userop"
+import { getUserOpHash, isDeployment } from "../utils/userop"
 
 interface Entry {
     sender: Address
@@ -22,17 +22,6 @@ export interface ProcessingStore {
         | undefined
     >
     clear(): Promise<void>
-}
-
-// Check if operation is a deployment
-export function isDeploymentOp(userOp: UserOperation): boolean {
-    if (isVersion06(userOp)) {
-        return !!userOp.initCode && userOp.initCode !== "0x"
-    }
-    if (isVersion07(userOp)) {
-        return !!userOp.factory && userOp.factory !== "0x"
-    }
-    return false
 }
 
 class InMemoryProcessingStore implements ProcessingStore {
@@ -58,7 +47,7 @@ class InMemoryProcessingStore implements ProcessingStore {
         const entry: Entry = {
             sender: userOp.sender,
             nonce: userOp.nonce,
-            isDeployment: isDeploymentOp(userOp)
+            isDeployment: isDeployment(userOp)
         }
         this.trackedOps.set(userOpHash, entry)
 
@@ -96,10 +85,10 @@ class InMemoryProcessingStore implements ProcessingStore {
           }
         | undefined
     > {
-        const isDeployment = isDeploymentOp(userOp)
+        const isDeploymentCheck = isDeployment(userOp)
 
         // Deployment conflict: if this is deployment AND sender already deploying
-        if (isDeployment && this.deployingSenders.has(userOp.sender)) {
+        if (isDeploymentCheck && this.deployingSenders.has(userOp.sender)) {
             return {
                 conflictingHash: this.deployingSenders.get(userOp.sender),
                 reason: "deployment_conflict"
@@ -165,7 +154,7 @@ class RedisProcessingStore implements ProcessingStore {
         const entry: Entry = {
             sender: userOp.sender,
             nonce: userOp.nonce,
-            isDeployment: isDeploymentOp(userOp)
+            isDeployment: isDeployment(userOp)
         }
         const multi = this.redis.multi()
 
