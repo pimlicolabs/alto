@@ -168,7 +168,7 @@ export const createMempoolStore = ({
         },
 
         // Methods to mark/unmark userOps that are being processed.
-        registerAsProcessing: async ({
+        registerProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
@@ -182,7 +182,7 @@ export const createMempoolStore = ({
                 sentry.captureException(err)
             }
         },
-        unregisterAsProcessing: async ({
+        unregisterProcessing: async ({
             entryPoint,
             userOpHash
         }: EntryPointUserOpHashParam) => {

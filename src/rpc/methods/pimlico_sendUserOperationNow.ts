@@ -71,7 +71,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             version,
             submissionAttempts: 0
         }
-        rpcHandler.mempool.store.registerAsProcessing({
+        rpcHandler.mempool.store.registerProcessing({
             entryPoint,
             userOpInfo
         })
