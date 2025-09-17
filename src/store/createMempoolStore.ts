@@ -11,12 +11,12 @@ import type {
     StoreType
 } from "."
 import type { AltoConfig } from "../createConfig"
+import {
+    type ConflictTracker,
+    createConflictTracker
+} from "./createConflictTracker"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
-import {
-    createConflictTracker,
-    type ConflictTracker
-} from "./createConflictTracker"
 
 export const createMempoolStore = ({
     config,
@@ -50,7 +50,6 @@ export const createMempoolStore = ({
 
     for (const entryPoint of config.entrypoints) {
         let outstanding: OutstandingStore
-        let conflictTracker: ConflictTracker
 
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             outstanding = createRedisOutstandingQueue({
@@ -74,12 +73,13 @@ export const createMempoolStore = ({
             outstanding = createMemoryOutstandingQueue({
                 config
             })
+
             logger.info(
                 "Using memory for outstanding mempool and conflict tracker"
             )
         }
 
-        conflictTracker = createConflictTracker({
+        const conflictTracker = createConflictTracker({
             config,
             entryPoint
         })

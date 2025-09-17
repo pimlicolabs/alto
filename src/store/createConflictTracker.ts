@@ -1,10 +1,10 @@
-import type { Address, Hex } from "viem"
 import { Redis } from "ioredis"
+import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { UserOperation } from "../types/schemas"
 import {
-    getUserOpHash,
     getNonceKeyAndSequence,
+    getUserOpHash,
     isVersion06,
     isVersion07
 } from "../utils/userop"
