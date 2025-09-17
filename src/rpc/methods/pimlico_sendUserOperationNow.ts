@@ -71,7 +71,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             version,
             submissionAttempts: 0
         }
-        rpcHandler.mempool.store.trackUserOp({ entryPoint, userOpInfo })
+        rpcHandler.mempool.trackUserOp({ entryPoint, userOpInfo })
         const result =
             await rpcHandler.executorManager.sendBundleToExecutor(bundle)
 
