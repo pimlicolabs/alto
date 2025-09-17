@@ -10,10 +10,7 @@ import type { Logger } from "pino"
 import { toHex } from "viem/utils"
 import type { OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"
-import {
-    getNonceKeyAndSequence,
-    isDeployment
-} from "../utils/userop"
+import { getNonceKeyAndSequence, isDeployment } from "../utils/userop"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
