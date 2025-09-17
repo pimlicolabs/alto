@@ -260,7 +260,7 @@ export class BundleManager {
 
         this.stopTrackingBundle(submittedBundle)
         await this.senderManager.markWalletProcessed(executor)
-        await this.mempool.untrackUserOps({ entryPoint, userOps })
+        await this.mempool.markUserOpsIncludedOnChain({ entryPoint, userOps })
     }
 
     // Stop tracking bundle in event resubmit fails

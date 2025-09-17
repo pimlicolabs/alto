@@ -247,7 +247,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.untrackUserOps({
+                await this.mempool.markUserOpsIncludedOnChain({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
@@ -592,7 +592,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.untrackUserOps({
+                await this.mempool.markUserOpsIncludedOnChain({
                     entryPoint,
                     userOps: confirmedUserOps
                 })

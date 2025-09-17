@@ -175,7 +175,8 @@ export class Mempool {
         )
     }
 
-    async untrackUserOps({
+    // Mark userOps as included onchain (included or frontrunning).
+    async markUserOpsIncludedOnChain({
         userOps,
         entryPoint
     }: {
