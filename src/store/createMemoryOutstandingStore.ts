@@ -5,7 +5,6 @@ import type { AltoConfig } from "../createConfig"
 import {
     getNonceKeyAndSequence,
     isDeployment,
-    isVersion06,
     isVersion07
 } from "../utils/userop"
 
