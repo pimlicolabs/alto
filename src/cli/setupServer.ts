@@ -15,7 +15,7 @@ import type { AltoConfig } from "../createConfig"
 import { BundleManager } from "../executor/bundleManager"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
-import { createMempoolStore } from "../store/createMempoolStore"
+import { createMempoolStore } from "@alto/store"
 import { persistShutdownState, restoreShutdownState } from "./shutDown"
 
 const getReputationManager = (

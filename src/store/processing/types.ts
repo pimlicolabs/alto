@@ -1,0 +1,17 @@
+import type { Hex } from "viem"
+import type { UserOperation } from "@alto/types"
+
+export interface ProcessingStore {
+    startProcessing(userOp: UserOperation): Promise<void>
+    finishProcessing(userOpHash: Hex): Promise<void>
+    isProcessing(userOpHash: Hex): Promise<boolean>
+    findConflict(userOp: UserOperation): Promise<
+        | {
+              conflictingHash?: Hex
+              reason?: "nonce_conflict" | "deployment_conflict"
+          }
+        | undefined
+    >
+    clear(): Promise<void>
+}
+

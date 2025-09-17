@@ -3,20 +3,18 @@ import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
-import type {
+import type {} from "./types"
+import type { AltoConfig } from "../createConfig"
+import {
+    OutstandingStore,
+    createOutstandingQueue,
+    type ProcessingStore,
+    createProcessingStore,
     EntryPointUserOpHashParam,
     EntryPointUserOpInfoParam,
     MempoolStore,
-    OutstandingStore,
     StoreType
-} from "."
-import type { AltoConfig } from "../createConfig"
-import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
-import {
-    type ProcessingStore,
-    createProcessingStore
-} from "./createProcessingStore"
-import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
+} from "@alto/store"
 
 export const createMempoolStore = ({
     config,
@@ -49,21 +47,11 @@ export const createMempoolStore = ({
     }
 
     for (const entryPoint of config.entrypoints) {
-        let outstanding: OutstandingStore
-
-        if (config.enableHorizontalScaling && config.redisEndpoint) {
-            outstanding = createRedisOutstandingQueue({
-                config,
-                entryPoint,
-                redisEndpoint: config.redisEndpoint,
-                logger
-            })
-        } else {
-            outstanding = createMemoryOutstandingQueue({
-                config,
-                logger
-            })
-        }
+        const outstanding = createOutstandingQueue({
+            config,
+            entryPoint,
+            logger
+        })
 
         const processing = createProcessingStore({
             config,
@@ -74,14 +62,6 @@ export const createMempoolStore = ({
             outstanding,
             processing
         })
-    }
-
-    const logAddOperation = (userOpHash: HexData32, storeType: StoreType) => {
-        logger.debug(
-            { userOpHash, store: storeType },
-            `added user op to ${storeType} mempool`
-        )
-        metrics.userOpsInMempool.labels({ status: storeType }).inc()
     }
 
     const logRemoveOperation = (
@@ -136,7 +116,7 @@ export const createMempoolStore = ({
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             const { outstanding } = getStoreHandlers(entryPoint)
-            logAddOperation(userOpInfo.userOpHash, "outstanding")
+            metrics.userOpsInMempool.labels({ status: "outstanding" }).inc()
             try {
                 await outstanding.add(userOpInfo)
             } catch (err) {
