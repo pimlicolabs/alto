@@ -207,24 +207,21 @@ export const createMempoolStore = ({
         }) => {
             const { outstanding, processing } = getStoreHandlers(entryPoint)
 
-            // 1. Check if already in outstanding pool
-            if (await outstanding.contains(userOpHash)) {
+            // Run all checks in parallel for better performance
+            const [isInOutstanding, isInProcessing, conflict] =
+                await Promise.all([
+                    outstanding.contains(userOpHash),
+                    processing.isProcessing(userOpHash),
+                    processing.findConflict(userOp)
+                ])
+
+            // Check if already known (in outstanding or processing)
+            if (isInOutstanding || isInProcessing) {
                 return {
                     valid: false,
                     reason: "Already known"
                 }
             }
-
-            // 2. Check if being processed/submitted (in processing)
-            if (await processing.isProcessing(userOpHash)) {
-                return {
-                    valid: false,
-                    reason: "Already known"
-                }
-            }
-
-            // 3. Check for nonce/deployment conflicts with tracked ops
-            const conflict = await processing.findConflict(userOp)
 
             if (conflict?.reason === "nonce_conflict") {
                 return {
