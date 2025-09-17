@@ -325,7 +325,9 @@ export class MemoryOutstanding implements OutstandingStore {
 }
 
 export const createMemoryOutstandingQueue = ({
-    config
-}: { config: AltoConfig }): OutstandingStore => {
+    config,
+    logger
+}: { config: AltoConfig; logger: Logger }): OutstandingStore => {
+    logger.info("Using memory for outstanding mempool")
     return new MemoryOutstanding(config)
 }

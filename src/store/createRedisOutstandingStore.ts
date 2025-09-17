@@ -14,6 +14,7 @@ import {
     isVersion06,
     isVersion07
 } from "../utils/userop"
+import { Logger } from "pino"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
@@ -185,8 +186,14 @@ class RedisOutstandingQueue implements OutstandingStore {
     constructor({
         config,
         entryPoint,
-        redisEndpoint
-    }: { config: AltoConfig; entryPoint: Address; redisEndpoint: string }) {
+        redisEndpoint,
+        logger
+    }: {
+        config: AltoConfig
+        entryPoint: Address
+        redisEndpoint: string
+        logger: Logger
+    }) {
         this.redis = new Redis(redisEndpoint, {})
         this.chainId = config.chainId
         this.entryPoint = entryPoint
@@ -199,6 +206,15 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey)
         this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey)
         this.factoryLookup = new RedisHash(this.redis, factoryLookupKey)
+
+        logger.info(
+            {
+                factoryLookupKey,
+                userOpHashLookupKey,
+                readyOpsQueueKey
+            },
+            "Using redis for outstanding mempool."
+        )
     }
 
     // Helpers
@@ -489,11 +505,18 @@ class RedisOutstandingQueue implements OutstandingStore {
 export const createRedisOutstandingQueue = ({
     config,
     entryPoint,
-    redisEndpoint
+    redisEndpoint,
+    logger
 }: {
     config: AltoConfig
     entryPoint: Address
     redisEndpoint: string
+    logger: Logger
 }): OutstandingStore => {
-    return new RedisOutstandingQueue({ config, entryPoint, redisEndpoint })
+    return new RedisOutstandingQueue({
+        config,
+        entryPoint,
+        redisEndpoint,
+        logger
+    })
 }

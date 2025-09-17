@@ -12,9 +12,9 @@ import type {
 } from "."
 import type { AltoConfig } from "../createConfig"
 import {
-    type ConflictTracker,
-    createConflictTracker
-} from "./createConflictTracker"
+    type ProcessingStore,
+    createProcessingStore
+} from "./createProcessingStore"
 import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 
@@ -33,7 +33,7 @@ export const createMempoolStore = ({
         Address,
         {
             outstanding: OutstandingStore
-            conflictTracker: ConflictTracker
+            processing: ProcessingStore
         }
     > = new Map()
 
@@ -55,38 +55,24 @@ export const createMempoolStore = ({
             outstanding = createRedisOutstandingQueue({
                 config,
                 entryPoint,
-                redisEndpoint: config.redisEndpoint
+                redisEndpoint: config.redisEndpoint,
+                logger
             })
-
-            // Log the Redis keys being used
-            const outstandingKey = `${config.chainId}:outstanding:pending-queue:${entryPoint}`
-            const conflictKey = `${config.chainId}:conflict:*:${entryPoint}`
-
-            logger.info(
-                {
-                    outstandingKey,
-                    conflictKey
-                },
-                "Using redis for outstanding mempool and conflict tracker with keys"
-            )
         } else {
             outstanding = createMemoryOutstandingQueue({
-                config
+                config,
+                logger
             })
-
-            logger.info(
-                "Using memory for outstanding mempool and conflict tracker"
-            )
         }
 
-        const conflictTracker = createConflictTracker({
+        const processing = createProcessingStore({
             config,
             entryPoint
         })
 
         storeHandlers.set(entryPoint, {
             outstanding,
-            conflictTracker
+            processing
         })
     }
 
@@ -181,16 +167,16 @@ export const createMempoolStore = ({
             return await outstanding.dumpLocal()
         },
 
-        // Conflict tracking methods
+        // Methods to mark/unmark userOps that are being processed.
         registerAsProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             try {
-                const { conflictTracker } = getStoreHandlers(entryPoint)
+                const { processing } = getStoreHandlers(entryPoint)
                 const { userOp } = userOpInfo
 
-                await conflictTracker.track(userOp)
+                await processing.track(userOp)
             } catch (err) {
                 logger.error({ err }, "Failed to track active operation")
                 sentry.captureException(err)
@@ -201,8 +187,8 @@ export const createMempoolStore = ({
             userOpHash
         }: EntryPointUserOpHashParam) => {
             try {
-                const { conflictTracker } = getStoreHandlers(entryPoint)
-                await conflictTracker.untrack(userOpHash)
+                const { processing } = getStoreHandlers(entryPoint)
+                await processing.untrack(userOpHash)
             } catch (err) {
                 logger.error({ err }, "Failed to untrack active operation")
                 sentry.captureException(err)
@@ -219,8 +205,7 @@ export const createMempoolStore = ({
             userOp: UserOperation
             userOpHash: HexData32
         }) => {
-            const { outstanding, conflictTracker } =
-                getStoreHandlers(entryPoint)
+            const { outstanding, processing } = getStoreHandlers(entryPoint)
 
             // 1. Check if already in outstanding pool
             if (await outstanding.contains(userOpHash)) {
@@ -230,8 +215,8 @@ export const createMempoolStore = ({
                 }
             }
 
-            // 2. Check if being processed/submitted (in tracker)
-            if (await conflictTracker.isTracked(userOpHash)) {
+            // 2. Check if being processed/submitted (in processing)
+            if (await processing.isTracked(userOpHash)) {
                 return {
                     valid: false,
                     reason: "Already known"
@@ -239,7 +224,7 @@ export const createMempoolStore = ({
             }
 
             // 3. Check for nonce/deployment conflicts with tracked ops
-            const conflict = await conflictTracker.findConflict(userOp)
+            const conflict = await processing.findConflict(userOp)
 
             if (conflict?.reason === "nonce_conflict") {
                 return {

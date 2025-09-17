@@ -9,14 +9,14 @@ import {
     isVersion07
 } from "../utils/userop"
 
-export interface ConflictTrackerEntry {
+export interface Entry {
     sender: Address
     nonceKey: bigint // Upper 192 bits of nonce
     nonceSequence: bigint // Lower 64 bits of nonce
     isDeployment: boolean // Whether this op deploys the account
 }
 
-export interface ConflictTracker {
+export interface ProcessingStore {
     track(userOp: UserOperation): Promise<void>
     untrack(userOpHash: Hex): Promise<void>
     isTracked(userOpHash: Hex): Promise<boolean>
@@ -41,8 +41,8 @@ export function isDeploymentOp(userOp: UserOperation): boolean {
     return false
 }
 
-class InMemoryConflictTracker implements ConflictTracker {
-    private trackedOps = new Map<Hex, ConflictTrackerEntry>()
+class InMemoryProcessingStore implements ProcessingStore {
+    private trackedOps = new Map<Hex, Entry>()
     private senderNonces = new Map<string, Hex>()
     private deployingSenders = new Map<Address, Hex>()
     private config: AltoConfig
@@ -62,7 +62,7 @@ class InMemoryConflictTracker implements ConflictTracker {
         })
 
         const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const entry: ConflictTrackerEntry = {
+        const entry: Entry = {
             sender: userOp.sender,
             nonceKey,
             nonceSequence,
@@ -143,7 +143,7 @@ class InMemoryConflictTracker implements ConflictTracker {
     }
 }
 
-class RedisConflictTracker implements ConflictTracker {
+class RedisProcessingStore implements ProcessingStore {
     private redis: Redis
     private opsKey: string // hash: userOpHash -> entry
     private noncesKey: string // hash: "sender:key:sequence" -> userOpHash
@@ -180,7 +180,7 @@ class RedisConflictTracker implements ConflictTracker {
         })
 
         const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const entry: ConflictTrackerEntry = {
+        const entry: Entry = {
             sender: userOp.sender,
             nonceKey,
             nonceSequence,
@@ -283,19 +283,21 @@ class RedisConflictTracker implements ConflictTracker {
     }
 }
 
-export function createConflictTracker({
+// Holds all userOps that have been removed from outstanding pool and are being processed.
+// UserOps are are removed from this store when they have successfully landed onchain or when they are cancelled.
+export function createProcessingStore({
     config,
     entryPoint
 }: {
     config: AltoConfig
     entryPoint: Address
-}): ConflictTracker {
+}): ProcessingStore {
     if (config.enableHorizontalScaling && config.redisEndpoint) {
-        return new RedisConflictTracker({
+        return new RedisProcessingStore({
             config,
             entryPoint,
             redisEndpoint: config.redisEndpoint
         })
     }
-    return new InMemoryConflictTracker(config, entryPoint)
+    return new InMemoryProcessingStore(config, entryPoint)
 }
