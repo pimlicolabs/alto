@@ -11,11 +11,11 @@ import type {
     StoreType
 } from "."
 import type { AltoConfig } from "../createConfig"
+import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import {
     type ProcessingStore,
     createProcessingStore
 } from "./createProcessingStore"
-import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
 import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
 
 export const createMempoolStore = ({

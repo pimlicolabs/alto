@@ -6,6 +6,7 @@ import {
     userOpInfoSchema
 } from "@alto/types"
 import { type ChainableCommander, Redis } from "ioredis"
+import type { Logger } from "pino"
 import { toHex } from "viem/utils"
 import type { OutstandingStore } from "."
 import type { AltoConfig } from "../createConfig"
@@ -14,7 +15,6 @@ import {
     isVersion06,
     isVersion07
 } from "../utils/userop"
-import { Logger } from "pino"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     return JSON.stringify(userOpInfo, (_, value) =>
