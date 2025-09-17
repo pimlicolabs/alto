@@ -176,7 +176,7 @@ export const createMempoolStore = ({
                 const { processing } = getStoreHandlers(entryPoint)
                 const { userOp } = userOpInfo
 
-                await processing.track(userOp)
+                await processing.startProcessing(userOp)
             } catch (err) {
                 logger.error({ err }, "Failed to track active operation")
                 sentry.captureException(err)
@@ -188,7 +188,7 @@ export const createMempoolStore = ({
         }: EntryPointUserOpHashParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.untrack(userOpHash)
+                await processing.finishProcessing(userOpHash)
             } catch (err) {
                 logger.error({ err }, "Failed to untrack active operation")
                 sentry.captureException(err)
@@ -216,7 +216,7 @@ export const createMempoolStore = ({
             }
 
             // 2. Check if being processed/submitted (in processing)
-            if (await processing.isTracked(userOpHash)) {
+            if (await processing.isProcessing(userOpHash)) {
                 return {
                     valid: false,
                     reason: "Already known"

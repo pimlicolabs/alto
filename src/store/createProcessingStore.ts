@@ -11,9 +11,9 @@ interface Entry {
 }
 
 export interface ProcessingStore {
-    track(userOp: UserOperation): Promise<void>
-    untrack(userOpHash: Hex): Promise<void>
-    isTracked(userOpHash: Hex): Promise<boolean>
+    startProcessing(userOp: UserOperation): Promise<void>
+    finishProcessing(userOpHash: Hex): Promise<void>
+    isProcessing(userOpHash: Hex): Promise<boolean>
     findConflict(userOp: UserOperation): Promise<
         | {
               conflictingHash?: Hex
@@ -47,7 +47,7 @@ class InMemoryProcessingStore implements ProcessingStore {
         this.entryPoint = entryPoint
     }
 
-    async track(userOp: UserOperation): Promise<void> {
+    async startProcessing(userOp: UserOperation): Promise<void> {
         const userOpHash = await getUserOpHash({
             userOp,
             entryPointAddress: this.entryPoint,
@@ -71,7 +71,7 @@ class InMemoryProcessingStore implements ProcessingStore {
         }
     }
 
-    async untrack(userOpHash: Hex): Promise<void> {
+    async finishProcessing(userOpHash: Hex): Promise<void> {
         const entry = this.trackedOps.get(userOpHash)
         if (!entry) return
 
@@ -85,7 +85,7 @@ class InMemoryProcessingStore implements ProcessingStore {
         this.trackedOps.delete(userOpHash)
     }
 
-    async isTracked(userOpHash: Hex): Promise<boolean> {
+    async isProcessing(userOpHash: Hex): Promise<boolean> {
         return this.trackedOps.has(userOpHash)
     }
 
@@ -162,7 +162,7 @@ class RedisProcessingStore implements ProcessingStore {
         this.deployingKey = `${redisPrefix}:deploying`
     }
 
-    async track(userOp: UserOperation): Promise<void> {
+    async startProcessing(userOp: UserOperation): Promise<void> {
         const userOpHash = await getUserOpHash({
             userOp,
             entryPointAddress: this.entryPoint,
@@ -200,7 +200,7 @@ class RedisProcessingStore implements ProcessingStore {
         await multi.exec()
     }
 
-    async untrack(userOpHash: Hex): Promise<void> {
+    async finishProcessing(userOpHash: Hex): Promise<void> {
         // First get the entry to know what to delete
         const entryStr = await this.redis.hget(this.opsKey, userOpHash)
         if (!entryStr) return
@@ -223,7 +223,7 @@ class RedisProcessingStore implements ProcessingStore {
         await multi.exec()
     }
 
-    async isTracked(userOpHash: Hex): Promise<boolean> {
+    async isProcessing(userOpHash: Hex): Promise<boolean> {
         const exists = await this.redis.hexists(this.opsKey, userOpHash)
         return exists === 1
     }
