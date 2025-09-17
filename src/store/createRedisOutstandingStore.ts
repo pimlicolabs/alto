@@ -175,7 +175,7 @@ export class RedisHash {
 
 class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
-    private chainId: number
+    private config: AltoConfig
     private entryPoint: Address
 
     // Redis data structures
@@ -195,13 +195,14 @@ class RedisOutstandingQueue implements OutstandingStore {
         logger: Logger
     }) {
         this.redis = new Redis(redisEndpoint, {})
-        this.chainId = config.chainId
+        this.config = config
         this.entryPoint = entryPoint
 
         // Initialize Redis data structures
-        const factoryLookupKey = `${this.chainId}:outstanding:factory-lookup:${this.entryPoint}`
-        const userOpHashLookupKey = `${this.chainId}:outstanding:user-op-hash-index:${this.entryPoint}`
-        const readyOpsQueueKey = `${this.chainId}:outstanding:pending-queue:${this.entryPoint}`
+        const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
+        const factoryLookupKey = `${redisPrefix}:factory-lookup`
+        const userOpHashLookupKey = `${redisPrefix}:user-op-hash-index`
+        const readyOpsQueueKey = `${redisPrefix}:pending-queue`
 
         this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey)
         this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey)
@@ -225,7 +226,8 @@ class RedisOutstandingQueue implements OutstandingStore {
     private getPendingOpsKey(userOp: UserOperation): string {
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const fingerprint = `${userOp.sender}-${toHex(nonceKey)}`
-        return `${this.chainId}:outstanding:pending-ops:${this.entryPoint}:${fingerprint}`
+        const prefix = `${this.config.redisKeyPrefix}:${this.config.chainId}:${this.entryPoint}:outstanding`
+        return `${prefix}:pending-ops:${fingerprint}`
     }
 
     // OutstandingStore methods

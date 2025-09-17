@@ -13,18 +13,18 @@ class SortedTtlSet {
     queueValidity: number
 
     constructor({
-        keyPrefix,
+        queueName,
         config,
         redisEndpoint
     }: {
-        keyPrefix: string
+        queueName: string
         config: AltoConfig
         redisEndpoint: string
     }) {
         const redis = new Redis(redisEndpoint)
         const queueValidity = config.gasPriceExpiry
 
-        const redisKey = `${config.chainId}:${keyPrefix}`
+        const redisKey = `${config.redisKeyPrefix}:${config.chainId}:${queueName}`
 
         this.redis = redis
         this.valueKey = `${redisKey}:value`
@@ -131,17 +131,17 @@ class SortedTtlSet {
 
 export const createRedisMinMaxQueue = ({
     config,
-    keyPrefix,
+    queueName,
     redisEndpoint
 }: {
     config: AltoConfig
-    keyPrefix: string
+    queueName: string
     redisEndpoint: string
 }): MinMaxQueue => {
     const queue = new SortedTtlSet({
         config,
         redisEndpoint,
-        keyPrefix: `${keyPrefix}:minMaxQueue`
+        queueName
     })
 
     const logger = config.getLogger(

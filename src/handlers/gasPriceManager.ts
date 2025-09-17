@@ -35,15 +35,15 @@ export class GasPriceManager {
 
         this.baseFeePerGasQueue = createMinMaxQueue({
             config,
-            keyPrefix: "base-fee-per-gas-queue"
+            queueName: "base-fee-per-gas-queue"
         })
         this.maxFeePerGasQueue = createMinMaxQueue({
             config,
-            keyPrefix: "max-fee-per-gas-queue"
+            queueName: "max-fee-per-gas-queue"
         })
         this.maxPriorityFeePerGasQueue = createMinMaxQueue({
             config,
-            keyPrefix: "max-priority-fee-per-gas-queue"
+            queueName: "max-priority-fee-per-gas-queue"
         })
 
         // Periodically update gas prices if specified

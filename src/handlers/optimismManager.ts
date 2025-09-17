@@ -6,7 +6,7 @@ export class OptimismManager {
 
     constructor({ config }: { config: AltoConfig }) {
         this.l1FeeQueue = createMinMaxQueue({
-            keyPrefix: "l1-fee-queue",
+            queueName: "l1-fee-queue",
             config
         })
     }

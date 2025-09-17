@@ -5,7 +5,6 @@ import { asyncCallWithTimeout } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import { type Hex, toHex } from "viem"
-import { getRedisKeys } from "../cli/config/redisKeys"
 import type { AltoConfig } from "../createConfig"
 import type { ReceiptCache } from "./index"
 
@@ -35,11 +34,10 @@ export const createRedisReceiptCache = ({
 }): ReceiptCache => {
     const REDIS_TIMEOUT = 100 // 100ms timeout for all Redis operations
     const redis = new Redis(redisEndpoint)
-    const redisKeys = getRedisKeys(config)
-    const keyPrefix = redisKeys.userOpReceiptCachePrefix
+    const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:receipt-cache`
 
     const getKey = (userOpHash: Hex): string => {
-        return `${keyPrefix}:${userOpHash}`
+        return `${redisPrefix}:${userOpHash}`
     }
 
     return {

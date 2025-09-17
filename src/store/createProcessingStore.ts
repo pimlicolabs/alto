@@ -164,11 +164,11 @@ class RedisProcessingStore implements ProcessingStore {
         this.redis = new Redis(redisEndpoint)
         this.config = config
         this.entryPoint = entryPoint
-        const chainId = config.chainId
-        const prefix = `${chainId}:conflict`
-        this.opsKey = `${prefix}:ops:${entryPoint}`
-        this.noncesKey = `${prefix}:nonces:${entryPoint}`
-        this.deployingKey = `${prefix}:deploying:${entryPoint}`
+
+        const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:conflict`
+        this.opsKey = `${redisPrefix}:ops`
+        this.noncesKey = `${redisPrefix}:nonces`
+        this.deployingKey = `${redisPrefix}:deploying`
     }
 
     async track(userOp: UserOperation): Promise<void> {
