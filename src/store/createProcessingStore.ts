@@ -106,14 +106,6 @@ class InMemoryProcessingStore implements ProcessingStore {
             }
         }
 
-        // Deployment conflict: any op conflicts with ongoing deployment
-        if (this.deployingSenders.has(userOp.sender)) {
-            return {
-                conflictingHash: this.deployingSenders.get(userOp.sender),
-                reason: "deployment_conflict"
-            }
-        }
-
         // Nonce conflict check
         const nonceId = `${userOp.sender}:${userOp.nonce}`
 
