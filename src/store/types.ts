@@ -34,8 +34,8 @@ export type MempoolStore = {
     dumpOutstanding: (entryPoint: Address) => Promise<UserOpInfo[]>
 
     // Conflict tracking (replaces processing/submitted pools).
-    registerProcessing: (args: EntryPointUserOpInfoParam) => Promise<void>
-    unregisterProcessing: (args: EntryPointUserOpHashParam) => Promise<void>
+    startProcessing: (args: EntryPointUserOpInfoParam) => Promise<void>
+    finishProcessing: (args: EntryPointUserOpInfoParam) => Promise<void>
 
     // Methods for userOp validation before adding to mempool.
     checkDuplicatesAndConflicts: (args: {

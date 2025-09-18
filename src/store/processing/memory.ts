@@ -1,94 +1,69 @@
-import type { UserOperation } from "@alto/types"
-import { getUserOpHash, isDeployment } from "@alto/utils"
+import type { UserOpInfo, UserOperation } from "@alto/types"
+import { isDeployment } from "@alto/utils"
 import type { Address, Hex } from "viem"
-import type { AltoConfig } from "../../createConfig"
 import type { ProcessingStore } from "./types"
 
-interface Entry {
-    sender: Address
-    nonce: bigint
-    isDeployment: boolean // Whether this op deploys the account
-}
-
 export class InMemoryProcessingStore implements ProcessingStore {
-    private trackedOps = new Map<Hex, Entry>()
-    private senderNonces = new Map<string, Hex>()
-    private hasDeployment = new Map<Address, Hex>()
-    private config: AltoConfig
-    private entryPoint: Address
+    // Use Sets for boolean membership tracking (matching Redis store)
+    private processingUserOpsSet = new Set<Hex>()
+    private processingSenderNonceSet = new Set<string>()
+    private processingDeploymentSet = new Set<Address>()
 
-    constructor(config: AltoConfig, entryPoint: Address) {
-        this.config = config
-        this.entryPoint = entryPoint
+    private encodeSenderNonceId(sender: Address, nonce: bigint): string {
+        return `${sender}:${nonce}`
     }
 
-    async startProcessing(userOp: UserOperation): Promise<void> {
-        const userOpHash = await getUserOpHash({
-            userOp,
-            entryPointAddress: this.entryPoint,
-            chainId: this.config.chainId,
-            publicClient: this.config.publicClient
-        })
+    async startProcessing(userOpInfo: UserOpInfo): Promise<void> {
+        const { userOpHash, userOp } = userOpInfo
+        const isDeploymentOp = isDeployment(userOp)
+        const senderNonceId = this.encodeSenderNonceId(
+            userOp.sender,
+            userOp.nonce
+        )
 
-        const entry: Entry = {
-            sender: userOp.sender,
-            nonce: userOp.nonce,
-            isDeployment: isDeployment(userOp)
-        }
-        this.trackedOps.set(userOpHash, entry)
+        // Add to processing sets
+        this.processingUserOpsSet.add(userOpHash)
+        this.processingSenderNonceSet.add(senderNonceId)
 
-        // Track by sender and nonce
-        const nonceId = `${entry.sender}:${entry.nonce}`
-        this.senderNonces.set(nonceId, userOpHash)
-
-        if (entry.isDeployment) {
-            this.hasDeployment.set(entry.sender, userOpHash)
+        if (isDeploymentOp) {
+            this.processingDeploymentSet.add(userOp.sender)
         }
     }
 
-    async finishProcessing(userOpHash: Hex): Promise<void> {
-        const entry = this.trackedOps.get(userOpHash)
-        if (!entry) return
+    async finishProcessing(userOpInfo: UserOpInfo): Promise<void> {
+        const { userOpHash, userOp } = userOpInfo
+        const senderNonceId = this.encodeSenderNonceId(
+            userOp.sender,
+            userOp.nonce
+        )
 
-        const nonceId = `${entry.sender}:${entry.nonce}`
-        this.senderNonces.delete(nonceId)
-
-        if (entry.isDeployment) {
-            this.hasDeployment.delete(entry.sender)
-        }
-
-        this.trackedOps.delete(userOpHash)
+        // Remove from all sets
+        this.processingUserOpsSet.delete(userOpHash)
+        this.processingSenderNonceSet.delete(senderNonceId)
+        this.processingDeploymentSet.delete(userOp.sender)
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {
-        return this.trackedOps.has(userOpHash)
+        return this.processingUserOpsSet.has(userOpHash)
     }
 
-    async findConflict(userOp: UserOperation): Promise<
-        | {
-              conflictingHash?: Hex
-              reason?: "nonce_conflict" | "deployment_conflict"
-          }
-        | undefined
-    > {
-        const isDeploymentCheck = isDeployment(userOp)
+    async wouldConflict(
+        userOp: UserOperation
+    ): Promise<"nonce_conflict" | "deployment_conflict" | undefined> {
+        const isDeploymentOp = isDeployment(userOp)
+        const senderNonceId = this.encodeSenderNonceId(
+            userOp.sender,
+            userOp.nonce
+        )
 
-        // Deployment conflict: if this is deployment AND sender already deploying
-        if (isDeploymentCheck && this.hasDeployment.has(userOp.sender)) {
-            return {
-                conflictingHash: this.hasDeployment.get(userOp.sender),
-                reason: "deployment_conflict"
-            }
+        // Check deployment conflict first
+        if (isDeploymentOp && this.processingDeploymentSet.has(userOp.sender)) {
+            return "deployment_conflict"
         }
 
-        // Nonce conflict check
-        const nonceId = `${userOp.sender}:${userOp.nonce}`
-
-        if (this.senderNonces.has(nonceId)) {
-            return {
-                conflictingHash: this.senderNonces.get(nonceId),
-                reason: "nonce_conflict"
-            }
+        // Check nonce conflict
+        if (this.processingSenderNonceSet.has(senderNonceId)) {
+            return "nonce_conflict"
         }
 
         return undefined

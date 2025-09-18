@@ -125,7 +125,7 @@ export class Mempool {
                     "resubmitting user operation"
                 )
                 // Unregister before re-adding to outstanding pool.
-                await this.store.unregisterProcessing({
+                await this.store.finishProcessing({
                     entryPoint,
                     userOpHash
                 })
@@ -156,7 +156,7 @@ export class Mempool {
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 // Untrack the operation since it's being dropped.
-                await this.store.unregisterProcessing({
+                await this.store.finishProcessing({
                     entryPoint,
                     userOpHash
                 })
@@ -191,7 +191,7 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async ({ userOpHash }) => {
-                await this.store.unregisterProcessing({
+                await this.store.finishProcessing({
                     entryPoint,
                     userOpHash
                 })
@@ -791,7 +791,7 @@ export class Mempool {
 
                 this.reputationManager.decreaseUserOpCount(userOp)
                 // Track the operation as active (being bundled).
-                await this.store.registerProcessing({
+                await this.store.startProcessing({
                     entryPoint,
                     userOpInfo: currentUserOp
                 })

@@ -148,27 +148,25 @@ export const createMempoolStore = ({
         },
 
         // Methods to mark/unmark userOps that are being processed.
-        registerProcessing: async ({
+        startProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                const { userOp } = userOpInfo
-
-                await processing.startProcessing(userOp)
+                await processing.startProcessing(userOpInfo)
             } catch (err) {
                 logger.error({ err }, "Failed to track active operation")
                 sentry.captureException(err)
             }
         },
-        unregisterProcessing: async ({
+        finishProcessing: async ({
             entryPoint,
-            userOpHash
-        }: EntryPointUserOpHashParam) => {
+            userOpInfo
+        }: EntryPointUserOpInfoParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.finishProcessing(userOpHash)
+                await processing.finishProcessing(userOpInfo)
             } catch (err) {
                 logger.error({ err }, "Failed to untrack active operation")
                 sentry.captureException(err)
@@ -188,11 +186,11 @@ export const createMempoolStore = ({
             const { outstanding, processing } = getStoreHandlers(entryPoint)
 
             // Run all checks in parallel for better performance
-            const [isInOutstanding, isInProcessing, conflict] =
+            const [isInOutstanding, isInProcessing, wouldConflict] =
                 await Promise.all([
                     outstanding.contains(userOpHash),
                     processing.isProcessing(userOpHash),
-                    processing.findConflict(userOp)
+                    processing.wouldConflict(userOp)
                 ])
 
             // Check if already known (in outstanding or processing)
@@ -203,14 +201,14 @@ export const createMempoolStore = ({
                 }
             }
 
-            if (conflict?.reason === "nonce_conflict") {
+            if (wouldConflict === "nonce_conflict") {
                 return {
                     valid: false,
                     reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
                 }
             }
 
-            if (conflict?.reason === "deployment_conflict") {
+            if (wouldConflict === "deployment_conflict") {
                 return {
                     valid: false,
                     reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
