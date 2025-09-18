@@ -124,7 +124,7 @@ export class Mempool {
                     },
                     "resubmitting user operation"
                 )
-                // Unregister before re-adding to outstanding pool.
+                // Complete processing before re-adding to outstanding pool.
                 await this.store.finishProcessing({
                     entryPoint,
                     userOpInfo
@@ -155,7 +155,7 @@ export class Mempool {
         await Promise.all(
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
-                // Untrack the operation since it's being dropped.
+                // Complete processing since userOp is dropped.
                 await this.store.finishProcessing({
                     entryPoint,
                     userOpInfo: rejectedUserOp
