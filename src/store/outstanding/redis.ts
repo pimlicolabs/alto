@@ -5,7 +5,7 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
-import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
+import { getNonceKeyAndSequence } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
@@ -47,7 +47,6 @@ class RedisOutstandingQueue implements OutstandingStore {
     // Redis key names
     private readyOpsQueueKey: string // gasPrice -> pendingOpsKey
     private userOpHashLookupKey: string // userOpHash -> pendingOpsKey
-    private factoryLookupKey: string // sender -> userOpHash
 
     constructor({
         config,
@@ -66,13 +65,99 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
-        this.factoryLookupKey = `${redisPrefix}:factory-lookup`
         this.userOpHashLookupKey = `${redisPrefix}:user-op-hash-index`
         this.readyOpsQueueKey = `${redisPrefix}:pending-queue`
 
+        // Define the Lua script for atomic add operation
+        this.redis.defineCommand("addUserOp", {
+            numberOfKeys: 3,
+            lua: `
+                local pendingOpsKey = KEYS[1]
+                local userOpHashLookupKey = KEYS[2]
+                local readyOpsQueueKey = KEYS[3]
+
+                local serializedUserOp = ARGV[1]
+                local nonceSeq = tonumber(ARGV[2])
+                local userOpHash = ARGV[3]
+                local maxFeePerGas = tonumber(ARGV[4])
+
+                -- Check if this will be the lowest nonce operation
+                local lowestScore = redis.call('ZRANGE', pendingOpsKey, 0, 0, 'WITHSCORES')
+                local isLowestNonce
+
+                if #lowestScore == 0 then
+                    -- Set is empty
+                    isLowestNonce = true
+                else
+                    local lowestNonceSeq = tonumber(lowestScore[2])
+                    isLowestNonce = nonceSeq < lowestNonceSeq
+                end
+
+                -- Add to pendingOps sorted set with nonceSeq as score
+                redis.call('ZADD', pendingOpsKey, nonceSeq, serializedUserOp)
+
+                -- Add to userOpHash lookup
+                redis.call('HSET', userOpHashLookupKey, userOpHash, pendingOpsKey)
+
+                -- If lowest nonce, update ready queue with this userOp's gasPrice
+                if isLowestNonce then
+                    redis.call('ZADD', readyOpsQueueKey, maxFeePerGas, pendingOpsKey)
+                end
+
+                return 1
+            `
+        })
+
+        // Define the Lua script for atomic pop operation
+        this.redis.defineCommand("popUserOp", {
+            numberOfKeys: 2,
+            lua: `
+                local readyOpsQueueKey = KEYS[1]
+                local userOpHashLookupKey = KEYS[2]
+
+                -- Pop highest gas price operation
+                local readyOp = redis.call('ZMPOP', 1, readyOpsQueueKey, 'MAX', 'COUNT', 1)
+                if not readyOp or #readyOp == 0 then
+                    return nil
+                end
+
+                local pendingOpsKey = readyOp[2][1][1]
+
+                -- Pop the lowest nonce operation from the pending ops set
+                local poppedOp = redis.call('ZPOPMIN', pendingOpsKey)
+                if #poppedOp == 0 then
+                    return nil
+                end
+
+                local currentOp = poppedOp[1]
+
+                -- Parse to get userOpHash
+                local parsed = cjson.decode(currentOp)
+                local userOpHash = parsed.userOpHash
+
+                -- Remove from hash lookup
+                redis.call('HDEL', userOpHashLookupKey, userOpHash)
+
+                -- Check if there are more operations in this set
+                local nextOp = redis.call('ZRANGE', pendingOpsKey, 0, 0)
+                if #nextOp > 0 then
+                    -- Parse next operation to get its maxFeePerGas
+                    local nextParsed = cjson.decode(nextOp[1])
+                    local maxFeePerGas = tonumber(nextParsed.userOp.maxFeePerGas)
+
+                    -- Re-add to ready queue with next operation's gas price
+                    redis.call('ZADD', readyOpsQueueKey, maxFeePerGas, pendingOpsKey)
+                else
+                    -- Delete empty set
+                    redis.call('DEL', pendingOpsKey)
+                end
+
+                return currentOp
+            `
+        })
+
         logger.info(
             {
-                factoryLookupKey: this.factoryLookupKey,
                 userOpHashLookupKey: this.userOpHashLookupKey,
                 readyOpsQueueKey: this.readyOpsQueueKey
             },
@@ -90,64 +175,31 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     // OutstandingStore methods
     async contains(userOpHash: HexData32): Promise<boolean> {
-        return (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) === 1
+        return (
+            (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) ===
+            1
+        )
     }
 
-    async popConflicting(userOp: UserOperation) {
-        const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOpsKey = this.getPendingOpsKey(userOp)
+    async popConflicting(_userOp: UserOperation) {
+        //const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
+        //const pendingOpsKey = this.getPendingOpsKey(userOp)
 
-        // Check for operations with the same nonce sequence
-        const conflictingNonce = await this.redis.zrangebyscore(
-            pendingOpsKey,
-            Number(nonceSeq),
-            Number(nonceSeq)
-        )
+        //// Check for operations with the same nonce sequence
+        //const conflictingNonce = await this.redis.zrangebyscore(
+        //    pendingOpsKey,
+        //    Number(nonceSeq),
+        //    Number(nonceSeq)
+        //)
 
-        if (conflictingNonce.length > 0) {
-            const conflicting = deserializeUserOpInfo(conflictingNonce[0])
-            await this.remove(conflicting.userOpHash)
-            return {
-                reason: "conflicting_nonce" as const,
-                userOpInfo: conflicting
-            }
-        }
-
-        // Check for conflicting deployments to the same address
-        if (isDeployment(userOp)) {
-            const conflictingUserOpHash = await this.redis.hget(
-                this.factoryLookupKey,
-                userOp.sender
-            )
-
-            if (conflictingUserOpHash) {
-                const conflictingPendingOpsKey = await this.redis.hget(
-                    this.userOpHashLookupKey,
-                    conflictingUserOpHash
-                )
-
-                if (conflictingPendingOpsKey) {
-                    const ops = await this.redis.zrange(
-                        conflictingPendingOpsKey,
-                        0,
-                        -1
-                    )
-                    const userOps = ops.map(deserializeUserOpInfo)
-
-                    const conflictingUserOp = userOps.find(
-                        (op) => op.userOpHash === conflictingUserOpHash
-                    )
-
-                    if (conflictingUserOp) {
-                        await this.remove(conflictingUserOp.userOpHash)
-                        return {
-                            reason: "conflicting_deployment" as const,
-                            userOpInfo: conflictingUserOp
-                        }
-                    }
-                }
-            }
-        }
+        //if (conflictingNonce.length > 0) {
+        //    const conflicting = deserializeUserOpInfo(conflictingNonce[0])
+        //    await this.remove(conflicting.userOpHash)
+        //    return {
+        //        reason: "conflicting_nonce" as const,
+        //        userOpInfo: conflicting
+        //    }
+        //}
 
         return undefined
     }
@@ -157,180 +209,47 @@ class RedisOutstandingQueue implements OutstandingStore {
         const pendingOpsKey = this.getPendingOpsKey(userOp)
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
 
-        // check if this will be the lowest nonce operation
-        // We need this info before starting the transaction
-        const existingOps = await this.redis.zrange(pendingOpsKey, 0, 0)
-        const isLowestNonce =
-            existingOps.length === 0 ||
-            userOp.nonce < deserializeUserOpInfo(existingOps[0]).userOp.nonce
-
-        const multi = this.redis.multi()
-
-        // Add to pendingOps sorted set with nonceSeq as score
-        multi.zadd(
+        // @ts-ignore - defineCommand adds the method at runtime
+        await this.redis.addUserOp(
             pendingOpsKey,
-            Number(nonceSeq),
-            serializeUserOpInfo(userOpInfo)
+            this.userOpHashLookupKey,
+            this.readyOpsQueueKey,
+            serializeUserOpInfo(userOpInfo),
+            Number(nonceSeq).toString(),
+            userOpHash,
+            Number(userOp.maxFeePerGas).toString()
         )
-
-        // Add to userOpHash lookup
-        multi.hset(this.userOpHashLookupKey, userOpHash, pendingOpsKey)
-
-        // Track factory deployments if needed
-        if (isDeployment(userOp)) {
-            multi.hset(this.factoryLookupKey, userOp.sender, userOpHash)
-        }
-
-        // If lowest nonce, update ready queue with this userOp's gasPrice
-        if (isLowestNonce) {
-            multi.zadd(
-                this.readyOpsQueueKey,
-                Number(userOp.maxFeePerGas),
-                pendingOpsKey
-            )
-        }
-
-        await multi.exec()
     }
 
-    async remove(userOpHash: HexData32): Promise<boolean> {
-        // Get the userOp info from the secondary index
-        const pendingOpsKey = await this.redis.hget(
-            this.userOpHashLookupKey,
-            userOpHash
-        )
-        if (!pendingOpsKey) {
-            return false
-        }
-
-        // Get all pending operations for this key
-        const ops = await this.redis.zrange(pendingOpsKey, 0, -1)
-
-        if (ops.length === 0) {
-            return false
-        }
-
-        const userOps = ops.map(deserializeUserOpInfo)
-        const userOpInfo = userOps.find((op) => op.userOpHash === userOpHash)
-
-        if (!userOpInfo) {
-            return false
-        }
-
-        // Check if we're removing the lowest nonce operation
-        const isLowestNonce = userOps[0].userOpHash === userOpHash
-
-        // If this is the lowest nonce, check if there's a next operation before starting the transaction
-        let nextOp: UserOpInfo | undefined
-        if (isLowestNonce && userOps.length > 1) {
-            // userOps is already sorted by nonce sequence because it comes from the sorted set
-            // So we can simply take the second operation as the next one
-            nextOp = userOps[1]
-        }
-
-        // Create a transaction
-        const multi = this.redis.multi()
-
-        // Clean up factory deployment tracking if needed
-        if (isDeployment(userOpInfo.userOp)) {
-            multi.hdel(this.factoryLookupKey, userOpInfo.userOp.sender)
-        }
-
-        // Remove from the sorted set
-        multi.zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
-
-        // Remove from hash lookup
-        multi.hdel(this.userOpHashLookupKey, userOpHash)
-
-        if (isLowestNonce) {
-            // Remove from ready queue
-            multi.zrem(this.readyOpsQueueKey, pendingOpsKey)
-
-            // If we have a next operation, add it to the ready queue
-            if (nextOp) {
-                multi.zadd(
-                    this.readyOpsQueueKey,
-                    Number(nextOp.userOp.maxFeePerGas),
-                    pendingOpsKey
-                )
-            }
-        }
-
-        // Execute transaction
-        await multi.exec()
-
-        return true
+    async remove(_userOpHash: HexData32): Promise<boolean> {
+        return false
     }
 
     async pop(): Promise<UserOpInfo | undefined> {
-        // Pop highest gas price operation
-        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
+        // Use atomic Lua script for pop operation
+        // @ts-ignore - defineCommand adds the method at runtime
+        const result = (await this.redis.popUserOp(
+            this.readyOpsQueueKey,
+            this.userOpHashLookupKey
+        )) as string | null
 
-        const result = (await this.redis.zmpop(
-            1,
-            [this.readyOpsQueueKey],
-            "MAX",
-            "COUNT",
-            1
-        )) as ZmpopResult
-
-        const pendingOpsKey = result && result[1].length > 0 ? result[1][0][0] : undefined
-
-        if (!pendingOpsKey) {
-            return undefined
-        }
-
-        // Get the operations from the set (limited to 2 for efficiency)
-        const ops = await this.redis.zrange(pendingOpsKey, 0, 1)
-
-        if (ops.length === 0) {
-            return undefined
-        }
-
-        const currentUserOpStr = ops[0]
-        const currentUserOp = deserializeUserOpInfo(currentUserOpStr)
-
-        // Create a transaction
-        const multi = this.redis.multi()
-
-        // Remove the current operation
-        multi.zrem(pendingOpsKey, currentUserOpStr)
-        multi.hdel(this.userOpHashLookupKey, currentUserOp.userOpHash)
-
-        // Execute transaction
-        await multi.exec()
-
-        // Check if there are more operations in this set
-        if (ops.length > 1) {
-            const nextUserOp = deserializeUserOpInfo(ops[1])
-            await this.redis.zadd(
-                this.readyOpsQueueKey,
-                Number(nextUserOp.userOp.maxFeePerGas),
-                pendingOpsKey
-            )
-        } else {
-            // Delete the empty set
-            await this.redis.del(pendingOpsKey)
-        }
-
-        return currentUserOp
+        return result ? deserializeUserOpInfo(result) : undefined
     }
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
         const pendingOpsKey = this.getPendingOpsKey(userOp)
 
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOps = await this.redis.zrange(pendingOpsKey, 0, -1)
 
-        // Filter operations with nonce sequence less than the current one
+        // Get operations with nonce sequence less than the current one using score range
+        const pendingOps = await this.redis.zrangebyscore(
+            pendingOpsKey,
+            "-inf",
+            `(${Number(nonceSequence)}` // Exclusive upper bound
+        )
+
         return pendingOps
             .map(deserializeUserOpInfo)
-            .filter((opInfo) => {
-                const [, opNonceSeq] = getNonceKeyAndSequence(
-                    opInfo.userOp.nonce
-                )
-                return opNonceSeq < nonceSequence
-            })
             .map((opInfo) => opInfo.userOp)
     }
 
