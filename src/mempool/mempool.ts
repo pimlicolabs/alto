@@ -127,7 +127,7 @@ export class Mempool {
                 // Unregister before re-adding to outstanding pool.
                 await this.store.finishProcessing({
                     entryPoint,
-                    userOpHash
+                    userOpInfo
                 })
                 const [success, failureReason] = await this.add(
                     userOp,
@@ -158,7 +158,7 @@ export class Mempool {
                 // Untrack the operation since it's being dropped.
                 await this.store.finishProcessing({
                     entryPoint,
-                    userOpHash
+                    userOpInfo: rejectedUserOp
                 })
                 this.eventManager.emitDropped(
                     userOpHash,
@@ -190,10 +190,10 @@ export class Mempool {
         entryPoint: Address
     }) {
         await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
+            userOps.map(async (userOpInfo) => {
                 await this.store.finishProcessing({
                     entryPoint,
-                    userOpHash
+                    userOpInfo
                 })
             })
         )

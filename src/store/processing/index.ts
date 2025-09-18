@@ -23,7 +23,7 @@ export function createProcessingStore({
             redisEndpoint: config.redisEndpoint
         })
     }
-    return new InMemoryProcessingStore(config, entryPoint)
+    return new InMemoryProcessingStore()
 }
 
 export * from "./types"
