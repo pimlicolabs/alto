@@ -6,7 +6,7 @@ import {
     userOpInfoSchema
 } from "@alto/types"
 import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
-import { type ChainableCommander, Redis } from "ioredis"
+import { Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
 import type { AltoConfig } from "../../createConfig"
@@ -39,137 +39,15 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
     }
 }
 
-class RedisSortedSet {
-    constructor(
-        private redis: Redis,
-        private keyName: string
-    ) {}
-
-    get keyPath(): string {
-        return this.keyName
-    }
-
-    async add({
-        member,
-        score,
-        multi = this.redis
-    }: {
-        member: string
-        score: number
-        multi?: ChainableCommander | Redis
-    }): Promise<void> {
-        await multi.zadd(this.keyPath, score, member)
-    }
-
-    async remove({
-        member,
-        multi = this.redis
-    }: {
-        member: string
-        multi?: ChainableCommander | Redis
-    }): Promise<void> {
-        await multi.zrem(this.keyPath, member)
-    }
-
-    getByScoreRange(min: number, max: number): Promise<string[]> {
-        return Promise.resolve(this.redis.zrangebyscore(this.keyPath, min, max))
-    }
-
-    getByRankRange(start: number, stop: number): Promise<string[]> {
-        return Promise.resolve(this.redis.zrange(this.keyPath, start, stop))
-    }
-
-    async popMax(): Promise<string | undefined> {
-        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
-
-        const result = (await this.redis.zmpop(
-            1,
-            [this.keyPath],
-            "MAX",
-            "COUNT",
-            1
-        )) as ZmpopResult
-
-        return result && result[1].length > 0 ? result[1][0][0] : undefined
-    }
-
-    async popMin(): Promise<string | undefined> {
-        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
-
-        const result = (await this.redis.zmpop(
-            1,
-            [this.keyPath],
-            "MIN",
-            "COUNT",
-            1
-        )) as ZmpopResult
-
-        return result && result[1].length > 0 ? result[1][0][0] : undefined
-    }
-
-    async delete({
-        multi = this.redis
-    }: {
-        multi?: ChainableCommander | Redis
-    }): Promise<void> {
-        await multi.del(this.keyPath)
-    }
-}
-
-export class RedisHash {
-    constructor(
-        private redis: Redis,
-        private keyName: string
-    ) {}
-
-    get keyPath(): string {
-        return this.keyName
-    }
-
-    async set({
-        key,
-        value,
-        multi = this.redis
-    }: {
-        key: string
-        value: string
-        multi?: ChainableCommander | Redis
-    }): Promise<void> {
-        await multi.hset(this.keyPath, key, value)
-    }
-
-    get(field: string): Promise<string | null> {
-        return Promise.resolve(this.redis.hget(this.keyPath, field))
-    }
-
-    async delete({
-        key,
-        multi = this.redis
-    }: {
-        key: string
-        multi?: ChainableCommander | Redis
-    }): Promise<void> {
-        await multi.hdel(this.keyPath, key)
-    }
-
-    async exists(field: string): Promise<boolean> {
-        return (await this.redis.hexists(this.keyPath, field)) === 1
-    }
-
-    getAll(): Promise<Record<string, string>> {
-        return Promise.resolve(this.redis.hgetall(this.keyPath))
-    }
-}
-
 class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
     private config: AltoConfig
     private entryPoint: Address
 
-    // Redis data structures
-    private readyOpsQueue: RedisSortedSet // gasPrice -> pendingOpsKey
-    private userOpHashLookup: RedisHash // userOpHash -> pendingOpsKey
-    private factoryLookup: RedisHash // sender -> userOpHash
+    // Redis key names
+    private readyOpsQueueKey: string // gasPrice -> pendingOpsKey
+    private userOpHashLookupKey: string // userOpHash -> pendingOpsKey
+    private factoryLookupKey: string // sender -> userOpHash
 
     constructor({
         config,
@@ -186,31 +64,23 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.config = config
         this.entryPoint = entryPoint
 
-        // Initialize Redis data structures
+        // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
-        const factoryLookupKey = `${redisPrefix}:factory-lookup`
-        const userOpHashLookupKey = `${redisPrefix}:user-op-hash-index`
-        const readyOpsQueueKey = `${redisPrefix}:pending-queue`
-
-        this.readyOpsQueue = new RedisSortedSet(this.redis, readyOpsQueueKey)
-        this.userOpHashLookup = new RedisHash(this.redis, userOpHashLookupKey)
-        this.factoryLookup = new RedisHash(this.redis, factoryLookupKey)
+        this.factoryLookupKey = `${redisPrefix}:factory-lookup`
+        this.userOpHashLookupKey = `${redisPrefix}:user-op-hash-index`
+        this.readyOpsQueueKey = `${redisPrefix}:pending-queue`
 
         logger.info(
             {
-                factoryLookupKey,
-                userOpHashLookupKey,
-                readyOpsQueueKey
+                factoryLookupKey: this.factoryLookupKey,
+                userOpHashLookupKey: this.userOpHashLookupKey,
+                readyOpsQueueKey: this.readyOpsQueueKey
             },
             "Using redis for outstanding mempool."
         )
     }
 
     // Helpers
-    private getPendingOpsSet(userOp: UserOperation): RedisSortedSet {
-        return new RedisSortedSet(this.redis, this.getPendingOpsKey(userOp))
-    }
-
     private getPendingOpsKey(userOp: UserOperation): string {
         const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
         const fingerprint = `${userOp.sender}-${toHex(nonceKey)}`
@@ -219,16 +89,17 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    contains(userOpHash: HexData32): Promise<boolean> {
-        return Promise.resolve(this.userOpHashLookup.exists(userOpHash))
+    async contains(userOpHash: HexData32): Promise<boolean> {
+        return (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) === 1
     }
 
     async popConflicting(userOp: UserOperation) {
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOpsSet = this.getPendingOpsSet(userOp)
+        const pendingOpsKey = this.getPendingOpsKey(userOp)
 
         // Check for operations with the same nonce sequence
-        const conflictingNonce = await pendingOpsSet.getByScoreRange(
+        const conflictingNonce = await this.redis.zrangebyscore(
+            pendingOpsKey,
             Number(nonceSeq),
             Number(nonceSeq)
         )
@@ -244,21 +115,20 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Check for conflicting deployments to the same address
         if (isDeployment(userOp)) {
-            const conflictingUserOpHash = await this.factoryLookup.get(
+            const conflictingUserOpHash = await this.redis.hget(
+                this.factoryLookupKey,
                 userOp.sender
             )
 
             if (conflictingUserOpHash) {
-                const pendingOpsKey = await this.userOpHashLookup.get(
+                const conflictingPendingOpsKey = await this.redis.hget(
+                    this.userOpHashLookupKey,
                     conflictingUserOpHash
                 )
 
-                if (pendingOpsKey) {
-                    const conflictingPendingOpsSet = new RedisSortedSet(
-                        this.redis,
-                        pendingOpsKey
-                    )
-                    const ops = await conflictingPendingOpsSet.getByRankRange(
+                if (conflictingPendingOpsKey) {
+                    const ops = await this.redis.zrange(
+                        conflictingPendingOpsKey,
                         0,
                         -1
                     )
@@ -284,12 +154,12 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     async add(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
-        const pendingOpsSet = this.getPendingOpsSet(userOp)
+        const pendingOpsKey = this.getPendingOpsKey(userOp)
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
 
         // check if this will be the lowest nonce operation
         // We need this info before starting the transaction
-        const existingOps = await pendingOpsSet.getByRankRange(0, 0)
+        const existingOps = await this.redis.zrange(pendingOpsKey, 0, 0)
         const isLowestNonce =
             existingOps.length === 0 ||
             userOp.nonce < deserializeUserOpInfo(existingOps[0]).userOp.nonce
@@ -297,35 +167,27 @@ class RedisOutstandingQueue implements OutstandingStore {
         const multi = this.redis.multi()
 
         // Add to pendingOps sorted set with nonceSeq as score
-        await pendingOpsSet.add({
-            member: serializeUserOpInfo(userOpInfo),
-            score: Number(nonceSeq),
-            multi
-        })
+        multi.zadd(
+            pendingOpsKey,
+            Number(nonceSeq),
+            serializeUserOpInfo(userOpInfo)
+        )
 
         // Add to userOpHash lookup
-        await this.userOpHashLookup.set({
-            key: userOpHash,
-            value: pendingOpsSet.keyPath,
-            multi
-        })
+        multi.hset(this.userOpHashLookupKey, userOpHash, pendingOpsKey)
 
         // Track factory deployments if needed
         if (isDeployment(userOp)) {
-            await this.factoryLookup.set({
-                key: userOp.sender,
-                value: userOpHash,
-                multi
-            })
+            multi.hset(this.factoryLookupKey, userOp.sender, userOpHash)
         }
 
         // If lowest nonce, update ready queue with this userOp's gasPrice
         if (isLowestNonce) {
-            await this.readyOpsQueue.add({
-                member: pendingOpsSet.keyPath,
-                score: Number(userOp.maxFeePerGas),
-                multi
-            })
+            multi.zadd(
+                this.readyOpsQueueKey,
+                Number(userOp.maxFeePerGas),
+                pendingOpsKey
+            )
         }
 
         await multi.exec()
@@ -333,14 +195,16 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     async remove(userOpHash: HexData32): Promise<boolean> {
         // Get the userOp info from the secondary index
-        const pendingOpsKey = await this.userOpHashLookup.get(userOpHash)
+        const pendingOpsKey = await this.redis.hget(
+            this.userOpHashLookupKey,
+            userOpHash
+        )
         if (!pendingOpsKey) {
             return false
         }
 
         // Get all pending operations for this key
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
-        const ops = await pendingOpsSet.getByRankRange(0, -1)
+        const ops = await this.redis.zrange(pendingOpsKey, 0, -1)
 
         if (ops.length === 0) {
             return false
@@ -369,35 +233,26 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Clean up factory deployment tracking if needed
         if (isDeployment(userOpInfo.userOp)) {
-            await this.factoryLookup.delete({
-                key: userOpInfo.userOp.sender,
-                multi
-            })
+            multi.hdel(this.factoryLookupKey, userOpInfo.userOp.sender)
         }
 
         // Remove from the sorted set
-        await pendingOpsSet.remove({
-            member: serializeUserOpInfo(userOpInfo),
-            multi
-        })
+        multi.zrem(pendingOpsKey, serializeUserOpInfo(userOpInfo))
 
         // Remove from hash lookup
-        await this.userOpHashLookup.delete({
-            key: userOpHash,
-            multi
-        })
+        multi.hdel(this.userOpHashLookupKey, userOpHash)
 
         if (isLowestNonce) {
             // Remove from ready queue
-            await this.readyOpsQueue.remove({ member: pendingOpsKey, multi })
+            multi.zrem(this.readyOpsQueueKey, pendingOpsKey)
 
             // If we have a next operation, add it to the ready queue
             if (nextOp) {
-                await this.readyOpsQueue.add({
-                    member: pendingOpsKey,
-                    score: Number(nextOp.userOp.maxFeePerGas),
-                    multi
-                })
+                multi.zadd(
+                    this.readyOpsQueueKey,
+                    Number(nextOp.userOp.maxFeePerGas),
+                    pendingOpsKey
+                )
             }
         }
 
@@ -409,16 +264,24 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     async pop(): Promise<UserOpInfo | undefined> {
         // Pop highest gas price operation
-        const pendingOpsKey = await this.readyOpsQueue.popMax()
+        type ZmpopResult = [string, [string, string][]] // [key, [[member, score], ...]]
+
+        const result = (await this.redis.zmpop(
+            1,
+            [this.readyOpsQueueKey],
+            "MAX",
+            "COUNT",
+            1
+        )) as ZmpopResult
+
+        const pendingOpsKey = result && result[1].length > 0 ? result[1][0][0] : undefined
 
         if (!pendingOpsKey) {
             return undefined
         }
 
-        const pendingOpsSet = new RedisSortedSet(this.redis, pendingOpsKey)
-
         // Get the operations from the set (limited to 2 for efficiency)
-        const ops = await pendingOpsSet.getByRankRange(0, 1)
+        const ops = await this.redis.zrange(pendingOpsKey, 0, 1)
 
         if (ops.length === 0) {
             return undefined
@@ -431,11 +294,8 @@ class RedisOutstandingQueue implements OutstandingStore {
         const multi = this.redis.multi()
 
         // Remove the current operation
-        await pendingOpsSet.remove({ member: currentUserOpStr, multi })
-        await this.userOpHashLookup.delete({
-            key: currentUserOp.userOpHash,
-            multi
-        })
+        multi.zrem(pendingOpsKey, currentUserOpStr)
+        multi.hdel(this.userOpHashLookupKey, currentUserOp.userOpHash)
 
         // Execute transaction
         await multi.exec()
@@ -443,23 +303,24 @@ class RedisOutstandingQueue implements OutstandingStore {
         // Check if there are more operations in this set
         if (ops.length > 1) {
             const nextUserOp = deserializeUserOpInfo(ops[1])
-            await this.readyOpsQueue.add({
-                member: pendingOpsKey,
-                score: Number(nextUserOp.userOp.maxFeePerGas)
-            })
+            await this.redis.zadd(
+                this.readyOpsQueueKey,
+                Number(nextUserOp.userOp.maxFeePerGas),
+                pendingOpsKey
+            )
         } else {
             // Delete the empty set
-            await pendingOpsSet.delete({})
+            await this.redis.del(pendingOpsKey)
         }
 
         return currentUserOp
     }
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
-        const pendingOpsSet = this.getPendingOpsSet(userOp)
+        const pendingOpsKey = this.getPendingOpsKey(userOp)
 
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOps = await pendingOpsSet.getByRankRange(0, -1)
+        const pendingOps = await this.redis.zrange(pendingOpsKey, 0, -1)
 
         // Filter operations with nonce sequence less than the current one
         return pendingOps
