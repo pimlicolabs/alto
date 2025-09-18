@@ -263,6 +263,8 @@ export class Executor {
                     "submitted bundle transaction"
                 )
 
+                this.logger.info("debug-submitted")
+
                 break
             } catch (e: unknown) {
                 if (e instanceof BaseError) {
