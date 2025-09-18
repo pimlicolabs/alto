@@ -263,7 +263,10 @@ export class Executor {
                     "submitted bundle transaction"
                 )
 
-                this.logger.info("debug-submitted")
+                this.logger.info(
+                    { userOpCount: txParam.userOps.length },
+                    "debug-submitted"
+                )
 
                 break
             } catch (e: unknown) {
