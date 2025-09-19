@@ -1,6 +1,7 @@
 import type { Address } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import type { Logger } from "pino"
+import type { Redis } from "ioredis"
 
 import {
     InMemoryProcessingStore,
@@ -13,17 +14,19 @@ import {
 export function createProcessingStore({
     config,
     entryPoint,
-    logger
+    logger,
+    redis
 }: {
     config: AltoConfig
     entryPoint: Address
     logger: Logger
+    redis?: Redis
 }): ProcessingStore {
-    if (config.enableHorizontalScaling && config.redisEndpoint) {
+    if (config.enableHorizontalScaling && redis) {
         return new RedisProcessingStore({
             config,
             entryPoint,
-            redisEndpoint: config.redisEndpoint,
+            redis,
             logger
         })
     }

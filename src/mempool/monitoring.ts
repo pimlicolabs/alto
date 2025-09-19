@@ -1,8 +1,9 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
-import { Redis } from "ioredis"
+import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
+import { getRedis } from "../redis/getRedis"
 
 interface UserOperationStatusStore {
     set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>
@@ -36,16 +37,16 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
 
     constructor({
         config,
-        redisEndpoint,
+        redis,
         ttlSeconds = 3600, // 1 hour ttl by default
         logger
     }: {
         config: AltoConfig
         ttlSeconds?: number
-        redisEndpoint: string
+        redis: Redis
         logger: Logger
     }) {
-        this.redis = new Redis(redisEndpoint)
+        this.redis = redis
         this.keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:userop-status`
         this.ttlSeconds = ttlSeconds
         this.logger = logger
@@ -142,9 +143,10 @@ export class Monitor {
 
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.isUsingRedis = true
+            const redis = getRedis(config.redisEndpoint)
             this.statusStore = new RedisUserOperationStatusStore({
                 config,
-                redisEndpoint: config.redisEndpoint,
+                redis,
                 logger: this.logger
             })
         } else {

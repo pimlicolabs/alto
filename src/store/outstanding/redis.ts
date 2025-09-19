@@ -6,7 +6,7 @@ import {
     userOpInfoSchema
 } from "@alto/types"
 import { getNonceKeyAndSequence } from "@alto/utils"
-import { Redis } from "ioredis"
+import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
 import type { AltoConfig } from "../../createConfig"
@@ -52,15 +52,15 @@ class RedisOutstandingQueue implements OutstandingStore {
     constructor({
         config,
         entryPoint,
-        redisEndpoint,
+        redis,
         logger
     }: {
         config: AltoConfig
         entryPoint: Address
-        redisEndpoint: string
+        redis: Redis
         logger: Logger
     }) {
-        this.redis = new Redis(redisEndpoint, {})
+        this.redis = redis
         this.config = config
         this.entryPoint = entryPoint
         this.logger = logger
@@ -289,18 +289,18 @@ class RedisOutstandingQueue implements OutstandingStore {
 export const createRedisOutstandingQueue = ({
     config,
     entryPoint,
-    redisEndpoint,
+    redis,
     logger
 }: {
     config: AltoConfig
     entryPoint: Address
-    redisEndpoint: string
+    redis: Redis
     logger: Logger
 }): OutstandingStore => {
     return new RedisOutstandingQueue({
         config,
         entryPoint,
-        redisEndpoint,
+        redis,
         logger
     })
 }

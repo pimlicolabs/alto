@@ -3,6 +3,7 @@ import type { Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { createMemoryReceiptCache } from "./createMemoryReceiptCache"
 import { createRedisReceiptCache } from "./createRedisReceiptCache"
+import { getRedis } from "../redis/getRedis"
 
 export interface ReceiptCache {
     get(userOpHash: Hex): Promise<UserOperationReceipt | undefined>
@@ -25,8 +26,9 @@ export function createReceiptCache(
 
     if (config.enableRedisReceiptCache && config.redisEndpoint) {
         logger.info("Using Redis for user operation receipt cache")
+        const redis = getRedis(config.redisEndpoint)
         return createRedisReceiptCache({
-            redisEndpoint: config.redisEndpoint,
+            redis,
             config,
             ttl,
             logger

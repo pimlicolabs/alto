@@ -15,6 +15,7 @@ import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type {} from "./types"
+import { getRedis } from "../redis/getRedis"
 
 export const createMempoolStore = ({
     config,
@@ -46,17 +47,24 @@ export const createMempoolStore = ({
         return handlers
     }
 
+    // Create shared Redis instance if needed
+    const redis = config.enableHorizontalScaling && config.redisEndpoint
+        ? getRedis(config.redisEndpoint)
+        : undefined
+
     for (const entryPoint of config.entrypoints) {
         const outstanding = createOutstandingQueue({
             config,
             entryPoint,
-            logger
+            logger,
+            redis
         })
 
         const processing = createProcessingStore({
             config,
             entryPoint,
-            logger
+            logger,
+            redis
         })
 
         storeHandlers.set(entryPoint, {

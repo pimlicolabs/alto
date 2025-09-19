@@ -6,21 +6,24 @@ import {
 import type { Logger } from "@alto/utils"
 import type { Address } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import type { Redis } from "ioredis"
 
 export const createOutstandingQueue = ({
     config,
     entryPoint,
-    logger
+    logger,
+    redis
 }: {
     config: AltoConfig
     entryPoint: Address
     logger: Logger
+    redis?: Redis
 }): OutstandingStore => {
-    if (config.enableHorizontalScaling && config.redisEndpoint) {
+    if (config.enableHorizontalScaling && redis) {
         return createRedisOutstandingQueue({
             config,
             entryPoint,
-            redisEndpoint: config.redisEndpoint,
+            redis,
             logger
         })
     }

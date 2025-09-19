@@ -1,7 +1,7 @@
 import type { ProcessingStore } from "@alto/store"
 import type { UserOpInfo, UserOperation } from "@alto/types"
 import { isDeployment } from "@alto/utils"
-import { Redis } from "ioredis"
+import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../../createConfig"
@@ -21,15 +21,15 @@ export class RedisProcessingStore implements ProcessingStore {
     constructor({
         config,
         entryPoint,
-        redisEndpoint,
+        redis,
         logger
     }: {
         config: AltoConfig
         entryPoint: Address
-        redisEndpoint: string
+        redis: Redis
         logger: Logger
     }) {
-        this.redis = new Redis(redisEndpoint)
+        this.redis = redis
         this.logger = logger
 
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:processing`

@@ -37,8 +37,7 @@ export const getSenderManager = async ({
     if (config.enableHorizontalScaling && config.redisEndpoint) {
         return await createRedisSenderManager({
             config,
-            metrics,
-            redisEndpoint: config.redisEndpoint
+            metrics
         })
     }
 

@@ -1,6 +1,7 @@
 import type { AltoConfig } from "../../createConfig"
 import { createMemoryMinMaxQueue } from "./createMemoryMinMaxQueue"
 import { createRedisMinMaxQueue } from "./createRedisMinMaxQueue"
+import { getRedis } from "../../redis/getRedis"
 
 export interface MinMaxQueue {
     saveValue(value: bigint): Promise<void>
@@ -14,10 +15,11 @@ export const createMinMaxQueue = ({
     queueName
 }: { config: AltoConfig; queueName: string }): MinMaxQueue => {
     if (config.enableHorizontalScaling && config.redisEndpoint) {
+        const redis = getRedis(config.redisEndpoint)
         return createRedisMinMaxQueue({
             config,
             queueName: queueName,
-            redisEndpoint: config.redisEndpoint
+            redis
         })
     }
 
