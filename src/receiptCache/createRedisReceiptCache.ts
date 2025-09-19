@@ -1,7 +1,7 @@
 import type { UserOperationReceipt } from "@alto/types"
 import { userOperationReceiptSchema } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { asyncCallWithTimeout } from "@alto/utils"
+import { asyncCallWithTimeout, getRedisPerformanceMarker } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Redis } from "ioredis"
 import { type Hex, toHex } from "viem"
@@ -50,8 +50,10 @@ export const createRedisReceiptCache = ({
                     redis.get(key),
                     REDIS_TIMEOUT
                 )
-                const duration = (performance.now() - start).toFixed(2)
-                logger.info(`[debug-redis] get (receipt) took ${duration}ms`)
+                const durationMs = performance.now() - start
+                const duration = durationMs.toFixed(2)
+                const perfMarker = getRedisPerformanceMarker(durationMs)
+                logger.info(`[debug-redis, ${perfMarker}] get (receipt) took ${duration}ms`)
 
                 if (!data) {
                     return undefined
@@ -82,8 +84,10 @@ export const createRedisReceiptCache = ({
                     redis.setex(key, Math.floor(ttl / 1000), serialized),
                     REDIS_TIMEOUT
                 )
-                const duration = (performance.now() - start).toFixed(2)
-                logger.info(`[debug-redis] setex (receipt) took ${duration}ms`)
+                const durationMs = performance.now() - start
+                const duration = durationMs.toFixed(2)
+                const perfMarker = getRedisPerformanceMarker(durationMs)
+                logger.info(`[debug-redis, ${perfMarker}] setex (receipt) took ${duration}ms`)
             } catch (err) {
                 logger.error(
                     { err, userOpHash },

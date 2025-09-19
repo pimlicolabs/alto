@@ -1,4 +1,5 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
+import { getRedisPerformanceMarker } from "@alto/utils"
 import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { AltoConfig } from "../createConfig"
@@ -98,15 +99,19 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
 
         const start = performance.now()
         await this.redis.set(key, serialized, "EX", this.ttlSeconds)
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] set (status) took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] set (status) took ${duration}ms`)
     }
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
         const start = performance.now()
         const data = await this.redis.get(this.getKey(userOpHash))
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] get (status) took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] get (status) took ${duration}ms`)
         if (!data) {
             return undefined
         }
@@ -116,8 +121,10 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     async delete(userOpHash: HexData32): Promise<void> {
         const start = performance.now()
         await this.redis.del(this.getKey(userOpHash))
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] del (status) took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] del (status) took ${duration}ms`)
     }
 }
 

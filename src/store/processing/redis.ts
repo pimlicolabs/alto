@@ -1,6 +1,6 @@
 import type { ProcessingStore } from "@alto/store"
 import type { UserOpInfo, UserOperation } from "@alto/types"
-import { isDeployment } from "@alto/utils"
+import { isDeployment, getRedisPerformanceMarker } from "@alto/utils"
 import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { Address, Hex } from "viem"
@@ -57,8 +57,10 @@ export class RedisProcessingStore implements ProcessingStore {
 
         const start = performance.now()
         await multi.exec()
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] startProcessing took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] startProcessing took ${duration}ms`)
     }
 
     async finishProcessing(userOpInfo: UserOpInfo): Promise<void> {
@@ -80,8 +82,10 @@ export class RedisProcessingStore implements ProcessingStore {
 
         const start = performance.now()
         await multi.exec()
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] finishProcessing took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] finishProcessing took ${duration}ms`)
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {
@@ -90,8 +94,10 @@ export class RedisProcessingStore implements ProcessingStore {
             this.processingUserOpsSet,
             userOpHash
         )
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] isProcessing took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] isProcessing took ${duration}ms`)
         return isMember === 1
     }
 
@@ -110,8 +116,10 @@ export class RedisProcessingStore implements ProcessingStore {
 
         const start = performance.now()
         const results = await multi.exec()
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] wouldConflict took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] wouldConflict took ${duration}ms`)
         if (!results) return undefined
 
         const [deploymentResult, nonceResult] = results

@@ -23,6 +23,7 @@
 import type { Redis } from "ioredis"
 
 import type { Logger } from "@alto/utils"
+import { getRedisPerformanceMarker } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { MinMaxQueue } from "."
 import type { AltoConfig } from "../../createConfig"
@@ -78,8 +79,10 @@ class SortedTtlSet {
             "-inf",
             `(${cutoffTime}`
         )
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] zremrangebyscore (cleanup) took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] zremrangebyscore (cleanup) took ${duration}ms`)
     }
 
     async add(value: bigint, logger: Logger) {
@@ -94,8 +97,10 @@ class SortedTtlSet {
             // Add or update (if exists) with current timestamp
             const start = performance.now()
             await this.redis.zadd(this.redisKey, now, valueStr)
-            const duration = (performance.now() - start).toFixed(2)
-            this.logger.info(`[debug-redis] zadd took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            this.logger.info(`[debug-redis, ${perfMarker}] zadd took ${duration}ms`)
         } catch (err) {
             logger.error({ err }, "Failed to save value to minMaxQueue")
             sentry.captureException(err)
@@ -115,8 +120,10 @@ class SortedTtlSet {
                 this.getValidCutoffTime(),
                 "+inf"
             )
-            const duration = (performance.now() - start).toFixed(2)
-            this.logger.info(`[debug-redis] zrangebyscore (getMin) took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            this.logger.info(`[debug-redis, ${perfMarker}] zrangebyscore (getMin) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null
@@ -141,8 +148,10 @@ class SortedTtlSet {
                 this.getValidCutoffTime(),
                 "+inf"
             )
-            const duration = (performance.now() - start).toFixed(2)
-            this.logger.info(`[debug-redis] zrangebyscore (getMax) took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            this.logger.info(`[debug-redis, ${perfMarker}] zrangebyscore (getMax) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null
@@ -170,8 +179,10 @@ class SortedTtlSet {
                 0,
                 1
             )
-            const duration = (performance.now() - start).toFixed(2)
-            this.logger.info(`[debug-redis] zrevrangebyscore (getLatestValue) took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            this.logger.info(`[debug-redis, ${perfMarker}] zrevrangebyscore (getLatestValue) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null

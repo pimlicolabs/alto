@@ -5,7 +5,7 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
-import { getNonceKeyAndSequence } from "@alto/utils"
+import { getNonceKeyAndSequence, getRedisPerformanceMarker } from "@alto/utils"
 import type { Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
@@ -181,8 +181,10 @@ class RedisOutstandingQueue implements OutstandingStore {
         const result =
             (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) ===
             1
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] contains took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] contains took ${duration}ms`)
         return result
     }
 
@@ -225,8 +227,10 @@ class RedisOutstandingQueue implements OutstandingStore {
             userOpHash,
             Number(userOp.maxFeePerGas).toString()
         )
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] addUserOp took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] addUserOp took ${duration}ms`)
     }
 
     async remove(_userOpHash: HexData32): Promise<boolean> {
@@ -241,8 +245,10 @@ class RedisOutstandingQueue implements OutstandingStore {
             this.readyOpsQueueKey,
             this.userOpHashLookupKey
         )) as string | null
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] popUserOp took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] popUserOp took ${duration}ms`)
 
         return result ? deserializeUserOpInfo(result) : undefined
     }
@@ -259,8 +265,10 @@ class RedisOutstandingQueue implements OutstandingStore {
             "-inf",
             `(${Number(nonceSequence)}` // Exclusive upper bound
         )
-        const duration = (performance.now() - start).toFixed(2)
-        this.logger.info(`[debug-redis] zrangebyscore took ${duration}ms`)
+        const durationMs = performance.now() - start
+        const duration = durationMs.toFixed(2)
+        const perfMarker = getRedisPerformanceMarker(durationMs)
+        this.logger.info(`[debug-redis, ${perfMarker}] zrangebyscore took ${duration}ms`)
 
         return pendingOps
             .map(deserializeUserOpInfo)

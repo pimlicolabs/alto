@@ -1,4 +1,5 @@
 import type { Metrics } from "@alto/utils"
+import { getRedisPerformanceMarker } from "@alto/utils"
 import type { Redis } from "ioredis"
 import type { Account } from "viem"
 import { getAvailableWallets } from "."
@@ -19,8 +20,10 @@ async function createRedisQueue({
 }) {
     const start = performance.now()
     const hasElements = await redis.llen(name)
-    const duration = (performance.now() - start).toFixed(2)
-    logger.info(`[debug-redis] llen (init) took ${duration}ms`)
+    const durationMs = performance.now() - start
+    const duration = durationMs.toFixed(2)
+    const perfMarker = getRedisPerformanceMarker(durationMs)
+    logger.info(`[debug-redis, ${perfMarker}] llen (init) took ${duration}ms`)
 
     // Ensure queue is populated on startup
     // Avoids race case where queue is populated twice due to multi (atomic txs)
@@ -30,30 +33,38 @@ async function createRedisQueue({
         multi.rpush(name, ...entries)
         const multiStart = performance.now()
         await multi.exec()
-        const multiDuration = (performance.now() - multiStart).toFixed(2)
-        logger.info(`[debug-redis] multi (init queue) took ${multiDuration}ms`)
+        const multiDurationMs = performance.now() - multiStart
+        const multiDuration = multiDurationMs.toFixed(2)
+        const multiPerfMarker = getRedisPerformanceMarker(multiDurationMs)
+        logger.info(`[debug-redis, ${multiPerfMarker}] multi (init queue) took ${multiDuration}ms`)
     }
 
     return {
         llen: async () => {
             const start = performance.now()
             const result = await redis.llen(name)
-            const duration = (performance.now() - start).toFixed(2)
-            logger.info(`[debug-redis] llen took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            logger.info(`[debug-redis, ${perfMarker}] llen took ${duration}ms`)
             return result
         },
         pop: async () => {
             const start = performance.now()
             const result = await redis.rpop(name)
-            const duration = (performance.now() - start).toFixed(2)
-            logger.info(`[debug-redis] rpop took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            logger.info(`[debug-redis, ${perfMarker}] rpop took ${duration}ms`)
             return result
         },
         push: async (entry: string) => {
             const start = performance.now()
             const result = await redis.lpush(name, entry)
-            const duration = (performance.now() - start).toFixed(2)
-            logger.info(`[debug-redis] lpush took ${duration}ms`)
+            const durationMs = performance.now() - start
+            const duration = durationMs.toFixed(2)
+            const perfMarker = getRedisPerformanceMarker(durationMs)
+            logger.info(`[debug-redis, ${perfMarker}] lpush took ${duration}ms`)
             return result
         }
     }
