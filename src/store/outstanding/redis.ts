@@ -45,8 +45,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private entryPoint: Address
 
     // Redis key names
-    private readyOpsQueueKey: string // gasPrice -> pendingOpsKey
-    private userOpHashLookupKey: string // userOpHash -> pendingOpsKey
+    private readyQueueKey: string // gasPrice -> pendingOpsKey
 
     constructor({
         config,
@@ -65,16 +64,14 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
-        this.userOpHashLookupKey = `${redisPrefix}:user-op-hash-index`
-        this.readyOpsQueueKey = `${redisPrefix}:pending-queue`
+        this.readyQueueKey = `${redisPrefix}:pending-queue`
 
         // Define the Lua script for atomic add operation
         this.redis.defineCommand("addUserOp", {
-            numberOfKeys: 3,
+            numberOfKeys: 2,
             lua: `
                 local pendingOpsKey = KEYS[1]
-                local userOpHashLookupKey = KEYS[2]
-                local readyOpsQueueKey = KEYS[3]
+                local readyQueueKey = KEYS[2]
 
                 local serializedUserOp = ARGV[1]
                 local nonceSeq = tonumber(ARGV[2])
@@ -96,12 +93,9 @@ class RedisOutstandingQueue implements OutstandingStore {
                 -- Add to pendingOps sorted set with nonceSeq as score
                 redis.call('ZADD', pendingOpsKey, nonceSeq, serializedUserOp)
 
-                -- Add to userOpHash lookup
-                redis.call('HSET', userOpHashLookupKey, userOpHash, pendingOpsKey)
-
                 -- If lowest nonce, update ready queue with this userOp's gasPrice
                 if isLowestNonce then
-                    redis.call('ZADD', readyOpsQueueKey, maxFeePerGas, pendingOpsKey)
+                    redis.call('ZADD', readyQueueKey, maxFeePerGas, pendingOpsKey)
                 end
 
                 return 1
@@ -110,13 +104,12 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Define the Lua script for atomic pop operation
         this.redis.defineCommand("popUserOp", {
-            numberOfKeys: 2,
+            numberOfKeys: 1,
             lua: `
-                local readyOpsQueueKey = KEYS[1]
-                local userOpHashLookupKey = KEYS[2]
+                local readyQueueKey = KEYS[1]
 
                 -- Pop highest gas price operation
-                local readyOp = redis.call('ZMPOP', 1, readyOpsQueueKey, 'MAX', 'COUNT', 1)
+                local readyOp = redis.call('ZMPOP', 1, readyQueueKey, 'MAX', 'COUNT', 1)
                 if not readyOp or #readyOp == 0 then
                     return nil
                 end
@@ -131,13 +124,6 @@ class RedisOutstandingQueue implements OutstandingStore {
 
                 local currentOp = poppedOp[1]
 
-                -- Parse to get userOpHash
-                local parsed = cjson.decode(currentOp)
-                local userOpHash = parsed.userOpHash
-
-                -- Remove from hash lookup
-                redis.call('HDEL', userOpHashLookupKey, userOpHash)
-
                 -- Check if there are more operations in this set
                 local nextOp = redis.call('ZRANGE', pendingOpsKey, 0, 0)
                 if #nextOp > 0 then
@@ -146,7 +132,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                     local maxFeePerGas = tonumber(nextParsed.userOp.maxFeePerGas)
 
                     -- Re-add to ready queue with next operation's gas price
-                    redis.call('ZADD', readyOpsQueueKey, maxFeePerGas, pendingOpsKey)
+                    redis.call('ZADD', readyQueueKey, maxFeePerGas, pendingOpsKey)
                 else
                     -- Delete empty set
                     redis.call('DEL', pendingOpsKey)
@@ -158,8 +144,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         logger.info(
             {
-                userOpHashLookupKey: this.userOpHashLookupKey,
-                readyOpsQueueKey: this.readyOpsQueueKey
+                readyQueueKey: this.readyQueueKey
             },
             "Using redis for outstanding mempool."
         )
@@ -174,11 +159,12 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    async contains(userOpHash: HexData32): Promise<boolean> {
-        return (
-            (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) ===
-            1
-        )
+    async contains(_userOpHash: HexData32): Promise<boolean> {
+        return false
+        //return (
+        //    (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) ===
+        //    1
+        //)
     }
 
     async popConflicting(_userOp: UserOperation) {
@@ -212,8 +198,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         // @ts-ignore - defineCommand adds the method at runtime
         await this.redis.addUserOp(
             pendingOpsKey,
-            this.userOpHashLookupKey,
-            this.readyOpsQueueKey,
+            this.readyQueueKey,
             serializeUserOpInfo(userOpInfo),
             Number(nonceSeq).toString(),
             userOpHash,
@@ -228,10 +213,9 @@ class RedisOutstandingQueue implements OutstandingStore {
     async pop(): Promise<UserOpInfo | undefined> {
         // Use atomic Lua script for pop operation
         // @ts-ignore - defineCommand adds the method at runtime
-        const result = (await this.redis.popUserOp(
-            this.readyOpsQueueKey,
-            this.userOpHashLookupKey
-        )) as string | null
+        const result = (await this.redis.popUserOp(this.readyQueueKey)) as
+            | string
+            | null
 
         return result ? deserializeUserOpInfo(result) : undefined
     }
