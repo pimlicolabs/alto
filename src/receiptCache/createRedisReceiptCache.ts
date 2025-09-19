@@ -46,10 +46,13 @@ export const createRedisReceiptCache = ({
         ): Promise<UserOperationReceipt | undefined> => {
             try {
                 const key = getKey(userOpHash)
+                const start = performance.now()
                 const data = await asyncCallWithTimeout(
                     redis.get(key),
                     REDIS_TIMEOUT
                 )
+                const duration = (performance.now() - start).toFixed(2)
+                logger.info(`[debug-redis] get (receipt) took ${duration}ms`)
 
                 if (!data) {
                     return undefined
@@ -75,10 +78,13 @@ export const createRedisReceiptCache = ({
                 const serialized = serializeReceipt(receipt)
 
                 // Set with TTL in seconds
+                const start = performance.now()
                 await asyncCallWithTimeout(
                     redis.setex(key, Math.floor(ttl / 1000), serialized),
                     REDIS_TIMEOUT
                 )
+                const duration = (performance.now() - start).toFixed(2)
+                logger.info(`[debug-redis] setex (receipt) took ${duration}ms`)
             } catch (err) {
                 logger.error(
                     { err, userOpHash },

@@ -43,6 +43,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
     private config: AltoConfig
     private entryPoint: Address
+    private logger: Logger
 
     // Redis key names
     private readyOpsQueueKey: string // gasPrice -> pendingOpsKey
@@ -62,6 +63,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.redis = new Redis(redisEndpoint, {})
         this.config = config
         this.entryPoint = entryPoint
+        this.logger = logger
 
         // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
@@ -175,10 +177,13 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     // OutstandingStore methods
     async contains(userOpHash: HexData32): Promise<boolean> {
-        return (
+        const start = performance.now()
+        const result =
             (await this.redis.hexists(this.userOpHashLookupKey, userOpHash)) ===
             1
-        )
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] contains took ${duration}ms`)
+        return result
     }
 
     async popConflicting(_userOp: UserOperation) {
@@ -209,6 +214,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const pendingOpsKey = this.getPendingOpsKey(userOp)
         const [, nonceSeq] = getNonceKeyAndSequence(userOp.nonce)
 
+        const start = performance.now()
         // @ts-ignore - defineCommand adds the method at runtime
         await this.redis.addUserOp(
             pendingOpsKey,
@@ -219,6 +225,8 @@ class RedisOutstandingQueue implements OutstandingStore {
             userOpHash,
             Number(userOp.maxFeePerGas).toString()
         )
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] addUserOp took ${duration}ms`)
     }
 
     async remove(_userOpHash: HexData32): Promise<boolean> {
@@ -226,12 +234,15 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     async pop(): Promise<UserOpInfo | undefined> {
+        const start = performance.now()
         // Use atomic Lua script for pop operation
         // @ts-ignore - defineCommand adds the method at runtime
         const result = (await this.redis.popUserOp(
             this.readyOpsQueueKey,
             this.userOpHashLookupKey
         )) as string | null
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] popUserOp took ${duration}ms`)
 
         return result ? deserializeUserOpInfo(result) : undefined
     }
@@ -241,12 +252,15 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
 
+        const start = performance.now()
         // Get operations with nonce sequence less than the current one using score range
         const pendingOps = await this.redis.zrangebyscore(
             pendingOpsKey,
             "-inf",
             `(${Number(nonceSequence)}` // Exclusive upper bound
         )
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] zrangebyscore took ${duration}ms`)
 
         return pendingOps
             .map(deserializeUserOpInfo)

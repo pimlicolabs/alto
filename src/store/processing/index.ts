@@ -1,5 +1,6 @@
 import type { Address } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import type { Logger } from "pino"
 
 import {
     InMemoryProcessingStore,
@@ -11,16 +12,19 @@ import {
 // UserOps are are removed from this store when they have successfully landed onchain or when they are cancelled.
 export function createProcessingStore({
     config,
-    entryPoint
+    entryPoint,
+    logger
 }: {
     config: AltoConfig
     entryPoint: Address
+    logger: Logger
 }): ProcessingStore {
     if (config.enableHorizontalScaling && config.redisEndpoint) {
         return new RedisProcessingStore({
             config,
             entryPoint,
-            redisEndpoint: config.redisEndpoint
+            redisEndpoint: config.redisEndpoint,
+            logger
         })
     }
     return new InMemoryProcessingStore()

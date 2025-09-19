@@ -55,7 +55,8 @@ export const createMempoolStore = ({
 
         const processing = createProcessingStore({
             config,
-            entryPoint
+            entryPoint,
+            logger
         })
 
         storeHandlers.set(entryPoint, {

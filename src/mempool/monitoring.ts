@@ -1,5 +1,6 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
 import { Redis } from "ioredis"
+import type { Logger } from "pino"
 import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
@@ -31,19 +32,23 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     private redis: Redis
     private keyPrefix: string
     private ttlSeconds: number
+    private logger: Logger
 
     constructor({
         config,
         redisEndpoint,
-        ttlSeconds = 3600 // 1 hour ttl by default
+        ttlSeconds = 3600, // 1 hour ttl by default
+        logger
     }: {
         config: AltoConfig
         ttlSeconds?: number
         redisEndpoint: string
+        logger: Logger
     }) {
         this.redis = new Redis(redisEndpoint)
         this.keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:userop-status`
         this.ttlSeconds = ttlSeconds
+        this.logger = logger
     }
 
     private getKey(userOpHash: HexData32): string {
@@ -90,11 +95,17 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         const key = this.getKey(userOpHash)
         const serialized = this.serialize(status)
 
+        const start = performance.now()
         await this.redis.set(key, serialized, "EX", this.ttlSeconds)
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] set (status) took ${duration}ms`)
     }
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
+        const start = performance.now()
         const data = await this.redis.get(this.getKey(userOpHash))
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] get (status) took ${duration}ms`)
         if (!data) {
             return undefined
         }
@@ -102,7 +113,10 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     }
 
     async delete(userOpHash: HexData32): Promise<void> {
+        const start = performance.now()
         await this.redis.del(this.getKey(userOpHash))
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] del (status) took ${duration}ms`)
     }
 }
 
@@ -111,6 +125,7 @@ export class Monitor {
     private userOpTimeouts: Record<HexData32, NodeJS.Timeout>
     private timeout: number
     private isUsingRedis: boolean
+    private logger: Logger
 
     constructor({
         config,
@@ -118,12 +133,19 @@ export class Monitor {
     }: { config: AltoConfig; timeout?: number }) {
         this.timeout = timeout
         this.userOpTimeouts = {}
+        this.logger = config.getLogger(
+            { module: "monitor" },
+            {
+                level: config.logLevel
+            }
+        )
 
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.isUsingRedis = true
             this.statusStore = new RedisUserOperationStatusStore({
                 config,
-                redisEndpoint: config.redisEndpoint
+                redisEndpoint: config.redisEndpoint,
+                logger: this.logger
             })
         } else {
             this.isUsingRedis = false

@@ -8,13 +8,18 @@ import type { SenderManager } from "../senderManager"
 async function createRedisQueue({
     redis,
     name,
-    entries
+    entries,
+    logger
 }: {
     redis: Redis
     name: string
     entries: string[]
+    logger: any
 }) {
+    const start = performance.now()
     const hasElements = await redis.llen(name)
+    const duration = (performance.now() - start).toFixed(2)
+    logger.info(`[debug-redis] llen (init) took ${duration}ms`)
 
     // Ensure queue is populated on startup
     // Avoids race case where queue is populated twice due to multi (atomic txs)
@@ -22,13 +27,34 @@ async function createRedisQueue({
         const multi = redis.multi()
         multi.del(name)
         multi.rpush(name, ...entries)
+        const multiStart = performance.now()
         await multi.exec()
+        const multiDuration = (performance.now() - multiStart).toFixed(2)
+        logger.info(`[debug-redis] multi (init queue) took ${multiDuration}ms`)
     }
 
     return {
-        llen: () => redis.llen(name),
-        pop: () => redis.rpop(name),
-        push: (entry: string) => redis.lpush(name, entry)
+        llen: async () => {
+            const start = performance.now()
+            const result = await redis.llen(name)
+            const duration = (performance.now() - start).toFixed(2)
+            logger.info(`[debug-redis] llen took ${duration}ms`)
+            return result
+        },
+        pop: async () => {
+            const start = performance.now()
+            const result = await redis.rpop(name)
+            const duration = (performance.now() - start).toFixed(2)
+            logger.info(`[debug-redis] rpop took ${duration}ms`)
+            return result
+        },
+        push: async (entry: string) => {
+            const start = performance.now()
+            const result = await redis.lpush(name, entry)
+            const duration = (performance.now() - start).toFixed(2)
+            logger.info(`[debug-redis] lpush took ${duration}ms`)
+            return result
+        }
     }
 }
 
@@ -60,7 +86,8 @@ export const createRedisSenderManager = async ({
     const redisQueue = await createRedisQueue({
         redis,
         name: redisQueueName,
-        entries: wallets.map((w) => w.address)
+        entries: wallets.map((w) => w.address),
+        logger
     })
 
     // Track active wallets for this instance

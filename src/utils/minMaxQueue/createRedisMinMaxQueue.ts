@@ -32,15 +32,18 @@ class SortedTtlSet {
     redisKey: string // Single sorted set: score = timestamp, member = value
     queueValidity: number
     private cleanupInterval: NodeJS.Timeout | null = null
+    private logger: Logger
 
     constructor({
         queueName,
         config,
-        redisEndpoint
+        redisEndpoint,
+        logger
     }: {
         queueName: string
         config: AltoConfig
         redisEndpoint: string
+        logger: Logger
     }) {
         const redis = new Redis(redisEndpoint)
         const queueValidity = config.gasPriceExpiry
@@ -48,6 +51,7 @@ class SortedTtlSet {
         this.redis = redis
         this.redisKey = `${config.redisKeyPrefix}:${config.chainId}:${queueName}`
         this.queueValidity = queueValidity
+        this.logger = logger
 
         // Start background cleanup every minute
         this.startBackgroundCleanup()
@@ -69,11 +73,14 @@ class SortedTtlSet {
 
     async cleanup(): Promise<void> {
         const cutoffTime = Date.now() / 1_000 - this.queueValidity * 5
+        const start = performance.now()
         await this.redis.zremrangebyscore(
             this.redisKey,
             "-inf",
             `(${cutoffTime}`
         )
+        const duration = (performance.now() - start).toFixed(2)
+        this.logger.info(`[debug-redis] zremrangebyscore (cleanup) took ${duration}ms`)
     }
 
     async add(value: bigint, logger: Logger) {
@@ -86,7 +93,10 @@ class SortedTtlSet {
             const valueStr = value.toString()
 
             // Add or update (if exists) with current timestamp
+            const start = performance.now()
             await this.redis.zadd(this.redisKey, now, valueStr)
+            const duration = (performance.now() - start).toFixed(2)
+            this.logger.info(`[debug-redis] zadd took ${duration}ms`)
         } catch (err) {
             logger.error({ err }, "Failed to save value to minMaxQueue")
             sentry.captureException(err)
@@ -100,11 +110,14 @@ class SortedTtlSet {
     async getMin(logger: Logger): Promise<bigint | null> {
         try {
             // Get all valid (non-expired) values
+            const start = performance.now()
             const validValues = await this.redis.zrangebyscore(
                 this.redisKey,
                 this.getValidCutoffTime(),
                 "+inf"
             )
+            const duration = (performance.now() - start).toFixed(2)
+            this.logger.info(`[debug-redis] zrangebyscore (getMin) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null
@@ -123,11 +136,14 @@ class SortedTtlSet {
     async getMax(logger: Logger): Promise<bigint | null> {
         try {
             // Get all valid (non-expired) values
+            const start = performance.now()
             const validValues = await this.redis.zrangebyscore(
                 this.redisKey,
                 this.getValidCutoffTime(),
                 "+inf"
             )
+            const duration = (performance.now() - start).toFixed(2)
+            this.logger.info(`[debug-redis] zrangebyscore (getMax) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null
@@ -146,6 +162,7 @@ class SortedTtlSet {
     async getLatestValue(logger: Logger): Promise<bigint | null> {
         try {
             // Get the most recently added value (highest timestamp) that's still valid
+            const start = performance.now()
             const validValues = await this.redis.zrevrangebyscore(
                 this.redisKey,
                 "+inf",
@@ -154,6 +171,8 @@ class SortedTtlSet {
                 0,
                 1
             )
+            const duration = (performance.now() - start).toFixed(2)
+            this.logger.info(`[debug-redis] zrevrangebyscore (getLatestValue) took ${duration}ms`)
 
             if (validValues.length === 0) {
                 return null
@@ -177,18 +196,19 @@ export const createRedisMinMaxQueue = ({
     queueName: string
     redisEndpoint: string
 }): MinMaxQueue => {
-    const queue = new SortedTtlSet({
-        config,
-        redisEndpoint,
-        queueName
-    })
-
     const logger = config.getLogger(
         { module: "minMaxQueue" },
         {
             level: config.logLevel
         }
     )
+
+    const queue = new SortedTtlSet({
+        config,
+        redisEndpoint,
+        queueName,
+        logger
+    })
 
     return {
         saveValue: async (value: bigint) => queue.add(value, logger),
