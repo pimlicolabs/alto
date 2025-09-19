@@ -2,7 +2,6 @@ import type { Metrics } from "@alto/utils"
 import Redis from "ioredis"
 import type { Account } from "viem"
 import { getAvailableWallets } from "."
-import { getRedisKeys } from "../../cli/config/redisKeys"
 import type { AltoConfig } from "../../createConfig"
 import type { SenderManager } from "../senderManager"
 
@@ -57,7 +56,7 @@ export const createRedisSenderManager = async ({
     )
 
     const redis = new Redis(redisEndpoint)
-    const redisQueueName = getRedisKeys(config).senderManagerQueue
+    const redisQueueName = `${config.redisKeyPrefix}:${config.chainId}:sender-manager`
     const redisQueue = await createRedisQueue({
         redis,
         name: redisQueueName,

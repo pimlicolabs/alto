@@ -1,6 +1,5 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
 import { Redis } from "ioredis"
-import { getRedisKeys } from "../cli/config/redisKeys"
 import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
@@ -43,7 +42,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         redisEndpoint: string
     }) {
         this.redis = new Redis(redisEndpoint)
-        this.keyPrefix = getRedisKeys(config).userOpStatusQueue
+        this.keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:userop-status`
         this.ttlSeconds = ttlSeconds
     }
 

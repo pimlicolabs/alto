@@ -1,12 +1,12 @@
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import type { ConflictingOutstandingType, OutstandingStore } from "."
-import type { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "../../createConfig"
 import {
     getNonceKeyAndSequence,
-    isVersion06,
+    isDeployment,
     isVersion07
-} from "../utils/userop"
+} from "../../utils/userop"
+import type { ConflictingOutstandingType, OutstandingStore } from "./types"
 
 const senderNonceSlot = (userOp: UserOperation) => {
     const sender = userOp.sender
@@ -96,26 +96,10 @@ export class MemoryOutstanding implements OutstandingStore {
                 break
             }
 
-            const isConflictingV6Deployment =
-                isVersion06(userOp) &&
-                isVersion06(mempoolUserOp) &&
-                userOp.initCode &&
-                userOp.initCode !== "0x" &&
-                mempoolUserOp.initCode &&
-                mempoolUserOp.initCode !== "0x" &&
-                isSameSender
-
-            const isConflictingV7Deployment =
-                isVersion07(userOp) &&
-                isVersion07(mempoolUserOp) &&
-                userOp.factory &&
-                userOp.factory !== "0x" &&
-                mempoolUserOp.factory &&
-                mempoolUserOp.factory !== "0x" &&
-                isSameSender
-
             const isConflictingDeployment =
-                isConflictingV6Deployment || isConflictingV7Deployment
+                isSameSender &&
+                isDeployment(userOp) &&
+                isDeployment(mempoolUserOp)
 
             if (isConflictingDeployment) {
                 this.remove(userOpInfo.userOpHash)
@@ -137,14 +121,6 @@ export class MemoryOutstanding implements OutstandingStore {
             }
         }
         return false
-    }
-
-    peek(): Promise<UserOpInfo | undefined> {
-        if (this.priorityQueue.length === 0) {
-            return Promise.resolve(undefined)
-        }
-
-        return Promise.resolve(this.priorityQueue[0])
     }
 
     pop(): Promise<UserOpInfo | undefined> {
@@ -323,17 +299,12 @@ export class MemoryOutstanding implements OutstandingStore {
         this.pendingOps.clear()
         return Promise.resolve()
     }
-
-    // Adding findConflicting method to maintain compatibility with Store interface
-    findConflicting(
-        userOp: UserOperation
-    ): Promise<ConflictingOutstandingType> {
-        return Promise.resolve(this.popConflicting(userOp))
-    }
 }
 
 export const createMemoryOutstandingQueue = ({
-    config
-}: { config: AltoConfig }): OutstandingStore => {
+    config,
+    logger
+}: { config: AltoConfig; logger: Logger }): OutstandingStore => {
+    logger.info("Using memory for outstanding mempool")
     return new MemoryOutstanding(config)
 }

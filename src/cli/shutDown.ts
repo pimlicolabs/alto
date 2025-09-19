@@ -19,26 +19,12 @@ async function dropAllOperationsOnShutdown({
     await Promise.all(
         config.entrypoints.map(async (entryPoint) => {
             try {
-                const [outstanding, submitted, processing] = await Promise.all([
-                    mempool.dumpOutstanding(entryPoint),
-                    mempool.dumpSubmittedOps(entryPoint),
-                    mempool.dumpProcessing(entryPoint)
-                ])
+                const outstanding = await mempool.dumpOutstanding(entryPoint)
 
-                const rejectedUserOps = [
-                    ...outstanding.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    })),
-                    ...submitted.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    })),
-                    ...processing.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    }))
-                ]
+                const rejectedUserOps = outstanding.map((userOp) => ({
+                    ...userOp,
+                    reason: "shutdown"
+                }))
 
                 if (rejectedUserOps.length > 0) {
                     await mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -46,9 +32,7 @@ async function dropAllOperationsOnShutdown({
 
                 logger.info(
                     {
-                        outstanding: outstanding.length,
-                        submitted: submitted.length,
-                        processing: processing.length
+                        outstanding: outstanding.length
                     },
                     "[MEMPOOL-RESTORATION] Dropping mempool operations"
                 )
@@ -99,28 +83,18 @@ async function queueOperationsOnShutdownToRedis({
         await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
                 try {
-                    const [outstanding, submitted, processing, pendingBundles] =
-                        await Promise.all([
-                            mempool.dumpOutstanding(entryPoint),
-                            mempool.dumpSubmittedOps(entryPoint),
-                            mempool.dumpProcessing(entryPoint),
-                            bundleManager.getPendingBundles()
-                        ])
+                    const [outstanding, pendingBundles] = await Promise.all([
+                        mempool.dumpOutstanding(entryPoint),
+                        bundleManager.getPendingBundles()
+                    ])
 
-                    if (
-                        outstanding.length > 0 ||
-                        submitted.length > 0 ||
-                        processing.length > 0 ||
-                        pendingBundles.length > 0
-                    ) {
+                    if (outstanding.length > 0 || pendingBundles.length > 0) {
                         await restorationQueue.add({
                             type: "MEMPOOL_DATA",
                             chainId: config.publicClient.chain.id,
                             entryPoint,
                             data: recoverableJsonStringifyWithBigint({
                                 outstanding,
-                                submitted,
-                                processing,
                                 pendingBundles
                             }),
                             timestamp: Date.now()
@@ -129,9 +103,7 @@ async function queueOperationsOnShutdownToRedis({
                     logger.info(
                         {
                             entryPoint,
-                            outstanding: outstanding.length,
-                            submitted: submitted.length,
-                            processing: processing.length
+                            outstanding: outstanding.length
                         },
                         "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
                     )
@@ -313,20 +285,6 @@ export async function restoreShutdownState({
 
                     for (const userOpInfo of data.outstanding) {
                         await mempool.store.addOutstanding({
-                            entryPoint,
-                            userOpInfo
-                        })
-                    }
-
-                    for (const userOpInfo of data.processing) {
-                        await mempool.store.addOutstanding({
-                            entryPoint,
-                            userOpInfo
-                        })
-                    }
-
-                    for (const userOpInfo of data.submitted) {
-                        await mempool.store.addSubmitted({
                             entryPoint,
                             userOpInfo
                         })

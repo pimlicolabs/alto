@@ -8,11 +8,11 @@ export class ArbitrumManager {
 
     constructor({ config }: { config: AltoConfig }) {
         this.l1BaseFeeQueue = createMinMaxQueue({
-            keyPrefix: "l1-base-fee-queue",
+            queueName: "l1-base-fee-queue",
             config
         })
         this.l2BaseFeeQueue = createMinMaxQueue({
-            keyPrefix: "l2-base-fee-queue",
+            queueName: "l2-base-fee-queue",
             config
         })
     }
