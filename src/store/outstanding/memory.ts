@@ -173,7 +173,9 @@ export class MemoryOutstanding implements OutstandingStore {
             })()
 
             if (!backlogOps) {
-                throw new Error("FATAL: No pending operations found for userOpHash")
+                throw new Error(
+                    "FATAL: No pending operations found for userOpHash"
+                )
             }
 
             // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
@@ -195,7 +197,8 @@ export class MemoryOutstanding implements OutstandingStore {
                     const pendingUserOp = userOpInfo.userOp
                     const isSameSender = pendingUserOp.sender === userOp.sender
                     const isSameNonceKey =
-                        getNonceKeyAndSequence(pendingUserOp.nonce)[0] === nonceKey
+                        getNonceKeyAndSequence(pendingUserOp.nonce)[0] ===
+                        nonceKey
 
                     return !(isSameSender && isSameNonceKey)
                 })
