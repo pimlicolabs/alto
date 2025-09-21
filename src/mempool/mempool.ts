@@ -698,13 +698,13 @@ export class Mempool {
         const batchSize = this.config.mempoolPopBatchSize
 
         // Pop batch of ops.
-        let poppedOps = await this.store.popOutstanding(entryPoint, batchSize)
+        const poppedOps = await this.store.popOutstanding(entryPoint, batchSize)
         if (poppedOps.length === 0) {
             return []
         }
 
         // Keep track of unused ops from the batch
-        let unusedOps = [...poppedOps]
+        const unusedOps = [...poppedOps]
 
         while (unusedOps.length > 0) {
             // If maxBundles is set and we reached the limit, put back all unused ops and break.
