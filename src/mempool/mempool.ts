@@ -672,7 +672,6 @@ export class Mempool {
                 return await this.process({
                     entryPoint,
                     maxGasLimit: this.config.maxGasPerBundle,
-                    minOpsPerBundle: 1,
                     maxBundleCount
                 })
             }
@@ -688,12 +687,10 @@ export class Mempool {
     async process({
         maxGasLimit,
         entryPoint,
-        minOpsPerBundle,
         maxBundleCount
     }: {
         maxGasLimit: bigint
         entryPoint: Address
-        minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
         const bundles: UserOperationBundle[] = []
@@ -783,11 +780,8 @@ export class Mempool {
                         privateKeyToAddress(generatePrivateKey())
                 })
 
-                // Only break on gas limit if we've hit minOpsPerBundle.
-                if (
-                    gasUsed > maxGasLimit &&
-                    currentBundle.userOps.length >= minOpsPerBundle
-                ) {
+                // Break on gas limit
+                if (gasUsed > maxGasLimit) {
                     // Put current op back to front of unused for next bundle
                     unusedOps.unshift(currentUserOp)
                     break
@@ -809,18 +803,15 @@ export class Mempool {
 
                 // Add op to current bundle.
                 currentBundle.userOps.push(currentUserOp)
-            }
 
-            // If we need more ops and batch is exhausted, fetch more
-            if (
-                unusedOps.length === 0 &&
-                currentBundle.userOps.length < minOpsPerBundle
-            ) {
-                const morePoppedOps = await this.store.popOutstanding(
-                    entryPoint,
-                    batchSize
-                )
-                unusedOps.push(...morePoppedOps)
+                // Try to fetch more ops if we've exhausted this batch.
+                if (unusedOps.length === 0) {
+                    const morePoppedOps = await this.store.popOutstanding(
+                        entryPoint,
+                        batchSize
+                    )
+                    unusedOps.push(...morePoppedOps)
+                }
             }
 
             if (currentBundle.userOps.length > 0) {
