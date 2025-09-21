@@ -361,7 +361,7 @@ export class Mempool {
                 // Re-add to outstanding as it wasn't replaced
                 await this.store.addOutstanding({
                     entryPoint,
-                    userOpInfo: conflicting.userOpInfo
+                    userOpInfos: [conflicting.userOpInfo]
                 })
 
                 return [false, `${message}, bump the gas price by minimum 10%`]
@@ -380,13 +380,15 @@ export class Mempool {
 
         await this.store.addOutstanding({
             entryPoint,
-            userOpInfo: {
-                userOp,
-                userOpHash,
-                referencedContracts,
-                addedToMempool: Date.now(),
-                submissionAttempts: 0
-            }
+            userOpInfos: [
+                {
+                    userOp,
+                    userOpHash,
+                    referencedContracts,
+                    addedToMempool: Date.now(),
+                    submissionAttempts: 0
+                }
+            ]
         })
 
         await this.monitor.setUserOpStatus(userOpHash, {
@@ -709,10 +711,10 @@ export class Mempool {
         while (unusedOps.length > 0) {
             // If maxBundles is set and we reached the limit, put back all unused ops and break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
-                for (const userOpInfo of unusedOps) {
+                if (unusedOps.length > 0) {
                     await this.store.addOutstanding({
                         entryPoint,
-                        userOpInfo
+                        userOpInfos: unusedOps
                     })
                 }
                 break
@@ -767,7 +769,7 @@ export class Mempool {
                     if (!skipResult.removeOutstanding) {
                         await this.store.addOutstanding({
                             entryPoint,
-                            userOpInfo: currentUserOp
+                            userOpInfos: [currentUserOp]
                         })
                     }
                     // Continue with next op from batch

@@ -283,10 +283,10 @@ export async function restoreShutdownState({
                         "[MEMPOOL-RESTORATION] Received mempool restoration data"
                     )
 
-                    for (const userOpInfo of data.outstanding) {
+                    if (data.outstanding.length > 0) {
                         await mempool.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfos: data.outstanding
                         })
                     }
 

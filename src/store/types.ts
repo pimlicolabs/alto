@@ -18,6 +18,11 @@ export type EntryPointUserOpInfoParam = {
     userOpInfo: UserOpInfo
 }
 
+export type EntryPointUserOpInfosParam = {
+    entryPoint: Address
+    userOpInfos: UserOpInfo[]
+}
+
 export type EntryPointUserOpHashParam = {
     entryPoint: Address
     userOpHash: HexData32
@@ -32,7 +37,7 @@ export type MempoolStore = {
     ) => Promise<UserOpInfo[]>
 
     // Methods for state handling.
-    addOutstanding: (args: EntryPointUserOpInfoParam) => Promise<void>
+    addOutstanding: (args: EntryPointUserOpInfosParam) => Promise<void>
     removeOutstanding: (args: EntryPointUserOpHashParam) => Promise<void>
     dumpOutstanding: (entryPoint: Address) => Promise<UserOpInfo[]>
 

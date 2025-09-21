@@ -112,26 +112,30 @@ class RedisOutstandingQueue implements OutstandingStore {
         return undefined
     }
 
-    async add(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOp } = userOpInfo
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-
-        // Create composite score: nonceSequence in upper 32 bits, maxFeePerGas in lower 32 bits
-        const score =
-            (nonceSequence << 32n) | (userOp.maxFeePerGas & 0xffffffffn)
-
-        // Serialize userOpInfo for storage
-        const serialized = serializeUserOpInfo(userOpInfo)
+    async add(userOpInfos: UserOpInfo[]): Promise<void> {
+        if (userOpInfos.length === 0) return
 
         // Use pipeline for atomic operations
         const pipeline = this.redis.pipeline()
 
-        // Add to main ready queue
-        pipeline.zadd(this.readyQueueKey, Number(score), serialized)
+        for (const userOpInfo of userOpInfos) {
+            const { userOp } = userOpInfo
+            const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
 
-        // Add to sender+nonceKey index for fast lookup
-        const senderIndexKey = `${this.senderIndexPrefix}:${userOp.sender}:${nonceKey}`
-        pipeline.zadd(senderIndexKey, Number(nonceSequence), serialized)
+            // Create composite score: nonceSequence in upper 32 bits, maxFeePerGas in lower 32 bits
+            const score =
+                (nonceSequence << 32n) | (userOp.maxFeePerGas & 0xffffffffn)
+
+            // Serialize userOpInfo for storage
+            const serialized = serializeUserOpInfo(userOpInfo)
+
+            // Add to main ready queue
+            pipeline.zadd(this.readyQueueKey, Number(score), serialized)
+
+            // Add to sender+nonceKey index for fast lookup
+            const senderIndexKey = `${this.senderIndexPrefix}:${userOp.sender}:${nonceKey}`
+            pipeline.zadd(senderIndexKey, Number(nonceSequence), serialized)
+        }
 
         await pipeline.exec()
     }

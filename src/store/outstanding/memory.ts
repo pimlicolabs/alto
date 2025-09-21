@@ -155,49 +155,53 @@ export class MemoryOutstanding implements OutstandingStore {
         return Promise.resolve(results)
     }
 
-    async add(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOp, userOpHash } = userOpInfo
-        const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOpsSlot = senderNonceSlot(userOp)
+    async add(userOpInfos: UserOpInfo[]): Promise<void> {
+        if (userOpInfos.length === 0) return
 
-        const backlogOps = (() => {
-            if (this.pendingOps.has(pendingOpsSlot)) {
+        for (const userOpInfo of userOpInfos) {
+            const { userOp, userOpHash } = userOpInfo
+            const [nonceKey] = getNonceKeyAndSequence(userOp.nonce)
+            const pendingOpsSlot = senderNonceSlot(userOp)
+
+            const backlogOps = (() => {
+                if (this.pendingOps.has(pendingOpsSlot)) {
+                    return this.pendingOps.get(pendingOpsSlot)
+                }
+
+                this.pendingOps.set(pendingOpsSlot, [])
                 return this.pendingOps.get(pendingOpsSlot)
+            })()
+
+            if (!backlogOps) {
+                throw new Error("FATAL: No pending operations found for userOpHash")
             }
 
-            this.pendingOps.set(pendingOpsSlot, [])
-            return this.pendingOps.get(pendingOpsSlot)
-        })()
+            // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
+            backlogOps.push(userOpInfo)
 
-        if (!backlogOps) {
-            throw new Error("FATAL: No pending operations found for userOpHash")
-        }
+            backlogOps
+                .map((sop) => sop.userOp)
+                .sort((a, b) => {
+                    const [, aNonceSeq] = getNonceKeyAndSequence(a.nonce)
+                    const [, bNonceSeq] = getNonceKeyAndSequence(b.nonce)
+                    return Number(aNonceSeq) - Number(bNonceSeq)
+                })
 
-        // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
-        backlogOps.push(userOpInfo)
+            const lowestUserOpHash = backlogOps[0].userOpHash
 
-        backlogOps
-            .map((sop) => sop.userOp)
-            .sort((a, b) => {
-                const [, aNonceSeq] = getNonceKeyAndSequence(a.nonce)
-                const [, bNonceSeq] = getNonceKeyAndSequence(b.nonce)
-                return Number(aNonceSeq) - Number(bNonceSeq)
-            })
+            // If lowest, remove any existing userOp with same sender and nonceKey and add current userOp to priorityQueue.
+            if (lowestUserOpHash === userOpHash) {
+                this.priorityQueue = this.priorityQueue.filter((userOpInfo) => {
+                    const pendingUserOp = userOpInfo.userOp
+                    const isSameSender = pendingUserOp.sender === userOp.sender
+                    const isSameNonceKey =
+                        getNonceKeyAndSequence(pendingUserOp.nonce)[0] === nonceKey
 
-        const lowestUserOpHash = backlogOps[0].userOpHash
+                    return !(isSameSender && isSameNonceKey)
+                })
 
-        // If lowest, remove any existing userOp with same sender and nonceKey and add current userOp to priorityQueue.
-        if (lowestUserOpHash === userOpHash) {
-            this.priorityQueue = this.priorityQueue.filter((userOpInfo) => {
-                const pendingUserOp = userOpInfo.userOp
-                const isSameSender = pendingUserOp.sender === userOp.sender
-                const isSameNonceKey =
-                    getNonceKeyAndSequence(pendingUserOp.nonce)[0] === nonceKey
-
-                return !(isSameSender && isSameNonceKey)
-            })
-
-            this.addToPriorityQueue(userOpInfo)
+                this.addToPriorityQueue(userOpInfo)
+            }
         }
     }
 

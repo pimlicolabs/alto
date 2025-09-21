@@ -1,6 +1,7 @@
 import {
     type EntryPointUserOpHashParam,
     type EntryPointUserOpInfoParam,
+    type EntryPointUserOpInfosParam,
     type MempoolStore,
     type OutstandingStore,
     type ProcessingStore,
@@ -113,12 +114,14 @@ export const createMempoolStore = ({
         // State handling
         addOutstanding: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             const { outstanding } = getStoreHandlers(entryPoint)
-            metrics.userOpsInMempool.labels({ status: "outstanding" }).inc()
+            metrics.userOpsInMempool
+                .labels({ status: "outstanding" })
+                .inc(userOpInfos.length)
             try {
-                await outstanding.add(userOpInfo)
+                await outstanding.add(userOpInfos)
             } catch (err) {
                 logger.error({ err }, "Failed to add to outstanding mempool")
                 sentry.captureException(err)
