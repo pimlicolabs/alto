@@ -123,32 +123,36 @@ export class MemoryOutstanding implements OutstandingStore {
         return false
     }
 
-    pop(): Promise<UserOpInfo | undefined> {
-        const userOpInfo = this.priorityQueue.shift()
+    pop(count: number): Promise<UserOpInfo[]> {
+        const results: UserOpInfo[] = []
 
-        if (!userOpInfo) {
-            return Promise.resolve(undefined)
+        for (let i = 0; i < count; i++) {
+            const userOpInfo = this.priorityQueue.shift()
+
+            if (!userOpInfo) {
+                break
+            }
+
+            const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
+            const backlogOps = this.pendingOps.get(pendingOpsSlot)
+
+            // This should never throw.
+            if (!backlogOps?.shift()) {
+                throw new Error("FATAL: No pending userOps for sender")
+            }
+
+            // Move next pending userOp into priorityQueue if exist.
+            if (backlogOps.length > 0) {
+                this.addToPriorityQueue(backlogOps[0])
+            } else {
+                // Cleanup if no more ops for this slot
+                this.pendingOps.delete(pendingOpsSlot)
+            }
+
+            results.push(userOpInfo)
         }
 
-        const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
-        const backlogOps = this.pendingOps.get(pendingOpsSlot)
-
-        // This should never throw.
-        if (!backlogOps?.shift()) {
-            throw new Error("FATAL: No pending userOps for sender")
-        }
-
-        // Move next pending userOp into priorityQueue if exist.
-        if (backlogOps.length > 0) {
-            this.addToPriorityQueue(backlogOps[0])
-        }
-
-        // Cleanup.
-        if (backlogOps.length === 0) {
-            this.pendingOps.delete(pendingOpsSlot)
-        }
-
-        return Promise.resolve(userOpInfo)
+        return Promise.resolve(results)
     }
 
     async add(userOpInfo: UserOpInfo): Promise<void> {

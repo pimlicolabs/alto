@@ -9,7 +9,7 @@ export type ConflictingOutstandingType =
 
 export interface OutstandingStore {
     contains(userOpHash: HexData32): Promise<boolean>
-    pop(): Promise<UserOpInfo | undefined>
+    pop(count: number): Promise<UserOpInfo[]>
     popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType>
     add(userOpInfo: UserOpInfo): Promise<void>
     remove(userOpHash: HexData32): Promise<boolean>

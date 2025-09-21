@@ -96,17 +96,17 @@ export const createMempoolStore = ({
 
     return {
         // Methods used for bundling
-        popOutstanding: async (entryPoint: Address) => {
+        popOutstanding: async (entryPoint: Address, count: number) => {
             try {
                 const { outstanding } = getStoreHandlers(entryPoint)
-                return await outstanding.pop()
+                return await outstanding.pop(count)
             } catch (err) {
                 logger.error(
                     { err },
-                    "Failed to pop from outstanding mempool, defaulting to undefined"
+                    "Failed to pop from outstanding mempool, defaulting to empty array"
                 )
                 sentry.captureException(err)
-                return undefined
+                return []
             }
         },
 

@@ -299,6 +299,7 @@ export const mempoolArgsSchema = z.object({
         .default(30 * 60 * 1000), // Default 30 minutes
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
+    "mempool-pop-batch-size": z.number().int().min(1).default(10),
     "enforce-unique-senders-per-bundle": z.boolean().default(true)
 })
 

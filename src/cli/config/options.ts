@@ -185,6 +185,13 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: 0
     },
+    "mempool-pop-batch-size": {
+        description:
+            "Number of user operations to pop from the mempool at once for bundling",
+        type: "number",
+        require: false,
+        default: 10
+    },
     "enforce-unique-senders-per-bundle": {
         description:
             "Include user ops with the same sender in the single bundle",

@@ -26,7 +26,10 @@ export type EntryPointUserOpHashParam = {
 // biome-ignore lint/complexity/noBannedTypes: <explanation>
 export type MempoolStore = {
     // Methods used for bundling.
-    popOutstanding: (entryPoint: Address) => Promise<UserOpInfo | undefined>
+    popOutstanding: (
+        entryPoint: Address,
+        count: number
+    ) => Promise<UserOpInfo[]>
 
     // Methods for state handling.
     addOutstanding: (args: EntryPointUserOpInfoParam) => Promise<void>

@@ -57,15 +57,21 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.senderIndexPrefix = `${redisPrefix}:sender`
 
         // Register Lua script for atomic pop operation with index cleanup
-        this.redis.defineCommand("popUserOp", {
+        this.redis.defineCommand("popUserOps", {
             numberOfKeys: 2,
             lua: `
                 local readyQueueKey = KEYS[1]
                 local indexPrefix = KEYS[2]
+                local count = tonumber(ARGV[1])
 
-                local result = redis.call('ZPOPMAX', readyQueueKey)
-                if result[1] then
-                    local serialized = result[1]
+                local results = redis.call('ZPOPMAX', readyQueueKey, count)
+                if #results == 0 then
+                    return {}
+                end
+
+                local userOps = {}
+                for i = 1, #results, 2 do
+                    local serialized = results[i]
                     local parsed = cjson.decode(serialized)
 
                     -- Extract sender, nonceKey, and nonceSequence from the enhanced data
@@ -82,9 +88,10 @@ class RedisOutstandingQueue implements OutstandingStore {
                         redis.call('DEL', senderIndexKey)
                     end
 
-                    return serialized
+                    table.insert(userOps, serialized)
                 end
-                return nil
+
+                return userOps
             `
         })
 
@@ -133,15 +140,16 @@ class RedisOutstandingQueue implements OutstandingStore {
         return false
     }
 
-    async pop(): Promise<UserOpInfo | undefined> {
+    async pop(count: number): Promise<UserOpInfo[]> {
         // Use atomic Lua script for pop operation with index cleanup
         // @ts-ignore - defineCommand adds the method at runtime
-        const result = (await this.redis.popUserOp(
+        const results = (await this.redis.popUserOps(
             this.readyQueueKey,
-            this.senderIndexPrefix
-        )) as string | null
+            this.senderIndexPrefix,
+            count
+        )) as string[]
 
-        return result ? deserializeUserOpInfo(result) : undefined
+        return results.map((data) => deserializeUserOpInfo(data))
     }
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
