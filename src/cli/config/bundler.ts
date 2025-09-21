@@ -91,6 +91,7 @@ export const bundlerArgsSchema = z.object({
 })
 
 export const executorArgsSchema = z.object({
+    "max-bundle-count": z.number().int().min(1).optional(),
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "refilling-wallets": z.boolean().default(true),
     "refill-helper-contract": addressSchema.optional(),

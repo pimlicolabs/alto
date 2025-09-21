@@ -341,6 +341,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
+    "max-bundle-count": {
+        description:
+            "Maximum number of bundles to create in a single bundling round",
+        type: "number",
+        require: false
+    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",

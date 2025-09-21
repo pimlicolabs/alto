@@ -89,7 +89,9 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const bundles = await this.mempool.getBundles()
+        const bundles = await this.mempool.getBundles(
+            this.config.maxBundleCount
+        )
 
         if (bundles.length > 0) {
             // Count total ops and add timestamps
