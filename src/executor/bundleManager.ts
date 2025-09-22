@@ -212,10 +212,15 @@ export class BundleManager {
                 if (status === "not_found") {
                     const { userOpHash } = userOpInfo
 
-                    await this.monitor.setUserOpStatus(userOpHash, {
-                        status: "failed",
-                        transactionHash
-                    })
+                    await this.monitor.setUserOpStatusBatch([
+                        {
+                            userOpHash,
+                            status: {
+                                status: "failed",
+                                transactionHash
+                            }
+                        }
+                    ])
 
                     this.eventManager.emitFailedOnChain(
                         userOpHash,
@@ -391,10 +396,15 @@ export class BundleManager {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "included",
-                    transactionHash
-                })
+                await this.monitor.setUserOpStatusBatch([
+                    {
+                        userOpHash,
+                        status: {
+                            status: "included",
+                            transactionHash
+                        }
+                    }
+                ])
 
                 this.eventManager.emitFrontranOnChain(
                     userOpHash,

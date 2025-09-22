@@ -164,10 +164,15 @@ export class Mempool {
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "rejected",
-                    transactionHash: null
-                })
+                await this.monitor.setUserOpStatusBatch([
+                    {
+                        userOpHash,
+                        status: {
+                            status: "rejected",
+                            transactionHash: null
+                        }
+                    }
+                ])
                 this.logger.warn(
                     {
                         userOperation: jsonStringifyWithBigint(userOp),
@@ -390,10 +395,15 @@ export class Mempool {
             ]
         })
 
-        await this.monitor.setUserOpStatus(userOpHash, {
-            status: "not_submitted",
-            transactionHash: null
-        })
+        await this.monitor.setUserOpStatusBatch([
+            {
+                userOpHash,
+                status: {
+                    status: "not_submitted",
+                    transactionHash: null
+                }
+            }
+        ])
 
         this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]

@@ -143,14 +143,7 @@ export class Monitor {
         }
     }
 
-    public async setUserOpStatus(
-        userOpHash: HexData32,
-        status: UserOperationStatus
-    ): Promise<void> {
-        await this.setUserOpStatusBatch([{ userOpHash, status }])
-    }
-
-    private async setUserOpStatusBatch(
+    public async setUserOpStatusBatch(
         statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
     ): Promise<void> {
         // Clear existing timers and set new ones for in-memory storage
