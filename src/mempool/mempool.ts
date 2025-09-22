@@ -720,7 +720,7 @@ export class Mempool {
                 break
             }
 
-            // Peek next op from unused batch.
+            // Peek next userOp from unused batch.
             const nextUserOp = unusedUserOps[0]
             if (!nextUserOp) break
 
