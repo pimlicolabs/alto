@@ -24,7 +24,7 @@ export const createOutstandingQueue = ({
             logger
         })
     }
-    return createMemoryOutstandingQueue({ config, logger })
+    return createMemoryOutstandingQueue({ config, entryPoint, logger })
 }
 
 export * from "./types"

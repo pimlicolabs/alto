@@ -5,12 +5,13 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
-import { getNonceKeyAndSequence } from "@alto/utils"
+import { getNonceKeyAndSequence, getUserOpHash } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
 import { toHex } from "viem/utils"
 import type { AltoConfig } from "../../createConfig"
 import type { OutstandingStore } from "./types"
+import { PublicClient } from "viem"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     const [nonceKey, nonceSequence] = getNonceKeyAndSequence(
@@ -34,6 +35,11 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
 class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
 
+    // Args for getting userOpHash
+    private entryPointAddress: Address
+    private chainId: number
+    private publicClient: PublicClient
+
     // Redis key names
     private readyQueueKey: string
     private senderIndexPrefix: string
@@ -50,6 +56,11 @@ class RedisOutstandingQueue implements OutstandingStore {
         logger: Logger
     }) {
         this.redis = new Redis(redisEndpoint, {})
+
+        // Setup args for getting userOpHash.
+        this.entryPointAddress = entryPoint
+        this.chainId = config.chainId
+        this.publicClient = config.publicClient
 
         // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
@@ -104,8 +115,30 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    async contains(_userOpHash: HexData32): Promise<boolean> {
-        return false
+    async contains(userOp: UserOperation): Promise<boolean> {
+        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
+        const senderIndexKey = `${this.senderIndexPrefix}:${userOp.sender}:${nonceKey}`
+
+        // Get the userOp at this nonce sequence
+        const serializedOps = await this.redis.zrangebyscore(
+            senderIndexKey,
+            Number(nonceSequence),
+            Number(nonceSequence)
+        )
+
+        if (serializedOps.length === 0) {
+            return false
+        }
+
+        // Deserialize and check if the hash matches
+        const storedUserOpInfo = deserializeUserOpInfo(serializedOps[0])
+        const userOpHash = getUserOpHash({
+            userOp,
+            entryPointAddress: this.entryPointAddress,
+            chainId: this.chainId,
+            publicClient: this.publicClient
+        })
+        return storedUserOpInfo.userOpHash === userOpHash
     }
 
     async popConflicting(_userOp: UserOperation) {

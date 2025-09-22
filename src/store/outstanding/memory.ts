@@ -1,8 +1,10 @@
-import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { Address, HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
+import type { PublicClient } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import {
     getNonceKeyAndSequence,
+    getUserOpHash,
     isDeployment,
     isVersion07
 } from "../../utils/userop"
@@ -19,7 +21,19 @@ export class MemoryOutstanding implements OutstandingStore {
     private priorityQueue: UserOpInfo[] = []
     private logger: Logger
 
-    constructor(private config: AltoConfig) {
+    // Args for getting userOpHash
+    private entryPointAddress: Address
+    private chainId: number
+    private publicClient: PublicClient
+
+    constructor(
+        private config: AltoConfig,
+        entryPoint: Address
+    ) {
+        // Setup args for getting userOpHash
+        this.entryPointAddress = entryPoint
+        this.chainId = config.chainId
+        this.publicClient = config.publicClient
         this.logger = config.getLogger(
             { module: "memory-outstanding-queue" },
             {
@@ -114,12 +128,32 @@ export class MemoryOutstanding implements OutstandingStore {
         return Promise.resolve(conflictingReason)
     }
 
-    async contains(userOpHash: HexData32): Promise<boolean> {
-        for (const userOpInfos of this.pendingOps.values()) {
-            if (userOpInfos.some((info) => info.userOpHash === userOpHash)) {
-                return true
+    async contains(userOp: UserOperation): Promise<boolean> {
+        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
+        const pendingOpsSlot = `${userOp.sender}-${nonceKey}`
+
+        const backlogOps = this.pendingOps.get(pendingOpsSlot)
+        if (!backlogOps) {
+            return false
+        }
+
+        // Check if there's a userOp at this exact nonce sequence
+        for (const userOpInfo of backlogOps) {
+            const [, opNonceSequence] = getNonceKeyAndSequence(
+                userOpInfo.userOp.nonce
+            )
+            if (opNonceSequence === nonceSequence) {
+                // Found a userOp at this nonce, check if it's the same by comparing hashes
+                const userOpHash = getUserOpHash({
+                    userOp,
+                    entryPointAddress: this.entryPointAddress,
+                    chainId: this.chainId,
+                    publicClient: this.publicClient
+                })
+                return userOpInfo.userOpHash === userOpHash
             }
         }
+
         return false
     }
 
@@ -314,8 +348,13 @@ export class MemoryOutstanding implements OutstandingStore {
 
 export const createMemoryOutstandingQueue = ({
     config,
+    entryPoint,
     logger
-}: { config: AltoConfig; logger: Logger }): OutstandingStore => {
+}: {
+    config: AltoConfig
+    entryPoint: Address
+    logger: Logger
+}): OutstandingStore => {
     logger.info("Using memory for outstanding mempool")
-    return new MemoryOutstanding(config)
+    return new MemoryOutstanding(config, entryPoint)
 }
