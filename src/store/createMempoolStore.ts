@@ -190,7 +190,7 @@ export const createMempoolStore = ({
             // Run all checks in parallel for better performance.
             const [isInOutstanding, isInProcessing, wouldConflict] =
                 await Promise.all([
-                    outstanding.contains(userOpHash),
+                    outstanding.contains(userOp),
                     processing.isProcessing(userOpHash),
                     processing.wouldConflict(userOp)
                 ])
