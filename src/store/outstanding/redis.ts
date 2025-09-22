@@ -8,7 +8,6 @@ import {
 import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
-import type { PublicClient } from "viem"
 import { toHex } from "viem/utils"
 import type { AltoConfig } from "../../createConfig"
 import type { OutstandingStore } from "./types"
