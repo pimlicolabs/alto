@@ -369,7 +369,10 @@ export class BundleManager {
 
                 // Cache the receipt
                 await this.receiptCache.setBatch([
-                    { userOpHash: userOpInfo.userOpHash, receipt: userOpReceipt }
+                    {
+                        userOpHash: userOpInfo.userOpHash,
+                        receipt: userOpReceipt
+                    }
                 ])
 
                 await this.processIncludedUserOpsBatch(
@@ -559,7 +562,9 @@ export class BundleManager {
         const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
-        await this.receiptCache.setBatch([{ userOpHash, receipt: userOpReceipt }])
+        await this.receiptCache.setBatch([
+            { userOpHash, receipt: userOpReceipt }
+        ])
 
         return userOpReceipt
     }
