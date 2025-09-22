@@ -66,23 +66,27 @@ export const createRedisReceiptCache = ({
             }
         },
 
-        set: async (
-            userOpHash: Hex,
-            receipt: UserOperationReceipt
+        setBatch: async (
+            receipts: { userOpHash: Hex; receipt: UserOperationReceipt }[]
         ): Promise<void> => {
             try {
-                const key = getKey(userOpHash)
-                const serialized = serializeReceipt(receipt)
+                const pipeline = redis.pipeline()
+                const ttlSeconds = Math.floor(ttl / 1000)
 
-                // Set with TTL in seconds
+                for (const { userOpHash, receipt } of receipts) {
+                    const key = getKey(userOpHash)
+                    const serialized = serializeReceipt(receipt)
+                    pipeline.setex(key, ttlSeconds, serialized)
+                }
+
                 await asyncCallWithTimeout(
-                    redis.setex(key, Math.floor(ttl / 1000), serialized),
-                    REDIS_TIMEOUT
+                    pipeline.exec(),
+                    REDIS_TIMEOUT * Math.max(2, receipts.length / 10)
                 )
             } catch (err) {
                 logger.error(
-                    { err, userOpHash },
-                    "Failed to set receipt in Redis"
+                    { err, count: receipts.length },
+                    "Failed to set receipt batch in Redis"
                 )
                 sentry.captureException(err)
             }

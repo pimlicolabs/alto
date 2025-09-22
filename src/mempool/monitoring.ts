@@ -4,7 +4,9 @@ import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {
-    set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>
+    setBatch(
+        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+    ): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
 }
@@ -12,8 +14,12 @@ interface UserOperationStatusStore {
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
-    set(userOpHash: HexData32, status: UserOperationStatus) {
-        this.store[userOpHash] = status
+    setBatch(
+        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+    ) {
+        for (const { userOpHash, status } of statuses) {
+            this.store[userOpHash] = status
+        }
         return Promise.resolve()
     }
 
@@ -83,14 +89,20 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         }
     }
 
-    async set(
-        userOpHash: HexData32,
-        status: UserOperationStatus
+    async setBatch(
+        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
     ): Promise<void> {
-        const key = this.getKey(userOpHash)
-        const serialized = this.serialize(status)
+        if (statuses.length === 0) return
 
-        await this.redis.set(key, serialized, "EX", this.ttlSeconds)
+        const pipeline = this.redis.pipeline()
+
+        for (const { userOpHash, status } of statuses) {
+            const key = this.getKey(userOpHash)
+            const serialized = this.serialize(status)
+            pipeline.set(key, serialized, "EX", this.ttlSeconds)
+        }
+
+        await pipeline.exec()
     }
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
@@ -135,25 +147,32 @@ export class Monitor {
         userOpHash: HexData32,
         status: UserOperationStatus
     ): Promise<void> {
-        // Clear existing timer if it exists
-        if (this.userOpTimeouts[userOpHash]) {
-            clearTimeout(this.userOpTimeouts[userOpHash])
+        await this.setUserOpStatusBatch([{ userOpHash, status }])
+    }
+
+    private async setUserOpStatusBatch(
+        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+    ): Promise<void> {
+        // Clear existing timers and set new ones for in-memory storage
+        if (!this.isUsingRedis) {
+            for (const { userOpHash } of statuses) {
+                if (this.userOpTimeouts[userOpHash]) {
+                    clearTimeout(this.userOpTimeouts[userOpHash])
+                }
+            }
         }
 
-        // Set the user operation status
-        await this.statusStore.set(userOpHash, status)
+        // Set the user operation statuses
+        await this.statusStore.setBatch(statuses)
 
         // For in-memory storage, we need to manually prune statuses
         if (!this.isUsingRedis) {
-            // Clear existing timer if it exists
-            if (this.userOpTimeouts[userOpHash]) {
-                clearTimeout(this.userOpTimeouts[userOpHash])
+            for (const { userOpHash } of statuses) {
+                this.userOpTimeouts[userOpHash] = setTimeout(async () => {
+                    await this.statusStore.delete(userOpHash)
+                    delete this.userOpTimeouts[userOpHash]
+                }, this.timeout) as NodeJS.Timeout
             }
-
-            this.userOpTimeouts[userOpHash] = setTimeout(async () => {
-                await this.statusStore.delete(userOpHash)
-                delete this.userOpTimeouts[userOpHash]
-            }, this.timeout) as NodeJS.Timeout
         }
     }
 

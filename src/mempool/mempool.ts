@@ -90,15 +90,14 @@ export class Mempool {
         userOps: UserOpInfo[]
         transactionHash: Hex
     }) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "submitted",
-                    transactionHash
-                })
-            })
-        )
+        const statusUpdates = userOps.map((userOpInfo) => ({
+            userOpHash: userOpInfo.userOpHash,
+            status: {
+                status: "submitted" as const,
+                transactionHash
+            }
+        }))
+        await this.monitor.setUserOpStatusBatch(statusUpdates)
 
         this.metrics.userOpsSubmitted
             .labels({ status: "success" })
