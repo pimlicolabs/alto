@@ -5,7 +5,7 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
-import { getNonceKeyAndSequence } from "@alto/utils"
+import { getNonceKeyAndSequence, isDeployment } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { PublicClient } from "viem"
@@ -39,6 +39,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private readyQueueKey: string
     private senderIndexPrefix: string
     private hashLookupKey: string
+    private deploymentSendersKey: string // Hash: sender -> deployment userOpHash
 
     constructor({
         config,
@@ -58,14 +59,16 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.readyQueueKey = `${redisPrefix}:ready-queue`
         this.senderIndexPrefix = `${redisPrefix}:sender`
         this.hashLookupKey = `${redisPrefix}:hash-lookup`
+        this.deploymentSendersKey = `${redisPrefix}:deployment-senders`
 
         // Register Lua script for atomic remove operation
         this.redis.defineCommand("removeUserOp", {
-            numberOfKeys: 3,
+            numberOfKeys: 4,
             lua: `
                 local readyQueueKey = KEYS[1]
                 local indexPrefix = KEYS[2]
                 local hashLookupKey = KEYS[3]
+                local deploymentSendersKey = KEYS[4]
                 local userOpHash = ARGV[1]
 
                 -- Get serialized data from hash lookup
@@ -79,6 +82,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                 local sender = parsed.userOp.sender
                 local nonceKey = parsed._nonceKey
                 local nonceSequence = parsed._nonceSequence
+                local isDeploymentOp = parsed.userOp.factory ~= nil
 
                 -- Remove from ready queue
                 local removed1 = redis.call('ZREM', readyQueueKey, serialized)
@@ -95,17 +99,23 @@ class RedisOutstandingQueue implements OutstandingStore {
                 -- Remove from hash lookup
                 redis.call('HDEL', hashLookupKey, userOpHash)
 
+                -- Remove sender from deployment hash if this was a deployment
+                if isDeploymentOp then
+                    redis.call('HDEL', deploymentSendersKey, sender)
+                end
+
                 return removed1 > 0 and 1 or 0
             `
         })
 
         // Register Lua script for atomic pop operation with index cleanup
         this.redis.defineCommand("popUserOps", {
-            numberOfKeys: 3,
+            numberOfKeys: 4,
             lua: `
                 local readyQueueKey = KEYS[1]
                 local indexPrefix = KEYS[2]
                 local hashLookupKey = KEYS[3]
+                local deploymentSendersKey = KEYS[4]
                 local count = tonumber(ARGV[1])
 
                 local results = redis.call('ZPOPMAX', readyQueueKey, count)
@@ -123,6 +133,7 @@ class RedisOutstandingQueue implements OutstandingStore {
                     local nonceKey = parsed._nonceKey
                     local nonceSequence = parsed._nonceSequence
                     local userOpHash = parsed.userOpHash
+                    local isDeploymentOp = parsed.userOp.factory ~= nil
 
                     -- Clean up the sender+nonceKey index using score
                     local senderIndexKey = indexPrefix .. ':' .. sender .. ':' .. nonceKey
@@ -135,6 +146,11 @@ class RedisOutstandingQueue implements OutstandingStore {
 
                     -- Remove from hash lookup
                     redis.call('HDEL', hashLookupKey, userOpHash)
+
+                    -- Remove sender from deployment hash if this was a deployment
+                    if isDeploymentOp then
+                        redis.call('HDEL', deploymentSendersKey, sender)
+                    end
 
                     table.insert(userOps, serialized)
                 end
@@ -153,12 +169,66 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     // OutstandingStore methods
     async contains(userOpHash: HexData32): Promise<boolean> {
-        // O(1) lookup using hash index
         const exists = await this.redis.hexists(this.hashLookupKey, userOpHash)
         return exists === 1
     }
 
-    async popConflicting(_userOp: UserOperation) {
+    async popConflicting(userOp: UserOperation) {
+        const { sender, nonce } = userOp
+        const [nonceKey, nonceSeq] = getNonceKeyAndSequence(nonce)
+
+        // Check for conflicting nonce
+        const senderIndexKey = `${this.senderIndexPrefix}:${sender}:${nonceKey}`
+        const conflictingOps = await this.redis.zrangebyscore(
+            senderIndexKey,
+            Number(nonceSeq),
+            Number(nonceSeq)
+        )
+
+        if (conflictingOps.length > 0) {
+            const conflictingUserOpInfo = deserializeUserOpInfo(
+                conflictingOps[0]
+            )
+            const removed = await this.remove(conflictingUserOpInfo.userOpHash)
+
+            if (removed) {
+                return {
+                    reason: "conflicting_nonce" as const,
+                    userOpInfo: conflictingUserOpInfo
+                }
+            }
+        }
+
+        // Check for conflicting deployment
+        if (isDeployment(userOp)) {
+            // O(1) lookup to get the deployment userOpHash for this sender
+            const existingDeploymentHash = (await this.redis.hget(
+                this.deploymentSendersKey,
+                sender
+            )) as HexData32 | null
+
+            if (existingDeploymentHash) {
+                // Get the serialized userOpInfo from hash lookup
+                const serialized = await this.redis.hget(
+                    this.hashLookupKey,
+                    existingDeploymentHash
+                )
+
+                if (serialized) {
+                    const conflictingUserOpInfo =
+                        deserializeUserOpInfo(serialized)
+                    const removed = await this.remove(existingDeploymentHash)
+
+                    if (removed) {
+                        return {
+                            reason: "conflicting_deployment" as const,
+                            userOpInfo: conflictingUserOpInfo
+                        }
+                    }
+                }
+            }
+        }
+
         return undefined
     }
 
@@ -190,6 +260,15 @@ class RedisOutstandingQueue implements OutstandingStore {
 
             // Add to hash lookup for O(1) contains and remove operations
             pipeline.hset(this.hashLookupKey, userOpInfo.userOpHash, serialized)
+
+            // Add sender to deployment hash if this is a deployment
+            if (isDeployment(userOp)) {
+                pipeline.hset(
+                    this.deploymentSendersKey,
+                    userOp.sender,
+                    userOpInfo.userOpHash
+                )
+            }
         }
 
         await pipeline.exec()
@@ -202,6 +281,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             this.readyQueueKey,
             this.senderIndexPrefix,
             this.hashLookupKey,
+            this.deploymentSendersKey,
             userOpHash
         )
 
@@ -215,6 +295,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             this.readyQueueKey,
             this.senderIndexPrefix,
             this.hashLookupKey,
+            this.deploymentSendersKey,
             count
         )) as string[]
 
