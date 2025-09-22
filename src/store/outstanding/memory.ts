@@ -1,10 +1,8 @@
-import type { Address, HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import type { PublicClient } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import {
     getNonceKeyAndSequence,
-    getUserOpHash,
     isDeployment,
     isVersion07
 } from "../../utils/userop"
@@ -19,21 +17,11 @@ const senderNonceSlot = (userOp: UserOperation) => {
 export class MemoryOutstanding implements OutstandingStore {
     private pendingOps: Map<string, UserOpInfo[]> = new Map()
     private priorityQueue: UserOpInfo[] = []
+    private hashLookup: Map<HexData32, UserOpInfo> = new Map()
     private logger: Logger
 
-    // Args for getting userOpHash
-    private entryPointAddress: Address
-    private chainId: number
-    private publicClient: PublicClient
-
-    constructor(
-        private config: AltoConfig,
-        entryPoint: Address
-    ) {
+    constructor(private config: AltoConfig) {
         // Setup args for getting userOpHash
-        this.entryPointAddress = entryPoint
-        this.chainId = config.chainId
-        this.publicClient = config.publicClient
         this.logger = config.getLogger(
             { module: "memory-outstanding-queue" },
             {
@@ -128,33 +116,8 @@ export class MemoryOutstanding implements OutstandingStore {
         return Promise.resolve(conflictingReason)
     }
 
-    async contains(userOp: UserOperation): Promise<boolean> {
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const pendingOpsSlot = `${userOp.sender}-${nonceKey}`
-
-        const backlogOps = this.pendingOps.get(pendingOpsSlot)
-        if (!backlogOps) {
-            return false
-        }
-
-        // Check if there's a userOp at this exact nonce sequence
-        for (const userOpInfo of backlogOps) {
-            const [, opNonceSequence] = getNonceKeyAndSequence(
-                userOpInfo.userOp.nonce
-            )
-            if (opNonceSequence === nonceSequence) {
-                // Found a userOp at this nonce, check if it's the same by comparing hashes
-                const userOpHash = getUserOpHash({
-                    userOp,
-                    entryPointAddress: this.entryPointAddress,
-                    chainId: this.chainId,
-                    publicClient: this.publicClient
-                })
-                return userOpInfo.userOpHash === userOpHash
-            }
-        }
-
-        return false
+    async contains(userOpHash: HexData32): Promise<boolean> {
+        return this.hashLookup.has(userOpHash)
     }
 
     pop(count: number): Promise<UserOpInfo[]> {
@@ -182,6 +145,9 @@ export class MemoryOutstanding implements OutstandingStore {
                 // Cleanup if no more ops for this slot
                 this.pendingOps.delete(pendingOpsSlot)
             }
+
+            // Remove from hash lookup
+            this.hashLookup.delete(userOpInfo.userOpHash)
 
             results.push(userOpInfo)
         }
@@ -214,6 +180,9 @@ export class MemoryOutstanding implements OutstandingStore {
 
             // Note: the userOpInfo is always added to backlogOps, because we are pushing to a reference
             backlogOps.push(userOpInfo)
+
+            // Add to hash lookup for O(1) contains checks
+            this.hashLookup.set(userOpHash, userOpInfo)
 
             backlogOps
                 .map((sop) => sop.userOp)
@@ -326,6 +295,9 @@ export class MemoryOutstanding implements OutstandingStore {
 
         backlogOps.splice(backlogIndex, 1)
 
+        // Remove from hash lookup
+        this.hashLookup.delete(userOpHash)
+
         // If this was the first operation and there are more in the backlog,
         // add the new first operation to the priority queue
         if (backlogIndex === 0 && backlogOps.length > 0) {
@@ -342,19 +314,18 @@ export class MemoryOutstanding implements OutstandingStore {
     clear(): Promise<void> {
         this.priorityQueue = []
         this.pendingOps.clear()
+        this.hashLookup.clear()
         return Promise.resolve()
     }
 }
 
 export const createMemoryOutstandingQueue = ({
     config,
-    entryPoint,
     logger
 }: {
     config: AltoConfig
-    entryPoint: Address
     logger: Logger
 }): OutstandingStore => {
     logger.info("Using memory for outstanding mempool")
-    return new MemoryOutstanding(config, entryPoint)
+    return new MemoryOutstanding(config)
 }

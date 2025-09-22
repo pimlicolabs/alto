@@ -5,7 +5,7 @@ import {
     type UserOperation,
     userOpInfoSchema
 } from "@alto/types"
-import { getNonceKeyAndSequence, getUserOpHash } from "@alto/utils"
+import { getNonceKeyAndSequence } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
 import type { PublicClient } from "viem"
@@ -35,14 +35,10 @@ const deserializeUserOpInfo = (data: string): UserOpInfo => {
 class RedisOutstandingQueue implements OutstandingStore {
     private redis: Redis
 
-    // Args for getting userOpHash
-    private entryPointAddress: Address
-    private chainId: number
-    private publicClient: PublicClient
-
     // Redis key names
     private readyQueueKey: string
     private senderIndexPrefix: string
+    private hashLookupKey: string
 
     constructor({
         config,
@@ -57,22 +53,59 @@ class RedisOutstandingQueue implements OutstandingStore {
     }) {
         this.redis = new Redis(redisEndpoint, {})
 
-        // Setup args for getting userOpHash.
-        this.entryPointAddress = entryPoint
-        this.chainId = config.chainId
-        this.publicClient = config.publicClient
-
         // Initialize Redis key names
         const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:${entryPoint}:outstanding`
         this.readyQueueKey = `${redisPrefix}:ready-queue`
         this.senderIndexPrefix = `${redisPrefix}:sender`
+        this.hashLookupKey = `${redisPrefix}:hash-lookup`
 
-        // Register Lua script for atomic pop operation with index cleanup
-        this.redis.defineCommand("popUserOps", {
-            numberOfKeys: 2,
+        // Register Lua script for atomic remove operation
+        this.redis.defineCommand("removeUserOp", {
+            numberOfKeys: 3,
             lua: `
                 local readyQueueKey = KEYS[1]
                 local indexPrefix = KEYS[2]
+                local hashLookupKey = KEYS[3]
+                local userOpHash = ARGV[1]
+
+                -- Get serialized data from hash lookup
+                local serialized = redis.call('HGET', hashLookupKey, userOpHash)
+                if not serialized then
+                    return 0  -- Not found
+                end
+
+                -- Parse to get sender, nonceKey, nonceSequence
+                local parsed = cjson.decode(serialized)
+                local sender = parsed.userOp.sender
+                local nonceKey = parsed._nonceKey
+                local nonceSequence = parsed._nonceSequence
+
+                -- Remove from ready queue
+                local removed1 = redis.call('ZREM', readyQueueKey, serialized)
+
+                -- Clean up the sender+nonceKey index using score
+                local senderIndexKey = indexPrefix .. ':' .. sender .. ':' .. nonceKey
+                redis.call('ZREMRANGEBYSCORE', senderIndexKey, nonceSequence, nonceSequence)
+
+                -- Delete the key if the set is now empty
+                if redis.call('ZCARD', senderIndexKey) == 0 then
+                    redis.call('DEL', senderIndexKey)
+                end
+
+                -- Remove from hash lookup
+                redis.call('HDEL', hashLookupKey, userOpHash)
+
+                return removed1 > 0 and 1 or 0
+            `
+        })
+
+        // Register Lua script for atomic pop operation with index cleanup
+        this.redis.defineCommand("popUserOps", {
+            numberOfKeys: 3,
+            lua: `
+                local readyQueueKey = KEYS[1]
+                local indexPrefix = KEYS[2]
+                local hashLookupKey = KEYS[3]
                 local count = tonumber(ARGV[1])
 
                 local results = redis.call('ZPOPMAX', readyQueueKey, count)
@@ -85,10 +118,11 @@ class RedisOutstandingQueue implements OutstandingStore {
                     local serialized = results[i]
                     local parsed = cjson.decode(serialized)
 
-                    -- Extract sender, nonceKey, and nonceSequence from the enhanced data
+                    -- Extract sender, nonceKey, nonceSequence, and userOpHash from the enhanced data
                     local sender = parsed.userOp.sender
                     local nonceKey = parsed._nonceKey
                     local nonceSequence = parsed._nonceSequence
+                    local userOpHash = parsed.userOpHash
 
                     -- Clean up the sender+nonceKey index using score
                     local senderIndexKey = indexPrefix .. ':' .. sender .. ':' .. nonceKey
@@ -98,6 +132,9 @@ class RedisOutstandingQueue implements OutstandingStore {
                     if redis.call('ZCARD', senderIndexKey) == 0 then
                         redis.call('DEL', senderIndexKey)
                     end
+
+                    -- Remove from hash lookup
+                    redis.call('HDEL', hashLookupKey, userOpHash)
 
                     table.insert(userOps, serialized)
                 end
@@ -115,30 +152,10 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // OutstandingStore methods
-    async contains(userOp: UserOperation): Promise<boolean> {
-        const [nonceKey, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const senderIndexKey = `${this.senderIndexPrefix}:${userOp.sender}:${nonceKey}`
-
-        // Get the userOp at this nonce sequence
-        const serializedOps = await this.redis.zrangebyscore(
-            senderIndexKey,
-            Number(nonceSequence),
-            Number(nonceSequence)
-        )
-
-        if (serializedOps.length === 0) {
-            return false
-        }
-
-        // Deserialize and check if the hash matches
-        const storedUserOpInfo = deserializeUserOpInfo(serializedOps[0])
-        const userOpHash = getUserOpHash({
-            userOp,
-            entryPointAddress: this.entryPointAddress,
-            chainId: this.chainId,
-            publicClient: this.publicClient
-        })
-        return storedUserOpInfo.userOpHash === userOpHash
+    async contains(userOpHash: HexData32): Promise<boolean> {
+        // O(1) lookup using hash index
+        const exists = await this.redis.hexists(this.hashLookupKey, userOpHash)
+        return exists === 1
     }
 
     async popConflicting(_userOp: UserOperation) {
@@ -170,13 +187,25 @@ class RedisOutstandingQueue implements OutstandingStore {
             // Add to sender+nonceKey index for fast lookup
             const senderIndexKey = `${this.senderIndexPrefix}:${userOp.sender}:${nonceKey}`
             pipeline.zadd(senderIndexKey, Number(nonceSequence), serialized)
+
+            // Add to hash lookup for O(1) contains and remove operations
+            pipeline.hset(this.hashLookupKey, userOpInfo.userOpHash, serialized)
         }
 
         await pipeline.exec()
     }
 
-    async remove(_userOpHash: HexData32): Promise<boolean> {
-        return false
+    async remove(userOpHash: HexData32): Promise<boolean> {
+        // Use atomic Lua script for removal from all indexes
+        // @ts-ignore - defineCommand adds the method at runtime
+        const result = await this.redis.removeUserOp(
+            this.readyQueueKey,
+            this.senderIndexPrefix,
+            this.hashLookupKey,
+            userOpHash
+        )
+
+        return result === 1
     }
 
     async pop(count: number): Promise<UserOpInfo[]> {
@@ -185,6 +214,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         const results = (await this.redis.popUserOps(
             this.readyQueueKey,
             this.senderIndexPrefix,
+            this.hashLookupKey,
             count
         )) as string[]
 
