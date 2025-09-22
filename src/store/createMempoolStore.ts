@@ -15,7 +15,6 @@ import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type { AltoConfig } from "../createConfig"
-import type {} from "./types"
 
 export const createMempoolStore = ({
     config,
@@ -159,7 +158,7 @@ export const createMempoolStore = ({
                 const { processing } = getStoreHandlers(entryPoint)
                 await processing.startProcessing(userOpInfo)
             } catch (err) {
-                logger.error({ err }, "Failed to track active operation")
+                logger.error({ err }, "Failed to track active userOp")
                 sentry.captureException(err)
             }
         },
@@ -171,12 +170,12 @@ export const createMempoolStore = ({
                 const { processing } = getStoreHandlers(entryPoint)
                 await processing.finishProcessing(userOpInfo)
             } catch (err) {
-                logger.error({ err }, "Failed to untrack active operation")
+                logger.error({ err }, "Failed to untrack active userOp")
                 sentry.captureException(err)
             }
         },
 
-        // Check if the userOp is already in the mempool or conflicts with existing operations
+        // Check if the userOp is already in the mempool or conflicts with existing userOps.
         checkDuplicatesAndConflicts: async ({
             entryPoint,
             userOp,
@@ -188,7 +187,7 @@ export const createMempoolStore = ({
         }) => {
             const { outstanding, processing } = getStoreHandlers(entryPoint)
 
-            // Run all checks in parallel for better performance
+            // Run all checks in parallel for better performance.
             const [isInOutstanding, isInProcessing, wouldConflict] =
                 await Promise.all([
                     outstanding.contains(userOpHash),
@@ -196,7 +195,7 @@ export const createMempoolStore = ({
                     processing.wouldConflict(userOp)
                 ])
 
-            // Check if already known (in outstanding or processing)
+            // Check if already known (in outstanding or processing).
             if (isInOutstanding || isInProcessing) {
                 return {
                     valid: false,

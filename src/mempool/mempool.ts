@@ -696,32 +696,35 @@ export class Mempool {
         const bundles: UserOperationBundle[] = []
         const batchSize = this.config.mempoolPopBatchSize
 
-        // Pop batch of ops.
-        const poppedOps = await this.store.popOutstanding(entryPoint, batchSize)
-        if (poppedOps.length === 0) {
+        // Pop batch of userOps.
+        const poppedUserOps = await this.store.popOutstanding(
+            entryPoint,
+            batchSize
+        )
+        if (poppedUserOps.length === 0) {
             return []
         }
 
         // Keep track of unused ops from the batch
-        const unusedOps = [...poppedOps]
+        const unusedUserOps = [...poppedUserOps]
 
-        while (unusedOps.length > 0) {
+        while (unusedUserOps.length > 0) {
             // If maxBundles is set and we reached the limit, put back all unused ops and break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
-                if (unusedOps.length > 0) {
+                if (unusedUserOps.length > 0) {
                     await this.store.addOutstanding({
                         entryPoint,
-                        userOpInfos: unusedOps
+                        userOpInfos: unusedUserOps
                     })
                 }
                 break
             }
 
             // Peek next op from unused batch.
-            const nextUserOp = unusedOps[0]
+            const nextUserOp = unusedUserOps[0]
             if (!nextUserOp) break
 
-            // Derive version
+            // Derive version.
             let version: EntryPointVersion
             if (isVersion08(nextUserOp.userOp, entryPoint)) {
                 version = "0.8"
@@ -731,7 +734,7 @@ export class Mempool {
                 version = "0.6"
             }
 
-            // Setup for next bundle
+            // Setup next bundle.
             const currentBundle: UserOperationBundle = {
                 entryPoint,
                 version,
@@ -745,8 +748,8 @@ export class Mempool {
             let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
-            while (unusedOps.length > 0) {
-                const currentUserOp = unusedOps.shift()
+            while (unusedUserOps.length > 0) {
+                const currentUserOp = unusedUserOps.shift()
                 if (!currentUserOp) break
                 const { userOp } = currentUserOp
 
@@ -783,7 +786,7 @@ export class Mempool {
                 // Break on gas limit
                 if (gasUsed > maxGasLimit) {
                     // Put current op back to front of unused for next bundle
-                    unusedOps.unshift(currentUserOp)
+                    unusedUserOps.unshift(currentUserOp)
                     break
                 }
 
@@ -801,16 +804,16 @@ export class Mempool {
                     userOpInfo: currentUserOp
                 })
 
-                // Add op to current bundle.
+                // Add userOp to current bundle.
                 currentBundle.userOps.push(currentUserOp)
 
-                // Try to fetch more ops if we've exhausted this batch.
-                if (unusedOps.length === 0) {
+                // Try to fetch more userOps if we've exhausted this batch.
+                if (unusedUserOps.length === 0) {
                     const morePoppedOps = await this.store.popOutstanding(
                         entryPoint,
                         batchSize
                     )
-                    unusedOps.push(...morePoppedOps)
+                    unusedUserOps.push(...morePoppedOps)
                 }
             }
 
