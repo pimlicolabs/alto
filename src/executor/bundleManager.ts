@@ -117,27 +117,29 @@ export class BundleManager {
         // Cleanup bundle
         await this.freeSubmittedBundle(submittedBundle)
 
-        // Process each userOp
-        // rest of the code is non-blocking
+        // Process all userOps in parallel (non-blocking)
+        // The IIFE returns immediately, allowing the caller to continue
         return (async () => {
-            for (const userOpInfo of userOps) {
-                const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
+            await Promise.all(
+                userOps.map(async (userOpInfo) => {
+                    const userOpReceipt = userOpReceipts[userOpInfo.userOpHash]
 
-                // Cache the receipt
-                await this.receiptCache.set(
-                    userOpInfo.userOpHash,
-                    userOpReceipt
-                )
+                    // Cache the receipt
+                    await this.receiptCache.set(
+                        userOpInfo.userOpHash,
+                        userOpReceipt
+                    )
 
-                await this.processIncludedUserOp(
-                    userOpInfo,
-                    userOpReceipt,
-                    transactionHash,
-                    blockNumber,
-                    entryPoint,
-                    blockReceivedTimestamp
-                )
-            }
+                    await this.processIncludedUserOp(
+                        userOpInfo,
+                        userOpReceipt,
+                        transactionHash,
+                        blockNumber,
+                        entryPoint,
+                        blockReceivedTimestamp
+                    )
+                })
+            )
         })()
     }
 
