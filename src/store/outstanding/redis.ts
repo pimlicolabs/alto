@@ -8,10 +8,10 @@ import {
 import { getNonceKeyAndSequence, getUserOpHash } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Logger } from "pino"
+import type { PublicClient } from "viem"
 import { toHex } from "viem/utils"
 import type { AltoConfig } from "../../createConfig"
 import type { OutstandingStore } from "./types"
-import { PublicClient } from "viem"
 
 const serializeUserOpInfo = (userOpInfo: UserOpInfo): string => {
     const [nonceKey, nonceSequence] = getNonceKeyAndSequence(
