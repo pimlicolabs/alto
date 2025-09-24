@@ -212,15 +212,10 @@ export class BundleManager {
                 if (status === "not_found") {
                     const { userOpHash } = userOpInfo
 
-                    await this.monitor.setUserOpStatusBatch([
-                        {
-                            userOpHash,
-                            status: {
-                                status: "failed",
-                                transactionHash
-                            }
-                        }
-                    ])
+                    await this.monitor.setUserOpStatusBatch([userOpHash], {
+                        status: "failed",
+                        transactionHash
+                    })
 
                     this.eventManager.emitFailedOnChain(
                         userOpHash,
@@ -287,17 +282,14 @@ export class BundleManager {
         entryPoint: Address,
         blockReceivedTimestamp: number
     ) {
-        // Batch update statuses
-        const statusUpdates = userOpsBatch.map(({ userOpInfo }) => ({
-            userOpHash: userOpInfo.userOpHash,
-            status: {
-                status: "included" as const,
+        // Update all statuses in one batch
+        await this.monitor.setUserOpStatusBatch(
+            userOpsBatch.map(({ userOpInfo }) => userOpInfo.userOpHash),
+            {
+                status: "included",
                 transactionHash
             }
-        }))
-
-        // Update all statuses in one batch
-        await this.monitor.setUserOpStatusBatch(statusUpdates)
+        )
 
         // Process each userOp
         for (const { userOpInfo, userOpReceipt } of userOpsBatch) {
@@ -396,15 +388,10 @@ export class BundleManager {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setUserOpStatusBatch([
-                    {
-                        userOpHash,
-                        status: {
-                            status: "included",
-                            transactionHash
-                        }
-                    }
-                ])
+                await this.monitor.setUserOpStatusBatch([userOpHash], {
+                    status: "included",
+                    transactionHash
+                })
 
                 this.eventManager.emitFrontranOnChain(
                     userOpHash,

@@ -90,14 +90,10 @@ export class Mempool {
         userOps: UserOpInfo[]
         transactionHash: Hex
     }) {
-        const statusUpdates = userOps.map((userOpInfo) => ({
-            userOpHash: userOpInfo.userOpHash,
-            status: {
-                status: "submitted" as const,
-                transactionHash
-            }
-        }))
-        await this.monitor.setUserOpStatusBatch(statusUpdates)
+        await this.monitor.setUserOpStatusBatch(
+            userOps.map((userOpInfo) => userOpInfo.userOpHash),
+            { status: "submitted", transactionHash }
+        )
 
         this.metrics.userOpsSubmitted
             .labels({ status: "success" })
@@ -164,15 +160,10 @@ export class Mempool {
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setUserOpStatusBatch([
-                    {
-                        userOpHash,
-                        status: {
-                            status: "rejected",
-                            transactionHash: null
-                        }
-                    }
-                ])
+                await this.monitor.setUserOpStatusBatch([userOpHash], {
+                    status: "rejected",
+                    transactionHash: null
+                })
                 this.logger.warn(
                     {
                         userOperation: jsonStringifyWithBigint(userOp),
@@ -395,15 +386,10 @@ export class Mempool {
             ]
         })
 
-        await this.monitor.setUserOpStatusBatch([
-            {
-                userOpHash,
-                status: {
-                    status: "not_submitted",
-                    transactionHash: null
-                }
-            }
-        ])
+        await this.monitor.setUserOpStatusBatch([userOpHash], {
+            status: "not_submitted",
+            transactionHash: null
+        })
 
         this.eventManager.emitAddedToMempool(userOpHash)
         return [true, ""]

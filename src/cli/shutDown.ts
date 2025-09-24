@@ -50,21 +50,18 @@ async function dropAllOperationsOnShutdown({
 async function queueOperationsOnShutdownToRedis({
     mempool,
     bundleManager,
+    redisEndpoint,
     config,
     logger
 }: {
     mempool: Mempool
     bundleManager: BundleManager
+    redisEndpoint: string
     config: AltoConfig
     logger: Logger
 }) {
-    // If there is no redis endpoint, then there is no queue to publish to
-    if (!config.redisEndpoint) {
-        return
-    }
-
     try {
-        const redis = new Redis(config.redisEndpoint)
+        const redis = new Redis(redisEndpoint)
         const queueName = getQueueName(config.publicClient.chain.id)
         const restorationQueue = new Queue(queueName, {
             createClient: () => {
@@ -154,6 +151,7 @@ export function persistShutdownState({
     if (config.redisEndpoint) {
         return queueOperationsOnShutdownToRedis({
             mempool,
+            redisEndpoint: config.redisEndpoint,
             bundleManager,
             config,
             logger

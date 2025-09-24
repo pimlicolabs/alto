@@ -5,7 +5,8 @@ import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {
     setBatch(
-        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+        userOpHash: HexData32[],
+        status: UserOperationStatus
     ): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
@@ -14,10 +15,8 @@ interface UserOperationStatusStore {
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
-    setBatch(
-        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
-    ) {
-        for (const { userOpHash, status } of statuses) {
+    setBatch(userOpHashes: HexData32[], status: UserOperationStatus) {
+        for (const userOpHash of userOpHashes) {
             this.store[userOpHash] = status
         }
         return Promise.resolve()
@@ -90,13 +89,14 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     }
 
     async setBatch(
-        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+        userOpHashes: HexData32[],
+        status: UserOperationStatus
     ): Promise<void> {
-        if (statuses.length === 0) return
+        if (userOpHashes.length === 0) return
 
         const pipeline = this.redis.pipeline()
 
-        for (const { userOpHash, status } of statuses) {
+        for (const userOpHash of userOpHashes) {
             const key = this.getKey(userOpHash)
             const serialized = this.serialize(status)
             pipeline.set(key, serialized, "EX", this.ttlSeconds)
@@ -144,11 +144,12 @@ export class Monitor {
     }
 
     public async setUserOpStatusBatch(
-        statuses: { userOpHash: HexData32; status: UserOperationStatus }[]
+        userOpHashes: HexData32[],
+        status: UserOperationStatus
     ): Promise<void> {
         // Clear existing timers and set new ones for in-memory storage
         if (!this.isUsingRedis) {
-            for (const { userOpHash } of statuses) {
+            for (const userOpHash of userOpHashes) {
                 if (this.userOpTimeouts[userOpHash]) {
                     clearTimeout(this.userOpTimeouts[userOpHash])
                 }
@@ -156,11 +157,11 @@ export class Monitor {
         }
 
         // Set the user operation statuses
-        await this.statusStore.setBatch(statuses)
+        await this.statusStore.setBatch(userOpHashes, status)
 
         // For in-memory storage, we need to manually prune statuses
         if (!this.isUsingRedis) {
-            for (const { userOpHash } of statuses) {
+            for (const userOpHash of userOpHashes) {
                 this.userOpTimeouts[userOpHash] = setTimeout(async () => {
                     await this.statusStore.delete(userOpHash)
                     delete this.userOpTimeouts[userOpHash]
