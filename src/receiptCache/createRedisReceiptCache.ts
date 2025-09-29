@@ -32,7 +32,7 @@ export const createRedisReceiptCache = ({
     redisEndpoint: string
     logger: Logger
 }): ReceiptCache => {
-    const REDIS_TIMEOUT = 100 // 100ms timeout for all Redis operations
+    const REDIS_TIMEOUT = 500 // 100ms timeout for all Redis operations
     const redis = new Redis(redisEndpoint)
     const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:receipt-cache`
 
@@ -79,10 +79,7 @@ export const createRedisReceiptCache = ({
                     pipeline.setex(key, ttlSeconds, serialized)
                 }
 
-                await asyncCallWithTimeout(
-                    pipeline.exec(),
-                    REDIS_TIMEOUT * Math.max(2, receipts.length / 10)
-                )
+                await asyncCallWithTimeout(pipeline.exec(), REDIS_TIMEOUT)
             } catch (err) {
                 logger.error(
                     { err, count: receipts.length },

@@ -150,25 +150,25 @@ export const createMempoolStore = ({
         },
 
         // Methods to mark/unmark userOps that are being processed.
-        startProcessing: async ({
+        addProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.startProcessing(userOpInfo)
+                await processing.addProcessing(userOpInfo)
             } catch (err) {
                 logger.error({ err }, "Failed to track active userOp")
                 sentry.captureException(err)
             }
         },
-        finishProcessing: async ({
+        removeProcessing: async ({
             entryPoint,
             userOpInfo
         }: EntryPointUserOpInfoParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.finishProcessing(userOpInfo)
+                await processing.removeProcessing(userOpInfo)
             } catch (err) {
                 logger.error({ err }, "Failed to untrack active userOp")
                 sentry.captureException(err)

@@ -343,7 +343,7 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     "max-bundle-count": {
         description:
-            "Maximum number of bundles to create in a single bundling round",
+            "Maximum number of bundles when calling mempool's process function",
         type: "number",
         require: false
     },

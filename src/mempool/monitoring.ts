@@ -4,10 +4,7 @@ import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {
-    setBatch(
-        userOpHash: HexData32[],
-        status: UserOperationStatus
-    ): Promise<void>
+    set(userOpHash: HexData32[], status: UserOperationStatus): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
 }
@@ -15,7 +12,7 @@ interface UserOperationStatusStore {
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
-    setBatch(userOpHashes: HexData32[], status: UserOperationStatus) {
+    set(userOpHashes: HexData32[], status: UserOperationStatus) {
         for (const userOpHash of userOpHashes) {
             this.store[userOpHash] = status
         }
@@ -88,7 +85,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         }
     }
 
-    async setBatch(
+    async set(
         userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
@@ -143,7 +140,7 @@ export class Monitor {
         }
     }
 
-    public async setUserOpStatusBatch(
+    public async setStatus(
         userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
@@ -157,7 +154,7 @@ export class Monitor {
         }
 
         // Set the user operation statuses
-        await this.statusStore.setBatch(userOpHashes, status)
+        await this.statusStore.set(userOpHashes, status)
 
         // For in-memory storage, we need to manually prune statuses
         if (!this.isUsingRedis) {

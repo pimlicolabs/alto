@@ -13,7 +13,7 @@ export class InMemoryProcessingStore implements ProcessingStore {
         return `${sender}:${nonce}`
     }
 
-    async startProcessing(userOpInfo: UserOpInfo): Promise<void> {
+    async addProcessing(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const isDeploymentOp = isDeployment(userOp)
         const senderNonceId = this.encodeSenderNonceId(
@@ -30,7 +30,7 @@ export class InMemoryProcessingStore implements ProcessingStore {
         }
     }
 
-    async finishProcessing(userOpInfo: UserOpInfo): Promise<void> {
+    async removeProcessing(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const senderNonceId = this.encodeSenderNonceId(
             userOp.sender,

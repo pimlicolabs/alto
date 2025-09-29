@@ -249,7 +249,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.markUserOpsIncludedOnChain({
+                await this.mempool.removeProcessing({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
@@ -594,7 +594,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.markUserOpsIncludedOnChain({
+                await this.mempool.removeProcessing({
                     entryPoint,
                     userOps: confirmedUserOps
                 })

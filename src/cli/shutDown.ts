@@ -62,7 +62,7 @@ async function queueOperationsOnShutdownToRedis({
 }) {
     try {
         const redis = new Redis(redisEndpoint)
-        const queueName = getQueueName(config.publicClient.chain.id)
+        const queueName = getQueueName(config.chainId)
         const restorationQueue = new Queue(queueName, {
             createClient: () => {
                 return redis

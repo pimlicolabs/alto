@@ -33,7 +33,7 @@ export class RedisProcessingStore implements ProcessingStore {
         this.processingDeploymentSet = `${redisPrefix}:deployment`
     }
 
-    async startProcessing(userOpInfo: UserOpInfo): Promise<void> {
+    async addProcessing(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const isDeploymentOp = isDeployment(userOp)
         const senderNonceId = this.encodeSenderNonceId(
@@ -53,7 +53,7 @@ export class RedisProcessingStore implements ProcessingStore {
         await multi.exec()
     }
 
-    async finishProcessing(userOpInfo: UserOpInfo): Promise<void> {
+    async removeProcessing(userOpInfo: UserOpInfo): Promise<void> {
         const { userOpHash, userOp } = userOpInfo
         const isDeploymentOp = isDeployment(userOp)
         const senderNonceId = this.encodeSenderNonceId(

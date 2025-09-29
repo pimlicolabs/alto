@@ -90,10 +90,12 @@ export class Mempool {
         userOps: UserOpInfo[]
         transactionHash: Hex
     }) {
-        await this.monitor.setUserOpStatusBatch(
-            userOps.map((userOpInfo) => userOpInfo.userOpHash),
-            { status: "submitted", transactionHash }
-        )
+        const userOpHashes = userOps.map((userOpInfo) => userOpInfo.userOpHash)
+
+        await this.monitor.setStatus(userOpHashes, {
+            status: "submitted",
+            transactionHash
+        })
 
         this.metrics.userOpsSubmitted
             .labels({ status: "success" })
@@ -120,7 +122,7 @@ export class Mempool {
                     "resubmitting user operation"
                 )
                 // Complete processing before re-adding to outstanding pool.
-                await this.store.finishProcessing({
+                await this.store.removeProcessing({
                     entryPoint,
                     userOpInfo
                 })
@@ -151,7 +153,7 @@ export class Mempool {
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
                 // Complete processing since userOp is dropped.
-                await this.store.finishProcessing({
+                await this.store.removeProcessing({
                     entryPoint,
                     userOpInfo: rejectedUserOp
                 })
@@ -160,7 +162,7 @@ export class Mempool {
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setUserOpStatusBatch([userOpHash], {
+                await this.monitor.setStatus([userOpHash], {
                     status: "rejected",
                     transactionHash: null
                 })
@@ -176,8 +178,9 @@ export class Mempool {
         )
     }
 
-    // Mark userOps as included onchain (included or frontrunning).
-    async markUserOpsIncludedOnChain({
+    // Remove userOps from processing store.
+    // should be called when userOps are included onchain.
+    async removeProcessing({
         userOps,
         entryPoint
     }: {
@@ -186,7 +189,7 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                await this.store.finishProcessing({
+                await this.store.removeProcessing({
                     entryPoint,
                     userOpInfo
                 })
@@ -386,7 +389,7 @@ export class Mempool {
             ]
         })
 
-        await this.monitor.setUserOpStatusBatch([userOpHash], {
+        await this.monitor.setStatus([userOpHash], {
             status: "not_submitted",
             transactionHash: null
         })
@@ -794,7 +797,7 @@ export class Mempool {
 
                 this.reputationManager.decreaseUserOpCount(userOp)
                 // Track the operation as active (being bundled).
-                await this.store.startProcessing({
+                await this.store.addProcessing({
                     entryPoint,
                     userOpInfo: currentUserOp
                 })

@@ -120,22 +120,21 @@ export class BundleManager {
         // Process all userOps in parallel (non-blocking)
         // The IIFE returns immediately, allowing the caller to continue
         return (async () => {
-            // Prepare batch data
-            const receiptsBatch = userOps.map((userOpInfo) => ({
-                userOpHash: userOpInfo.userOpHash,
-                receipt: userOpReceipts[userOpInfo.userOpHash]
-            }))
-
             const userOpsBatch = userOps.map((userOpInfo) => ({
                 userOpInfo,
                 userOpReceipt: userOpReceipts[userOpInfo.userOpHash]
             }))
 
             // Batch cache receipts
-            await this.receiptCache.setBatch(receiptsBatch)
+            await this.receiptCache.setBatch(
+                userOps.map(({ userOpHash }) => ({
+                    userOpHash,
+                    receipt: userOpReceipts[userOpHash]
+                }))
+            )
 
             // Batch process userOps
-            await this.processIncludedUserOpsBatch(
+            await this.processIncludedUserOps(
                 userOpsBatch,
                 transactionHash,
                 blockNumber,
@@ -212,7 +211,7 @@ export class BundleManager {
                 if (status === "not_found") {
                     const { userOpHash } = userOpInfo
 
-                    await this.monitor.setUserOpStatusBatch([userOpHash], {
+                    await this.monitor.setStatus([userOpHash], {
                         status: "failed",
                         transactionHash
                     })
@@ -264,7 +263,7 @@ export class BundleManager {
 
         this.stopTrackingBundle(submittedBundle)
         await this.senderManager.markWalletProcessed(executor)
-        await this.mempool.markUserOpsIncludedOnChain({ entryPoint, userOps })
+        await this.mempool.removeProcessing({ entryPoint, userOps })
     }
 
     // Stop tracking bundle in event resubmit fails
@@ -272,7 +271,7 @@ export class BundleManager {
         this.pendingBundles.delete(submittedBundle.uid)
     }
 
-    private async processIncludedUserOpsBatch(
+    private async processIncludedUserOps(
         userOpsBatch: {
             userOpInfo: UserOpInfo
             userOpReceipt: UserOperationReceipt
@@ -283,7 +282,7 @@ export class BundleManager {
         blockReceivedTimestamp: number
     ) {
         // Update all statuses in one batch
-        await this.monitor.setUserOpStatusBatch(
+        await this.monitor.setStatus(
             userOpsBatch.map(({ userOpInfo }) => userOpInfo.userOpHash),
             {
                 status: "included",
@@ -372,7 +371,7 @@ export class BundleManager {
                     }
                 ])
 
-                await this.processIncludedUserOpsBatch(
+                await this.processIncludedUserOps(
                     [{ userOpInfo, userOpReceipt }],
                     transactionHash,
                     blockNumber,
@@ -388,7 +387,7 @@ export class BundleManager {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setUserOpStatusBatch([userOpHash], {
+                await this.monitor.setStatus([userOpHash], {
                     status: "included",
                     transactionHash
                 })
