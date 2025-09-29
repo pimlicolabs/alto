@@ -80,7 +80,9 @@ export class MemoryOutstanding implements OutstandingStore {
         return true
     }
 
-    popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType> {
+    async popConflicting(
+        userOp: UserOperation
+    ): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
         let conflictingReason: ConflictingOutstandingType
@@ -90,10 +92,12 @@ export class MemoryOutstanding implements OutstandingStore {
 
             const isSameSender = mempoolUserOp.sender === userOp.sender
             if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
-                this.remove(userOpInfo.userOpHash)
-                conflictingReason = {
-                    reason: "conflicting_nonce",
-                    userOpInfo
+                const removed = await this.remove([userOpInfo.userOpHash])
+                if (removed.length > 0) {
+                    conflictingReason = {
+                        reason: "conflicting_nonce",
+                        userOpInfo: removed[0]
+                    }
                 }
                 break
             }
@@ -104,16 +108,18 @@ export class MemoryOutstanding implements OutstandingStore {
                 isDeployment(mempoolUserOp)
 
             if (isConflictingDeployment) {
-                this.remove(userOpInfo.userOpHash)
-                conflictingReason = {
-                    reason: "conflicting_deployment",
-                    userOpInfo
+                const removed = await this.remove([userOpInfo.userOpHash])
+                if (removed.length > 0) {
+                    conflictingReason = {
+                        reason: "conflicting_deployment",
+                        userOpInfo: removed[0]
+                    }
                 }
                 break
             }
         }
 
-        return Promise.resolve(conflictingReason)
+        return conflictingReason
     }
 
     async contains(userOpHash: HexData32): Promise<boolean> {
@@ -257,54 +263,69 @@ export class MemoryOutstanding implements OutstandingStore {
             .map((userOpInfo) => userOpInfo.userOp)
     }
 
-    async remove(userOpHash: HexData32): Promise<boolean> {
-        const priorityQueueIndex = this.priorityQueue.findIndex(
-            (info) => info.userOpHash === userOpHash
-        )
+    async remove(userOpHashes: HexData32[]): Promise<UserOpInfo[]> {
+        if (userOpHashes.length === 0) {
+            return []
+        }
 
-        if (priorityQueueIndex === -1) {
-            this.logger.info(
-                "tried to remove non-existent user op from mempool"
+        const removedOps: UserOpInfo[] = []
+
+        for (const userOpHash of userOpHashes) {
+            const priorityQueueIndex = this.priorityQueue.findIndex(
+                (info) => info.userOpHash === userOpHash
             )
-            return false
-        }
 
-        const userOpInfo = this.priorityQueue[priorityQueueIndex]
-        const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
+            if (priorityQueueIndex === -1) {
+                this.logger.info(
+                    `tried to remove non-existent user op from mempool: ${userOpHash}`
+                )
+                continue
+            }
 
-        // Remove from priority queue
-        this.priorityQueue.splice(priorityQueueIndex, 1)
+            const userOpInfo = this.priorityQueue[priorityQueueIndex]
+            const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
 
-        // Find and remove from pending ops
-        const backlogOps = this.pendingOps.get(pendingOpsSlot)
-        if (!backlogOps) {
-            throw new Error(
-                `FATAL: No pending operations found for userOpHash ${userOpHash}`
+            // Remove from priority queue
+            this.priorityQueue.splice(priorityQueueIndex, 1)
+
+            // Find and remove from pending ops
+            const backlogOps = this.pendingOps.get(pendingOpsSlot)
+            if (!backlogOps) {
+                throw new Error(
+                    `FATAL: No pending operations found for userOpHash ${userOpHash}`
+                )
+            }
+
+            const backlogIndex = backlogOps.findIndex(
+                (info) => info.userOpHash === userOpHash
             )
+
+            if (backlogIndex === -1) {
+                throw new Error(
+                    `FATAL: UserOp with hash ${userOpHash} not found in backlog`
+                )
+            }
+
+            backlogOps.splice(backlogIndex, 1)
+
+            // Remove from hash lookup
+            this.hashLookup.delete(userOpHash)
+
+            // If this was the first operation and there are more in the backlog,
+            // add the new first operation to the priority queue
+            if (backlogIndex === 0 && backlogOps.length > 0) {
+                this.addToPriorityQueue(backlogOps[0])
+            }
+
+            // Clean up empty slot
+            if (backlogOps.length === 0) {
+                this.pendingOps.delete(pendingOpsSlot)
+            }
+
+            removedOps.push(userOpInfo)
         }
 
-        const backlogIndex = backlogOps.findIndex(
-            (info) => info.userOpHash === userOpHash
-        )
-
-        if (backlogIndex === -1) {
-            throw new Error(
-                `FATAL: UserOp with hash ${userOpHash} not found in backlog`
-            )
-        }
-
-        backlogOps.splice(backlogIndex, 1)
-
-        // Remove from hash lookup
-        this.hashLookup.delete(userOpHash)
-
-        // If this was the first operation and there are more in the backlog,
-        // add the new first operation to the priority queue
-        if (backlogIndex === 0 && backlogOps.length > 0) {
-            this.addToPriorityQueue(backlogOps[0])
-        }
-
-        return true
+        return removedOps
     }
 
     dumpLocal(): Promise<UserOpInfo[]> {

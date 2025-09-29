@@ -132,8 +132,12 @@ export const createMempoolStore = ({
         }: EntryPointUserOpHashParam) => {
             try {
                 const { outstanding } = getStoreHandlers(entryPoint)
-                const removed = await outstanding.remove(userOpHash)
-                logRemoveOperation(userOpHash, "outstanding", removed)
+                const removed = await outstanding.remove([userOpHash])
+                logRemoveOperation(
+                    userOpHash,
+                    "outstanding",
+                    removed.length > 0
+                )
             } catch (err) {
                 logger.error(
                     { err },

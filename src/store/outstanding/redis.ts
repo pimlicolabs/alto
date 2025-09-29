@@ -51,6 +51,17 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.userOpHashMap = `${redisPrefix}:userop-hash`
         this.deploymentHashMap = `${redisPrefix}:deployment-senders`
 
+        // Register Lua script to atomically delete key if empty
+        this.redis.defineCommand("deleteIfEmpty", {
+            numberOfKeys: 1,
+            lua: `
+                if redis.call('ZCARD', KEYS[1]) == 0 then
+                    return redis.call('DEL', KEYS[1])
+                end
+                return 0
+            `
+        })
+
         logger.info(
             {
                 readyQueueKey: this.readyQueue
@@ -85,12 +96,12 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         if (conflictingHashes.length > 0) {
             const conflictingHash = conflictingHashes[0] as HexData32
-            const removedUserOp = await this.remove(conflictingHash)
+            const removedUserOps = await this.remove([conflictingHash])
 
-            if (removedUserOp) {
+            if (removedUserOps.length > 0) {
                 return {
                     reason: "conflicting_nonce" as const,
-                    userOpInfo: removedUserOp
+                    userOpInfo: removedUserOps[0]
                 }
             }
         }
@@ -103,12 +114,14 @@ class RedisOutstandingQueue implements OutstandingStore {
             )) as HexData32 | null
 
             if (existingDeploymentHash) {
-                const removedUserOp = await this.remove(existingDeploymentHash)
+                const removedUserOps = await this.remove([
+                    existingDeploymentHash
+                ])
 
-                if (removedUserOp) {
+                if (removedUserOps.length > 0) {
                     return {
                         reason: "conflicting_deployment" as const,
-                        userOpInfo: removedUserOp
+                        userOpInfo: removedUserOps[0]
                     }
                 }
             }
@@ -154,50 +167,74 @@ class RedisOutstandingQueue implements OutstandingStore {
         await pipeline.exec()
     }
 
-    // Removes a userOp given its hash and returns the userOpInfo object.
-    async remove(userOpHash: HexData32): Promise<UserOpInfo | undefined> {
-        // Get serialized data to find all the keys we need to clean up.
-        const serialized = await this.redis.hget(this.userOpHashMap, userOpHash)
-        if (!serialized) {
-            return undefined
-        }
+    // Removes userOps given their hashes and returns the userOpInfo objects.
+    async remove(userOpHashes: HexData32[]): Promise<UserOpInfo[]> {
+        if (userOpHashes.length === 0) return []
 
-        // Parse to get stored values.
-        const userOpInfo = deserialize(serialized)
-        const { userOp } = userOpInfo
-        const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const senderNonceQueue = this.getSenderNonceQueue(userOp)
-        const isDeploymentOp = isDeployment(userOp)
-        const sender = userOp.sender
-
-        // Use pipeline for atomic-like operations.
+        // Get all serialized data in parallel.
         const pipeline = this.redis.pipeline()
+        for (const hash of userOpHashes) {
+            pipeline.hget(this.userOpHashMap, hash)
+        }
+        const serializedResults = await pipeline.exec()
 
-        // Remove from ready queue.
-        pipeline.zrem(this.readyQueue, userOpHash)
+        const removedUserOps: UserOpInfo[] = []
+        const removalPipeline = this.redis.pipeline()
+        const queueCleanupMap = new Map<string, number>() // queue -> count of removals
 
-        // Remove from sender nonceKey queue.
-        pipeline.zremrangebyscore(
-            senderNonceQueue,
-            Number(nonceSequence),
-            Number(nonceSequence)
-        )
+        // Process each userOp that exists.
+        for (let i = 0; i < userOpHashes.length; i++) {
+            const serialized = serializedResults?.[i]?.[1] as string | null
+            if (!serialized) continue
 
-        // Remove from hash lookup.
-        pipeline.hdel(this.userOpHashMap, userOpHash)
+            const userOpHash = userOpHashes[i]
+            const userOpInfo = deserialize(serialized)
+            const { userOp } = userOpInfo
+            const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
+            const senderNonceQueue = this.getSenderNonceQueue(userOp)
+            const isDeploymentOp = isDeployment(userOp)
 
-        // Remove sender from deployment hash if this was a deployment.
-        if (isDeploymentOp) {
-            pipeline.hdel(this.deploymentHashMap, sender)
+            // Remove from ready queue.
+            removalPipeline.zrem(this.readyQueue, userOpHash)
+
+            // Remove from sender nonceKey queue.
+            removalPipeline.zremrangebyscore(
+                senderNonceQueue,
+                Number(nonceSequence),
+                Number(nonceSequence)
+            )
+            queueCleanupMap.set(
+                senderNonceQueue,
+                (queueCleanupMap.get(senderNonceQueue) || 0) + 1
+            )
+
+            // Remove from hash lookup.
+            removalPipeline.hdel(this.userOpHashMap, userOpHash)
+
+            // Remove sender from deployment hash if this was a deployment.
+            if (isDeploymentOp) {
+                removalPipeline.hdel(this.deploymentHashMap, userOp.sender)
+            }
+
+            removedUserOps.push(userOpInfo)
         }
 
-        // Clean up empty sender index key.
-        const count = await this.redis.zcard(senderNonceQueue)
-        if (count === 0) {
-            await this.redis.del(senderNonceQueue)
+        // Execute all removals.
+        await removalPipeline.exec()
+
+        // Clean up potentially empty sender index keys.
+        if (queueCleanupMap.size > 0) {
+            const pipeline = this.redis.pipeline()
+
+            for (const queue of queueCleanupMap.keys()) {
+                // @ts-ignore - using command defined in constructor.
+                pipeline.deleteIfEmpty(queue)
+            }
+
+            await pipeline.exec()
         }
 
-        return userOpInfo
+        return removedUserOps
     }
 
     async pop(count: number): Promise<UserOpInfo[]> {
@@ -207,19 +244,14 @@ class RedisOutstandingQueue implements OutstandingStore {
             return []
         }
 
-        const userOps: UserOpInfo[] = []
-
-        // Process results (zpopmax returns [member, score, member, score, ...])
+        // Extract hashes from results (zpopmax returns [member, score, member, score, ...])
+        const userOpHashes: HexData32[] = []
         for (let i = 0; i < results.length; i += 2) {
-            const userOpHash = results[i] as HexData32
-            const userOp = await this.remove(userOpHash)
-
-            if (userOp) {
-                userOps.push(userOp)
-            }
+            userOpHashes.push(results[i] as HexData32)
         }
 
-        return userOps
+        // Remove all userOps in batch
+        return await this.remove(userOpHashes)
     }
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
