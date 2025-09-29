@@ -32,7 +32,7 @@ export const createRedisReceiptCache = ({
     redisEndpoint: string
     logger: Logger
 }): ReceiptCache => {
-    const REDIS_TIMEOUT = 500 // 100ms timeout for all Redis operations
+    const REDIS_TIMEOUT = 500 // 500ms timeout for all Redis operations
     const redis = new Redis(redisEndpoint)
     const redisPrefix = `${config.redisKeyPrefix}:${config.chainId}:receipt-cache`
 
@@ -66,7 +66,7 @@ export const createRedisReceiptCache = ({
             }
         },
 
-        setBatch: async (
+        set: async (
             receipts: { userOpHash: Hex; receipt: UserOperationReceipt }[]
         ): Promise<void> => {
             try {

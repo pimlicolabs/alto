@@ -12,7 +12,7 @@ export interface OutstandingStore {
     pop(count: number): Promise<UserOpInfo[]>
     popConflicting(userOp: UserOperation): Promise<ConflictingOutstandingType>
     add(userOpInfos: UserOpInfo[]): Promise<void>
-    remove(userOpHash: HexData32): Promise<boolean>
+    remove(userOpHash: HexData32): Promise<UserOpInfo | undefined>
     getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]>
     dumpLocal(): Promise<UserOpInfo[]>
     clear(): Promise<void>
