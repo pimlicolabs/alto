@@ -138,7 +138,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         for (const userOpInfo of userOpInfos) {
             const { userOp } = userOpInfo
-            const [nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
+            const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
             const userOpHash = userOpInfo.userOpHash
 
             // Create composite score: nonceSequence in upper 32 bits, maxFeePerGas in lower 32 bits.
