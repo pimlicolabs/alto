@@ -558,9 +558,7 @@ export class BundleManager {
         const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
-        await this.receiptCache.set([
-            { userOpHash, receipt: userOpReceipt }
-        ])
+        await this.receiptCache.set([{ userOpHash, receipt: userOpReceipt }])
 
         return userOpReceipt
     }
