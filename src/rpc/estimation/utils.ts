@@ -104,11 +104,9 @@ export function decodeSimulateHandleOpError(
     // Check if it's a BaseError with ContractFunctionRevertedError
     if (!(error instanceof BaseError)) {
         logger.warn("Not a BaseError")
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate validation result.",
-            code: ValidationErrors.SimulateValidation
-        }
+        throw new Error(
+            "Unknown error, could not parse simulate validation result."
+        )
     }
 
     let errorName: string
@@ -137,11 +135,9 @@ export function decodeSimulateHandleOpError(
 
         if (!error.data?.args) {
             logger.warn("Missing args")
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse simulate validation result.",
-                code: ValidationErrors.SimulateValidation
-            }
+            throw new Error(
+                "Unknown error, could not parse simulate validation result."
+            )
         }
 
         errorName = error.data.errorName
@@ -163,11 +159,9 @@ export function decodeSimulateHandleOpError(
 
         if (!rawRevertBytes) {
             logger.warn("Failed to find raw revert bytes")
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse simulate validation result.",
-                code: ValidationErrors.SimulateValidation
-            }
+            throw new Error(
+                "Unknown error, could not parse simulate validation result."
+            )
         }
 
         try {
@@ -186,18 +180,14 @@ export function decodeSimulateHandleOpError(
             args = decoded.args || []
         } catch (decodeError) {
             logger.warn({ rawRevertBytes }, "Failed to decode raw revert bytes")
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse simulate validation result.",
-                code: ValidationErrors.SimulateValidation
-            }
+            throw new Error(
+                "Unknown error, could not parse simulate validation result."
+            )
         }
     } else {
-        return {
-            result: "failed",
-            data: "Unknown error, could not parse simulate validation result.",
-            code: ValidationErrors.SimulateValidation
-        }
+        throw new Error(
+            "Unknown error, could not parse simulate validation result."
+        )
     }
 
     switch (errorName) {
@@ -245,11 +235,9 @@ export function decodeSimulateHandleOpError(
                 { errorName },
                 "Unknown ContractFunctionRevertedError name"
             )
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse simulate validation result.",
-                code: ValidationErrors.SimulateValidation
-            }
+            throw new Error(
+                "Unknown error, could not parse simulate validation result."
+            )
         }
     }
 }

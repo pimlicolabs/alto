@@ -126,12 +126,8 @@ export class BundleManager {
             }))
 
             // Batch cache receipts
-            await this.receiptCache.set(
-                userOps.map(({ userOpHash }) => ({
-                    userOpHash,
-                    receipt: userOpReceipts[userOpHash]
-                }))
-            )
+            const receipts = Object.values(userOpReceipts)
+            await this.receiptCache.cache(receipts)
 
             // Batch process userOps
             await this.processIncludedUserOps(
@@ -364,12 +360,7 @@ export class BundleManager {
                 const { blockNumber, transactionHash } = receipt
 
                 // Cache the receipt
-                await this.receiptCache.set([
-                    {
-                        userOpHash: userOpInfo.userOpHash,
-                        receipt: userOpReceipt
-                    }
-                ])
+                await this.receiptCache.cache([userOpReceipt])
 
                 await this.processIncludedUserOps(
                     [{ userOpInfo, userOpReceipt }],
@@ -558,7 +549,7 @@ export class BundleManager {
         const userOpReceipt = parseUserOpReceipt(userOpHash, receipt)
 
         // Cache the receipt before returning
-        await this.receiptCache.set([{ userOpHash, receipt: userOpReceipt }])
+        await this.receiptCache.cache([userOpReceipt])
 
         return userOpReceipt
     }

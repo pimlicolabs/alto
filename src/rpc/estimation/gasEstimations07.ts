@@ -185,11 +185,7 @@ export class GasEstimator07 {
                 { err: error, methodName },
                 "Error in performBinarySearch"
             )
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
+            throw new Error("Error in performBinarySearch")
         }
     }
 
