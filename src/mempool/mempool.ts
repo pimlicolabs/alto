@@ -85,24 +85,17 @@ export class Mempool {
 
     async markUserOpsAsSubmitted({
         userOps,
-        entryPoint,
         transactionHash
     }: {
         userOps: UserOpInfo[]
-        entryPoint: Address
         transactionHash: Hex
     }) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                const { userOpHash } = userOpInfo
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.addSubmitted({ entryPoint, userOpInfo })
-                await this.monitor.setUserOpStatus(userOpHash, {
-                    status: "submitted",
-                    transactionHash
-                })
-            })
-        )
+        const userOpHashes = userOps.map((userOpInfo) => userOpInfo.userOpHash)
+
+        await this.monitor.setStatus(userOpHashes, {
+            status: "submitted",
+            transactionHash
+        })
 
         this.metrics.userOpsSubmitted
             .labels({ status: "success" })
@@ -128,8 +121,11 @@ export class Mempool {
                     },
                     "resubmitting user operation"
                 )
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                // Complete processing before re-adding to outstanding pool.
+                await this.store.removeProcessing({
+                    entryPoint,
+                    userOpInfo
+                })
                 const [success, failureReason] = await this.add(
                     userOp,
                     entryPoint
@@ -156,14 +152,17 @@ export class Mempool {
         await Promise.all(
             rejectedUserOps.map(async (rejectedUserOp) => {
                 const { userOp, reason, userOpHash } = rejectedUserOp
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+                // Complete processing since userOp is dropped.
+                await this.store.removeProcessing({
+                    entryPoint,
+                    userOpInfo: rejectedUserOp
+                })
                 this.eventManager.emitDropped(
                     userOpHash,
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setUserOpStatus(userOpHash, {
+                await this.monitor.setStatus([userOpHash], {
                     status: "rejected",
                     transactionHash: null
                 })
@@ -179,7 +178,9 @@ export class Mempool {
         )
     }
 
-    async removeProcessingUserOps({
+    // Remove userOps from processing store.
+    // should be called when userOps are included onchain.
+    async removeProcessing({
         userOps,
         entryPoint
     }: {
@@ -187,22 +188,11 @@ export class Mempool {
         entryPoint: Address
     }) {
         await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
-                await this.store.removeProcessing({ entryPoint, userOpHash })
-            })
-        )
-    }
-
-    async removeSubmittedUserOps({
-        userOps,
-        entryPoint
-    }: {
-        userOps: UserOpInfo[]
-        entryPoint: Address
-    }) {
-        await Promise.all(
-            userOps.map(async ({ userOpHash }) => {
-                await this.store.removeSubmitted({ entryPoint, userOpHash })
+            userOps.map(async (userOpInfo) => {
+                await this.store.removeProcessing({
+                    entryPoint,
+                    userOpInfo
+                })
             })
         )
     }
@@ -211,14 +201,6 @@ export class Mempool {
 
     async dumpOutstanding(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.dumpOutstanding(entryPoint)
-    }
-
-    async dumpProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
-        return await this.store.dumpProcessing(entryPoint)
-    }
-
-    async dumpSubmittedOps(entryPoint: Address): Promise<UserOpInfo[]> {
-        return await this.store.dumpSubmitted(entryPoint)
     }
 
     // === Methods for entity management === //
@@ -334,15 +316,11 @@ export class Mempool {
             publicClient: this.config.publicClient
         })
 
-        // Check if the exact same userOperation is already in the mempool.
-        if (await this.store.isInMempool({ userOpHash, entryPoint })) {
-            return [false, "Already known"]
-        }
-
-        // Check if there is a conflicting userOp already being processed
-        const validation = await this.store.validateSubmittedOrProcessing({
+        // Check if the userOp is already known or conflicts with existing operations
+        const validation = await this.store.checkDuplicatesAndConflicts({
             entryPoint,
-            userOp
+            userOp,
+            userOpHash
         })
 
         if (!validation.valid) {
@@ -381,7 +359,7 @@ export class Mempool {
                 // Re-add to outstanding as it wasn't replaced
                 await this.store.addOutstanding({
                     entryPoint,
-                    userOpInfo: conflicting.userOpInfo
+                    userOpInfos: [conflicting.userOpInfo]
                 })
 
                 return [false, `${message}, bump the gas price by minimum 10%`]
@@ -400,16 +378,18 @@ export class Mempool {
 
         await this.store.addOutstanding({
             entryPoint,
-            userOpInfo: {
-                userOp,
-                userOpHash,
-                referencedContracts,
-                addedToMempool: Date.now(),
-                submissionAttempts: 0
-            }
+            userOpInfos: [
+                {
+                    userOp,
+                    userOpHash,
+                    referencedContracts,
+                    addedToMempool: Date.now(),
+                    submissionAttempts: 0
+                }
+            ]
         })
 
-        await this.monitor.setUserOpStatus(userOpHash, {
+        await this.monitor.setStatus([userOpHash], {
             status: "not_submitted",
             transactionHash: null
         })
@@ -588,7 +568,7 @@ export class Mempool {
                 },
                 "2nd Validation error"
             )
-            this.store.removeOutstanding({ entryPoint, userOpHash })
+            await this.store.removeOutstanding({ entryPoint, userOpHash })
             this.reputationManager.decreaseUserOpSeenStatus(
                 userOp,
                 entryPoint,
@@ -690,7 +670,6 @@ export class Mempool {
                 return await this.process({
                     entryPoint,
                     maxGasLimit: this.config.maxGasPerBundle,
-                    minOpsPerBundle: 1,
                     maxBundleCount
                 })
             }
@@ -706,43 +685,54 @@ export class Mempool {
     async process({
         maxGasLimit,
         entryPoint,
-        minOpsPerBundle,
         maxBundleCount
     }: {
         maxGasLimit: bigint
         entryPoint: Address
-        minOpsPerBundle: number
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
-        // Check if there are any operations in the store
-        const firstOp = await this.store.peekOutstanding(entryPoint)
-        if (!firstOp) {
+        const bundles: UserOperationBundle[] = []
+        const batchSize = this.config.mempoolPopBatchSize
+
+        // Pop batch of userOps.
+        const poppedUserOps = await this.store.popOutstanding(
+            entryPoint,
+            batchSize
+        )
+        if (poppedUserOps.length === 0) {
             return []
         }
 
-        // Get EntryPoint version
-        const bundles: UserOperationBundle[] = []
-        const seenOps = new Set()
-        let breakLoop = false
+        // Keep track of unused ops from the batch
+        const unusedUserOps = [...poppedUserOps]
 
-        // Process operations until no more are available or we hit maxBundleCount
-        while (await this.store.peekOutstanding(entryPoint)) {
-            // If maxBundles is set and we reached the limit, break
+        while (unusedUserOps.length > 0) {
+            // If maxBundles is set and we reached the limit, put back all unused ops and break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
+                if (unusedUserOps.length > 0) {
+                    await this.store.addOutstanding({
+                        entryPoint,
+                        userOpInfos: unusedUserOps
+                    })
+                }
                 break
             }
 
-            // Derive version
+            // Peek next userOp from unused batch.
+            const nextUserOp = unusedUserOps[0]
+            if (!nextUserOp) break
+
+            // Derive version.
             let version: EntryPointVersion
-            if (isVersion08(firstOp.userOp, entryPoint)) {
+            if (isVersion08(nextUserOp.userOp, entryPoint)) {
                 version = "0.8"
-            } else if (isVersion07(firstOp.userOp)) {
+            } else if (isVersion07(nextUserOp.userOp)) {
                 version = "0.7"
             } else {
                 version = "0.6"
             }
 
-            // Setup for next bundle
+            // Setup next bundle.
             const currentBundle: UserOperationBundle = {
                 entryPoint,
                 version,
@@ -756,33 +746,14 @@ export class Mempool {
             let knownEntities = await this.getKnownEntities(entryPoint)
             let storageMap: StorageMap = {}
 
-            if (breakLoop) {
-                break
-            }
-
-            // Keep adding ops to current bundle
-            while (await this.store.peekOutstanding(entryPoint)) {
-                const userOpInfo = await this.store.popOutstanding(entryPoint)
-                if (!userOpInfo) {
-                    break
-                }
-
-                if (seenOps.has(userOpInfo.userOpHash)) {
-                    breakLoop = true
-                    await this.store.addOutstanding({
-                        entryPoint,
-                        userOpInfo
-                    })
-                    break
-                }
-
-                seenOps.add(userOpInfo.userOpHash)
-
-                const { userOp } = userOpInfo
+            while (unusedUserOps.length > 0) {
+                const currentUserOp = unusedUserOps.shift()
+                if (!currentUserOp) break
+                const { userOp } = currentUserOp
 
                 // Check if we should skip this operation
                 const skipResult = await this.shouldSkip({
-                    userOpInfo,
+                    userOpInfo: currentUserOp,
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
@@ -796,28 +767,24 @@ export class Mempool {
                     if (!skipResult.removeOutstanding) {
                         await this.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
+                            userOpInfos: [currentUserOp]
                         })
                     }
+                    // Continue with next op from batch
                     continue
                 }
 
-                const beneficiary =
-                    this.config.utilityPrivateKey?.address ||
-                    privateKeyToAddress(generatePrivateKey())
-
                 gasUsed += calculateAA95GasFloor({
                     userOps: [userOp],
-                    beneficiary
+                    beneficiary: // Use utility address if set, otherwise generate random beneficiary.
+                        this.config.utilityPrivateKey?.address ||
+                        privateKeyToAddress(generatePrivateKey())
                 })
 
-                // Only break on gas limit if we've hit minOpsPerBundle
-                if (
-                    gasUsed > maxGasLimit &&
-                    currentBundle.userOps.length >= minOpsPerBundle
-                ) {
-                    // Put the operation back in the store
-                    await this.store.addOutstanding({ entryPoint, userOpInfo })
+                // Break on gas limit
+                if (gasUsed > maxGasLimit) {
+                    // Put current op back to front of unused for next bundle
+                    unusedUserOps.unshift(currentUserOp)
                     break
                 }
 
@@ -829,10 +796,23 @@ export class Mempool {
                 storageMap = skipResult.storageMap
 
                 this.reputationManager.decreaseUserOpCount(userOp)
-                this.store.addProcessing({ entryPoint, userOpInfo })
+                // Track the operation as active (being bundled).
+                await this.store.addProcessing({
+                    entryPoint,
+                    userOpInfo: currentUserOp
+                })
 
-                // Add op to current bundle
-                currentBundle.userOps.push(userOpInfo)
+                // Add userOp to current bundle.
+                currentBundle.userOps.push(currentUserOp)
+
+                // Try to fetch more userOps if we've exhausted this batch.
+                if (unusedUserOps.length === 0) {
+                    const morePoppedOps = await this.store.popOutstanding(
+                        entryPoint,
+                        batchSize
+                    )
+                    unusedUserOps.push(...morePoppedOps)
+                }
             }
 
             if (currentBundle.userOps.length > 0) {

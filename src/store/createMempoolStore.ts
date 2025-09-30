@@ -1,21 +1,20 @@
+import {
+    type EntryPointUserOpHashParam,
+    type EntryPointUserOpInfoParam,
+    type EntryPointUserOpInfosParam,
+    type MempoolStore,
+    type OutstandingStore,
+    type ProcessingStore,
+    type StoreType,
+    createOutstandingQueue,
+    createProcessingStore
+} from "@alto/store"
 import type { HexData32, UserOperation } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
-import type {
-    EntryPointUserOpHashParam,
-    EntryPointUserOpInfoParam,
-    MempoolStore,
-    OutstandingStore,
-    Store,
-    StoreType
-} from "."
 import type { AltoConfig } from "../createConfig"
-import { createMemoryOutstandingQueue } from "./createMemoryOutstandingStore"
-import { createRedisOutstandingQueue } from "./createRedisOutstandingStore"
-import { createRedisStore } from "./createRedisStore"
-import { createMemoryStore } from "./createStore"
 
 export const createMempoolStore = ({
     config,
@@ -31,9 +30,8 @@ export const createMempoolStore = ({
     const storeHandlers: Map<
         Address,
         {
-            processing: Store
-            submitted: Store
             outstanding: OutstandingStore
+            processing: ProcessingStore
         }
     > = new Map()
 
@@ -49,69 +47,21 @@ export const createMempoolStore = ({
     }
 
     for (const entryPoint of config.entrypoints) {
-        let outstanding: OutstandingStore
-        let processing: Store
-        let submitted: Store
-        if (config.enableHorizontalScaling && config.redisEndpoint) {
-            outstanding = createRedisOutstandingQueue({
-                config,
-                entryPoint,
-                redisEndpoint: config.redisEndpoint
-            })
-            processing = createRedisStore({
-                config,
-                entryPoint,
-                storeType: "processing",
-                redisEndpoint: config.redisEndpoint
-            })
-            submitted = createRedisStore({
-                config,
-                entryPoint,
-                storeType: "submitted",
-                redisEndpoint: config.redisEndpoint
-            })
+        const outstanding = createOutstandingQueue({
+            config,
+            entryPoint,
+            logger
+        })
 
-            // Log the Redis keys being used
-            const outstandingKey = `${config.chainId}:outstanding:pending-queue:${entryPoint}`
-            const processingKey = `${config.chainId}:processing:*:${entryPoint}`
-            const submittedKey = `${config.chainId}:submitted:*:${entryPoint}`
-
-            logger.info(
-                {
-                    outstandingKey,
-                    processingKey,
-                    submittedKey
-                },
-                "Using redis for outstanding, processing, submitted mempools with keys"
-            )
-        } else {
-            outstanding = createMemoryOutstandingQueue({
-                config
-            })
-            processing = createMemoryStore({
-                config
-            })
-            submitted = createMemoryStore({
-                config
-            })
-            logger.info(
-                "Using memory for outstanding, processing, submitted mempools"
-            )
-        }
+        const processing = createProcessingStore({
+            config,
+            entryPoint
+        })
 
         storeHandlers.set(entryPoint, {
-            processing,
-            submitted,
-            outstanding
+            outstanding,
+            processing
         })
-    }
-
-    const logAddOperation = (userOpHash: HexData32, storeType: StoreType) => {
-        logger.debug(
-            { userOpHash, store: storeType },
-            `added user op to ${storeType} mempool`
-        )
-        metrics.userOpsInMempool.labels({ status: storeType }).inc()
     }
 
     const logRemoveOperation = (
@@ -146,75 +96,34 @@ export const createMempoolStore = ({
 
     return {
         // Methods used for bundling
-        popOutstanding: async (entryPoint: Address) => {
+        popOutstanding: async (entryPoint: Address, count: number) => {
             try {
                 const { outstanding } = getStoreHandlers(entryPoint)
-                return await outstanding.pop()
+                return await outstanding.pop(count)
             } catch (err) {
                 logger.error(
                     { err },
-                    "Failed to pop from outstanding mempool, defaulting to undefined"
+                    "Failed to pop from outstanding mempool, defaulting to empty array"
                 )
                 sentry.captureException(err)
-                return undefined
-            }
-        },
-        peekOutstanding: async (entryPoint: Address) => {
-            try {
-                const { outstanding } = getStoreHandlers(entryPoint)
-                return await outstanding.peek()
-            } catch (err) {
-                logger.error(
-                    { err },
-                    "Failed to peek from outstanding mempool, defaulting to undefined"
-                )
-                sentry.captureException(err)
-                return undefined
+                return []
             }
         },
 
         // State handling
         addOutstanding: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             const { outstanding } = getStoreHandlers(entryPoint)
-            logAddOperation(userOpInfo.userOpHash, "outstanding")
+            metrics.userOpsInMempool
+                .labels({ status: "outstanding" })
+                .inc(userOpInfos.length)
             try {
-                await outstanding.add(userOpInfo)
+                await outstanding.add(userOpInfos)
             } catch (err) {
                 logger.error({ err }, "Failed to add to outstanding mempool")
                 sentry.captureException(err)
-            }
-        },
-        addProcessing: ({
-            entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
-            try {
-                const { processing } = getStoreHandlers(entryPoint)
-                logAddOperation(userOpInfo.userOpHash, "processing")
-                processing.add(userOpInfo)
-                return Promise.resolve()
-            } catch (err) {
-                logger.error({ err }, "Failed to add to processing mempool")
-                sentry.captureException(err)
-                return Promise.resolve()
-            }
-        },
-        addSubmitted: ({
-            entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
-            try {
-                const { submitted } = getStoreHandlers(entryPoint)
-                logAddOperation(userOpInfo.userOpHash, "submitted")
-                submitted.add(userOpInfo)
-                return Promise.resolve()
-            } catch (err) {
-                logger.error({ err }, "Failed to add to submitted mempool")
-                sentry.captureException(err)
-                return Promise.resolve()
             }
         },
         removeOutstanding: async ({
@@ -223,8 +132,12 @@ export const createMempoolStore = ({
         }: EntryPointUserOpHashParam) => {
             try {
                 const { outstanding } = getStoreHandlers(entryPoint)
-                const removed = await outstanding.remove(userOpHash)
-                logRemoveOperation(userOpHash, "outstanding", removed)
+                const removed = await outstanding.remove([userOpHash])
+                logRemoveOperation(
+                    userOpHash,
+                    "outstanding",
+                    removed.length > 0
+                )
             } catch (err) {
                 logger.error(
                     { err },
@@ -234,92 +147,73 @@ export const createMempoolStore = ({
                 return Promise.resolve()
             }
         },
-        removeProcessing: async ({
-            entryPoint,
-            userOpHash
-        }: EntryPointUserOpHashParam) => {
-            try {
-                const { processing } = getStoreHandlers(entryPoint)
-                const removed = await processing.remove(userOpHash)
-                logRemoveOperation(userOpHash, "processing", removed)
-            } catch (err) {
-                logger.error(
-                    { err },
-                    "Failed to remove from processing mempool"
-                )
-                sentry.captureException(err)
-                return Promise.resolve()
-            }
-        },
-        removeSubmitted: async ({
-            entryPoint,
-            userOpHash
-        }: EntryPointUserOpHashParam) => {
-            try {
-                const { submitted } = getStoreHandlers(entryPoint)
-                const removed = await submitted.remove(userOpHash)
-                logRemoveOperation(userOpHash, "submitted", removed)
-            } catch (err) {
-                logger.error({ err }, "Failed to remove from submitted mempool")
-                sentry.captureException(err)
-                return Promise.resolve()
-            }
-        },
         dumpOutstanding: async (entryPoint: Address) => {
             const { outstanding } = getStoreHandlers(entryPoint)
             logDumpOperation("outstanding")
             return await outstanding.dumpLocal()
         },
-        dumpProcessing: async (entryPoint: Address) => {
-            const { processing } = getStoreHandlers(entryPoint)
-            logDumpOperation("processing")
-            return await processing.dumpLocal()
+
+        // Methods to mark/unmark userOps that are being processed.
+        addProcessing: async ({
+            entryPoint,
+            userOpInfo
+        }: EntryPointUserOpInfoParam) => {
+            try {
+                const { processing } = getStoreHandlers(entryPoint)
+                await processing.addProcessing(userOpInfo)
+            } catch (err) {
+                logger.error({ err }, "Failed to track active userOp")
+                sentry.captureException(err)
+            }
         },
-        dumpSubmitted: async (entryPoint: Address) => {
-            const { submitted } = getStoreHandlers(entryPoint)
-            logDumpOperation("submitted")
-            return await submitted.dumpLocal()
+        removeProcessing: async ({
+            entryPoint,
+            userOpInfo
+        }: EntryPointUserOpInfoParam) => {
+            try {
+                const { processing } = getStoreHandlers(entryPoint)
+                await processing.removeProcessing(userOpInfo)
+            } catch (err) {
+                logger.error({ err }, "Failed to untrack active userOp")
+                sentry.captureException(err)
+            }
         },
 
-        // Check if the userOp is already in the mempool
-        isInMempool: async ({
-            userOpHash,
-            entryPoint
-        }: EntryPointUserOpHashParam) => {
-            const { outstanding, processing, submitted } =
-                getStoreHandlers(entryPoint)
+        // Check if the userOp is already in the mempool or conflicts with existing userOps.
+        checkDuplicatesAndConflicts: async ({
+            entryPoint,
+            userOp,
+            userOpHash
+        }: {
+            entryPoint: Address
+            userOp: UserOperation
+            userOpHash: HexData32
+        }) => {
+            const { outstanding, processing } = getStoreHandlers(entryPoint)
 
-            const [inOutstanding, inProcessing, inSubmitted] =
+            const [isInOutstanding, isInProcessing, wouldConflict] =
                 await Promise.all([
                     outstanding.contains(userOpHash),
-                    processing.contains(userOpHash),
-                    submitted.contains(userOpHash)
+                    processing.isProcessing(userOpHash),
+                    processing.wouldConflict(userOp)
                 ])
 
-            return inOutstanding || inProcessing || inSubmitted
-        },
+            // Check if already known (in outstanding or processing).
+            if (isInOutstanding || isInProcessing) {
+                return {
+                    valid: false,
+                    reason: "Already known"
+                }
+            }
 
-        validateSubmittedOrProcessing: async ({
-            entryPoint,
-            userOp
-        }: { entryPoint: Address; userOp: UserOperation }) => {
-            const { submitted, processing } = getStoreHandlers(entryPoint)
-
-            const [submittedConflict, processingConflict] = await Promise.all([
-                submitted.findConflicting(userOp),
-                processing.findConflicting(userOp)
-            ])
-
-            const conflicting = submittedConflict || processingConflict
-
-            if (conflicting?.reason === "conflicting_nonce") {
+            if (wouldConflict === "nonce_conflict") {
                 return {
                     valid: false,
                     reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
                 }
             }
 
-            if (conflicting?.reason === "conflicting_deployment") {
+            if (wouldConflict === "deployment_conflict") {
                 return {
                     valid: false,
                     reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"

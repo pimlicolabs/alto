@@ -11,12 +11,12 @@ export interface MinMaxQueue {
 
 export const createMinMaxQueue = ({
     config,
-    keyPrefix
-}: { config: AltoConfig; keyPrefix: string }): MinMaxQueue => {
+    queueName
+}: { config: AltoConfig; queueName: string }): MinMaxQueue => {
     if (config.enableHorizontalScaling && config.redisEndpoint) {
         return createRedisMinMaxQueue({
             config,
-            keyPrefix,
+            queueName: queueName,
             redisEndpoint: config.redisEndpoint
         })
     }

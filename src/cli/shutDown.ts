@@ -19,26 +19,12 @@ async function dropAllOperationsOnShutdown({
     await Promise.all(
         config.entrypoints.map(async (entryPoint) => {
             try {
-                const [outstanding, submitted, processing] = await Promise.all([
-                    mempool.dumpOutstanding(entryPoint),
-                    mempool.dumpSubmittedOps(entryPoint),
-                    mempool.dumpProcessing(entryPoint)
-                ])
+                const outstanding = await mempool.dumpOutstanding(entryPoint)
 
-                const rejectedUserOps = [
-                    ...outstanding.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    })),
-                    ...submitted.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    })),
-                    ...processing.map((userOp) => ({
-                        ...userOp,
-                        reason: "shutdown"
-                    }))
-                ]
+                const rejectedUserOps = outstanding.map((userOp) => ({
+                    ...userOp,
+                    reason: "shutdown"
+                }))
 
                 if (rejectedUserOps.length > 0) {
                     await mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -46,9 +32,7 @@ async function dropAllOperationsOnShutdown({
 
                 logger.info(
                     {
-                        outstanding: outstanding.length,
-                        submitted: submitted.length,
-                        processing: processing.length
+                        outstanding: outstanding.length
                     },
                     "[MEMPOOL-RESTORATION] Dropping mempool operations"
                 )
@@ -66,22 +50,19 @@ async function dropAllOperationsOnShutdown({
 async function queueOperationsOnShutdownToRedis({
     mempool,
     bundleManager,
+    redisEndpoint,
     config,
     logger
 }: {
     mempool: Mempool
     bundleManager: BundleManager
+    redisEndpoint: string
     config: AltoConfig
     logger: Logger
 }) {
-    // If there is no redis endpoint, then there is no queue to publish to
-    if (!config.redisEndpoint) {
-        return
-    }
-
     try {
-        const redis = new Redis(config.redisEndpoint)
-        const queueName = getQueueName(config.publicClient.chain.id)
+        const redis = new Redis(redisEndpoint)
+        const queueName = getQueueName(config.chainId)
         const restorationQueue = new Queue(queueName, {
             createClient: () => {
                 return redis
@@ -99,28 +80,18 @@ async function queueOperationsOnShutdownToRedis({
         await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
                 try {
-                    const [outstanding, submitted, processing, pendingBundles] =
-                        await Promise.all([
-                            mempool.dumpOutstanding(entryPoint),
-                            mempool.dumpSubmittedOps(entryPoint),
-                            mempool.dumpProcessing(entryPoint),
-                            bundleManager.getPendingBundles()
-                        ])
+                    const [outstanding, pendingBundles] = await Promise.all([
+                        mempool.dumpOutstanding(entryPoint),
+                        bundleManager.getPendingBundles()
+                    ])
 
-                    if (
-                        outstanding.length > 0 ||
-                        submitted.length > 0 ||
-                        processing.length > 0 ||
-                        pendingBundles.length > 0
-                    ) {
+                    if (outstanding.length > 0 || pendingBundles.length > 0) {
                         await restorationQueue.add({
                             type: "MEMPOOL_DATA",
                             chainId: config.publicClient.chain.id,
                             entryPoint,
                             data: recoverableJsonStringifyWithBigint({
                                 outstanding,
-                                submitted,
-                                processing,
                                 pendingBundles
                             }),
                             timestamp: Date.now()
@@ -129,9 +100,7 @@ async function queueOperationsOnShutdownToRedis({
                     logger.info(
                         {
                             entryPoint,
-                            outstanding: outstanding.length,
-                            submitted: submitted.length,
-                            processing: processing.length
+                            outstanding: outstanding.length
                         },
                         "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
                     )
@@ -182,6 +151,7 @@ export function persistShutdownState({
     if (config.redisEndpoint) {
         return queueOperationsOnShutdownToRedis({
             mempool,
+            redisEndpoint: config.redisEndpoint,
             bundleManager,
             config,
             logger
@@ -311,24 +281,10 @@ export async function restoreShutdownState({
                         "[MEMPOOL-RESTORATION] Received mempool restoration data"
                     )
 
-                    for (const userOpInfo of data.outstanding) {
+                    if (data.outstanding.length > 0) {
                         await mempool.store.addOutstanding({
                             entryPoint,
-                            userOpInfo
-                        })
-                    }
-
-                    for (const userOpInfo of data.processing) {
-                        await mempool.store.addOutstanding({
-                            entryPoint,
-                            userOpInfo
-                        })
-                    }
-
-                    for (const userOpInfo of data.submitted) {
-                        await mempool.store.addSubmitted({
-                            entryPoint,
-                            userOpInfo
+                            userOpInfos: data.outstanding
                         })
                     }
 

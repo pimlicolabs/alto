@@ -50,6 +50,15 @@ export function isVersion08(
     return entryPointAddress.startsWith("0x4337")
 }
 
+// Check if a userOperation is a deployment operation
+export function isDeployment(userOp: UserOperation): boolean {
+    const isV6Deployment =
+        isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
+    const isV7Deployment =
+        isVersion07(userOp) && !!userOp.factory && userOp.factory !== "0x"
+    return isV6Deployment || isV7Deployment
+}
+
 export function getInitCode(unpackedUserOp: UserOperation07) {
     return unpackedUserOp.factory
         ? concat([

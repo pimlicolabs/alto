@@ -185,6 +185,13 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         require: false,
         default: 0
     },
+    "mempool-pop-batch-size": {
+        description:
+            "Number of user operations to pop from the mempool at once for bundling",
+        type: "number",
+        require: false,
+        default: 10
+    },
     "enforce-unique-senders-per-bundle": {
         description:
             "Include user ops with the same sender in the single bundle",
@@ -334,6 +341,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
     }
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
+    "max-bundle-count": {
+        description:
+            "Maximum number of bundles when calling mempool's process function",
+        type: "number",
+        require: false
+    },
     "resubmit-stuck-timeout": {
         description:
             "Amount of time before retrying a failed userOperation (in ms)",

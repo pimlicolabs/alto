@@ -1,11 +1,10 @@
 import type { HexData32, UserOperationStatus } from "@alto/types"
 import { Redis } from "ioredis"
-import { getRedisKeys } from "../cli/config/redisKeys"
 import type { AltoConfig } from "../createConfig"
 import { userOperationStatusSchema } from "../types/schemas"
 
 interface UserOperationStatusStore {
-    set(userOpHash: HexData32, status: UserOperationStatus): Promise<void>
+    set(userOpHash: HexData32[], status: UserOperationStatus): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
 }
@@ -13,8 +12,10 @@ interface UserOperationStatusStore {
 class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
     private store: Record<HexData32, UserOperationStatus> = {}
 
-    set(userOpHash: HexData32, status: UserOperationStatus) {
-        this.store[userOpHash] = status
+    set(userOpHashes: HexData32[], status: UserOperationStatus) {
+        for (const userOpHash of userOpHashes) {
+            this.store[userOpHash] = status
+        }
         return Promise.resolve()
     }
 
@@ -43,7 +44,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
         redisEndpoint: string
     }) {
         this.redis = new Redis(redisEndpoint)
-        this.keyPrefix = getRedisKeys(config).userOpStatusQueue
+        this.keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:userop-status`
         this.ttlSeconds = ttlSeconds
     }
 
@@ -85,13 +86,20 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     }
 
     async set(
-        userOpHash: HexData32,
+        userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
-        const key = this.getKey(userOpHash)
-        const serialized = this.serialize(status)
+        if (userOpHashes.length === 0) return
 
-        await this.redis.set(key, serialized, "EX", this.ttlSeconds)
+        const pipeline = this.redis.pipeline()
+
+        for (const userOpHash of userOpHashes) {
+            const key = this.getKey(userOpHash)
+            const serialized = this.serialize(status)
+            pipeline.set(key, serialized, "EX", this.ttlSeconds)
+        }
+
+        await pipeline.exec()
     }
 
     async get(userOpHash: HexData32): Promise<UserOperationStatus | undefined> {
@@ -132,29 +140,30 @@ export class Monitor {
         }
     }
 
-    public async setUserOpStatus(
-        userOpHash: HexData32,
+    public async setStatus(
+        userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
-        // Clear existing timer if it exists
-        if (this.userOpTimeouts[userOpHash]) {
-            clearTimeout(this.userOpTimeouts[userOpHash])
+        // Clear existing timers and set new ones for in-memory storage
+        if (!this.isUsingRedis) {
+            for (const userOpHash of userOpHashes) {
+                if (this.userOpTimeouts[userOpHash]) {
+                    clearTimeout(this.userOpTimeouts[userOpHash])
+                }
+            }
         }
 
-        // Set the user operation status
-        await this.statusStore.set(userOpHash, status)
+        // Set the user operation statuses
+        await this.statusStore.set(userOpHashes, status)
 
         // For in-memory storage, we need to manually prune statuses
         if (!this.isUsingRedis) {
-            // Clear existing timer if it exists
-            if (this.userOpTimeouts[userOpHash]) {
-                clearTimeout(this.userOpTimeouts[userOpHash])
+            for (const userOpHash of userOpHashes) {
+                this.userOpTimeouts[userOpHash] = setTimeout(async () => {
+                    await this.statusStore.delete(userOpHash)
+                    delete this.userOpTimeouts[userOpHash]
+                }, this.timeout) as NodeJS.Timeout
             }
-
-            this.userOpTimeouts[userOpHash] = setTimeout(async () => {
-                await this.statusStore.delete(userOpHash)
-                delete this.userOpTimeouts[userOpHash]
-            }, this.timeout) as NodeJS.Timeout
         }
     }
 

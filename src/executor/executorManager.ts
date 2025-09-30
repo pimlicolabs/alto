@@ -89,7 +89,9 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const bundles = await this.mempool.getBundles()
+        const bundles = await this.mempool.getBundles(
+            this.config.maxBundleCount
+        )
 
         if (bundles.length > 0) {
             // Count total ops and add timestamps
@@ -247,7 +249,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeProcessingUserOps({
+                await this.mempool.removeProcessing({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
@@ -309,7 +311,6 @@ export class ExecutorManager {
 
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
-            entryPoint: submittedBundle.bundle.entryPoint,
             transactionHash: submittedBundle.transactionHash
         })
 
@@ -593,7 +594,7 @@ export class ExecutorManager {
                     )
                     .map(({ userOpInfo }) => userOpInfo)
 
-                await this.mempool.removeSubmittedUserOps({
+                await this.mempool.removeProcessing({
                     entryPoint,
                     userOps: confirmedUserOps
                 })
