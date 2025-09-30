@@ -190,13 +190,12 @@ export class MemoryOutstanding implements OutstandingStore {
             // Add to hash lookup for O(1) contains checks
             this.hashLookup.set(userOpHash, userOpInfo)
 
-            backlogOps
-                .map((sop) => sop.userOp)
-                .sort((a, b) => {
-                    const [, aNonceSeq] = getNonceKeyAndSequence(a.nonce)
-                    const [, bNonceSeq] = getNonceKeyAndSequence(b.nonce)
-                    return Number(aNonceSeq) - Number(bNonceSeq)
-                })
+            // Sort backlogOps by nonce sequence
+            backlogOps.sort((a, b) => {
+                const [, aNonceSeq] = getNonceKeyAndSequence(a.userOp.nonce)
+                const [, bNonceSeq] = getNonceKeyAndSequence(b.userOp.nonce)
+                return Number(aNonceSeq - bNonceSeq)
+            })
 
             const lowestUserOpHash = backlogOps[0].userOpHash
 
@@ -271,22 +270,17 @@ export class MemoryOutstanding implements OutstandingStore {
         const removedOps: UserOpInfo[] = []
 
         for (const userOpHash of userOpHashes) {
-            const priorityQueueIndex = this.priorityQueue.findIndex(
-                (info) => info.userOpHash === userOpHash
-            )
+            // Look up userOp in hash lookup first
+            const userOpInfo = this.hashLookup.get(userOpHash)
 
-            if (priorityQueueIndex === -1) {
+            if (!userOpInfo) {
                 this.logger.info(
                     `tried to remove non-existent user op from mempool: ${userOpHash}`
                 )
                 continue
             }
 
-            const userOpInfo = this.priorityQueue[priorityQueueIndex]
             const pendingOpsSlot = senderNonceSlot(userOpInfo.userOp)
-
-            // Remove from priority queue
-            this.priorityQueue.splice(priorityQueueIndex, 1)
 
             // Find and remove from pending ops
             const backlogOps = this.pendingOps.get(pendingOpsSlot)
@@ -307,6 +301,14 @@ export class MemoryOutstanding implements OutstandingStore {
             }
 
             backlogOps.splice(backlogIndex, 1)
+
+            // Remove from priority queue if present
+            const priorityQueueIndex = this.priorityQueue.findIndex(
+                (info) => info.userOpHash === userOpHash
+            )
+            if (priorityQueueIndex !== -1) {
+                this.priorityQueue.splice(priorityQueueIndex, 1)
+            }
 
             // Remove from hash lookup
             this.hashLookup.delete(userOpHash)
