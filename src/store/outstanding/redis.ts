@@ -30,6 +30,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private readyQueue: string // Queue of userOpHashes (sorted by composite of userOp.nonceSeq + userOp.maxFeePerGas)
     private userOpHashMap: string // userOpHash -> boolean
     private deploymentHashMap: string // sender -> deployment userOpHash
+    private senderNonceQueueTtl: number // TTL for sender nonce queues in seconds
 
     constructor({
         config,
@@ -51,16 +52,8 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.userOpHashMap = `${redisPrefix}:userop-hash`
         this.deploymentHashMap = `${redisPrefix}:deployment-senders`
 
-        // Register Lua script to atomically delete key if empty
-        this.redis.defineCommand("deleteIfEmpty", {
-            numberOfKeys: 1,
-            lua: `
-                if redis.call('ZCARD', KEYS[1]) == 0 then
-                    return redis.call('DEL', KEYS[1])
-                end
-                return 0
-            `
-        })
+        // Calculate TTL for sender nonce queues (10 blocks worth of time)
+        this.senderNonceQueueTtl = config.blockTime * 10
 
         logger.info(
             {
@@ -154,6 +147,7 @@ class RedisOutstandingQueue implements OutstandingStore {
             // Add to sender+nonceKey index for fast lookup.
             const senderNonceQueue = this.getSenderNonceQueue(userOp)
             pipeline.zadd(senderNonceQueue, Number(nonceSequence), userOpHash)
+            pipeline.expire(senderNonceQueue, this.senderNonceQueueTtl)
 
             // Add to userOpHash map.
             pipeline.hset(this.userOpHashMap, userOpHash, serializedUserOp)
@@ -180,7 +174,6 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         const removedUserOps: UserOpInfo[] = []
         const removalPipeline = this.redis.pipeline()
-        const queueCleanupMap = new Map<string, number>() // queue -> count of removals
 
         // Process each userOp that exists.
         for (let i = 0; i < userOpHashes.length; i++) {
@@ -203,10 +196,6 @@ class RedisOutstandingQueue implements OutstandingStore {
                 Number(nonceSequence),
                 Number(nonceSequence)
             )
-            queueCleanupMap.set(
-                senderNonceQueue,
-                (queueCleanupMap.get(senderNonceQueue) || 0) + 1
-            )
 
             // Remove from hash lookup.
             removalPipeline.hdel(this.userOpHashMap, userOpHash)
@@ -221,18 +210,6 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Execute all removals.
         await removalPipeline.exec()
-
-        // Clean up potentially empty sender index keys.
-        if (queueCleanupMap.size > 0) {
-            const pipeline = this.redis.pipeline()
-
-            for (const queue of queueCleanupMap.keys()) {
-                // @ts-ignore - using command defined in constructor.
-                pipeline.deleteIfEmpty(queue)
-            }
-
-            await pipeline.exec()
-        }
 
         return removedUserOps
     }
@@ -256,19 +233,31 @@ class RedisOutstandingQueue implements OutstandingStore {
 
     async getQueuedUserOps(userOp: UserOperation): Promise<UserOperation[]> {
         const [, nonceSequence] = getNonceKeyAndSequence(userOp.nonce)
-        const senderIndexKey = this.getSenderNonceQueue(userOp)
+        const senderNonceQueue = this.getSenderNonceQueue(userOp)
 
-        // Get all userOps with nonce sequence lower than the input
+        // Get all userOpHashes with nonce sequence lower than the input
         // ZRANGEBYSCORE returns elements with scores between min and max
         // We want scores from 0 to (nonceSequence - 1)
-        const serializedOps = await this.redis.zrangebyscore(
-            senderIndexKey,
+        const userOpHashes = await this.redis.zrangebyscore(
+            senderNonceQueue,
             0,
             Number(nonceSequence) - 1
         )
 
+        if (userOpHashes.length === 0) return []
+
+        // Fetch serialized data for each hash
+        const pipeline = this.redis.pipeline()
+        for (const hash of userOpHashes) {
+            pipeline.hget(this.userOpHashMap, hash)
+        }
+        const results = await pipeline.exec()
+
         // Deserialize and extract userOps
-        return serializedOps.map((data) => deserialize(data).userOp)
+        return (results || [])
+            .map((result) => result?.[1] as string | null)
+            .filter((serialized): serialized is string => serialized !== null)
+            .map((serialized) => deserialize(serialized).userOp)
     }
 
     // These methods aren't implemented
