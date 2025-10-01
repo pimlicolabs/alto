@@ -66,15 +66,13 @@ export const createRedisReceiptCache = ({
             }
         },
 
-        set: async (
-            receipts: { userOpHash: Hex; receipt: UserOperationReceipt }[]
-        ): Promise<void> => {
+        cache: async (receipts: UserOperationReceipt[]): Promise<void> => {
             try {
                 const pipeline = redis.pipeline()
                 const ttlSeconds = Math.floor(ttl / 1000)
 
-                for (const { userOpHash, receipt } of receipts) {
-                    const key = getKey(userOpHash)
+                for (const receipt of receipts) {
+                    const key = getKey(receipt.userOpHash)
                     const serialized = serializeReceipt(receipt)
                     pipeline.setex(key, ttlSeconds, serialized)
                 }

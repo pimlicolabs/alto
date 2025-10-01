@@ -112,6 +112,7 @@ export class GasEstimator07 {
     }): Promise<SimulateBinarySearchResult> {
         const { pimlicoSimulation, epSimulationsAddress } =
             this.getSimulationContracts(entryPoint, targetUserOp)
+
         // Check if we've hit the retry limit
         if (retryCount > this.config.binarySearchMaxRetries) {
             this.logger.warn(
@@ -181,15 +182,22 @@ export class GasEstimator07 {
                 code: ExecutionErrors.UserOperationReverted
             }
         } catch (error) {
+            const decoded = decodeSimulateHandleOpError(error, this.logger)
+
+            if (decoded.result === "failed") {
+                return {
+                    result: "failed",
+                    data: decoded.data,
+                    code: decoded.code
+                }
+            }
+
             this.logger.warn(
                 { err: error, methodName },
                 "Error in performBinarySearch"
             )
-            return {
-                result: "failed",
-                data: "Unknown error, could not parse target call data result.",
-                code: ExecutionErrors.UserOperationReverted
-            } as const
+
+            throw new Error("Error in performBinarySearch")
         }
     }
 

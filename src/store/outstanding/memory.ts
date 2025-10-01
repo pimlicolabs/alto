@@ -52,7 +52,7 @@ export class MemoryOutstanding implements OutstandingStore {
             return mempoolUserOp.sender === userOp.sender
         }).length
 
-        if (parallelUserOpsCount > this.config.mempoolMaxParallelOps) {
+        if (parallelUserOpsCount > this.config.mempoolMaxQueuedOps) {
             return false
         }
 
@@ -73,7 +73,7 @@ export class MemoryOutstanding implements OutstandingStore {
             )
         }).length
 
-        if (queuedUserOpsCount > this.config.mempoolMaxQueuedOps) {
+        if (queuedUserOpsCount > this.config.mempoolMaxParallelOps) {
             return false
         }
 
