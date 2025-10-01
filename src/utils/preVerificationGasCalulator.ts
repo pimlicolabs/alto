@@ -38,7 +38,7 @@ import {
 import { isVersion06, isVersion07, toPackedUserOp } from "./userop"
 
 // Encodes a user operation into bytes for gas calculation
-export function encodeUserOp(userOp: UserOperation): Uint8Array {
+function encodeUserOp(userOp: UserOperation): Uint8Array {
     const p = fillUserOpWithDummyData(userOp)
 
     if (isVersion06(userOp)) {
@@ -129,7 +129,7 @@ const defaultOverHeads: GasOverheads = {
     floorPerTokenGasCost: 10n
 }
 
-export function fillUserOpWithDummyData(userOp: UserOperation): UserOperation {
+function fillUserOpWithDummyData(userOp: UserOperation): UserOperation {
     if (isVersion06(userOp)) {
         return {
             ...userOp,

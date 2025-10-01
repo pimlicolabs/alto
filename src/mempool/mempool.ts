@@ -309,11 +309,10 @@ export class Mempool {
         entryPoint: Address,
         referencedContracts?: ReferencedCodeHashes
     ): Promise<[boolean, string]> {
-        const userOpHash = await getUserOpHash({
+        const userOpHash = getUserOpHash({
             userOp,
             entryPointAddress: entryPoint,
-            chainId: this.config.chainId,
-            publicClient: this.config.publicClient
+            chainId: this.config.chainId
         })
 
         // Check if the userOp is already known or conflicts with existing operations

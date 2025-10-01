@@ -97,21 +97,20 @@ export async function addToMempoolIfValid({
 }): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+    const userOpHash = getUserOpHash({
+        userOp,
+        entryPointAddress: entryPoint,
+        chainId: rpcHandler.config.chainId
+    })
+
     // Execute multiple async operations in parallel
     const [
-        userOpHash,
         { queuedUserOps, validationResult },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
         [preMempoolSuccess, preMempoolError],
         [validEip7702Auth, validEip7702AuthError]
     ] = await Promise.all([
-        getUserOpHash({
-            userOp,
-            entryPointAddress: entryPoint,
-            chainId: rpcHandler.config.chainId,
-            publicClient: rpcHandler.config.publicClient
-        }),
         getUserOpValidationResult(rpcHandler, userOp, entryPoint),
         rpcHandler.getNonceSeq(userOp, entryPoint),
         validatePvg(apiVersion, rpcHandler, userOp, entryPoint, boost),

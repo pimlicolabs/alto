@@ -1,5 +1,5 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
-import { BaseError, type RawContractError, concat, getAddress } from "viem"
+import { concat, getAddress } from "viem"
 import type { SignedAuthorization } from "viem"
 
 /// Convert an object to JSON string, handling bigint values
@@ -48,14 +48,6 @@ export const areAddressesEqual = (a: string, b: string) => {
     } catch {
         return false
     }
-}
-
-export function getRevertErrorData(err: unknown) {
-    if (!(err instanceof BaseError)) {
-        return undefined
-    }
-    const error = err.walk() as RawContractError
-    return typeof error?.data === "object" ? error.data?.data : error.data
 }
 
 export function getAAError(errorMsg: string) {
