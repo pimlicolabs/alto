@@ -4,7 +4,7 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type UserOperation,
-    ValidationErrors,
+    ERC7677Errors,
     sendUserOperationSchema
 } from "@alto/types"
 import type * as validation from "@alto/types"
@@ -129,7 +129,7 @@ export async function addToMempoolIfValid({
         )
         throw new RpcError(
             validEip7702AuthError,
-            ValidationErrors.InvalidFields
+            ERC7677Errors.InvalidFields
         )
     }
 
@@ -139,13 +139,13 @@ export async function addToMempoolIfValid({
             userOpHash,
             preMempoolError
         )
-        throw new RpcError(preMempoolError, ValidationErrors.InvalidFields)
+        throw new RpcError(preMempoolError, ERC7677Errors.InvalidFields)
     }
 
     // PreVerificationGas validation
     if (!pvgSuccess) {
         rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
-        throw new RpcError(pvgErrorReason, ValidationErrors.SimulateValidation)
+        throw new RpcError(pvgErrorReason, ERC7677Errors.SimulateValidation)
     }
 
     // Nonce validation
@@ -154,14 +154,14 @@ export async function addToMempoolIfValid({
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
-        throw new RpcError(reason, ValidationErrors.InvalidFields)
+        throw new RpcError(reason, ERC7677Errors.InvalidFields)
     }
 
     if (userOpNonceSeq > currentNonceSeq + 10n) {
         const reason =
             "UserOperation failed validaiton with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
-        throw new RpcError(reason, ValidationErrors.InvalidFields)
+        throw new RpcError(reason, ERC7677Errors.InvalidFields)
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
@@ -181,7 +181,7 @@ export async function addToMempoolIfValid({
                 mempoolAddError,
                 getAAError(mempoolAddError)
             )
-            throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
+            throw new RpcError(mempoolAddError, ERC7677Errors.InvalidFields)
         }
         return { result: "added", userOpHash }
     }
@@ -211,7 +211,7 @@ export async function addToMempoolIfValid({
             mempoolAddError,
             getAAError(mempoolAddError)
         )
-        throw new RpcError(mempoolAddError, ValidationErrors.InvalidFields)
+        throw new RpcError(mempoolAddError, ERC7677Errors.InvalidFields)
     }
 
     return { result: "added", userOpHash }

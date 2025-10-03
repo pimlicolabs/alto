@@ -12,7 +12,7 @@ import {
     type UserOpInfo,
     type UserOperation,
     type UserOperationBundle,
-    ValidationErrors,
+    ERC7677Errors,
     type ValidationResult
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
@@ -221,7 +221,7 @@ export class Mempool {
         ) {
             throw new RpcError(
                 `The sender address "${op.sender}" is used as a different entity in another UserOperation currently in mempool`,
-                ValidationErrors.OpcodeValidation
+                ERC7677Errors.OpcodeValidation
             )
         }
 
@@ -244,13 +244,13 @@ export class Mempool {
         if (paymaster && knownEntities.sender.has(paymaster)) {
             throw new RpcError(
                 `A Paymaster at ${paymaster} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
-                ValidationErrors.OpcodeValidation
+                ERC7677Errors.OpcodeValidation
             )
         }
         if (factory && knownEntities.sender.has(factory)) {
             throw new RpcError(
                 `A Factory at ${factory} in this UserOperation is used as a sender entity in another UserOperation currently in mempool.`,
-                ValidationErrors.OpcodeValidation
+                ERC7677Errors.OpcodeValidation
             )
         }
         return Promise.resolve()

@@ -2,7 +2,7 @@ import {
     RpcError,
     type UserOpInfo,
     type UserOperationBundle,
-    ValidationErrors,
+    ERC7677Errors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
 import {
@@ -21,7 +21,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         if (!rpcHandler.config.enableInstantBundlingEndpoint) {
             throw new RpcError(
                 "pimlico_sendUserOperationNow endpoint is not enabled",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
 
@@ -38,7 +38,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             await rpcHandler.preMempoolChecks(userOp, apiVersion)
 
         if (!preMempoolValid) {
-            throw new RpcError(preMempoolError, ValidationErrors.InvalidFields)
+            throw new RpcError(preMempoolError, ERC7677Errors.InvalidFields)
         }
 
         // Prepare bundle
@@ -75,7 +75,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         if (!result) {
             throw new RpcError(
                 "unhandled error during bundle submission",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
 

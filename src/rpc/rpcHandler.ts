@@ -17,7 +17,7 @@ import {
     type InterfaceValidator,
     RpcError,
     type UserOperation,
-    ValidationErrors
+    ERC7677Errors
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
@@ -105,7 +105,7 @@ export class RpcHandler {
         if (!handler) {
             throw new RpcError(
                 "Method not supported",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
 
@@ -122,7 +122,7 @@ export class RpcHandler {
                 `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entrypoints.join(
                     ", "
                 )}`,
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
     }

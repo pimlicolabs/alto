@@ -11,13 +11,12 @@ import type {
 import {
     type Address,
     EntryPointV06Abi,
-    ExecutionErrors,
     type ExecutionResult,
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
     type UserOperation,
-    ValidationErrors,
+    ERC7677Errors,
     entryPointExecutionErrorSchema06,
     entryPointExecutionErrorSchema07
 } from "@alto/types"
@@ -104,7 +103,7 @@ export class UnsafeValidator implements InterfaceValidator {
                             // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
                             (revertError?.cause as any)?.reason
                         }`,
-                        ValidationErrors.SimulateValidation
+                        ERC7677Errors.SimulateValidation
                     )
                 }
                 sentry.captureException(errorResult)
@@ -122,7 +121,7 @@ export class UnsafeValidator implements InterfaceValidator {
             const reason = errorData.args.reason
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${reason}`,
-                ValidationErrors.SimulateValidation
+                ERC7677Errors.SimulateValidation
             )
         }
 
@@ -177,7 +176,7 @@ export class UnsafeValidator implements InterfaceValidator {
             if (data.includes("AA31") || data.includes("AA21")) {
                 throw new RpcError(
                     `UserOperation reverted during simulation with reason: ${error.data}`,
-                    ExecutionErrors.UserOperationReverted
+                    ERC7677Errors.UserOperationReverted
                 )
             }
 
@@ -243,10 +242,10 @@ export class UnsafeValidator implements InterfaceValidator {
         })
 
         if (error.result === "failed") {
-            let errorCode: number = ExecutionErrors.UserOperationReverted
+            let errorCode: number = ERC7677Errors.UserOperationReverted
 
             if (error.data.toString().includes("AA23")) {
-                errorCode = ValidationErrors.SimulateValidation
+                errorCode = ERC7677Errors.SimulateValidation
 
                 return {
                     result: "failed",
@@ -327,7 +326,7 @@ export class UnsafeValidator implements InterfaceValidator {
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError(
                 "Invalid UserOperation signature or paymaster signature",
-                ValidationErrors.InvalidSignature
+                ERC7677Errors.InvalidSignature
             )
         }
 
@@ -345,7 +344,7 @@ export class UnsafeValidator implements InterfaceValidator {
         ) {
             throw new RpcError(
                 "User operation is not valid yet",
-                ValidationErrors.ExpiresShortly
+                ERC7677Errors.ExpiresShortly
             )
         }
 
@@ -353,17 +352,14 @@ export class UnsafeValidator implements InterfaceValidator {
             this.config.expirationCheck &&
             validationResult.returnInfo.validUntil < now + 5
         ) {
-            throw new RpcError(
-                "expires too soon",
-                ValidationErrors.ExpiresShortly
-            )
+            throw new RpcError("expires too soon", ERC7677Errors.ExpiresShortly)
         }
 
         // validate runtime
         if (runtimeValidation.result === "failed") {
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
-                ValidationErrors.SimulateValidation
+                ERC7677Errors.SimulateValidation
             )
         }
 
@@ -465,7 +461,7 @@ export class UnsafeValidator implements InterfaceValidator {
                 `UserOperation reverted with reason: ${
                     simulateValidationResult.data as string
                 }`,
-                ValidationErrors.SimulateValidation
+                ERC7677Errors.SimulateValidation
             )
         }
 
@@ -512,14 +508,14 @@ export class UnsafeValidator implements InterfaceValidator {
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(
                 "Invalid UserOp signature",
-                ValidationErrors.InvalidSignature
+                ERC7677Errors.InvalidSignature
             )
         }
 
         if (res.returnInfo.paymasterSigFailed) {
             throw new RpcError(
                 "Invalid UserOp paymasterData",
-                ValidationErrors.InvalidSignature
+                ERC7677Errors.InvalidSignature
             )
         }
 
@@ -528,7 +524,7 @@ export class UnsafeValidator implements InterfaceValidator {
         if (res.returnInfo.validAfter > now) {
             throw new RpcError(
                 `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
-                ValidationErrors.ExpiresShortly
+                ERC7677Errors.ExpiresShortly
             )
         }
 
@@ -539,7 +535,7 @@ export class UnsafeValidator implements InterfaceValidator {
         ) {
             throw new RpcError(
                 `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
-                ValidationErrors.ExpiresShortly
+                ERC7677Errors.ExpiresShortly
             )
         }
 

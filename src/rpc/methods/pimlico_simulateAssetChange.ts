@@ -1,10 +1,9 @@
 import {
-    ExecutionErrors,
     RpcError,
     type UserOperation,
     type UserOperation06,
     type UserOperation07,
-    ValidationErrors,
+    ERC7677Errors,
     pimlicoSimulateAssetChangeSchema,
     pimlicoSimulationsAbi
 } from "@alto/types"
@@ -41,7 +40,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
 
@@ -85,7 +84,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 if (!rpcHandler.config.entrypointSimulationContractV8) {
                     throw new RpcError(
                         "missing entrypointSimulationContractV8",
-                        ValidationErrors.InvalidFields
+                        ERC7677Errors.InvalidFields
                     )
                 }
 
@@ -108,7 +107,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 if (!rpcHandler.config.entrypointSimulationContractV7) {
                     throw new RpcError(
                         "missing entrypointSimulationContractV7",
-                        ValidationErrors.InvalidFields
+                        ERC7677Errors.InvalidFields
                     )
                 }
 
@@ -159,7 +158,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             if (decodedError.result === "failed") {
                 throw new RpcError(
                     `UserOperation reverted during simulation with reason: ${decodedError.data}`,
-                    ExecutionErrors.UserOperationReverted
+                    ERC7677Errors.UserOperationReverted
                 )
             }
 
@@ -167,7 +166,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
             throw new RpcError(
                 "Failed to decode simulation error",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
     }

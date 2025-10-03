@@ -3,7 +3,7 @@ import type {
     UserOperation06,
     UserOperation07
 } from "@alto/types"
-import { ValidationErrors, executionResultSchema } from "@alto/types"
+import { ERC7677Errors, executionResultSchema } from "@alto/types"
 import {
     type Logger,
     deepHexlify,
@@ -129,7 +129,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: "Sender has no code or factory not deployed",
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
         }
 
@@ -195,28 +195,28 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: args[1] as string,
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
 
         case "FailedOpWithRevert":
             return {
                 result: "failed",
                 data: `${args[1]} ${parseFailedOpWithRevert(args[2] as Hex)}`,
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
 
         case "CallPhaseReverted":
             return {
                 result: "failed",
                 data: args[0] as Hex,
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
 
         case "Error":
             return {
                 result: "failed",
                 data: args[0] as string,
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
 
         // 0.6 handleOp reverts with ExecutionResult if successful

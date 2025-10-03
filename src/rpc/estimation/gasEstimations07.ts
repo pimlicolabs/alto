@@ -1,10 +1,9 @@
 import type { GasPriceManager } from "@alto/handlers"
 import {
-    ExecutionErrors,
     RpcError,
     type StateOverrides,
     type UserOperation07,
-    ValidationErrors,
+    ERC7677Errors,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
@@ -74,7 +73,7 @@ export class GasEstimator07 {
             this.logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
-                ValidationErrors.InvalidFields
+                ERC7677Errors.InvalidFields
             )
         }
 
@@ -122,7 +121,7 @@ export class GasEstimator07 {
             return {
                 result: "failed",
                 data: `Max retries reached when calling ${methodName}`,
-                code: ValidationErrors.SimulateValidation
+                code: ERC7677Errors.SimulateValidation
             }
         }
 
@@ -179,7 +178,7 @@ export class GasEstimator07 {
             return {
                 result: "failed",
                 data: result.successData.returnData,
-                code: ExecutionErrors.UserOperationReverted
+                code: ERC7677Errors.UserOperationReverted
             }
         } catch (error) {
             const decoded = decodeSimulateHandleOpError(error, this.logger)
@@ -335,7 +334,7 @@ export class GasEstimator07 {
                 return {
                     result: "failed",
                     data: verificationGasLimit.successData.returnData,
-                    code: ExecutionErrors.UserOperationReverted
+                    code: ERC7677Errors.UserOperationReverted
                 }
             }
 
@@ -374,7 +373,7 @@ export class GasEstimator07 {
                 return {
                     result: "failed",
                     data: paymasterVerificationGasLimit.successData.returnData,
-                    code: ExecutionErrors.UserOperationReverted
+                    code: ERC7677Errors.UserOperationReverted
                 }
             }
 
