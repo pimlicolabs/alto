@@ -33,7 +33,7 @@ import {
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
-import { deployPaymaster } from "../src/testPaymaster.js"
+import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
@@ -42,7 +42,6 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
-import { getNodeError } from "viem/utils"
 
 enum ERC7769Errors {
     InvalidRequest = -32601,
@@ -1122,12 +1121,15 @@ describe.each([
             )
 
             if (entryPointVersion === "0.6") {
-                op.paymasterAndData = concat([nonDeployedPaymaster, "0x"])
+                op.paymasterAndData = concat([
+                    nonDeployedPaymaster,
+                    encodePaymasterData()
+                ])
             } else {
                 op.paymaster = nonDeployedPaymaster // FAILING CONDITION: paymaster not deployed
                 op.paymasterVerificationGasLimit = 100_000n
                 op.paymasterPostOpGasLimit = 50_000n
-                op.paymasterData = "0x"
+                op.paymasterData = encodePaymasterData()
             }
 
             op.signature = await client.account.signUserOperation(op)
@@ -1180,12 +1182,15 @@ describe.each([
             })) as UserOperation
 
             if (entryPointVersion === "0.6") {
-                op.paymasterAndData = concat([unfundedPaymaster, "0x"])
+                op.paymasterAndData = concat([
+                    unfundedPaymaster,
+                    encodePaymasterData()
+                ])
             } else {
                 op.paymaster = unfundedPaymaster // FAILING CONDITION: paymaster has no deposit
                 op.paymasterVerificationGasLimit = 100_000n
                 op.paymasterPostOpGasLimit = 50_000n
-                op.paymasterData = "0x"
+                op.paymasterData = encodePaymasterData()
             }
 
             op.signature = await client.account.signUserOperation(op)
@@ -1213,7 +1218,75 @@ describe.each([
             }
         })
 
-        // Should throw AA32: paymaster expired or not due
+        test("Should throw AA32: paymaster expired or not due", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Get current block timestamp
+            const publicClient = createPublicClient({
+                transport: http(anvilRpc),
+                chain: foundry
+            })
+            const block = await publicClient.getBlock()
+            const currentTimestamp = block.timestamp
+
+            // Set validUntil to expired (current timestamp - 1)
+            const expiredTimestamp = Number(currentTimestamp) - 1
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([
+                    paymaster,
+                    encodePaymasterData({
+                        validUntil: expiredTimestamp,
+                        validAfter: 0
+                    })
+                ])
+            } else {
+                op.paymaster = paymaster // FAILING CONDITION: expired validUntil
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData({
+                    validUntil: expiredTimestamp,
+                    validAfter: 0
+                })
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA32|paymaster expired|not due)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.ExpiresShortly)
+            }
+        })
 
         // Should throw AA33: reverted
 
@@ -1234,17 +1307,16 @@ describe.each([
                 ]
             })) as UserOperation
 
-            const invalidPaymasterSignature = "0xff"
-
             if (entryPointVersion === "0.6") {
                 op.paymasterAndData = concat([
                     paymaster,
-                    invalidPaymasterSignature
+                    encodePaymasterData({ invalidSignature: true })
                 ])
             } else {
-                op.paymaster = paymaster
-                op.paymasterData = invalidPaymasterSignature // FAILING CONDITION
+                op.paymaster = paymaster // FAILING CONDITION: invalid signature
                 op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData({ invalidSignature: true })
             }
 
             op.signature = await client.account.signUserOperation(op)
@@ -1297,7 +1369,7 @@ describe.each([
             op.paymaster = paymaster
             op.paymasterVerificationGasLimit = 1000n // FAILING CONDITION: Too low
             op.paymasterPostOpGasLimit = 50_000n
-            op.paymasterData = "0x"
+            op.paymasterData = encodePaymasterData()
 
             op.signature = await client.account.signUserOperation(op)
 
