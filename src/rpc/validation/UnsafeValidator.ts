@@ -17,8 +17,7 @@ import {
     type StorageMap,
     type UserOperation,
     ERC7677Errors,
-    entryPointExecutionErrorSchema06,
-    entryPointExecutionErrorSchema07
+    entryPointExecutionErrorSchema06
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { isVersion06 } from "@alto/utils"
@@ -41,6 +40,7 @@ import type {
     SimulateHandleOpFailResult,
     SimulateHandleOpResult
 } from "../estimation/types"
+import { toErc7769Code } from "../estimation/utils"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -73,22 +73,17 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
-    async getSimulationResult(
-        isVersion06: boolean,
+    async getSimulationResult06(
         errorResult: unknown,
         logger: Logger,
         simulationType: "validation" | "execution"
     ): Promise<ValidationResult | ExecutionResult> {
-        const entryPointExecutionErrorSchema = isVersion06
-            ? entryPointExecutionErrorSchema06
-            : entryPointExecutionErrorSchema07
+        const parsingResult =
+            entryPointExecutionErrorSchema06.safeParse(errorResult)
 
-        const entryPointErrorSchemaParsing =
-            entryPointExecutionErrorSchema.safeParse(errorResult)
-
-        if (!entryPointErrorSchemaParsing.success) {
+        if (!parsingResult.success) {
             try {
-                const err = fromZodError(entryPointErrorSchemaParsing.error)
+                const err = fromZodError(parsingResult.error)
                 logger.error(
                     { error: err.message },
                     "unexpected error during valiation"
@@ -102,7 +97,7 @@ export class UnsafeValidator implements InterfaceValidator {
                         (err) => err instanceof ContractFunctionExecutionError
                     )
                     throw new RpcError(
-                        `UserOperation reverted during simulation with reason: ${
+                        `1. UserOperation reverted during simulation with reason: ${
                             // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
                             (revertError?.cause as any)?.reason
                         }`,
@@ -118,13 +113,13 @@ export class UnsafeValidator implements InterfaceValidator {
             }
         }
 
-        const errorData = entryPointErrorSchemaParsing.data
+        const errorData = parsingResult.data
 
         if (errorData.errorName === "FailedOp") {
             const reason = errorData.args.reason
             throw new RpcError(
                 `UserOperation reverted during simulation with reason: ${reason}`,
-                ERC7677Errors.SimulateValidation
+                toErc7769Code(reason)
             )
         }
 
@@ -144,7 +139,6 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const simulationResult = errorData.args
-
         return simulationResult
     }
 
@@ -178,7 +172,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
             if (data.includes("AA31") || data.includes("AA21")) {
                 throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${error.data}`,
+                    `3. UserOperation reverted during simulation with reason: ${error.data}`,
                     ERC7677Errors.UserOperationReverted
                 )
             }
@@ -247,7 +241,7 @@ export class UnsafeValidator implements InterfaceValidator {
         if (error.result === "failed") {
             return {
                 result: "failed",
-                data: `UserOperation reverted during simulation with reason: ${error.data}`,
+                data: `4. UserOperation reverted during simulation with reason: ${error.data}`,
                 code: error.code
             }
         }
@@ -305,8 +299,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
 
         const validationResult = {
-            ...((await this.getSimulationResult(
-                isVersion06(userOp),
+            ...((await this.getSimulationResult06(
                 simulateValidationResult,
                 this.logger,
                 "validation"
@@ -349,7 +342,7 @@ export class UnsafeValidator implements InterfaceValidator {
         // validate runtime
         if (runtimeValidation.result === "failed") {
             throw new RpcError(
-                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                `5. UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
                 ERC7677Errors.SimulateValidation
             )
         }

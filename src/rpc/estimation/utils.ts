@@ -97,6 +97,31 @@ export const simulationErrors = parseAbi([
     "error CallPhaseReverted(bytes reason)"
 ])
 
+// Returns error code based on EntryPoint's AA error message.
+export const toErc7769Code = (errorMessage: string) => {
+    if (errorMessage.includes("AA24") || errorMessage.includes("AA34")) {
+        return ERC7677Errors.InvalidSignature
+    }
+
+    if (errorMessage.includes("AA31")) {
+        return ERC7677Errors.PaymasterDepositTooLow
+    }
+
+    if (errorMessage.includes("AA32")) {
+        return ERC7677Errors.ExpiresShortly
+    }
+
+    if (
+        errorMessage.includes("AA30") ||
+        errorMessage.includes("AA33") ||
+        errorMessage.includes("AA36")
+    ) {
+        return ERC7677Errors.SimulatePaymasterValidation
+    }
+
+    return ERC7677Errors.SimulateValidation
+}
+
 export function decodeSimulateHandleOpError(
     error: unknown,
     logger: Logger
@@ -190,38 +215,13 @@ export function decodeSimulateHandleOpError(
         )
     }
 
-    // Returns error code based on error message.
-    const getErrorCode = (errorMessage: string) => {
-        if (errorMessage.includes("AA24") || errorMessage.includes("AA34")) {
-            return ERC7677Errors.InvalidSignature
-        }
-
-        if (errorMessage.includes("AA31")) {
-            return ERC7677Errors.PaymasterDepositTooLow
-        }
-
-        if (errorMessage.includes("AA32")) {
-            return ERC7677Errors.ExpiresShortly
-        }
-
-        if (
-            errorMessage.includes("AA30") ||
-            errorMessage.includes("AA33") ||
-            errorMessage.includes("AA36")
-        ) {
-            return ERC7677Errors.SimulatePaymasterValidation
-        }
-
-        return ERC7677Errors.SimulateValidation
-    }
-
     switch (errorName) {
         case "FailedOp": {
             const errorMessage = args[1] as string
             return {
                 result: "failed",
                 data: errorMessage,
-                code: getErrorCode(errorMessage)
+                code: toErc7769Code(errorMessage)
             }
         }
 
@@ -231,7 +231,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: `${errorMessage} ${revertReason}`,
-                code: getErrorCode(errorMessage)
+                code: toErc7769Code(errorMessage)
             }
         }
 
@@ -240,7 +240,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: errorMessage,
-                code: getErrorCode(errorMessage)
+                code: toErc7769Code(errorMessage)
             }
         }
 
@@ -249,7 +249,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: errorMessage,
-                code: getErrorCode(errorMessage)
+                code: toErc7769Code(errorMessage)
             }
         }
 
