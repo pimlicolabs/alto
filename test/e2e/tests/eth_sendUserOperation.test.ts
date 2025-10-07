@@ -1022,7 +1022,58 @@ describe.each([
 
         // Should throw AA26: over verificationGasLimit
 
-        // Should throw AA30: paymaster not deployed
+        test.only("Should throw AA30: paymaster not deployed", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Use a non-deployed address as paymaster
+            const nonDeployedPaymaster = privateKeyToAddress(
+                generatePrivateKey()
+            )
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([nonDeployedPaymaster, "0x"])
+            } else {
+                op.paymaster = nonDeployedPaymaster // FAILING CONDITION: paymaster not deployed
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = "0x"
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA30|paymaster not deployed)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32501)
+            }
+        })
 
         // Should throw AA31: paymaster deposit too low
 
@@ -1062,19 +1113,78 @@ describe.each([
 
             op.signature = await client.account.signUserOperation(op)
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA34|Invalid UserOperation signature or paymaster signature)/i
-                    ),
-                    code: -32501
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA34|Invalid UserOperation signature or paymaster signature)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32507)
+            }
         })
 
-        // Should throw AA36: over paymasterVerificationGasLimit
+        test("Should throw AA36: over paymasterVerificationGasLimit", async () => {
+            // Skip for v0.6 - gas limit handling is different
+            if (entryPointVersion === "0.6") {
+                return
+            }
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Set paymaster with very low verification gas limit
+            op.paymaster = paymaster
+            op.paymasterVerificationGasLimit = 1000n // FAILING CONDITION: Too low
+            op.paymasterPostOpGasLimit = 50_000n
+            op.paymasterData = "0x"
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA36|over paymasterVerificationGasLimit)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32501)
+            }
+        })
     }
 )
