@@ -3,7 +3,7 @@ import type {
     UserOperation06,
     UserOperation07
 } from "@alto/types"
-import { ERC7677Errors, executionResultSchema } from "@alto/types"
+import { ERC7769Errors, executionResultSchema } from "@alto/types"
 import {
     type Logger,
     deepHexlify,
@@ -100,15 +100,15 @@ export const simulationErrors = parseAbi([
 // Returns error code based on EntryPoint's AA error message.
 export const toErc7769Code = (errorMessage: string) => {
     if (errorMessage.includes("AA24") || errorMessage.includes("AA34")) {
-        return ERC7677Errors.InvalidSignature
+        return ERC7769Errors.InvalidSignature
     }
 
     if (errorMessage.includes("AA31")) {
-        return ERC7677Errors.PaymasterDepositTooLow
+        return ERC7769Errors.PaymasterDepositTooLow
     }
 
     if (errorMessage.includes("AA32")) {
-        return ERC7677Errors.ExpiresShortly
+        return ERC7769Errors.ExpiresShortly
     }
 
     if (
@@ -116,10 +116,10 @@ export const toErc7769Code = (errorMessage: string) => {
         errorMessage.includes("AA33") ||
         errorMessage.includes("AA36")
     ) {
-        return ERC7677Errors.SimulatePaymasterValidation
+        return ERC7769Errors.SimulatePaymasterValidation
     }
 
-    return ERC7677Errors.SimulateValidation
+    return ERC7769Errors.SimulateValidation
 }
 
 export function decodeSimulateHandleOpError(
@@ -154,7 +154,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: "Sender has no code or factory not deployed",
-                code: ERC7677Errors.SimulateValidation
+                code: ERC7769Errors.SimulateValidation
             }
         }
 

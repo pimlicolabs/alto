@@ -1,5 +1,5 @@
 // Error codes come from: https://eips.ethereum.org/EIPS/eip-7769
-export enum ERC7677Errors {
+export enum ERC7769Errors {
     InvalidRequest = -32601,
     InvalidFields = -32602,
     SimulateValidation = -32500,

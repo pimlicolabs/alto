@@ -3,7 +3,7 @@ import {
     type UserOperation,
     type UserOperation06,
     type UserOperation07,
-    ERC7677Errors,
+    ERC7769Errors,
     pimlicoSimulateAssetChangeSchema,
     pimlicoSimulationsAbi
 } from "@alto/types"
@@ -40,7 +40,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
-                ERC7677Errors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
 
@@ -84,7 +84,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 if (!rpcHandler.config.entrypointSimulationContractV8) {
                     throw new RpcError(
                         "missing entrypointSimulationContractV8",
-                        ERC7677Errors.InvalidFields
+                        ERC7769Errors.InvalidFields
                     )
                 }
 
@@ -107,7 +107,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                 if (!rpcHandler.config.entrypointSimulationContractV7) {
                     throw new RpcError(
                         "missing entrypointSimulationContractV7",
-                        ERC7677Errors.InvalidFields
+                        ERC7769Errors.InvalidFields
                     )
                 }
 
@@ -158,7 +158,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
             if (decodedError.result === "failed") {
                 throw new RpcError(
                     `UserOperation reverted during simulation with reason: ${decodedError.data}`,
-                    ERC7677Errors.UserOperationReverted
+                    ERC7769Errors.UserOperationReverted
                 )
             }
 
@@ -166,7 +166,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
             throw new RpcError(
                 "Failed to decode simulation error",
-                ERC7677Errors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
     }

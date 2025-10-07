@@ -3,7 +3,7 @@ import {
     RpcError,
     type StateOverrides,
     type UserOperation07,
-    ERC7677Errors,
+    ERC7769Errors,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
@@ -73,7 +73,7 @@ export class GasEstimator07 {
             this.logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
-                ERC7677Errors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
 
@@ -121,7 +121,7 @@ export class GasEstimator07 {
             return {
                 result: "failed",
                 data: `Max retries reached when calling ${methodName}`,
-                code: ERC7677Errors.SimulateValidation
+                code: ERC7769Errors.SimulateValidation
             }
         }
 
@@ -178,7 +178,7 @@ export class GasEstimator07 {
             return {
                 result: "failed",
                 data: result.successData.returnData,
-                code: ERC7677Errors.UserOperationReverted
+                code: ERC7769Errors.UserOperationReverted
             }
         } catch (error) {
             const decoded = decodeSimulateHandleOpError(error, this.logger)
@@ -334,7 +334,7 @@ export class GasEstimator07 {
                 return {
                     result: "failed",
                     data: verificationGasLimit.successData.returnData,
-                    code: ERC7677Errors.UserOperationReverted
+                    code: ERC7769Errors.UserOperationReverted
                 }
             }
 
@@ -373,7 +373,7 @@ export class GasEstimator07 {
                 return {
                     result: "failed",
                     data: paymasterVerificationGasLimit.successData.returnData,
-                    code: ERC7677Errors.UserOperationReverted
+                    code: ERC7769Errors.UserOperationReverted
                 }
             }
 
