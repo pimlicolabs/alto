@@ -198,6 +198,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         type: "boolean",
         require: false,
         default: true
+    },
+    "ignored-paymasters": {
+        description:
+            "Comma-separated list of paymaster addresses to ignore when checking for queued user operations",
+        type: "string",
+        require: false
     }
 }
 

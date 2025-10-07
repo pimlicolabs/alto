@@ -222,31 +222,38 @@ export class MemoryOutstanding implements OutstandingStore {
         const outstandingOps = this.dump()
         const outstanding = outstandingOps.filter((userOpInfo) => {
             const { userOp: mempoolUserOp } = userOpInfo
-
             const [mempoolNonceKey, mempoolNonceSequence] =
                 getNonceKeyAndSequence(mempoolUserOp.nonce)
 
-            let isPaymasterSame = false
+            const isSameSender = mempoolUserOp.sender === userOp.sender
+            const isSameNonceKey = mempoolNonceKey === nonceKey
+            const isSameNonce = mempoolNonceSequence === nonceSequence
 
-            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
-                isPaymasterSame =
-                    mempoolUserOp.paymaster === userOp.paymaster &&
-                    !(
-                        mempoolUserOp.sender === userOp.sender &&
-                        mempoolNonceKey === nonceKey &&
-                        mempoolNonceSequence === nonceSequence
-                    ) &&
-                    userOp.paymaster !== null
+            // Skip the same userOp.
+            if (isSameSender && isSameNonceKey && isSameNonce) {
+                return false
             }
 
-            // Filter operations with the same sender and nonce key
-            // but with a lower nonce sequence
-            return (
-                (mempoolUserOp.sender === userOp.sender &&
-                    mempoolNonceKey === nonceKey &&
-                    mempoolNonceSequence < nonceSequence) ||
-                isPaymasterSame
-            )
+            // Include userOps from same sender with lower nonce.
+            if (isSameSender && isSameNonceKey) {
+                return mempoolNonceSequence < nonceSequence
+            }
+
+            // For v0.7+, include ops with same paymaster (unless ignored).
+            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
+                const hasPaymaster = userOp.paymaster !== null
+
+                const hasSamePaymaster =
+                    mempoolUserOp.paymaster === userOp.paymaster
+
+                const isPaymasterIgnored =
+                    userOp.paymaster !== null &&
+                    this.config.ignoredPaymasters.includes(userOp.paymaster)
+
+                return hasPaymaster && hasSamePaymaster && !isPaymasterIgnored
+            }
+
+            return false
         })
 
         return outstanding

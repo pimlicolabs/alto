@@ -301,7 +301,17 @@ export const mempoolArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "mempool-pop-batch-size": z.number().int().min(1).default(10),
-    "enforce-unique-senders-per-bundle": z.boolean().default(true)
+    "enforce-unique-senders-per-bundle": z.boolean().default(true),
+    "ignored-paymasters": z
+        .string()
+        .optional()
+        .transform((val) => {
+            if (!val) return []
+            return val
+                .split(",")
+                .map((address) => addressSchema.parse(address.trim()))
+        })
+        .default("")
 })
 
 export const redisArgsSchema = z.object({
