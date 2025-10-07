@@ -127,10 +127,7 @@ const getGasEstimates = async ({
             })
         )
 
-        rpcHandler.logger.info("Found queuedUserOps", {
-            count: queuedHashes.length,
-            hashes: queuedHashes.join(",")
-        })
+        rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
     const simulationUserOp = {
