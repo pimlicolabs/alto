@@ -190,40 +190,68 @@ export function decodeSimulateHandleOpError(
         )
     }
 
+    // Returns error code based on error message.
+    const getErrorCode = (errorMessage: string) => {
+        if (errorMessage.includes("AA24") || errorMessage.includes("AA34")) {
+            return ERC7677Errors.InvalidSignature
+        }
+
+        if (errorMessage.includes("AA31")) {
+            return ERC7677Errors.PaymasterDepositTooLow
+        }
+
+        if (errorMessage.includes("AA32")) {
+            return ERC7677Errors.ExpiresShortly
+        }
+
+        if (
+            errorMessage.includes("AA30") ||
+            errorMessage.includes("AA33") ||
+            errorMessage.includes("AA36")
+        ) {
+            return ERC7677Errors.SimulatePaymasterValidation
+        }
+
+        return ERC7677Errors.SimulateValidation
+    }
+
     switch (errorName) {
         case "FailedOp": {
             const errorMessage = args[1] as string
-            const errorCode = errorMessage.includes("AA24")
-                ? ERC7677Errors.InvalidSignature
-                : ERC7677Errors.SimulateValidation
-
             return {
                 result: "failed",
                 data: errorMessage,
-                code: errorCode
+                code: getErrorCode(errorMessage)
             }
         }
 
-        case "FailedOpWithRevert":
+        case "FailedOpWithRevert": {
+            const errorMessage = args[1] as string
+            const revertReason = parseFailedOpWithRevert(args[2] as Hex)
             return {
                 result: "failed",
-                data: `${args[1]} ${parseFailedOpWithRevert(args[2] as Hex)}`,
-                code: ERC7677Errors.SimulateValidation
+                data: `${errorMessage} ${revertReason}`,
+                code: getErrorCode(errorMessage)
             }
+        }
 
-        case "CallPhaseReverted":
+        case "CallPhaseReverted": {
+            const errorMessage = args[0] as string
             return {
                 result: "failed",
-                data: args[0] as Hex,
-                code: ERC7677Errors.SimulateValidation
+                data: errorMessage,
+                code: getErrorCode(errorMessage)
             }
+        }
 
-        case "Error":
+        case "Error": {
+            const errorMessage = args[0] as string
             return {
                 result: "failed",
-                data: args[0] as string,
-                code: ERC7677Errors.SimulateValidation
+                data: errorMessage,
+                code: getErrorCode(errorMessage)
             }
+        }
 
         // 0.6 handleOp reverts with ExecutionResult if successful
         case "ExecutionResult": {
