@@ -81,7 +81,7 @@ const getUserOpValidationResult = async (
             })
         )
 
-        rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
+        rpcHandler.logger.info(`Found queuedUserOps: ${queuedHashes}`)
     }
 
     const validationResult = await rpcHandler.validator.validateUserOp({
