@@ -1,6 +1,5 @@
 import {
     decodeNonce,
-    deepHexlify,
     encodeNonce,
     getRequiredPrefund
 } from "permissionless/utils"
@@ -16,7 +15,8 @@ import {
     parseGwei,
     zeroAddress,
     BaseError,
-    RpcRequestError
+    RpcRequestError,
+    pad
 } from "viem"
 import {
     type EntryPointVersion,
@@ -42,6 +42,22 @@ import {
     sendBundleNow,
     setBundlingMode
 } from "../src/utils/index.js"
+import { getNodeError } from "viem/utils"
+
+enum ERC7769Errors {
+    InvalidRequest = -32601,
+    InvalidFields = -32602,
+    SimulateValidation = -32500,
+    SimulatePaymasterValidation = -32501,
+    OpcodeValidation = -32502,
+    ExpiresShortly = -32503,
+    Reputation = -32504,
+    InsufficientStake = -32505,
+    UnsupportedSignatureAggregator = -32506,
+    InvalidSignature = -32507,
+    PaymasterDepositTooLow = -32508,
+    UserOperationReverted = -32521
+}
 
 describe.each([
     {
@@ -107,7 +123,7 @@ describe.each([
                 })
             ).rejects.toMatchObject({
                 message: expect.stringMatching(/EntryPoint .* not supported/),
-                code: -32602
+                code: ERC7769Errors.InvalidFields
             })
         })
 
@@ -464,7 +480,7 @@ describe.each([
             }).rejects.toThrowError(
                 expect.objectContaining({
                     details: expect.stringContaining("Already known"),
-                    code: -32602
+                    code: ERC7769Errors.InvalidFields
                 })
             )
         })
@@ -688,7 +704,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
         })
 
@@ -733,7 +749,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
         })
 
@@ -805,7 +821,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
         })
 
@@ -858,7 +874,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
         })
 
@@ -908,7 +924,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
 
             // Should be able to send userOperation when there is sufficient prefund
@@ -965,7 +981,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32507)
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidSignature)
             }
         })
 
@@ -1016,13 +1032,74 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32500)
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
             }
         })
 
-        // Should throw AA26: over verificationGasLimit
+        test("Should throw AA26: over verificationGasLimit", async () => {
+            // Skip for v0.6 - this is a 0.7 only error
+            if (entryPointVersion === "0.6") {
+                return
+            }
 
-        test.only("Should throw AA30: paymaster not deployed", async () => {
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey
+            })
+
+            // Deploy the account first to avoid AA13 error
+            const deployHash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: client.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })
+            await client.waitForUserOperationReceipt({ hash: deployHash })
+
+            // Now prepare a userOp without deployment data
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Set extremely low verificationGasLimit to trigger AA26
+            op.verificationGasLimit = 25000n // FAILING CONDITION: Too low for validation
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA26|over verificationGasLimit)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA30: paymaster not deployed", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
@@ -1071,11 +1148,70 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32501)
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
             }
         })
 
-        // Should throw AA31: paymaster deposit too low
+        test.only("Should throw AA31: paymaster deposit too low", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Deploy paymaster without funding
+            const unfundedPaymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc,
+                salt: pad(privateKeyToAddress(generatePrivateKey())),
+                funded: false
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([unfundedPaymaster, "0x"])
+            } else {
+                op.paymaster = unfundedPaymaster // FAILING CONDITION: paymaster has no deposit
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = "0x"
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                console.log(err)
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA31|paymaster deposit too low)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.PaymasterDepositTooLow)
+            }
+        })
 
         // Should throw AA32: paymaster expired or not due
 
@@ -1131,12 +1267,12 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32507)
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidSignature)
             }
         })
 
         test("Should throw AA36: over paymasterVerificationGasLimit", async () => {
-            // Skip for v0.6 - gas limit handling is different
+            // Skip for v0.6 - this is a 0.7 only error
             if (entryPointVersion === "0.6") {
                 return
             }
@@ -1183,7 +1319,9 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(-32501)
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
             }
         })
     }

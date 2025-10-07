@@ -23,10 +23,14 @@ const PAYMASTER_V07_BYTECODE: Hex =
 
 export const deployPaymaster = async ({
     entryPoint,
-    anvilRpc
+    anvilRpc,
+    salt = "0x0000000000000000000000000000000000000000000000000000000000000000",
+    funded = true
 }: {
     entryPoint: Address
     anvilRpc: string
+    salt?: Hex
+    funded?: boolean
 }): Promise<Address> => {
     const publicClient = createPublicClient({
         transport: http(anvilRpc),
@@ -41,7 +45,7 @@ export const deployPaymaster = async ({
 
     const counterFactual = getCreate2Address({
         from: "0x4e59b44847b379578588920ca78fbf26c0b4956c",
-        salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
+        salt,
         bytecode: concat([createBytecode, pad(entryPoint)])
     })
 
@@ -57,20 +61,18 @@ export const deployPaymaster = async ({
         })
 
         await walletClient.sendTransaction({
-            data: concat([
-                "0x0000000000000000000000000000000000000000000000000000000000000000",
-                createBytecode,
-                pad(entryPoint)
-            ]),
+            data: concat([salt, createBytecode, pad(entryPoint)]),
             to: "0x4e59b44847b379578588920ca78fbf26c0b4956c"
         })
 
-        // deposit 100ETH to the deployed paymaster
-        await walletClient.sendTransaction({
-            to: counterFactual,
-            value: parseEther("100"),
-            data: "0xd0e30db0" /* sig for deposit() */
-        })
+        // deposit 100ETH to the deployed paymaster if funded flag is true
+        if (funded) {
+            await walletClient.sendTransaction({
+                to: counterFactual,
+                value: parseEther("100"),
+                data: "0xd0e30db0" /* sig for deposit() */
+            })
+        }
     }
 
     return counterFactual
