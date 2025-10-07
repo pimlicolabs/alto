@@ -12,7 +12,12 @@ import {
     calcExecutionPvgComponent,
     calcL2PvgComponent
 } from "../../utils/preVerificationGasCalulator"
-import { deepHexlify, isVersion06, isVersion07 } from "../../utils/userop"
+import {
+    deepHexlify,
+    getUserOpHash,
+    isVersion06,
+    isVersion07
+} from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -93,7 +98,8 @@ const getGasEstimates = async ({
         v7VerificationGasLimitMultiplier,
         v7PaymasterVerificationGasLimitMultiplier,
         v7CallGasLimitMultiplier,
-        v7PaymasterPostOpGasLimitMultiplier
+        v7PaymasterPostOpGasLimitMultiplier,
+        callGasLimitFloor
     } = rpcHandler.config
 
     // Create a deep mutable copy of stateOverrides to avoid modifying frozen objects
@@ -110,6 +116,19 @@ const getGasEstimates = async ({
         userOp,
         entryPoint
     })
+
+    // Log queued userOps.
+    if (queuedUserOps.length > 0) {
+        const queuedHashes = queuedUserOps.map((userOp) =>
+            getUserOpHash({
+                userOp,
+                entryPointAddress: entryPoint,
+                chainId: rpcHandler.config.chainId
+            })
+        )
+
+        rpcHandler.logger.info("Found queuedUserOps", { queuedHashes })
+    }
 
     const simulationUserOp = {
         ...userOp,
@@ -244,6 +263,18 @@ const getGasEstimates = async ({
             paymasterPostOpGasLimit,
             v7PaymasterPostOpGasLimitMultiplier
         )
+    }
+
+    // If there are queued userOps, we need to add some buffer and floor as queued userOps
+    // could have warmed up state.
+    if (queuedUserOps.length > 0) {
+        for (let i = 0; i < queuedUserOps.length; i++) {
+            callGasLimit = scaleBigIntByPercent(
+                callGasLimit,
+                v7CallGasLimitMultiplier
+            )
+        }
+        callGasLimit = maxBigInt(callGasLimit, callGasLimitFloor)
     }
 
     return {

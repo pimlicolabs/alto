@@ -289,7 +289,11 @@ export const gasEstimationArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val)),
     "eth-call-sender-address": addressSchema.optional(),
-    "split-simulation-calls": z.boolean()
+    "split-simulation-calls": z.boolean(),
+    "call-gas-limit-floor": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("50000")
 })
 
 export const mempoolArgsSchema = z.object({
