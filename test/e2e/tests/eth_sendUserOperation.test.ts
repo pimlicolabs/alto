@@ -942,6 +942,47 @@ describe.each([
 
         // Should throw AA22 expired or not due
 
+        test.only("Should throw AA23: reverted (account validation)", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Use a malformed signature that will cause ECDSA.recover to revert
+            // ECDSA library expects 65 bytes (r: 32, s: 32, v: 1), using invalid length causes revert
+            op.signature = "0xdeadbeef" as Hex // FAILING CONDITION: Invalid signature format
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA23|reverted)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
         // Should throw AA23: reverted
 
         test("Should throw AA24: signature error", async () => {
@@ -1218,7 +1259,7 @@ describe.each([
             }
         })
 
-        test.only("Should throw AA32: paymaster expired or not due", async () => {
+        test("Should throw AA32: paymaster expired or not due", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
