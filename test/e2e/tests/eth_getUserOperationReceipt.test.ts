@@ -30,7 +30,7 @@ import {
     deployRevertingContract,
     getRevertCall
 } from "../src/revertingContract.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
+import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import {
     beforeEachCleanUp,
     getPublicClient,
@@ -101,7 +101,7 @@ describe.each([
                         }
                     ]),
                     initCode: concat([factory as Hex, factoryData as Hex]),
-                    paymasterAndData: paymaster,
+                    paymasterAndData: concat([paymaster, encodePaymasterData()]),
                     callGasLimit: 500_000n,
                     verificationGasLimit: 500_000n,
                     preVerificationGas: 500_000n,
