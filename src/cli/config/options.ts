@@ -198,6 +198,12 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         type: "boolean",
         require: false,
         default: true
+    },
+    "ignored-paymasters": {
+        description:
+            "Comma-separated list of paymaster addresses to ignore when checking for queued user operations",
+        type: "string",
+        require: false
     }
 }
 
@@ -337,6 +343,13 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
                 "Should the bundler split estimation simulations into smaller calls.",
             type: "boolean",
             default: false
+        },
+        "call-gas-limit-floor": {
+            description:
+                "Minimum callGasLimit to enforce when there are queued user operations",
+            type: "string",
+            require: false,
+            default: "50000"
         }
     }
 

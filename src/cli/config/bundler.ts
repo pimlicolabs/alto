@@ -289,7 +289,11 @@ export const gasEstimationArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val)),
     "eth-call-sender-address": addressSchema.optional(),
-    "split-simulation-calls": z.boolean()
+    "split-simulation-calls": z.boolean(),
+    "call-gas-limit-floor": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("50000")
 })
 
 export const mempoolArgsSchema = z.object({
@@ -301,7 +305,17 @@ export const mempoolArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "mempool-pop-batch-size": z.number().int().min(1).default(10),
-    "enforce-unique-senders-per-bundle": z.boolean().default(true)
+    "enforce-unique-senders-per-bundle": z.boolean().default(true),
+    "ignored-paymasters": z
+        .string()
+        .optional()
+        .transform((val) => {
+            if (!val) return []
+            return val
+                .split(",")
+                .map((address) => addressSchema.parse(address.trim()))
+        })
+        .default("")
 })
 
 export const redisArgsSchema = z.object({

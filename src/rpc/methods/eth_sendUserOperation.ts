@@ -70,6 +70,20 @@ const getUserOpValidationResult = async (
             userOp,
             entryPoint
         })
+
+    // Log queued userOps.
+    if (queuedUserOps.length > 0) {
+        const queuedHashes = queuedUserOps.map((userOp) =>
+            getUserOpHash({
+                userOp,
+                entryPointAddress: entryPoint,
+                chainId: rpcHandler.config.chainId
+            })
+        )
+
+        rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
+    }
+
     const validationResult = await rpcHandler.validator.validateUserOp({
         userOp,
         queuedUserOps,
