@@ -241,16 +241,16 @@ export class MemoryOutstanding implements OutstandingStore {
 
             // For v0.7+, include ops with same paymaster (unless ignored).
             if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
-                const hasPaymaster = userOp.paymaster !== null
-
                 const hasSamePaymaster =
+                    userOp.paymaster !== null &&
+                    mempoolUserOp.paymaster !== null &&
                     mempoolUserOp.paymaster === userOp.paymaster
 
                 const isPaymasterIgnored =
                     userOp.paymaster !== null &&
                     this.config.ignoredPaymasters.includes(userOp.paymaster)
 
-                return hasPaymaster && hasSamePaymaster && !isPaymasterIgnored
+                return hasSamePaymaster && !isPaymasterIgnored
             }
 
             return false
