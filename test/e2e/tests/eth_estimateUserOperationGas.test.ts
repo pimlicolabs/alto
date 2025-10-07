@@ -84,7 +84,10 @@ describe.each([
                     ],
                     entryPointAddress: fakeEntryPoint
                 })
-            ).rejects.toThrow(/EntryPoint .* not supported/)
+            ).rejects.toMatchObject({
+                message: expect.stringMatching(/EntryPoint .* not supported/),
+                code: -32602
+            })
         })
 
         test("Can estimate with empty gasLimit values", async () => {

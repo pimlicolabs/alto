@@ -406,7 +406,10 @@ describe.each([
                     // @ts-ignore
                     params: [deepHexlify(op), entryPoint]
                 })
-            ).rejects.toThrow("Already known")
+            ).rejects.toMatchObject({
+                message: expect.stringContaining("Already known"),
+                code: -32602
+            })
         })
     }
 )
