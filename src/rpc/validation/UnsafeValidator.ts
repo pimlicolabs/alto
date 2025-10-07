@@ -37,7 +37,10 @@ import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
-import type { SimulateHandleOpResult } from "../estimation/types"
+import type {
+    SimulateHandleOpFailResult,
+    SimulateHandleOpResult
+} from "../estimation/types"
 
 export class UnsafeValidator implements InterfaceValidator {
     config: AltoConfig
@@ -242,29 +245,17 @@ export class UnsafeValidator implements InterfaceValidator {
         })
 
         if (error.result === "failed") {
-            let errorCode: number = ERC7677Errors.UserOperationReverted
-
-            if (error.data.toString().includes("AA23")) {
-                errorCode = ERC7677Errors.SimulateValidation
-
-                return {
-                    result: "failed",
-                    data: error.data,
-                    code: errorCode
-                }
-            }
-
             return {
                 result: "failed",
                 data: `UserOperation reverted during simulation with reason: ${error.data}`,
-                code: errorCode
+                code: error.code
             }
         }
 
         return error
     }
 
-    async getValidationResultV06(args: {
+    async getValidationResult06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
@@ -436,7 +427,7 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
-    async getValidationResultV07(args: {
+    async getValidationResult07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         entryPoint: Address
@@ -457,11 +448,11 @@ export class UnsafeValidator implements InterfaceValidator {
             })
 
         if (simulateValidationResult.result === "failed") {
+            const failedResult =
+                simulateValidationResult as SimulateHandleOpFailResult
             throw new RpcError(
-                `UserOperation reverted with reason: ${
-                    simulateValidationResult.data as string
-                }`,
-                ERC7677Errors.SimulateValidation
+                `UserOperation reverted with reason: ${failedResult.data}`,
+                failedResult.code
             )
         }
 
@@ -555,13 +546,13 @@ export class UnsafeValidator implements InterfaceValidator {
     > {
         const { userOp, queuedUserOps, entryPoint, codeHashes } = args
         if (isVersion06(userOp)) {
-            return this.getValidationResultV06({
+            return this.getValidationResult06({
                 userOp,
                 entryPoint,
                 codeHashes
             })
         }
-        return this.getValidationResultV07({
+        return this.getValidationResult07({
             userOp,
             queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint

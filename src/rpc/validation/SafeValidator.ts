@@ -132,7 +132,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV07(args: {
+    async getValidationResult07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
@@ -198,7 +198,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV06(args: {
+    async getValidationResult06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes

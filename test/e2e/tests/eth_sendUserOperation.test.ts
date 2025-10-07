@@ -1,5 +1,6 @@
 import {
     decodeNonce,
+    deepHexlify,
     encodeNonce,
     getRequiredPrefund
 } from "permissionless/utils"
@@ -13,7 +14,9 @@ import {
     getContract,
     parseEther,
     parseGwei,
-    zeroAddress
+    zeroAddress,
+    BaseError,
+    RpcRequestError
 } from "viem"
 import {
     type EntryPointVersion,
@@ -639,6 +642,7 @@ describe.each([
                     }
                 ]
             })) as UserOperation
+            firstOp.signature = await client.account.signUserOperation(firstOp)
 
             // Deploy the account.
             const deployHash = await client.sendUserOperation(firstOp)
@@ -666,17 +670,26 @@ describe.each([
             secondOp.signature =
                 await client.account.signUserOperation(secondOp)
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(secondOp)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA10|sender already constructed)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA10|sender already constructed)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
         })
 
         test("Should throw AA13: initCode failed or OOG", async () => {
@@ -700,21 +713,28 @@ describe.each([
             })) as UserOperation
 
             // Set very low verificationGasLimit to trigger OOG during deployment
-            op.verificationGasLimit = 1000n
+            op.verificationGasLimit = 10_000n
 
             op.signature = await client.account.signUserOperation(op)
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA13|initCode failed or OOG)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA13|initCode failed or OOG)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
         })
 
         test("Should throw AA14: initCode must return sender", async () => {
@@ -767,17 +787,26 @@ describe.each([
 
             op.signature = await client.account.signUserOperation(op)
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA14|initCode must return sender)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA14|initCode must return sender)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
         })
 
         // Testcase for AA15: initCode must create sender
@@ -813,17 +842,24 @@ describe.each([
 
             op.signature = await client.account.signUserOperation(op)
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA20|Account not deployed)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA20|Account not deployed)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
         })
 
         test("Should throw AA21: insufficient prefund", async () => {
@@ -856,17 +892,24 @@ describe.each([
                 value: requiedPrefund - 1n
             })
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA21|didn't pay prefund)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA21|didn't pay prefund)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
 
             // Should be able to send userOperation when there is sufficient prefund
             await anvilClient.setBalance({
@@ -904,17 +947,26 @@ describe.each([
                 signatures: await client.account.getStubSignature() // FAILING CONDITION
             })) as UserOperation
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op)
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA24|Invalid UserOperation signature or paymaster signature)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA24|Invalid UserOperation signature or paymaster signature)/i
+                )
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32507)
+            }
         })
 
         test("Should throw AA25: invalid account nonce", async () => {
@@ -939,7 +991,7 @@ describe.each([
             ])) as bigint
 
             // Try to send with nonce + 1 (should fail)
-            await expect(async () => {
+            try {
                 await client.sendUserOperation({
                     calls: [
                         {
@@ -950,15 +1002,22 @@ describe.each([
                     ],
                     nonce: currentNonce + 1n
                 })
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    name: "UserOperationExecutionError",
-                    details: expect.stringMatching(
-                        /(AA25|Invalid account nonce)/i
-                    ),
-                    code: -32500
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA25|Invalid account nonce)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(-32500)
+            }
         })
 
         // Should throw AA26: over verificationGasLimit

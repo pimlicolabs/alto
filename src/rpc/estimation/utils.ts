@@ -191,12 +191,18 @@ export function decodeSimulateHandleOpError(
     }
 
     switch (errorName) {
-        case "FailedOp":
+        case "FailedOp": {
+            const errorMessage = args[1] as string
+            const errorCode = errorMessage.includes("AA24")
+                ? ERC7677Errors.InvalidSignature
+                : ERC7677Errors.SimulateValidation
+
             return {
                 result: "failed",
-                data: args[1] as string,
-                code: ERC7677Errors.SimulateValidation
+                data: errorMessage,
+                code: errorCode
             }
+        }
 
         case "FailedOpWithRevert":
             return {

@@ -127,10 +127,7 @@ export async function addToMempoolIfValid({
             userOpHash,
             validEip7702AuthError
         )
-        throw new RpcError(
-            validEip7702AuthError,
-            ERC7677Errors.InvalidFields
-        )
+        throw new RpcError(validEip7702AuthError, ERC7677Errors.InvalidFields)
     }
 
     // Pre mempool validation
@@ -154,14 +151,14 @@ export async function addToMempoolIfValid({
         const reason =
             "UserOperation failed validation with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
-        throw new RpcError(reason, ERC7677Errors.InvalidFields)
+        throw new RpcError(reason, ERC7677Errors.SimulateValidation)
     }
 
     if (userOpNonceSeq > currentNonceSeq + 10n) {
         const reason =
             "UserOperation failed validaiton with reason: AA25 invalid account nonce"
         rpcHandler.eventManager.emitFailedValidation(userOpHash, reason, "AA25")
-        throw new RpcError(reason, ERC7677Errors.InvalidFields)
+        throw new RpcError(reason, ERC7677Errors.SimulateValidation)
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
