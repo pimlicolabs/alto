@@ -1156,7 +1156,7 @@ describe.each([
             }
         })
 
-        test.only("Should throw AA31: paymaster deposit too low", async () => {
+        test("Should throw AA31: paymaster deposit too low", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
@@ -1218,7 +1218,7 @@ describe.each([
             }
         })
 
-        test("Should throw AA32: paymaster expired or not due", async () => {
+        test.only("Should throw AA32: paymaster expired or not due", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
@@ -1270,6 +1270,7 @@ describe.each([
                 await client.sendUserOperation(op)
                 expect.fail("Must throw")
             } catch (err) {
+                console.log(err)
                 expect(err).toBeInstanceOf(BaseError)
                 const error = err as BaseError
 
@@ -1288,7 +1289,58 @@ describe.each([
             }
         })
 
-        // Should throw AA33: reverted
+        test("Should throw AA33: reverted", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([
+                    paymaster,
+                    encodePaymasterData({ forceRevert: true })
+                ])
+            } else {
+                op.paymaster = paymaster // FAILING CONDITION: paymaster will revert
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData({ forceRevert: true })
+            }
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check top-level error
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA33|reverted|revert)/i)
+
+                // Check for RPC error code.
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
+            }
+        })
 
         test("Should throw AA34 if paymaster signature is invalid", async () => {
             const client = await getSmartAccountClient({
@@ -1316,7 +1368,9 @@ describe.each([
                 op.paymaster = paymaster // FAILING CONDITION: invalid signature
                 op.paymasterVerificationGasLimit = 100_000n
                 op.paymasterPostOpGasLimit = 50_000n
-                op.paymasterData = encodePaymasterData({ invalidSignature: true })
+                op.paymasterData = encodePaymasterData({
+                    invalidSignature: true
+                })
             }
 
             op.signature = await client.account.signUserOperation(op)
