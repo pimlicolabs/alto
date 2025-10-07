@@ -98,23 +98,23 @@ export const simulationErrors = parseAbi([
 ])
 
 // Returns error code based on EntryPoint's AA error message.
-export const toErc7769Code = (errorMessage: string) => {
-    if (errorMessage.includes("AA24") || errorMessage.includes("AA34")) {
+export const toErc7769Code = (entryPointError: string) => {
+    if (entryPointError.includes("AA24") || entryPointError.includes("AA34")) {
         return ERC7769Errors.InvalidSignature
     }
 
-    if (errorMessage.includes("AA31")) {
+    if (entryPointError.includes("AA31")) {
         return ERC7769Errors.PaymasterDepositTooLow
     }
 
-    if (errorMessage.includes("AA32")) {
+    if (entryPointError.includes("AA32")) {
         return ERC7769Errors.ExpiresShortly
     }
 
     if (
-        errorMessage.includes("AA30") ||
-        errorMessage.includes("AA33") ||
-        errorMessage.includes("AA36")
+        entryPointError.includes("AA30") ||
+        entryPointError.includes("AA33") ||
+        entryPointError.includes("AA36")
     ) {
         return ERC7769Errors.SimulatePaymasterValidation
     }
