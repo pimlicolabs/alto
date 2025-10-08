@@ -928,7 +928,7 @@ describe.each([
 
         // Should throw AA22 expired or not due
 
-        test.only("Should throw AA23: reverted (account validation)", async () => {
+        test("Should throw AA23: reverted (account validation)", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
