@@ -599,7 +599,8 @@ describe.each([
                         ? {
                               paymaster: paymaster,
                               paymasterVerificationGasLimit: 100_000n,
-                              paymasterPostOpGasLimit: 50_000n
+                              paymasterPostOpGasLimit: 50_000n,
+                              paymasterData: encodePaymasterData()
                           }
                         : {})
                 })
@@ -1244,7 +1245,6 @@ describe.each([
                 await client.sendUserOperation(op)
                 expect.fail("Must throw")
             } catch (err) {
-                console.log(err)
                 expect(err).toBeInstanceOf(BaseError)
                 const error = err as BaseError
 
@@ -1315,14 +1315,13 @@ describe.each([
                 await client.sendUserOperation(op)
                 expect.fail("Must throw")
             } catch (err) {
-                console.log(err)
                 expect(err).toBeInstanceOf(BaseError)
                 const error = err as BaseError
 
                 // Check top-level error
                 expect(error.name).toBe("UserOperationExecutionError")
                 expect(error.details).toMatch(
-                    /(AA32|paymaster expired|not due)/i
+                    /(AA32|paymaster expired or not due|expires too soon)/i
                 )
 
                 // Check for RPC error code.

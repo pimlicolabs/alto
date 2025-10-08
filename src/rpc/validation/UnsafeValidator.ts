@@ -97,7 +97,7 @@ export class UnsafeValidator implements InterfaceValidator {
                         (err) => err instanceof ContractFunctionExecutionError
                     )
                     throw new RpcError(
-                        `1. UserOperation reverted during simulation with reason: ${
+                        `UserOperation reverted during simulation with reason: ${
                             // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
                             (revertError?.cause as any)?.reason
                         }`,
@@ -172,7 +172,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
             if (data.includes("AA31") || data.includes("AA21")) {
                 throw new RpcError(
-                    `3. UserOperation reverted during simulation with reason: ${error.data}`,
+                    `UserOperation reverted during simulation with reason: ${error.data}`,
                     ERC7769Errors.UserOperationReverted
                 )
             }
@@ -241,7 +241,7 @@ export class UnsafeValidator implements InterfaceValidator {
         if (error.result === "failed") {
             return {
                 result: "failed",
-                data: `4. UserOperation reverted during simulation with reason: ${error.data}`,
+                data: `UserOperation reverted during simulation with reason: ${error.data}`,
                 code: error.code
             }
         }
@@ -342,7 +342,7 @@ export class UnsafeValidator implements InterfaceValidator {
         // validate runtime
         if (runtimeValidation.result === "failed") {
             throw new RpcError(
-                `5. UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
+                `UserOperation reverted during simulation with reason: ${runtimeValidation.data}`,
                 ERC7769Errors.SimulateValidation
             )
         }
