@@ -3,10 +3,10 @@ import {
     http,
     type Address,
     type Hex,
+    concat,
     createPublicClient,
     parseEther,
-    parseGwei,
-    concat
+    parseGwei
 } from "viem"
 import {
     type EntryPointVersion,
