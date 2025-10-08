@@ -171,9 +171,10 @@ export class UnsafeValidator implements InterfaceValidator {
             const data = error.data.toString()
 
             if (data.includes("AA31") || data.includes("AA21")) {
+                const errorMessage = data
                 throw new RpcError(
-                    `UserOperation reverted during simulation with reason: ${error.data}`,
-                    ERC7769Errors.UserOperationReverted
+                    `UserOperation reverted during simulation with reason: ${errorMessage}`,
+                    toErc7769Code(errorMessage)
                 )
             }
 

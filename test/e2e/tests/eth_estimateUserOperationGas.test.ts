@@ -1,4 +1,4 @@
-import { deepHexlify } from "permissionless"
+import { deepHexlify, getRequiredPrefund } from "permissionless"
 import {
     http,
     type Address,
@@ -782,46 +782,46 @@ describe.each([
             }
         })
 
-        //test("Should throw AA21: insufficient prefund", async () => {
-        //    const client = await getSmartAccountClient({
-        //        entryPointVersion,
-        //        anvilRpc,
-        //        altoRpc
-        //    })
-        //    const op = (await client.prepareUserOperation({
-        //        calls: [
-        //            {
-        //                to: TO_ADDRESS,
-        //                value: 0n,
-        //                data: "0x"
-        //            }
-        //        ]
-        //    })) as UserOperation
-        //    const requiredPrefund = getRequiredPrefund({
-        //        userOperation: op,
-        //        entryPointVersion: entryPointVersion
-        //    })
-        //    // Set balance below required prefund
-        //    await anvilClient.setBalance({
-        //        address: client.account.address,
-        //        value: requiredPrefund - 1n
-        //    })
-        //    try {
-        //        await client.estimateUserOperationGas(op)
-        //        expect.fail("Must throw")
-        //    } catch (err) {
-        //        console.log(err)
-        //        expect(err).toBeInstanceOf(BaseError)
-        //        const error = err as BaseError
-        //        expect(error.name).toBe("UserOperationExecutionError")
-        //        expect(error.details).toMatch(/(AA21|didn't pay prefund)/i)
-        //        const rpcError = error.walk(
-        //            (e) => e instanceof RpcRequestError
-        //        ) as RpcRequestError
-        //        expect(rpcError).toBeDefined()
-        //        expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
-        //    }
-        //})
+        test.only("Should throw AA21: insufficient prefund", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+            const requiredPrefund = getRequiredPrefund({
+                userOperation: op,
+                entryPointVersion: entryPointVersion
+            })
+            // Set balance below required prefund
+            await anvilClient.setBalance({
+                address: client.account.address,
+                value: requiredPrefund - 1n
+            })
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                console.log(err)
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA21|didn't pay prefund)/i)
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
 
         test("Should throw AA23: reverted (account validation)", async () => {
             const client = await getSmartAccountClient({
