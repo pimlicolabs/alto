@@ -132,6 +132,7 @@ describe.each([
                     maxFeePerGas: parseGwei("10"),
                     maxPriorityFeePerGas: parseGwei("10"),
                     paymaster,
+                    paymasterData: encodePaymasterData(),
                     paymasterVerificationGasLimit: 100_000n,
                     paymasterPostOpGasLimit: 50_000n
                 } as UserOperation<"0.7">
