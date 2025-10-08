@@ -760,6 +760,13 @@ describe.each([
             if (entryPointVersion === "0.6") {
                 op.initCode = "0x"
             } else {
+                // Override getFactoryArgs to return undefined
+                client.account.getFactoryArgs = async () => {
+                    return {
+                        factory: undefined,
+                        factoryData: undefined
+                    }
+                }
                 op.factory = undefined
                 op.factoryData = undefined
             }
@@ -782,7 +789,7 @@ describe.each([
             }
         })
 
-        test.only("Should throw AA21: insufficient prefund", async () => {
+        test("Should throw AA21: insufficient prefund", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
                 anvilRpc,
