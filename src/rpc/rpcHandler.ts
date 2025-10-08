@@ -26,9 +26,9 @@ import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "../executor/bundleManager"
+import { getEip7702AuthAddress } from "../utils/eip7702"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
-import { getEip7702AuthAddress } from "../utils/eip7702"
 
 export class RpcHandler {
     public config: AltoConfig

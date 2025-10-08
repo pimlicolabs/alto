@@ -1,4 +1,4 @@
-import { getUserOpHashes, type SenderManager } from "@alto/executor"
+import { type SenderManager, getUserOpHashes } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
