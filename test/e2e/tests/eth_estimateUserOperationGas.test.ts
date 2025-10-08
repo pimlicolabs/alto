@@ -1,5 +1,4 @@
 import { deepHexlify } from "permissionless"
-import { getRequiredPrefund } from "permissionless/utils"
 import {
     http,
     type Address,
