@@ -23,6 +23,7 @@ import {
 } from "viem"
 import { entryPoint07Abi, getUserOperationHash } from "viem/account-abstraction"
 import { z } from "zod"
+import { getEip7702AuthAddress } from "./eip7702"
 
 // Type predicate check if the UserOperation is V06.
 export function isVersion06(
@@ -220,10 +221,7 @@ export function getUserOpHash({
     if (isVersion08(userOp, entryPointAddress)) {
         const authorization = userOp.eip7702Auth
             ? {
-                  address:
-                      "address" in userOp.eip7702Auth
-                          ? userOp.eip7702Auth.address
-                          : userOp.eip7702Auth.contractAddress,
+                  address: getEip7702AuthAddress(userOp.eip7702Auth),
                   chainId: userOp.eip7702Auth.chainId,
                   nonce: userOp.eip7702Auth.nonce,
                   r: userOp.eip7702Auth.r,

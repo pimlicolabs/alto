@@ -26,6 +26,7 @@ import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "../executor/bundleManager"
+import { getEip7702AuthAddress } from "../utils/eip7702"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 
@@ -220,10 +221,7 @@ export class RpcHandler {
         }
 
         // Check that auth is valid.
-        const delegationDesignator =
-            "address" in userOp.eip7702Auth
-                ? userOp.eip7702Auth.address
-                : userOp.eip7702Auth.contractAddress
+        const delegationDesignator = getEip7702AuthAddress(userOp.eip7702Auth)
 
         // Fetch onchain data in parallel
         const [sender, nonceOnChain, delegateCode] = await Promise.all([

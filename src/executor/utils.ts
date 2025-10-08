@@ -23,6 +23,7 @@ import {
 } from "viem"
 import type { SignedAuthorizationList } from "viem"
 import type { AltoConfig } from "../createConfig"
+import { getEip7702AuthAddress } from "../utils/eip7702"
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>
@@ -135,10 +136,7 @@ export const getAuthorizationList = (
         .map(({ eip7702Auth }) =>
             eip7702Auth
                 ? {
-                      address:
-                          "address" in eip7702Auth
-                              ? eip7702Auth.address
-                              : eip7702Auth.contractAddress,
+                      address: getEip7702AuthAddress(eip7702Auth),
                       chainId: eip7702Auth.chainId,
                       nonce: eip7702Auth.nonce,
                       r: eip7702Auth.r,

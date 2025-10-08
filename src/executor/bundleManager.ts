@@ -1,4 +1,4 @@
-import type { SenderManager } from "@alto/executor"
+import { type SenderManager, getUserOpHashes } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -161,6 +161,11 @@ export class BundleManager {
         const { bundle } = submittedBundle
         const { blockNumber, transactionHash } = bundleReceipt
 
+        this.logger.info(
+            { transactionHash, userOpHashes: getUserOpHashes(bundle.userOps) },
+            "Processing reverted bundle"
+        )
+
         await this.freeSubmittedBundle(submittedBundle)
 
         const networkBaseFee = this.config.legacyTransactions
@@ -172,6 +177,7 @@ export class BundleManager {
         return (async () => {
             // Find userOps that can be resubmitted
             const filterOpsResult = await filterOpsAndEstimateGas({
+                checkEip7702AuthNonces: true, // Check if any userOps reverted onchain due to invalid EIP-7702 auth nonce.
                 userOpBundle: bundle,
                 config: this.config,
                 logger: this.logger,

@@ -387,6 +387,7 @@ export class Executor {
         })
 
         const filterOpsResult = await filterOpsAndEstimateGas({
+            checkEip7702AuthNonces: false, // Ignore EIP-7702 auth nonce check to save latency.
             networkBaseFee,
             userOpBundle,
             config: this.config,
