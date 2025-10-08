@@ -177,6 +177,7 @@ export class BundleManager {
         return (async () => {
             // Find userOps that can be resubmitted
             const filterOpsResult = await filterOpsAndEstimateGas({
+                checkEip7702AuthNonces: true, // Check if any userOps reverted onchain due to invalid EIP-7702 auth nonce.
                 userOpBundle: bundle,
                 config: this.config,
                 logger: this.logger,

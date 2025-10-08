@@ -328,11 +328,13 @@ const validateEip7702AuthNonces = async ({
 
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
 export async function filterOpsAndEstimateGas({
+    checkEip7702AuthNonces,
     userOpBundle,
     config,
     logger,
     networkBaseFee
 }: {
+    checkEip7702AuthNonces: boolean
     userOpBundle: UserOperationBundle
     config: AltoConfig
     logger: Logger
@@ -342,13 +344,24 @@ export async function filterOpsAndEstimateGas({
     const { userOps, entryPoint } = userOpBundle
 
     try {
-        const { rejectedUserOps: rejectedByEip7702Nonce, validUserOps } =
-            await validateEip7702AuthNonces({ userOps, publicClient })
+        let rejectedByEip7702Nonce: RejectedUserOp[] = []
+        let validUserOps: UserOpInfo[] = userOps
 
-        if (validUserOps.length === 0) {
-            return {
-                status: "all_ops_rejected",
-                rejectedUserOps: rejectedByEip7702Nonce
+        if (checkEip7702AuthNonces) {
+            const result = await validateEip7702AuthNonces({
+                userOps,
+                publicClient
+            })
+
+            // Update validUserOps after eip7702 nonce check.
+            validUserOps = result.validUserOps
+            rejectedByEip7702Nonce = result.rejectedUserOps
+
+            if (validUserOps.length === 0) {
+                return {
+                    status: "all_ops_rejected",
+                    rejectedUserOps: rejectedByEip7702Nonce
+                }
             }
         }
 
