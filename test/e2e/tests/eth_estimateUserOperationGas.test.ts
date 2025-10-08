@@ -817,7 +817,6 @@ describe.each([
                 await client.estimateUserOperationGas(op)
                 expect.fail("Must throw")
             } catch (err) {
-                console.log(err)
                 expect(err).toBeInstanceOf(BaseError)
                 const error = err as BaseError
                 expect(error.name).toBe("UserOperationExecutionError")
