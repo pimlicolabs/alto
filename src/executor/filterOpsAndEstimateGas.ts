@@ -27,10 +27,7 @@ import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
-import {
-    getEip7702DelegationOverrides,
-    validateEip7702Nonces
-} from "../utils/eip7702"
+import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
 import { calculateAA95GasFloor, encodeHandleOpsCalldata } from "./utils"
 
@@ -276,6 +273,59 @@ const getFilterOpsResult = async ({
     return filterOpsResult[0]
 }
 
+type UserOpinfoWithEip7702Auth = UserOpInfo & {
+    userOp: { eip7702Auth: NonNullable<UserOperation["eip7702Auth"]> }
+}
+
+const validateEip7702AuthNonces = async ({
+    userOps,
+    publicClient
+}: {
+    userOps: UserOpInfo[]
+    publicClient: AltoConfig["publicClient"]
+}): Promise<{
+    rejectedUserOps: RejectedUserOp[]
+    validUserOps: UserOpInfo[]
+}> => {
+    const eip7702UserOps = userOps.filter(
+        (userOpInfo): userOpInfo is UserOpinfoWithEip7702Auth =>
+            userOpInfo.userOp.eip7702Auth !== null &&
+            userOpInfo.userOp.eip7702Auth !== undefined
+    )
+    const nonEip7702UserOps = userOps.filter(
+        ({ userOp }) => !userOp.eip7702Auth
+    )
+
+    const onchainNonces = await Promise.all(
+        eip7702UserOps.map(({ userOp }) =>
+            publicClient.getTransactionCount({ address: userOp.sender })
+        )
+    )
+
+    const rejectedUserOps: RejectedUserOp[] = []
+    const validEip7702UserOps: UserOpInfo[] = []
+
+    for (let i = 0; i < eip7702UserOps.length; i++) {
+        const userOpInfo = eip7702UserOps[i]
+        const expectedNonce = onchainNonces[i]
+        const authNonce = userOpInfo.userOp.eip7702Auth.nonce
+
+        if (authNonce !== expectedNonce) {
+            rejectedUserOps.push({
+                ...userOpInfo,
+                reason: `EIP-7702 auth nonce mismatch: expected ${expectedNonce}, got ${authNonce}`
+            })
+        } else {
+            validEip7702UserOps.push(userOpInfo)
+        }
+    }
+
+    return {
+        rejectedUserOps,
+        validUserOps: [...nonEip7702UserOps, ...validEip7702UserOps]
+    }
+}
+
 // Attempt to create a handleOps bundle + estimate bundling tx gas.
 export async function filterOpsAndEstimateGas({
     userOpBundle,
@@ -288,13 +338,20 @@ export async function filterOpsAndEstimateGas({
     logger: Logger
     networkBaseFee: bigint
 }): Promise<FilterOpsResult> {
-    const { utilityWalletAddress: beneficiary } = config
+    const { utilityWalletAddress: beneficiary, publicClient } = config
     const { userOps, entryPoint } = userOpBundle
 
     try {
+        const { rejectedUserOps, validUserOps } =
+            await validateEip7702AuthNonces({ userOps, publicClient })
+
+        if (validUserOps.length === 0) {
+            return { status: "all_ops_rejected", rejectedUserOps }
+        }
+
         // Create promises for parallel execution
         const filterOpsPromise = getFilterOpsResult({
-            userOpBundle,
+            userOpBundle: { ...userOpBundle, userOps: validUserOps },
             config,
             networkBaseFee,
             beneficiary
@@ -304,7 +361,7 @@ export async function filterOpsAndEstimateGas({
         const chainSpecificOverheadPromise = getChainSpecificOverhead({
             config,
             entryPoint,
-            userOps: userOps.map(({ userOp }) => userOp)
+            userOps: validUserOps.map(({ userOp }) => userOp)
         })
 
         const results = await Promise.all([
@@ -318,12 +375,12 @@ export async function filterOpsAndEstimateGas({
         const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
             ({ userOpHash }) => userOpHash
         )
-        const userOpsToBundle = userOps.filter(
+        const userOpsToBundle = validUserOps.filter(
             ({ userOpHash }) => !rejectedUserOpHashes.includes(userOpHash)
         )
-        const rejectedUserOps = filterOpsResult.rejectedUserOps.map(
+        const filterOpsRejected = filterOpsResult.rejectedUserOps.map(
             ({ userOpHash, revertReason }) => {
-                const userOpInfo = userOps.find(
+                const userOpInfo = validUserOps.find(
                     (op) => op.userOpHash === userOpHash
                 )
 
@@ -365,10 +422,12 @@ export async function filterOpsAndEstimateGas({
             }
         )
 
+        const allRejectedUserOps = [...rejectedUserOps, ...filterOpsRejected]
+
         if (userOpsToBundle.length === 0) {
             return {
                 status: "all_ops_rejected",
-                rejectedUserOps
+                rejectedUserOps: allRejectedUserOps
             }
         }
 
@@ -387,7 +446,7 @@ export async function filterOpsAndEstimateGas({
         return {
             status: "success",
             userOpsToBundle,
-            rejectedUserOps,
+            rejectedUserOps: allRejectedUserOps,
             bundleGasUsed,
             bundleGasLimit: bundleGasLimit + offChainOverhead.gasLimit,
             totalBeneficiaryFees: filterOpsResult.balanceChange
