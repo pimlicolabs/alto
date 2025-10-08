@@ -12,8 +12,7 @@ import {
     getContract,
     pad,
     parseEther,
-    zeroAddress,
-    slice
+    zeroAddress
 } from "viem"
 import {
     type EntryPointVersion,
