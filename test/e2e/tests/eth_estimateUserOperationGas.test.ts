@@ -496,6 +496,7 @@ describe.each([
                     ...(sponsored
                         ? {
                               paymaster: paymaster,
+                              paymasterData: encodePaymasterData(),
                               paymasterVerificationGasLimit: 100_000n,
                               paymasterPostOpGasLimit: 50_000n
                           }
@@ -516,6 +517,7 @@ describe.each([
                 ...(sponsored && paymaster
                     ? {
                           paymaster: paymaster,
+                          paymasterData: encodePaymasterData(),
                           paymasterVerificationGasLimit: 100_000n,
                           paymasterPostOpGasLimit: 50_000n
                       }
