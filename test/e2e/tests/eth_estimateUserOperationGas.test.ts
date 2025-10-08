@@ -12,7 +12,8 @@ import {
     getContract,
     pad,
     parseEther,
-    zeroAddress
+    zeroAddress,
+    slice
 } from "viem"
 import {
     type EntryPointVersion,
@@ -641,8 +642,16 @@ describe.each([
                 ]
             })) as UserOperation
 
-            // Set very low verificationGasLimit to trigger OOG during deployment
-            op.verificationGasLimit = 10_000n
+            const { factory } = await client.account.getFactoryArgs()
+
+            // Force a AA13 by creating malformed factoryData
+            if (entryPointVersion === "0.6") {
+                op.initCode = factory
+            } else {
+                // Keep factory but provide invalid factoryData that will fail
+                op.factory = factory
+                op.factoryData = "0xbadc0ffee0"
+            }
 
             try {
                 await client.estimateUserOperationGas(op)
