@@ -269,10 +269,7 @@ export class SafeValidator
         }
 
         if (validationResult.returnInfo.validUntil < now + 30) {
-            throw new RpcError(
-                "expires too soon",
-                ERC7769Errors.ExpiresShortly
-            )
+            throw new RpcError("expires too soon", ERC7769Errors.ExpiresShortly)
         }
 
         return validationResult

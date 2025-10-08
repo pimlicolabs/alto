@@ -101,7 +101,10 @@ describe.each([
                         }
                     ]),
                     initCode: concat([factory as Hex, factoryData as Hex]),
-                    paymasterAndData: concat([paymaster, encodePaymasterData()]),
+                    paymasterAndData: concat([
+                        paymaster,
+                        encodePaymasterData()
+                    ]),
                     callGasLimit: 500_000n,
                     verificationGasLimit: 500_000n,
                     preVerificationGas: 500_000n,
