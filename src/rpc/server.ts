@@ -1,8 +1,8 @@
 import {
     type ApiVersion,
+    ERC7769Errors,
     type JSONRPCResponse,
     RpcError,
-    ERC7769Errors,
     altoVersions,
     bundlerRequestSchema,
     jsonRpcSchema

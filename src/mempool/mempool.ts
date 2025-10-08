@@ -2,6 +2,7 @@ import type { EventManager } from "@alto/handlers"
 import type { MempoolStore } from "@alto/store"
 import {
     type Address,
+    ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
@@ -12,7 +13,6 @@ import {
     type UserOpInfo,
     type UserOperation,
     type UserOperationBundle,
-    ERC7769Errors,
     type ValidationResult
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"

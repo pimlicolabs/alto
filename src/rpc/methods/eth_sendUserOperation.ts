@@ -1,10 +1,10 @@
 import {
     type Address,
     type ApiVersion,
+    ERC7769Errors,
     type ReferencedCodeHashes,
     RpcError,
     type UserOperation,
-    ERC7769Errors,
     sendUserOperationSchema
 } from "@alto/types"
 import type * as validation from "@alto/types"

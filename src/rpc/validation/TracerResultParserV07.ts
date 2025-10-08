@@ -1,4 +1,5 @@
 import {
+    ERC7769Errors,
     EntryPointV07Abi,
     PaymasterAbi,
     RpcError,
@@ -6,7 +7,6 @@ import {
     type StakeInfo,
     type StorageMap,
     type UserOperation07,
-    ERC7769Errors,
     type ValidationResult07
 } from "@alto/types"
 import { areAddressesEqual, isVersion08 } from "@alto/utils"

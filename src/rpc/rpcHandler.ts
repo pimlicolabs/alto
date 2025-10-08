@@ -12,12 +12,12 @@ import type {
 import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
     type Address,
+    ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
     RpcError,
-    type UserOperation,
-    ERC7769Errors
+    type UserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"

@@ -10,13 +10,13 @@ import type {
 } from "@alto/types"
 import {
     type Address,
+    ERC7769Errors,
     EntryPointV06Abi,
     type ExecutionResult,
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
     type UserOperation,
-    ERC7769Errors,
     entryPointExecutionErrorSchema06
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"

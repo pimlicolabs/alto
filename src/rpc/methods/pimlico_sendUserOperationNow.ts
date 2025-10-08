@@ -1,8 +1,8 @@
 import {
+    ERC7769Errors,
     RpcError,
     type UserOpInfo,
     type UserOperationBundle,
-    ERC7769Errors,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
 import {

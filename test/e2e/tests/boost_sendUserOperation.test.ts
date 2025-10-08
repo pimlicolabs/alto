@@ -16,6 +16,7 @@ import {
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
+import { ERC7769Errors } from "../src/errors.js"
 import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import {
     beforeEachCleanUp,
@@ -408,7 +409,7 @@ describe.each([
                 })
             ).rejects.toMatchObject({
                 message: expect.stringContaining("Already known"),
-                code: -32602
+                code: ERC7769Errors.InvalidFields
             })
         })
     }

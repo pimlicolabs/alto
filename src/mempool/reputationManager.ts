@@ -1,9 +1,9 @@
 import {
+    ERC7769Errors,
     EntryPointV06Abi,
     RpcError,
     type StakeInfo,
     type UserOperation,
-    ERC7769Errors,
     type ValidationResult
 } from "@alto/types"
 import type { Logger } from "@alto/utils"

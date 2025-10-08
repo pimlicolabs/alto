@@ -1,4 +1,5 @@
 import {
+    ERC7769Errors,
     EntryPointV06Abi,
     PaymasterAbi,
     RpcError,
@@ -6,7 +7,6 @@ import {
     type StakeInfo,
     type StorageMap,
     type UserOperation06,
-    ERC7769Errors,
     type ValidationResult
 } from "@alto/types"
 import type { Abi, AbiFunction } from "abitype"

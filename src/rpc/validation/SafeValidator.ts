@@ -12,13 +12,13 @@ import {
     type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
+    ERC7769Errors,
     EntryPointV06Abi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
-    ERC7769Errors,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
