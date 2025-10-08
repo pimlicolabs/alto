@@ -1,4 +1,4 @@
-import type { SenderManager } from "@alto/executor"
+import { getUserOpHashes, type SenderManager } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -160,6 +160,11 @@ export class BundleManager {
     }) {
         const { bundle } = submittedBundle
         const { blockNumber, transactionHash } = bundleReceipt
+
+        this.logger.info(
+            { transactionHash, userOpHashes: getUserOpHashes(bundle.userOps) },
+            "Processing reverted bundle"
+        )
 
         await this.freeSubmittedBundle(submittedBundle)
 

@@ -1,6 +1,7 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
 import { concat, getAddress } from "viem"
 import type { SignedAuthorization } from "viem"
+import { getEip7702AuthAddress } from "./eip7702"
 
 /// Convert an object to JSON string, handling bigint values
 export const jsonStringifyWithBigint = (obj: unknown): string => {
@@ -81,10 +82,7 @@ export function getAuthorizationStateOverrides({
                 ...(overrides[op.sender] || {}),
                 ...getAuthorizationStateOverride({
                     authorization: {
-                        address:
-                            "address" in op.eip7702Auth
-                                ? op.eip7702Auth.address
-                                : op.eip7702Auth.contractAddress,
+                        address: getEip7702AuthAddress(op.eip7702Auth),
                         chainId: op.eip7702Auth.chainId,
                         nonce: op.eip7702Auth.nonce,
                         r: op.eip7702Auth.r,

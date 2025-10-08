@@ -27,7 +27,10 @@ import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
-import { getEip7702DelegationOverrides } from "../utils/eip7702"
+import {
+    getEip7702DelegationOverrides,
+    validateEip7702Nonces
+} from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
 import { calculateAA95GasFloor, encodeHandleOpsCalldata } from "./utils"
 
