@@ -240,7 +240,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: errorMessage,
-                code: toErc7769Code(errorMessage)
+                code: ERC7769Errors.UserOperationReverted
             }
         }
 
