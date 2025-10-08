@@ -342,11 +342,11 @@ export async function filterOpsAndEstimateGas({
     const { userOps, entryPoint } = userOpBundle
 
     try {
-        const { rejectedUserOps, validUserOps } =
+        const { rejectedUserOps: rejectedByEip7702Nonce, validUserOps } =
             await validateEip7702AuthNonces({ userOps, publicClient })
 
         if (validUserOps.length === 0) {
-            return { status: "all_ops_rejected", rejectedUserOps }
+            return { status: "all_ops_rejected", rejectedUserOps: rejectedByEip7702Nonce }
         }
 
         // Create promises for parallel execution
@@ -378,7 +378,7 @@ export async function filterOpsAndEstimateGas({
         const userOpsToBundle = validUserOps.filter(
             ({ userOpHash }) => !rejectedUserOpHashes.includes(userOpHash)
         )
-        const filterOpsRejected = filterOpsResult.rejectedUserOps.map(
+        const rejectedBySimulation = filterOpsResult.rejectedUserOps.map(
             ({ userOpHash, revertReason }) => {
                 const userOpInfo = validUserOps.find(
                     (op) => op.userOpHash === userOpHash
@@ -422,7 +422,7 @@ export async function filterOpsAndEstimateGas({
             }
         )
 
-        const allRejectedUserOps = [...rejectedUserOps, ...filterOpsRejected]
+        const allRejectedUserOps = [...rejectedByEip7702Nonce, ...rejectedBySimulation]
 
         if (userOpsToBundle.length === 0) {
             return {
