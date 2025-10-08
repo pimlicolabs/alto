@@ -197,7 +197,7 @@ describe.each([
                             value: 0n
                         }
                     ],
-                    paymasterAndData: paymaster
+                    paymasterAndData: concat([paymaster, encodePaymasterData()])
                 })
             } else {
                 hash = await smartAccountClient.sendUserOperation({
@@ -209,6 +209,7 @@ describe.each([
                         }
                     ],
                     paymaster: paymaster,
+                    paymasterData: encodePaymasterData(),
                     paymasterVerificationGasLimit: 1_500_000n,
                     paymasterPostOpGasLimit: 500_000n
                 })
