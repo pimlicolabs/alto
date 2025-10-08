@@ -93,8 +93,8 @@ describe.each([
 
             const fakeEntryPoint = privateKeyToAddress(generatePrivateKey())
 
-            await expect(async () =>
-                smartAccountClient.estimateUserOperationGas({
+            try {
+                await smartAccountClient.estimateUserOperationGas({
                     calls: [
                         {
                             to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
@@ -104,10 +104,20 @@ describe.each([
                     ],
                     entryPointAddress: fakeEntryPoint
                 })
-            ).rejects.toMatchObject({
-                message: expect.stringMatching(/EntryPoint .* not supported/),
-                code: -32602
-            })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(/EntryPoint .* not supported/)
+
+                // Check for RPC error code
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Can estimate with empty gasLimit values", async () => {

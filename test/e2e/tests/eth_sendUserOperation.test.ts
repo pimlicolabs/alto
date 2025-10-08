@@ -95,8 +95,8 @@ describe.each([
 
             const fakeEntryPoint = privateKeyToAddress(generatePrivateKey())
 
-            await expect(async () =>
-                smartAccountClient.estimateUserOperationGas({
+            try {
+                await smartAccountClient.estimateUserOperationGas({
                     calls: [
                         {
                             to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
@@ -106,10 +106,20 @@ describe.each([
                     ],
                     entryPointAddress: fakeEntryPoint
                 })
-            ).rejects.toMatchObject({
-                message: expect.stringMatching(/EntryPoint .* not supported/),
-                code: ERC7769Errors.InvalidFields
-            })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(/EntryPoint .* not supported/)
+
+                // Check for RPC error code
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Send UserOperation", async () => {
@@ -460,14 +470,22 @@ describe.each([
 
             await client.sendUserOperation(op) // first should go through
 
-            await expect(async () => {
+            try {
                 await client.sendUserOperation(op) // second should fail due to "already known"
-            }).rejects.toThrowError(
-                expect.objectContaining({
-                    details: expect.stringContaining("Already known"),
-                    code: ERC7769Errors.InvalidFields
-                })
-            )
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(/Already known/i)
+
+                // Check for RPC error code
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Should send userOp with 7702Auth", async () => {
