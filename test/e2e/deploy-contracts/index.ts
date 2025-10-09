@@ -98,7 +98,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.8 CORE] Deploying EntryPoint"))
+        .then(() => console.log("[0.8 CORE] Deploying EntryPoint"))
 
     walletClient
         .sendTransaction({
@@ -107,7 +107,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.8 CORE] Deploying SimpleAccountFactory"))
+        .then(() => console.log("[0.8 CORE] Deploying SimpleAccountFactory"))
 
     walletClient
         .sendTransaction({
@@ -116,7 +116,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.7 CORE] Deploying EntryPoint"))
+        .then(() => console.log("[0.7 CORE] Deploying EntryPoint"))
 
     walletClient
         .sendTransaction({
@@ -125,7 +125,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.7 CORE] Deploying SimpleAccountFactory"))
+        .then(() => console.log("[0.7 CORE] Deploying SimpleAccountFactory"))
 
     walletClient
         .sendTransaction({
@@ -134,7 +134,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.6 CORE] Deploying EntryPoint"))
+        .then(() => console.log("[0.6 CORE] Deploying EntryPoint"))
 
     walletClient
         .sendTransaction({
@@ -143,7 +143,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             gas: 15_000_000n,
             nonce: nonce++
         })
-        .then(() => console.log("[V0.6 CORE] Deploying SimpleAccountFactory"))
+        .then(() => console.log("[0.6 CORE] Deploying SimpleAccountFactory"))
 
     // Wait for all deploy/setup txs to be mined.
     let onchainNonce = 0

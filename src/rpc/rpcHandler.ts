@@ -12,12 +12,12 @@ import type {
 import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
     type Address,
+    ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
     RpcError,
-    type UserOperation,
-    ValidationErrors
+    type UserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
@@ -106,7 +106,7 @@ export class RpcHandler {
         if (!handler) {
             throw new RpcError(
                 "Method not supported",
-                ValidationErrors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
 
@@ -123,7 +123,7 @@ export class RpcHandler {
                 `EntryPoint ${entryPoint} not supported, supported EntryPoints: ${this.config.entrypoints.join(
                     ", "
                 )}`,
-                ValidationErrors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
     }

@@ -12,13 +12,13 @@ import {
     type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
+    ERC7769Errors,
     EntryPointV06Abi,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
-    ValidationErrors,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
@@ -132,7 +132,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV07(args: {
+    async getValidationResult07(args: {
         userOp: UserOperation07
         queuedUserOps: UserOperation[]
         entryPoint: Address
@@ -149,7 +149,7 @@ export class SafeValidator
             if (hash !== codeHashes.hash) {
                 throw new RpcError(
                     "code hashes mismatch",
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
         }
@@ -180,14 +180,14 @@ export class SafeValidator
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(
                 "Invalid UserOp signature",
-                ValidationErrors.InvalidSignature
+                ERC7769Errors.InvalidSignature
             )
         }
 
         if (res.returnInfo.paymasterSigFailed) {
             throw new RpcError(
                 "Invalid UserOp paymasterData",
-                ValidationErrors.InvalidSignature
+                ERC7769Errors.InvalidSignature
             )
         }
 
@@ -198,7 +198,7 @@ export class SafeValidator
         }
     }
 
-    async getValidationResultV06(args: {
+    async getValidationResult06(args: {
         userOp: UserOperation06
         entryPoint: Address
         codeHashes?: ReferencedCodeHashes
@@ -214,7 +214,7 @@ export class SafeValidator
             if (hash !== codeHashes.hash) {
                 throw new RpcError(
                     "code hashes mismatch",
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
         }
@@ -249,7 +249,7 @@ export class SafeValidator
         if (validationResult.returnInfo.sigFailed) {
             throw new RpcError(
                 "Invalid UserOp signature or paymaster signature",
-                ValidationErrors.InvalidSignature
+                ERC7769Errors.InvalidSignature
             )
         }
 
@@ -264,15 +264,12 @@ export class SafeValidator
         if (validationResult.returnInfo.validAfter > now - 5) {
             throw new RpcError(
                 "User operation is not valid yet",
-                ValidationErrors.ExpiresShortly
+                ERC7769Errors.ExpiresShortly
             )
         }
 
         if (validationResult.returnInfo.validUntil < now + 30) {
-            throw new RpcError(
-                "expires too soon",
-                ValidationErrors.ExpiresShortly
-            )
+            throw new RpcError("expires too soon", ERC7769Errors.ExpiresShortly)
         }
 
         return validationResult
@@ -361,12 +358,12 @@ export class SafeValidator
             if (paymaster == null) {
                 throw new RpcError(
                     `account validation failed: ${msg}`,
-                    ValidationErrors.SimulateValidation
+                    ERC7769Errors.SimulateValidation
                 )
             }
             throw new RpcError(
                 `paymaster validation failed: ${msg}`,
-                ValidationErrors.SimulatePaymasterValidation,
+                ERC7769Errors.SimulatePaymasterValidation,
                 {
                     paymaster
                 }
@@ -494,15 +491,15 @@ export class SafeValidator
         })
 
         if (errorName !== "ValidationResult") {
-            let errorCode = ValidationErrors.SimulateValidation
+            let errorCode = ERC7769Errors.SimulateValidation
             const errorMessage = errorName || "Unknown validation error"
 
             if (errorMessage.includes("AA24")) {
-                errorCode = ValidationErrors.InvalidSignature
+                errorCode = ERC7769Errors.InvalidSignature
             }
 
             if (errorMessage.includes("AA31")) {
-                errorCode = ValidationErrors.PaymasterDepositTooLow
+                errorCode = ERC7769Errors.PaymasterDepositTooLow
             }
 
             throw new RpcError(errorMessage, errorCode)
@@ -550,14 +547,14 @@ export class SafeValidator
         if (res.returnInfo.accountSigFailed) {
             throw new RpcError(
                 "Invalid UserOp signature",
-                ValidationErrors.InvalidSignature
+                ERC7769Errors.InvalidSignature
             )
         }
 
         if (res.returnInfo.paymasterSigFailed) {
             throw new RpcError(
                 "Invalid UserOp paymasterData",
-                ValidationErrors.InvalidSignature
+                ERC7769Errors.InvalidSignature
             )
         }
 
@@ -566,7 +563,7 @@ export class SafeValidator
         if (res.returnInfo.validAfter > now - 5) {
             throw new RpcError(
                 `User operation is not valid yet, validAfter=${res.returnInfo.validAfter}, now=${now}`,
-                ValidationErrors.ExpiresShortly
+                ERC7769Errors.ExpiresShortly
             )
         }
 
@@ -576,7 +573,7 @@ export class SafeValidator
         ) {
             throw new RpcError(
                 `UserOperation expires too soon, validUntil=${res.returnInfo.validUntil}, now=${now}`,
-                ValidationErrors.ExpiresShortly
+                ERC7769Errors.ExpiresShortly
             )
         }
 

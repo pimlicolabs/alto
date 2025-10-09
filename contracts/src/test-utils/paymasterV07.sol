@@ -24,13 +24,20 @@ contract TestPaymasterV07 is IPaymaster {
         bytes32, /*userOpHash*/
         uint256 /*requiredPreFund*/
     ) public view override returns (bytes memory context, uint256 validationData) {
-        // Return false if there are paymasterData bytes (this allows us to test failing conditions).
-        if (userOp.paymasterAndData.length > (20 + 16 + 16)) {
-            return ("", _packValidationData(true, 0, 0));
+        // paymasterAndData format in v0.7:
+        // [paymaster address (20 bytes)][paymasterVerificationGasLimit (16 bytes)][paymasterPostOpGasLimit (16 bytes)][paymasterData (variable)]
+        // paymasterData contains: abi.encoded(validUntil, validAfter, invalidSignature, forceRevert)
+
+        bytes calldata paymasterData = userOp.paymasterAndData[52:];
+
+        (uint48 validUntil, uint48 validAfter, bool isValidSignature, bool forceRevert) =
+            abi.decode(paymasterData, (uint48, uint48, bool, bool));
+
+        if (forceRevert) {
+            revert("Paymaster forced revert");
         }
 
-        // By default sponsor all userOperations.
-        return ("", _packValidationData(false, 0, 0));
+        return ("", _packValidationData(isValidSignature, validUntil, validAfter));
     }
 
     function postOp(PostOpMode, bytes calldata, uint256, uint256) external {}

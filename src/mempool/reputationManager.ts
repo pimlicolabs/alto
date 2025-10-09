@@ -1,9 +1,9 @@
 import {
+    ERC7769Errors,
     EntryPointV06Abi,
     RpcError,
     type StakeInfo,
     type UserOperation,
-    ValidationErrors,
     type ValidationResult
 } from "@alto/types"
 import type { Logger } from "@alto/utils"
@@ -720,7 +720,7 @@ export class ReputationManager implements InterfaceReputationManager {
         if (status === ReputationStatuses.banned) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is banned from using the pimlico`,
-                ValidationErrors.Reputation
+                ERC7769Errors.Reputation
             )
         }
     }
@@ -734,7 +734,7 @@ export class ReputationManager implements InterfaceReputationManager {
         if (status === ReputationStatuses.throttled) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} is throttled by the pimlico`,
-                ValidationErrors.Reputation
+                ERC7769Errors.Reputation
             )
         }
     }
@@ -757,20 +757,20 @@ export class ReputationManager implements InterfaceReputationManager {
             if (stakeInfo.stake === 0n) {
                 throw new RpcError(
                     `${entityType} ${stakeInfo.addr} is unstaked and must stake minimum ${this.config.minEntityStake} to use pimlico`,
-                    ValidationErrors.InsufficientStake
+                    ERC7769Errors.InsufficientStake
                 )
             }
 
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} does not have enough stake to use pimlico`,
-                ValidationErrors.InsufficientStake
+                ERC7769Errors.InsufficientStake
             )
         }
 
         if (stakeInfo.unstakeDelaySec < this.config.minEntityUnstakeDelay) {
             throw new RpcError(
                 `${entityType} ${stakeInfo.addr} does not have enough unstake delay to use pimlico`,
-                ValidationErrors.InsufficientStake
+                ERC7769Errors.InsufficientStake
             )
         }
     }

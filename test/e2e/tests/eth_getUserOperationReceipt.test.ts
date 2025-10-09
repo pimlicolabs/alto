@@ -30,7 +30,7 @@ import {
     deployRevertingContract,
     getRevertCall
 } from "../src/revertingContract.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
+import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import {
     beforeEachCleanUp,
     getPublicClient,
@@ -101,7 +101,10 @@ describe.each([
                         }
                     ]),
                     initCode: concat([factory as Hex, factoryData as Hex]),
-                    paymasterAndData: paymaster,
+                    paymasterAndData: concat([
+                        paymaster,
+                        encodePaymasterData()
+                    ]),
                     callGasLimit: 500_000n,
                     verificationGasLimit: 500_000n,
                     preVerificationGas: 500_000n,
@@ -129,6 +132,7 @@ describe.each([
                     maxFeePerGas: parseGwei("10"),
                     maxPriorityFeePerGas: parseGwei("10"),
                     paymaster,
+                    paymasterData: encodePaymasterData(),
                     paymasterVerificationGasLimit: 100_000n,
                     paymasterPostOpGasLimit: 50_000n
                 } as UserOperation<"0.7">
@@ -194,7 +198,7 @@ describe.each([
                             value: 0n
                         }
                     ],
-                    paymasterAndData: paymaster
+                    paymasterAndData: concat([paymaster, encodePaymasterData()])
                 })
             } else {
                 hash = await smartAccountClient.sendUserOperation({
@@ -206,6 +210,7 @@ describe.each([
                         }
                     ],
                     paymaster: paymaster,
+                    paymasterData: encodePaymasterData(),
                     paymasterVerificationGasLimit: 1_500_000n,
                     paymasterPostOpGasLimit: 500_000n
                 })

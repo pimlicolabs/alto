@@ -1,11 +1,16 @@
-import { deepHexlify } from "permissionless"
+import { deepHexlify, getRequiredPrefund } from "permissionless"
 import {
     http,
     type Address,
     BaseError,
     type Hex,
+    RpcRequestError,
+    concat,
     createPublicClient,
+    createTestClient,
     getContract,
+    pad,
+    parseEther,
     zeroAddress
 } from "viem"
 import {
@@ -19,11 +24,12 @@ import {
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
+import { ERC7769Errors } from "../src/errors.js"
 import {
     deployRevertingContract,
     getRevertCall
 } from "../src/revertingContract.js"
-import { deployPaymaster } from "../src/testPaymaster.js"
+import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
@@ -47,11 +53,24 @@ describe.each([
 ])(
     "$entryPointVersion supports eth_estimateUserOperationGas",
     ({ entryPointVersion, entryPoint }) => {
+        const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
+        const VALUE = parseEther("0.15")
         let revertingContract: Address
         let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
+
+        const anvilClient = createTestClient({
+            chain: foundry,
+            mode: "anvil",
+            transport: http(anvilRpc)
+        })
+
+        const publicClient = createPublicClient({
+            transport: http(anvilRpc),
+            chain: foundry
+        })
 
         beforeEach(async () => {
             revertingContract = await deployRevertingContract({
@@ -73,8 +92,8 @@ describe.each([
 
             const fakeEntryPoint = privateKeyToAddress(generatePrivateKey())
 
-            await expect(async () =>
-                smartAccountClient.estimateUserOperationGas({
+            try {
+                await smartAccountClient.estimateUserOperationGas({
                     calls: [
                         {
                             to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
@@ -84,7 +103,20 @@ describe.each([
                     ],
                     entryPointAddress: fakeEntryPoint
                 })
-            ).rejects.toThrow(/EntryPoint .* not supported/)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(/EntryPoint .* not supported/)
+
+                // Check for RPC error code
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Can estimate with empty gasLimit values", async () => {
@@ -258,7 +290,7 @@ describe.each([
                 expect(err.message).toEqual(
                     "UserOperation reverted during simulation with reason: 0x08c379a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000006666f6f6261720000000000000000000000000000000000000000000000000000"
                 )
-                expect(err.code).toEqual(-32521)
+                expect(err.code).toEqual(ERC7769Errors.UserOperationReverted)
             }
         })
 
@@ -464,6 +496,7 @@ describe.each([
                     ...(sponsored
                         ? {
                               paymaster: paymaster,
+                              paymasterData: encodePaymasterData(),
                               paymasterVerificationGasLimit: 100_000n,
                               paymasterPostOpGasLimit: 50_000n
                           }
@@ -484,6 +517,7 @@ describe.each([
                 ...(sponsored && paymaster
                     ? {
                           paymaster: paymaster,
+                          paymasterData: encodePaymasterData(),
                           paymasterVerificationGasLimit: 100_000n,
                           paymasterPostOpGasLimit: 50_000n
                       }
@@ -503,5 +537,504 @@ describe.each([
                 expect(userOpN3.paymasterPostOpGasLimit).toBeGreaterThan(0n)
             }
         })
+
+        // ============================================================
+        // Error Validation Tests
+        // Tests that verify proper error handling and AA error codes
+        // ============================================================
+
+        test("Should throw AA10: sender already constructed", async () => {
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey
+            })
+
+            // Deploy the account
+            const deployHash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: client.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })
+            await client.waitForUserOperationReceipt({ hash: deployHash })
+
+            // Prepare userOp with deployment data for already deployed account
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Get the deployment data from a fresh account
+            const tempKey = generatePrivateKey()
+            const tempClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey: tempKey
+            })
+            const tempOp = (await tempClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: client.account.address,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Force the deployment data even though account is already deployed
+            if (entryPointVersion === "0.6") {
+                op.initCode = tempOp.initCode
+                op.sender = client.account.address
+            } else {
+                op.factory = tempOp.factory
+                op.factoryData = tempOp.factoryData
+                op.sender = client.account.address
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA10|sender already constructed)/i
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA13: initCode failed or OOG", async () => {
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            const { factory } = await client.account.getFactoryArgs()
+
+            // Force a AA13 by creating malformed factoryData
+            if (entryPointVersion === "0.6") {
+                op.initCode = factory
+            } else {
+                // Keep factory but provide invalid factoryData that will fail
+                op.factory = factory
+                op.factoryData = "0xbadc0ffee0"
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA13|initCode failed or OOG)/i)
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA14: initCode must return sender", async () => {
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey
+            })
+
+            // Create a temporary client with different private key
+            const wrongPrivateKey = generatePrivateKey()
+            const tempClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey: wrongPrivateKey
+            })
+
+            const tempOp = (await tempClient.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Use factory data from wrong account but keep correct sender
+            if (entryPointVersion === "0.6") {
+                op.initCode = tempOp.initCode
+            } else {
+                op.factory = tempOp.factory
+                op.factoryData = tempOp.factoryData
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA14|initCode must return sender)/i
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA20: account not deployed", async () => {
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                privateKey
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Remove deployment data to trigger AA20
+            if (entryPointVersion === "0.6") {
+                op.initCode = "0x"
+            } else {
+                // Override getFactoryArgs to return undefined
+                client.account.getFactoryArgs = async () => {
+                    return {
+                        factory: undefined,
+                        factoryData: undefined
+                    }
+                }
+                op.factory = undefined
+                op.factoryData = undefined
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA20|Account not deployed)/i)
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA21: insufficient prefund", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+            const requiredPrefund = getRequiredPrefund({
+                userOperation: op,
+                entryPointVersion: entryPointVersion
+            })
+            // Set balance below required prefund
+            await anvilClient.setBalance({
+                address: client.account.address,
+                value: requiredPrefund - 1n
+            })
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA21|didn't pay prefund)/i)
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        test("Should throw AA23: reverted (account validation)", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Use a malformed signature that will cause ECDSA.recover to revert
+            op.signature = "0xdeadbeef" as Hex
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA23|reverted)/i)
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
+        // Should throw AA24: signature error (NOT APPLICABLE FOR ESTIMATION)
+
+        // Should throw AA26: over verificationGasLimit (NOT APPLICABLE FOR ESTIMATION)
+
+        test("Should throw AA30: paymaster not deployed", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Use a non-deployed address as paymaster
+            const nonDeployedPaymaster = privateKeyToAddress(
+                generatePrivateKey()
+            )
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([
+                    nonDeployedPaymaster,
+                    encodePaymasterData()
+                ])
+            } else {
+                op.paymaster = nonDeployedPaymaster
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData()
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA30|paymaster not deployed)/i)
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
+            }
+        })
+
+        test("Should throw AA31: paymaster deposit too low", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // Deploy paymaster without funding
+            const unfundedPaymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc,
+                salt: pad(privateKeyToAddress(generatePrivateKey())),
+                funded: false
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([
+                    unfundedPaymaster,
+                    encodePaymasterData()
+                ])
+            } else {
+                op.paymaster = unfundedPaymaster
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData()
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /(AA31|paymaster deposit too low)/i
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.PaymasterDepositTooLow)
+            }
+        })
+
+        // Should throw AA32: paymaster expired or not due (NOT APPLICABLE FOR ESTIMATION)
+
+        test("Should throw AA33: reverted", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            if (entryPointVersion === "0.6") {
+                op.paymasterAndData = concat([
+                    paymaster,
+                    encodePaymasterData({ forceRevert: true })
+                ])
+            } else {
+                op.paymaster = paymaster
+                op.paymasterVerificationGasLimit = 100_000n
+                op.paymasterPostOpGasLimit = 50_000n
+                op.paymasterData = encodePaymasterData({ forceRevert: true })
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(/(AA33|reverted|revert)/i)
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
+            }
+        })
+
+        // Should throw AA34 if paymaster signature is invalid (NOT APPLICABLE FOR ESTIMATION)
+
+        // Should throw AA36: over paymasterVerificationGasLimit (NOT APPLICABLE FOR ESTIMATION)
     }
 )

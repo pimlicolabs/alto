@@ -1,4 +1,5 @@
 import {
+    ERC7769Errors,
     EntryPointV07Abi,
     PaymasterAbi,
     RpcError,
@@ -6,7 +7,6 @@ import {
     type StakeInfo,
     type StorageMap,
     type UserOperation07,
-    ValidationErrors,
     type ValidationResult07
 } from "@alto/types"
 import { areAddressesEqual, isVersion08 } from "@alto/utils"
@@ -490,7 +490,7 @@ export function tracerResultParserV07(
     ) {
         throw new RpcError(
             `illegal call into EntryPoint during validation ${callInfoEntryPoint?.method}`,
-            ValidationErrors.OpcodeValidation
+            ERC7769Errors.OpcodeValidation
         )
     }
 
@@ -504,7 +504,7 @@ export function tracerResultParserV07(
     if (illegalNonZeroValueCall) {
         throw new RpcError(
             "May not may CALL with value",
-            ValidationErrors.OpcodeValidation
+            ERC7769Errors.OpcodeValidation
         )
     }
 
@@ -548,7 +548,7 @@ export function tracerResultParserV07(
         if (currentNumLevel.oog ?? false) {
             throw new RpcError(
                 `${entityTitle} internally reverts on oog`,
-                ValidationErrors.OpcodeValidation
+                ERC7769Errors.OpcodeValidation
             )
         }
 
@@ -557,7 +557,7 @@ export function tracerResultParserV07(
             if (bannedOpCodes.has(opcode) && !isStaked(entStakes)) {
                 throw new RpcError(
                     `${entityTitle} uses banned opcode: ${opcode}`,
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
         }
@@ -568,7 +568,7 @@ export function tracerResultParserV07(
         if (isCreateOpcodeUsed && createOpcode > 1) {
             throw new RpcError(
                 `${entityTitle} uses banned opcode: CREATE2`,
-                ValidationErrors.OpcodeValidation
+                ERC7769Errors.OpcodeValidation
             )
         }
 
@@ -577,13 +577,13 @@ export function tracerResultParserV07(
             if ((createOpcode ?? 0) > 2) {
                 throw new RpcError(
                     `${entityTitle} with too many CREATE2`,
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
             if ((create2Opcode ?? 0) >= 2) {
                 throw new RpcError(
                     `${entityTitle} with too many CREATE2`,
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
         } else if (createOpcode) {
@@ -595,7 +595,7 @@ export function tracerResultParserV07(
             if (!(isFactoryStaked || skip)) {
                 throw new RpcError(
                     `${entityTitle} uses banned opcode: CREATE2`,
-                    ValidationErrors.OpcodeValidation
+                    ERC7769Errors.OpcodeValidation
                 )
             }
         }
@@ -674,7 +674,7 @@ export function tracerResultParserV07(
 
                     throw new RpcError(
                         message,
-                        ValidationErrors.OpcodeValidation,
+                        ERC7769Errors.OpcodeValidation,
                         {
                             [entityTitle]: entStakes?.addr
                         }
@@ -742,7 +742,7 @@ export function tracerResultParserV07(
             if (!isStaked(entStake)) {
                 throw new RpcError(
                     failureMessage,
-                    ValidationErrors.OpcodeValidation,
+                    ERC7769Errors.OpcodeValidation,
                     {
                         [entityTitle]: entStakes?.addr
                     }
@@ -772,7 +772,7 @@ export function tracerResultParserV07(
                 `${entityTitle} accesses un-deployed contract address ${
                     illegalZeroCodeAccess?.address as string
                 } with opcode ${illegalZeroCodeAccess?.opcode as string}`,
-                ValidationErrors.OpcodeValidation
+                ERC7769Errors.OpcodeValidation
             )
         }
 
@@ -788,7 +788,7 @@ export function tracerResultParserV07(
         if (illegalEntryPointCodeAccess) {
             throw new RpcError(
                 `${entityTitle} accesses EntryPoint contract address ${entryPointAddress} with opcode ${illegalEntryPointCodeAccess}`,
-                ValidationErrors.OpcodeValidation
+                ERC7769Errors.OpcodeValidation
             )
         }
     }

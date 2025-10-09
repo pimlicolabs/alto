@@ -3,6 +3,7 @@ import {
     http,
     type Address,
     type Hex,
+    concat,
     createPublicClient,
     parseEther,
     parseGwei
@@ -16,7 +17,8 @@ import {
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
-import { deployPaymaster } from "../src/testPaymaster.js"
+import { ERC7769Errors } from "../src/errors.js"
+import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import {
     beforeEachCleanUp,
     getSmartAccountClient,
@@ -344,12 +346,12 @@ describe.each([
 
             // Add paymaster (this should fail for boosted operations)
             if (entryPointVersion === "0.6") {
-                op.paymasterAndData = paymaster
+                op.paymasterAndData = concat([paymaster, encodePaymasterData()])
             } else {
                 op.paymaster = paymaster
-                op.paymasterData = "0x"
                 op.paymasterVerificationGasLimit = 100_000n
                 op.paymasterPostOpGasLimit = 0n
+                op.paymasterData = encodePaymasterData()
             }
 
             op.signature = await client.account.signUserOperation(op)
@@ -406,7 +408,10 @@ describe.each([
                     // @ts-ignore
                     params: [deepHexlify(op), entryPoint]
                 })
-            ).rejects.toThrow("Already known")
+            ).rejects.toMatchObject({
+                message: expect.stringContaining("Already known"),
+                code: ERC7769Errors.InvalidFields
+            })
         })
     }
 )

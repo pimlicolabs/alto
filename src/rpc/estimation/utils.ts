@@ -3,7 +3,7 @@ import type {
     UserOperation06,
     UserOperation07
 } from "@alto/types"
-import { ValidationErrors, executionResultSchema } from "@alto/types"
+import { ERC7769Errors, executionResultSchema } from "@alto/types"
 import {
     type Logger,
     deepHexlify,
@@ -97,6 +97,31 @@ export const simulationErrors = parseAbi([
     "error CallPhaseReverted(bytes reason)"
 ])
 
+// Returns error code based on EntryPoint's AA error message.
+export const toErc7769Code = (entryPointError: string) => {
+    if (entryPointError.includes("AA24") || entryPointError.includes("AA34")) {
+        return ERC7769Errors.InvalidSignature
+    }
+
+    if (entryPointError.includes("AA31")) {
+        return ERC7769Errors.PaymasterDepositTooLow
+    }
+
+    if (entryPointError.includes("AA32")) {
+        return ERC7769Errors.ExpiresShortly
+    }
+
+    if (
+        entryPointError.includes("AA30") ||
+        entryPointError.includes("AA33") ||
+        entryPointError.includes("AA36")
+    ) {
+        return ERC7769Errors.SimulatePaymasterValidation
+    }
+
+    return ERC7769Errors.SimulateValidation
+}
+
 export function decodeSimulateHandleOpError(
     error: unknown,
     logger: Logger
@@ -129,7 +154,7 @@ export function decodeSimulateHandleOpError(
             return {
                 result: "failed",
                 data: "Sender has no code or factory not deployed",
-                code: ValidationErrors.SimulateValidation
+                code: ERC7769Errors.SimulateValidation
             }
         }
 
@@ -191,33 +216,42 @@ export function decodeSimulateHandleOpError(
     }
 
     switch (errorName) {
-        case "FailedOp":
+        case "FailedOp": {
+            const errorMessage = args[1] as string
             return {
                 result: "failed",
-                data: args[1] as string,
-                code: ValidationErrors.SimulateValidation
+                data: errorMessage,
+                code: toErc7769Code(errorMessage)
             }
+        }
 
-        case "FailedOpWithRevert":
+        case "FailedOpWithRevert": {
+            const errorMessage = args[1] as string
+            const revertReason = parseFailedOpWithRevert(args[2] as Hex)
             return {
                 result: "failed",
-                data: `${args[1]} ${parseFailedOpWithRevert(args[2] as Hex)}`,
-                code: ValidationErrors.SimulateValidation
+                data: `${errorMessage} ${revertReason}`,
+                code: toErc7769Code(errorMessage)
             }
+        }
 
-        case "CallPhaseReverted":
+        case "CallPhaseReverted": {
+            const errorMessage = args[0] as string
             return {
                 result: "failed",
-                data: args[0] as Hex,
-                code: ValidationErrors.SimulateValidation
+                data: errorMessage,
+                code: ERC7769Errors.UserOperationReverted
             }
+        }
 
-        case "Error":
+        case "Error": {
+            const errorMessage = args[0] as string
             return {
                 result: "failed",
-                data: args[0] as string,
-                code: ValidationErrors.SimulateValidation
+                data: errorMessage,
+                code: toErc7769Code(errorMessage)
             }
+        }
 
         // 0.6 handleOp reverts with ExecutionResult if successful
         case "ExecutionResult": {

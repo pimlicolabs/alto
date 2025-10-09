@@ -1,9 +1,9 @@
 import {
     type Address,
+    ERC7769Errors,
     RpcError,
     type StateOverrides,
     type UserOperation,
-    ValidationErrors,
     estimateUserOperationGasSchema
 } from "@alto/types"
 import { parseEther, toHex } from "viem"
@@ -331,7 +331,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         if (!validEip7702Auth) {
             throw new RpcError(
                 validEip7702AuthError,
-                ValidationErrors.InvalidFields
+                ERC7769Errors.InvalidFields
             )
         }
 
