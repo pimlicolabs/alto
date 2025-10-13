@@ -60,7 +60,7 @@ const sdk = new NodeSDK({
         new UndiciInstrumentation({
             requireParentforSpans: true
         }),
-        new FastifyOtelInstrumentation({ registerOnInitialization: true }),
+        new FastifyOtelInstrumentation(),
         new PinoInstrumentation(),
         new ViemInstrumentation({
             captureOperationResult: true
