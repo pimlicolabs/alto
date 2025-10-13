@@ -1,7 +1,7 @@
 import module from "node:module"
+import FastifyOtelInstrumentation from "@fastify/otel"
 import { type Attributes, type Context, SpanKind } from "@opentelemetry/api"
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto"
-import { FastifyInstrumentation } from "@opentelemetry/instrumentation-fastify"
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http"
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino"
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici"
@@ -60,7 +60,7 @@ const sdk = new NodeSDK({
         new UndiciInstrumentation({
             requireParentforSpans: true
         }),
-        new FastifyInstrumentation(),
+        new FastifyOtelInstrumentation({ registerOnInitialization: true }),
         new PinoInstrumentation(),
         new ViemInstrumentation({
             captureOperationResult: true
