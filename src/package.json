@@ -58,7 +58,7 @@
         "@types/bull": "^4.10.4",
         "bull": "^4.15.1",
         "dotenv": "^16.0.3",
-        "fastify": "^4.25.2",
+        "fastify": "^4.29.1",
         "import-in-the-middle": "^1.14.2",
         "ioredis": "^5.4.1",
         "opentelemetry-instrumentation-fetch-node": "^1.2.3",
