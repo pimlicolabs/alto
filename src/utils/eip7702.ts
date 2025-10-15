@@ -12,22 +12,25 @@ export const getEip7702AuthAddress = (
 export const getEip7702DelegationOverrides = (
     userOps: UserOperation[]
 ): StateOverride | undefined => {
-    const stateOverride: StateOverride = []
+    // Use Map to deduplicate by sender address
+    const overrideMap = new Map<Address, StateOverride[number]>()
 
     for (const userOp of userOps) {
         if (userOp.eip7702Auth) {
             const delegate = getEip7702AuthAddress(userOp.eip7702Auth)
+            const code = concat(["0xef0100", delegate])
 
-            stateOverride.push({
+            // Only add if not already present, or update if present
+            overrideMap.set(userOp.sender, {
                 address: userOp.sender,
-                code: concat(["0xef0100", delegate])
+                code
             })
         }
     }
 
-    if (stateOverride.length === 0) {
+    if (overrideMap.size === 0) {
         return undefined
     }
 
-    return stateOverride
+    return Array.from(overrideMap.values())
 }
