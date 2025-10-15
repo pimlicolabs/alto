@@ -79,7 +79,7 @@ export async function persistShutdownState({
             createClient: () => {
                 return redis
             },
-            settings: {
+            defaultJobOptions: {
                 removeOnComplete: true,
                 removeOnFail: true
             }
@@ -223,7 +223,7 @@ export async function restoreShutdownState({
                         throw new Error(`Unexpected connection type: ${type}`)
                 }
             },
-            settings: {
+            defaultJobOptions: {
                 removeOnComplete: true,
                 removeOnFail: true
             }
