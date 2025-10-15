@@ -31,12 +31,12 @@ import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import type { AltoConfig } from "../createConfig"
 import { calculateAA95GasFloor } from "../executor/utils"
+import { getEip7702AuthAddress } from "../utils/eip7702"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
 } from "./reputationManager"
 import type { StatusManager } from "./statusManager"
-import { getEip7702AuthAddress } from "../utils/eip7702"
 
 export class Mempool {
     private config: AltoConfig
