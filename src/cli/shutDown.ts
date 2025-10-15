@@ -47,21 +47,31 @@ async function dropAllOperationsOnShutdown({
     )
 }
 
-async function queueOperationsOnShutdownToRedis({
+export async function persistShutdownState({
     mempool,
     bundleManager,
     statusManager,
-    redisEndpoint,
     config,
     logger
 }: {
     mempool: Mempool
     bundleManager: BundleManager
     statusManager: StatusManager
-    redisEndpoint: string
     config: AltoConfig
     logger: Logger
 }) {
+    // When horizontal scaling is enabled, state is already saved between shutdowns.
+    if (config.enableHorizontalScaling) {
+        return
+    }
+
+    if (!config.redisEndpoint) {
+        // No queue configured, drop all operations.
+        return dropAllOperationsOnShutdown({ mempool, logger, config })
+    }
+
+    const redisEndpoint = config.redisEndpoint
+
     try {
         const redis = new Redis(redisEndpoint)
         const queueName = getQueueName(config.chainId)
@@ -140,39 +150,6 @@ async function queueOperationsOnShutdownToRedis({
         // Fall back to dropping operations
         await dropAllOperationsOnShutdown({ mempool, logger, config })
     }
-}
-
-export function persistShutdownState({
-    mempool,
-    bundleManager,
-    statusManager,
-    config,
-    logger
-}: {
-    mempool: Mempool
-    bundleManager: BundleManager
-    statusManager: StatusManager
-    config: AltoConfig
-    logger: Logger
-}) {
-    // When horizontal scaling is enabled, state is already saved between shutdowns.
-    if (config.enableHorizontalScaling) {
-        return
-    }
-
-    if (config.redisEndpoint) {
-        return queueOperationsOnShutdownToRedis({
-            mempool,
-            redisEndpoint: config.redisEndpoint,
-            bundleManager,
-            statusManager,
-            config,
-            logger
-        })
-    }
-
-    // No queue configured, drop all operations.
-    return dropAllOperationsOnShutdown({ mempool, logger, config })
 }
 
 export async function restoreShutdownState({
