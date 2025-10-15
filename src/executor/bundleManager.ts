@@ -3,7 +3,7 @@ import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     Mempool,
-    Monitor
+    StatusManager
 } from "@alto/mempool"
 import type { ReceiptCache } from "@alto/receiptCache"
 import { createReceiptCache } from "@alto/receiptCache"
@@ -31,7 +31,7 @@ export class BundleManager {
     private reputationManager: InterfaceReputationManager
     private config: AltoConfig
     private mempool: Mempool
-    private monitor: Monitor
+    private statusManager: StatusManager
     private logger: Logger
     private metrics: Metrics
     private eventManager: EventManager
@@ -44,7 +44,7 @@ export class BundleManager {
     constructor({
         config,
         mempool,
-        monitor,
+        statusManager,
         metrics,
         reputationManager,
         eventManager,
@@ -53,7 +53,7 @@ export class BundleManager {
     }: {
         config: AltoConfig
         mempool: Mempool
-        monitor: Monitor
+        statusManager: StatusManager
         metrics: Metrics
         reputationManager: InterfaceReputationManager
         eventManager: EventManager
@@ -63,14 +63,14 @@ export class BundleManager {
         this.reputationManager = reputationManager
         this.config = config
         this.mempool = mempool
-        this.monitor = monitor
+        this.statusManager = statusManager
         this.metrics = metrics
         this.eventManager = eventManager
         this.senderManager = senderManager
         this.cachedLatestBlock = null
         this.gasPriceManager = gasPriceManager
         this.logger = config.getLogger(
-            { module: "userop_monitor" },
+            { module: "userop_status_manager" },
             {
                 level: config.executorLogLevel || config.logLevel
             }
@@ -213,7 +213,7 @@ export class BundleManager {
                 if (status === "not_found") {
                     const { userOpHash } = userOpInfo
 
-                    await this.monitor.setStatus([userOpHash], {
+                    await this.statusManager.set([userOpHash], {
                         status: "failed",
                         transactionHash
                     })
@@ -284,7 +284,7 @@ export class BundleManager {
         blockReceivedTimestamp: number
     ) {
         // Update all statuses in one batch
-        await this.monitor.setStatus(
+        await this.statusManager.set(
             userOpsBatch.map(({ userOpInfo }) => userOpInfo.userOpHash),
             {
                 status: "included",
@@ -384,7 +384,7 @@ export class BundleManager {
                 const transactionHash = userOpReceipt.receipt.transactionHash
                 const blockNumber = userOpReceipt.receipt.blockNumber
 
-                await this.monitor.setStatus([userOpHash], {
+                await this.statusManager.set([userOpHash], {
                     status: "included",
                     transactionHash
                 })

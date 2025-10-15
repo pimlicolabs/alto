@@ -7,7 +7,7 @@ import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
     Mempool,
-    Monitor
+    StatusManager
 } from "@alto/mempool"
 import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
@@ -35,7 +35,7 @@ export class RpcHandler {
     public validator: InterfaceValidator
     public mempool: Mempool
     public executor: Executor
-    public monitor: Monitor
+    public statusManager: StatusManager
     public executorManager: ExecutorManager
     public reputationManager: InterfaceReputationManager
     public metrics: Metrics
@@ -52,7 +52,7 @@ export class RpcHandler {
         validator,
         mempool,
         executor,
-        monitor,
+        statusManager,
         executorManager,
         reputationManager,
         bundleManager,
@@ -64,7 +64,7 @@ export class RpcHandler {
         validator: InterfaceValidator
         mempool: Mempool
         executor: Executor
-        monitor: Monitor
+        statusManager: StatusManager
         executorManager: ExecutorManager
         reputationManager: InterfaceReputationManager
         bundleManager: BundleManager
@@ -76,7 +76,7 @@ export class RpcHandler {
         this.validator = validator
         this.mempool = mempool
         this.executor = executor
-        this.monitor = monitor
+        this.statusManager = statusManager
         this.executorManager = executorManager
         this.reputationManager = reputationManager
         this.metrics = metrics

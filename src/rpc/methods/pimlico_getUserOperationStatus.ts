@@ -6,6 +6,6 @@ export const pimlicoGetUserOperationStatusHandler = createMethodHandler({
     schema: pimlicoGetUserOperationStatusSchema,
     handler: ({ rpcHandler, params }) => {
         const [userOpHash] = params
-        return rpcHandler.monitor.getUserOpStatus(userOpHash)
+        return rpcHandler.statusManager.get(userOpHash)
     }
 })

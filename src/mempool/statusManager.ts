@@ -7,25 +7,67 @@ interface UserOperationStatusStore {
     set(userOpHash: HexData32[], status: UserOperationStatus): Promise<void>
     get(userOpHash: HexData32): Promise<UserOperationStatus | undefined>
     delete(userOpHash: HexData32): Promise<void>
+    dumpAll(): Array<{ userOpHash: HexData32; status: UserOperationStatus }>
+    restore(
+        entries: Array<{ userOpHash: HexData32; status: UserOperationStatus }>
+    ): void
 }
 
-class InMemoryUserOperationStatusStore implements UserOperationStatusStore {
-    private store: Record<HexData32, UserOperationStatus> = {}
+class MemoryUserOperationStatusStore implements UserOperationStatusStore {
+    private store: Record<
+        HexData32,
+        { status: UserOperationStatus; timestamp: number }
+    > = {}
+    private ttlMs: number
+
+    constructor(ttlMs: number) {
+        this.ttlMs = ttlMs
+    }
+
+    private prune() {
+        const now = Date.now()
+        for (const userOpHash of Object.keys(this.store) as HexData32[]) {
+            if (now - this.store[userOpHash].timestamp > this.ttlMs) {
+                delete this.store[userOpHash]
+            }
+        }
+    }
 
     set(userOpHashes: HexData32[], status: UserOperationStatus) {
+        this.prune()
+        const timestamp = Date.now()
         for (const userOpHash of userOpHashes) {
-            this.store[userOpHash] = status
+            this.store[userOpHash] = { status, timestamp }
         }
         return Promise.resolve()
     }
 
     get(userOpHash: HexData32) {
-        return Promise.resolve(this.store[userOpHash])
+        this.prune()
+        const entry = this.store[userOpHash]
+        return Promise.resolve(entry?.status)
     }
 
     delete(userOpHash: HexData32) {
         delete this.store[userOpHash]
         return Promise.resolve()
+    }
+
+    dumpAll() {
+        this.prune()
+        return Object.entries(this.store).map(([userOpHash, { status }]) => ({
+            userOpHash: userOpHash as HexData32,
+            status
+        }))
+    }
+
+    restore(
+        entries: Array<{ userOpHash: HexData32; status: UserOperationStatus }>
+    ) {
+        const timestamp = Date.now()
+        for (const { userOpHash, status } of entries) {
+            this.store[userOpHash] = { status, timestamp }
+        }
     }
 }
 
@@ -113,63 +155,45 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     async delete(userOpHash: HexData32): Promise<void> {
         await this.redis.del(this.getKey(userOpHash))
     }
+
+    dumpAll() {
+        // Redis doesn't need dumping - TTL handles persistence
+        return []
+    }
+
+    restore(
+        _entries: Array<{ userOpHash: HexData32; status: UserOperationStatus }>
+    ) {
+        // Redis doesn't need restoration - data persists with TTL
+    }
 }
 
-export class Monitor {
+export class StatusManager {
     private statusStore: UserOperationStatusStore
-    private userOpTimeouts: Record<HexData32, NodeJS.Timeout>
-    private timeout: number
-    private isUsingRedis: boolean
 
     constructor({
         config,
         timeout = 60 * 60 * 1000
     }: { config: AltoConfig; timeout?: number }) {
-        this.timeout = timeout
-        this.userOpTimeouts = {}
-
         if (config.enableHorizontalScaling && config.redisEndpoint) {
-            this.isUsingRedis = true
             this.statusStore = new RedisUserOperationStatusStore({
                 config,
-                redisEndpoint: config.redisEndpoint
+                redisEndpoint: config.redisEndpoint,
+                ttlSeconds: Math.floor(timeout / 1000)
             })
         } else {
-            this.isUsingRedis = false
-            this.statusStore = new InMemoryUserOperationStatusStore()
+            this.statusStore = new MemoryUserOperationStatusStore(timeout)
         }
     }
 
-    public async setStatus(
+    public async set(
         userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
-        // Clear existing timers and set new ones for in-memory storage
-        if (!this.isUsingRedis) {
-            for (const userOpHash of userOpHashes) {
-                if (this.userOpTimeouts[userOpHash]) {
-                    clearTimeout(this.userOpTimeouts[userOpHash])
-                }
-            }
-        }
-
-        // Set the user operation statuses
         await this.statusStore.set(userOpHashes, status)
-
-        // For in-memory storage, we need to manually prune statuses
-        if (!this.isUsingRedis) {
-            for (const userOpHash of userOpHashes) {
-                this.userOpTimeouts[userOpHash] = setTimeout(async () => {
-                    await this.statusStore.delete(userOpHash)
-                    delete this.userOpTimeouts[userOpHash]
-                }, this.timeout) as NodeJS.Timeout
-            }
-        }
     }
 
-    public async getUserOpStatus(
-        userOpHash: HexData32
-    ): Promise<UserOperationStatus> {
+    public async get(userOpHash: HexData32): Promise<UserOperationStatus> {
         const status = await this.statusStore.get(userOpHash)
         if (status === undefined) {
             return {
@@ -178,5 +202,18 @@ export class Monitor {
             }
         }
         return status
+    }
+
+    public dumpAll(): Array<{
+        userOpHash: HexData32
+        status: UserOperationStatus
+    }> {
+        return this.statusStore.dumpAll()
+    }
+
+    public restore(
+        entries: Array<{ userOpHash: HexData32; status: UserOperationStatus }>
+    ): void {
+        this.statusStore.restore(entries)
     }
 }
