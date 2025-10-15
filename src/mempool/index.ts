@@ -1,3 +1,3 @@
 export * from "./mempool"
-export * from "./monitoring"
+export * from "./statusManager"
 export * from "./reputationManager"

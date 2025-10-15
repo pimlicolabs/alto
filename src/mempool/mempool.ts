@@ -31,7 +31,7 @@ import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import type { AltoConfig } from "../createConfig"
 import { calculateAA95GasFloor } from "../executor/utils"
-import type { Monitor } from "./monitoring"
+import type { StatusManager } from "./statusManager"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
@@ -40,7 +40,7 @@ import {
 export class Mempool {
     private config: AltoConfig
     private metrics: Metrics
-    private monitor: Monitor
+    private statusManager: StatusManager
     private reputationManager: InterfaceReputationManager
     public store: MempoolStore
     private throttledEntityBundleCount: number
@@ -51,7 +51,7 @@ export class Mempool {
     constructor({
         config,
         metrics,
-        monitor,
+        statusManager,
         reputationManager,
         validator,
         store,
@@ -59,7 +59,7 @@ export class Mempool {
     }: {
         config: AltoConfig
         metrics: Metrics
-        monitor: Monitor
+        statusManager: StatusManager
         reputationManager: InterfaceReputationManager
         validator: InterfaceValidator
         store: MempoolStore
@@ -69,7 +69,7 @@ export class Mempool {
         this.store = store
         this.config = config
         this.reputationManager = reputationManager
-        this.monitor = monitor
+        this.statusManager = statusManager
         this.validator = validator
         this.logger = config.getLogger(
             { module: "mempool" },
@@ -92,7 +92,7 @@ export class Mempool {
     }) {
         const userOpHashes = userOps.map((userOpInfo) => userOpInfo.userOpHash)
 
-        await this.monitor.setStatus(userOpHashes, {
+        await this.statusManager.set(userOpHashes, {
             status: "submitted",
             transactionHash
         })
@@ -162,7 +162,7 @@ export class Mempool {
                     reason,
                     getAAError(reason)
                 )
-                await this.monitor.setStatus([userOpHash], {
+                await this.statusManager.set([userOpHash], {
                     status: "rejected",
                     transactionHash: null
                 })
@@ -388,7 +388,7 @@ export class Mempool {
             ]
         })
 
-        await this.monitor.setStatus([userOpHash], {
+        await this.statusManager.set([userOpHash], {
             status: "not_submitted",
             transactionHash: null
         })

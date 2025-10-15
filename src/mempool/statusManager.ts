@@ -115,7 +115,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
     }
 }
 
-export class Monitor {
+export class StatusManager {
     private statusStore: UserOperationStatusStore
     private userOpTimeouts: Record<HexData32, NodeJS.Timeout>
     private timeout: number
@@ -140,7 +140,7 @@ export class Monitor {
         }
     }
 
-    public async setStatus(
+    public async set(
         userOpHashes: HexData32[],
         status: UserOperationStatus
     ): Promise<void> {
@@ -167,9 +167,7 @@ export class Monitor {
         }
     }
 
-    public async getUserOpStatus(
-        userOpHash: HexData32
-    ): Promise<UserOperationStatus> {
+    public async get(userOpHash: HexData32): Promise<UserOperationStatus> {
         const status = await this.statusStore.get(userOpHash)
         if (status === undefined) {
             return {
