@@ -116,7 +116,6 @@ export async function persistShutdownState({
             0
         )
 
-        // Publish single job with all state
         if (
             totalOutstanding > 0 ||
             pendingBundles.length > 0 ||
@@ -272,7 +271,7 @@ export async function restoreShutdownState({
                         "[MEMPOOL-RESTORATION] Received mempool restoration data"
                     )
 
-                    // Restore per-entrypoint outstanding operations
+                    // Restore per-entrypoint outstanding operations.
                     for (const {
                         entryPoint,
                         outstanding
@@ -285,7 +284,7 @@ export async function restoreShutdownState({
                         }
                     }
 
-                    // Restore global pending bundles
+                    // Restore global pending bundles.
                     for (const submittedBundle of data.pendingBundles) {
                         bundleManager.trackBundle(submittedBundle)
                         if (senderManager.lockWallet) {
@@ -293,12 +292,12 @@ export async function restoreShutdownState({
                         }
                     }
 
-                    // Restore global user op status
+                    // Restore global user op status.
                     if (data.userOpStatus && data.userOpStatus.length > 0) {
                         statusManager.restore(data.userOpStatus)
                     }
 
-                    // Close after processing the single job
+                    // Close after processing.
                     logger.info(
                         "[MEMPOOL-RESTORATION] Restoration complete, stopping listener"
                     )
