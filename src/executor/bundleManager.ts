@@ -70,7 +70,7 @@ export class BundleManager {
         this.cachedLatestBlock = null
         this.gasPriceManager = gasPriceManager
         this.logger = config.getLogger(
-            { module: "userop-status-manager" },
+            { module: "userop_status_manager" },
             {
                 level: config.executorLogLevel || config.logLevel
             }

@@ -86,7 +86,7 @@ async function queueOperationsOnShutdownToRedis({
                         await Promise.all([
                             mempool.dumpOutstanding(entryPoint),
                             bundleManager.getPendingBundles(),
-                            Promise.resolve(statusManager.dumpAll())
+                            statusManager.dumpAll()
                         ])
 
                     if (
