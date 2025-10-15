@@ -3,9 +3,9 @@ import { EventManager, type GasPriceManager } from "@alto/handlers"
 import {
     type InterfaceReputationManager,
     Mempool,
-    StatusManager,
     NullReputationManager,
-    ReputationManager
+    ReputationManager,
+    StatusManager
 } from "@alto/mempool"
 import { RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { createMempoolStore } from "@alto/store"
