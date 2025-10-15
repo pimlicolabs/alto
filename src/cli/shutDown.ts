@@ -88,58 +88,65 @@ export async function persistShutdownState({
             },
             "[MEMPOOL-RESTORATION] Publishing to restoration queue during shutdown"
         )
-        // Publish mempool data to the queue
-        await Promise.all(
+
+        // Collect all state
+        const [pendingBundles, userOpStatus] = await Promise.all([
+            bundleManager.getPendingBundles(),
+            statusManager.dumpAll()
+        ])
+
+        const entrypointData = await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
                 try {
-                    const [outstanding, pendingBundles, userOpStatus] =
-                        await Promise.all([
-                            mempool.dumpOutstanding(entryPoint),
-                            bundleManager.getPendingBundles(),
-                            statusManager.dumpAll()
-                        ])
-
-                    if (
-                        outstanding.length > 0 ||
-                        pendingBundles.length > 0 ||
-                        userOpStatus.length > 0
-                    ) {
-                        await restorationQueue.add({
-                            type: "MEMPOOL_DATA",
-                            chainId: config.publicClient.chain.id,
-                            entryPoint,
-                            data: recoverableJsonStringifyWithBigint({
-                                outstanding,
-                                pendingBundles,
-                                userOpStatus
-                            }),
-                            timestamp: Date.now()
-                        })
-                    }
-                    logger.info(
-                        {
-                            entryPoint,
-                            outstanding: outstanding.length,
-                            userOpStatus: userOpStatus.length
-                        },
-                        "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
-                    )
+                    const outstanding =
+                        await mempool.dumpOutstanding(entryPoint)
+                    return { entryPoint, outstanding }
                 } catch (err) {
                     logger.error(
                         { err, entryPoint },
-                        "[MEMPOOL-RESTORATION] Failed to publish mempool data for entrypoint, continuing"
+                        "[MEMPOOL-RESTORATION] Failed to dump outstanding for entrypoint, continuing"
                     )
-                    // Continue with other entrypoints
+                    return { entryPoint, outstanding: [] }
                 }
             })
         )
 
-        await restorationQueue.add({
-            type: "END_RESTORATION",
-            chainId: config.publicClient.chain.id,
-            timestamp: Date.now()
-        })
-        logger.info("[MEMPOOL-RESTORATION] Published END_RESTORATION message")
+        const totalOutstanding = entrypointData.reduce(
+            (sum, { outstanding }) => sum + outstanding.length,
+            0
+        )
+
+        // Publish single job with all state
+        if (
+            totalOutstanding > 0 ||
+            pendingBundles.length > 0 ||
+            userOpStatus.length > 0
+        ) {
+            await restorationQueue.add({
+                type: "MEMPOOL_DATA",
+                chainId: config.publicClient.chain.id,
+                data: recoverableJsonStringifyWithBigint({
+                    entrypointData,
+                    pendingBundles,
+                    userOpStatus
+                }),
+                timestamp: Date.now()
+            })
+
+            logger.info(
+                {
+                    entrypoints: entrypointData.length,
+                    totalOutstanding,
+                    pendingBundles: pendingBundles.length,
+                    userOpStatus: userOpStatus.length
+                },
+                "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
+            )
+        } else {
+            logger.info(
+                "[MEMPOOL-RESTORATION] No state to persist, skipping queue publication"
+            )
+        }
 
         await redis.quit()
     } catch (err) {
@@ -246,39 +253,39 @@ export async function restoreShutdownState({
 
                 const message = job.data
 
-                if (message.type === "END_RESTORATION") {
-                    logger.info(
-                        "[MEMPOOL-RESTORATION] Received END_RESTORATION message, stopping listener"
-                    )
-                    if (restorationTimeout) {
-                        clearTimeout(restorationTimeout)
-                    }
-                    await restorationQueue.close()
-                    await client.quit()
-                    await subscriber.quit()
-                    return done()
-                }
-
                 if (message.type === "MEMPOOL_DATA") {
-                    const { entryPoint } = message
                     const data = recoverableJsonParseWithBigint(message.data)
+
+                    const totalOutstanding = data.entrypointData.reduce(
+                        (sum: number, { outstanding }: any) =>
+                            sum + outstanding.length,
+                        0
+                    )
+
                     logger.info(
                         {
-                            entryPoint,
-                            outstanding: data.outstanding.length,
+                            entrypoints: data.entrypointData.length,
+                            totalOutstanding,
                             pendingBundles: data.pendingBundles.length,
                             userOpStatus: data.userOpStatus?.length || 0
                         },
                         "[MEMPOOL-RESTORATION] Received mempool restoration data"
                     )
 
-                    if (data.outstanding.length > 0) {
-                        await mempool.store.addOutstanding({
-                            entryPoint,
-                            userOpInfos: data.outstanding
-                        })
+                    // Restore per-entrypoint outstanding operations
+                    for (const {
+                        entryPoint,
+                        outstanding
+                    } of data.entrypointData) {
+                        if (outstanding.length > 0) {
+                            await mempool.store.addOutstanding({
+                                entryPoint,
+                                userOpInfos: outstanding
+                            })
+                        }
                     }
 
+                    // Restore global pending bundles
                     for (const submittedBundle of data.pendingBundles) {
                         bundleManager.trackBundle(submittedBundle)
                         if (senderManager.lockWallet) {
@@ -286,9 +293,21 @@ export async function restoreShutdownState({
                         }
                     }
 
+                    // Restore global user op status
                     if (data.userOpStatus && data.userOpStatus.length > 0) {
                         statusManager.restore(data.userOpStatus)
                     }
+
+                    // Close after processing the single job
+                    logger.info(
+                        "[MEMPOOL-RESTORATION] Restoration complete, stopping listener"
+                    )
+                    if (restorationTimeout) {
+                        clearTimeout(restorationTimeout)
+                    }
+                    await restorationQueue.close()
+                    await client.quit()
+                    await subscriber.quit()
                 }
                 return done()
             } catch (err) {
