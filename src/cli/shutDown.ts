@@ -78,6 +78,10 @@ export async function persistShutdownState({
         const restorationQueue = new Queue(queueName, {
             createClient: () => {
                 return redis
+            },
+            settings: {
+                removeOnComplete: true,
+                removeOnFail: true
             }
         })
 
@@ -218,6 +222,10 @@ export async function restoreShutdownState({
                     default:
                         throw new Error(`Unexpected connection type: ${type}`)
                 }
+            },
+            settings: {
+                removeOnComplete: true,
+                removeOnFail: true
             }
         })
 
