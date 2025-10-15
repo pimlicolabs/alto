@@ -1,5 +1,5 @@
 import type { BundleManager, SenderManager } from "@alto/executor"
-import type { Mempool } from "@alto/mempool"
+import type { Mempool, StatusManager } from "@alto/mempool"
 import {
     recoverableJsonParseWithBigint,
     recoverableJsonStringifyWithBigint
@@ -50,12 +50,14 @@ async function dropAllOperationsOnShutdown({
 async function queueOperationsOnShutdownToRedis({
     mempool,
     bundleManager,
+    statusManager,
     redisEndpoint,
     config,
     logger
 }: {
     mempool: Mempool
     bundleManager: BundleManager
+    statusManager: StatusManager
     redisEndpoint: string
     config: AltoConfig
     logger: Logger
@@ -80,19 +82,26 @@ async function queueOperationsOnShutdownToRedis({
         await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
                 try {
-                    const [outstanding, pendingBundles] = await Promise.all([
-                        mempool.dumpOutstanding(entryPoint),
-                        bundleManager.getPendingBundles()
-                    ])
+                    const [outstanding, pendingBundles, userOpStatus] =
+                        await Promise.all([
+                            mempool.dumpOutstanding(entryPoint),
+                            bundleManager.getPendingBundles(),
+                            Promise.resolve(statusManager.dumpAll())
+                        ])
 
-                    if (outstanding.length > 0 || pendingBundles.length > 0) {
+                    if (
+                        outstanding.length > 0 ||
+                        pendingBundles.length > 0 ||
+                        userOpStatus.length > 0
+                    ) {
                         await restorationQueue.add({
                             type: "MEMPOOL_DATA",
                             chainId: config.publicClient.chain.id,
                             entryPoint,
                             data: recoverableJsonStringifyWithBigint({
                                 outstanding,
-                                pendingBundles
+                                pendingBundles,
+                                userOpStatus
                             }),
                             timestamp: Date.now()
                         })
@@ -100,7 +109,8 @@ async function queueOperationsOnShutdownToRedis({
                     logger.info(
                         {
                             entryPoint,
-                            outstanding: outstanding.length
+                            outstanding: outstanding.length,
+                            userOpStatus: userOpStatus.length
                         },
                         "[MEMPOOL-RESTORATION] Published mempool data to restoration queue"
                     )
@@ -135,11 +145,13 @@ async function queueOperationsOnShutdownToRedis({
 export function persistShutdownState({
     mempool,
     bundleManager,
+    statusManager,
     config,
     logger
 }: {
     mempool: Mempool
     bundleManager: BundleManager
+    statusManager: StatusManager
     config: AltoConfig
     logger: Logger
 }) {
@@ -153,6 +165,7 @@ export function persistShutdownState({
             mempool,
             redisEndpoint: config.redisEndpoint,
             bundleManager,
+            statusManager,
             config,
             logger
         })
@@ -165,12 +178,14 @@ export function persistShutdownState({
 export async function restoreShutdownState({
     mempool,
     bundleManager,
+    statusManager,
     config,
     logger,
     senderManager
 }: {
     mempool: Mempool
     bundleManager: BundleManager
+    statusManager: StatusManager
     config: AltoConfig
     logger: Logger
     senderManager: SenderManager
@@ -274,9 +289,8 @@ export async function restoreShutdownState({
                         {
                             entryPoint,
                             outstanding: data.outstanding.length,
-                            submitted: data.submitted.length,
-                            processing: data.processing.length,
-                            pendingBundles: data.pendingBundles.length
+                            pendingBundles: data.pendingBundles.length,
+                            userOpStatus: data.userOpStatus?.length || 0
                         },
                         "[MEMPOOL-RESTORATION] Received mempool restoration data"
                     )
@@ -293,6 +307,10 @@ export async function restoreShutdownState({
                         if (senderManager.lockWallet) {
                             senderManager.lockWallet(submittedBundle.executor)
                         }
+                    }
+
+                    if (data.userOpStatus && data.userOpStatus.length > 0) {
+                        statusManager.restore(data.userOpStatus)
                     }
                 }
                 return done()

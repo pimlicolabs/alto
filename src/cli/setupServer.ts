@@ -344,6 +344,7 @@ export const setupServer = async ({
         restoreShutdownState({
             mempool,
             bundleManager,
+            statusManager,
             config,
             logger: shutdownLogger,
             senderManager
@@ -362,6 +363,7 @@ export const setupServer = async ({
             mempool,
             config,
             bundleManager,
+            statusManager,
             logger: shutdownLogger
         })
 
