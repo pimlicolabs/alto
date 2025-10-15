@@ -31,6 +31,7 @@ import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import type { AltoConfig } from "../createConfig"
 import { calculateAA95GasFloor } from "../executor/utils"
+import { getEip7702AuthAddress } from "../utils/eip7702"
 import {
     type InterfaceReputationManager,
     ReputationStatuses
@@ -401,6 +402,7 @@ export class Mempool {
     async shouldSkip({
         userOpInfo,
         paymasterDeposit,
+        touchedEip7702Auth,
         stakedEntityCount,
         knownEntities,
         senders,
@@ -409,6 +411,7 @@ export class Mempool {
     }: {
         userOpInfo: UserOpInfo
         paymasterDeposit: { [paymaster: string]: bigint }
+        touchedEip7702Auth: Map<Address, Address>
         stakedEntityCount: { [addr: string]: number }
         knownEntities: {
             sender: Set<`0x${string}`>
@@ -422,6 +425,7 @@ export class Mempool {
         skip: boolean
         removeOutstanding?: boolean
         paymasterDeposit: { [paymaster: string]: bigint }
+        touchedEip7702Auth: Map<Address, Address>
         stakedEntityCount: { [addr: string]: number }
         knownEntities: {
             sender: Set<`0x${string}`>
@@ -431,6 +435,40 @@ export class Mempool {
         senders: Set<string>
         storageMap: StorageMap
     }> {
+        const { userOp, userOpHash, referencedContracts } = userOpInfo
+
+        // Check conflicting EIP-7702 auths (same sender, different delegate address)
+        if (userOp.eip7702Auth) {
+            const auth = getEip7702AuthAddress(userOp.eip7702Auth)
+            const existingAuth = touchedEip7702Auth.get(userOp.sender)
+
+            if (existingAuth && existingAuth !== auth) {
+                this.logger.warn(
+                    {
+                        userOpHash,
+                        conflictingAuth: auth,
+                        existingAuth
+                    },
+                    "Conflicting EIP-7702 auths"
+                )
+
+                return {
+                    skip: true,
+                    removeOutstanding: false,
+                    paymasterDeposit,
+                    touchedEip7702Auth,
+                    stakedEntityCount,
+                    knownEntities,
+                    senders,
+                    storageMap
+                }
+            }
+
+            if (!existingAuth) {
+                touchedEip7702Auth.set(userOp.sender, auth)
+            }
+        }
+
         if (!this.config.safeMode) {
             return {
                 skip: false,
@@ -438,11 +476,10 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
-
-        const { userOp, userOpHash, referencedContracts } = userOpInfo
 
         const isUserOpV06 = isVersion06(userOp)
 
@@ -472,7 +509,8 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
 
@@ -494,7 +532,8 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
 
@@ -516,7 +555,8 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
 
@@ -537,7 +577,8 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
 
@@ -579,7 +620,8 @@ export class Mempool {
                 stakedEntityCount,
                 knownEntities,
                 senders,
-                storageMap
+                storageMap,
+                touchedEip7702Auth
             }
         }
 
@@ -603,7 +645,8 @@ export class Mempool {
                     stakedEntityCount,
                     knownEntities,
                     senders,
-                    storageMap
+                    storageMap,
+                    touchedEip7702Auth
                 }
             }
         }
@@ -637,7 +680,8 @@ export class Mempool {
                     stakedEntityCount,
                     knownEntities,
                     senders,
-                    storageMap
+                    storageMap,
+                    touchedEip7702Auth
                 }
             }
             stakedEntityCount[paymaster] =
@@ -657,7 +701,8 @@ export class Mempool {
             stakedEntityCount,
             knownEntities,
             senders,
-            storageMap
+            storageMap,
+            touchedEip7702Auth
         }
     }
 
@@ -739,6 +784,7 @@ export class Mempool {
                 submissionAttempts: 0
             }
             let gasUsed = 0n
+            let touchedEip7702Auth = new Map<Address, Address>()
             let paymasterDeposit: { [paymaster: string]: bigint } = {}
             let stakedEntityCount: { [addr: string]: number } = {}
             let senders = new Set<string>()
@@ -753,6 +799,7 @@ export class Mempool {
                 // Check if we should skip this operation
                 const skipResult = await this.shouldSkip({
                     userOpInfo: currentUserOp,
+                    touchedEip7702Auth,
                     paymasterDeposit,
                     stakedEntityCount,
                     knownEntities,
@@ -793,6 +840,7 @@ export class Mempool {
                 knownEntities = skipResult.knownEntities
                 senders = skipResult.senders
                 storageMap = skipResult.storageMap
+                touchedEip7702Auth = skipResult.touchedEip7702Auth
 
                 this.reputationManager.decreaseUserOpCount(userOp)
                 // Track the operation as active (being bundled).
