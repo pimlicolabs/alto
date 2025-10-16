@@ -387,7 +387,7 @@ export async function filterOpsAndEstimateGas({
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
             config,
-            userOpBundle: userOpsToBundle,
+            userOps: userOpsToBundle.map(({ userOp }) => userOp),
             entryPoint,
             executorAddress: beneficiary
         })

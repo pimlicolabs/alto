@@ -28,12 +28,12 @@ import { getEip7702AuthAddress } from "../utils/eip7702"
 
 export const getBundleGasLimit = async ({
     config,
-    userOpBundle,
+    userOps,
     entryPoint,
     executorAddress
 }: {
     config: AltoConfig
-    userOpBundle: UserOpInfo[]
+    userOps: UserOperation[]
     entryPoint: Address
     executorAddress: Address
 }): Promise<bigint> => {
@@ -47,18 +47,18 @@ export const getBundleGasLimit = async ({
             to: entryPoint,
             account: executorAddress,
             data: encodeHandleOpsCalldata({
-                userOps: userOpBundle.map(({ userOp }) => userOp),
+                userOps: userOps,
                 beneficiary: executorAddress
             })
         })
     } else {
         const aa95GasFloor = calculateAA95GasFloor({
-            userOps: userOpBundle.map(({ userOp }) => userOp),
+            userOps: userOps,
             beneficiary: executorAddress
         })
 
-        const eip7702UserOpCount = userOpBundle.filter(
-            ({ userOp }) => userOp.eip7702Auth
+        const eip7702UserOpCount = userOps.filter(
+            (userOp) => userOp.eip7702Auth
         ).length
         const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
 
