@@ -370,7 +370,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             paymasterPostOpGasLimit
         } = finalGasLimits
 
-        // Monad specific gasLimits
         if (chainType === "monad") {
             preVerificationGas = await calcMonadPvg({
                 config: rpcHandler.config,
