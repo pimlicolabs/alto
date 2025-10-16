@@ -298,13 +298,6 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "110"
         },
-        "paymaster-gas-limit-multiplier": {
-            description:
-                "Amount to multiply the paymaster gas limits fetched from simulations",
-            type: "string",
-            require: true,
-            default: "110"
-        },
         "simulation-call-gas-limit": {
             description:
                 "UserOperation's callGasLimit used during gas estimation simulations",

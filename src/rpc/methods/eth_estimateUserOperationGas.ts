@@ -193,42 +193,22 @@ const getGasEstimates = async ({
 
     let paymasterPostOpGasLimit = 0n
 
-    if (
-        !paymasterVerificationGasLimit &&
-        isVersion07(simulationUserOp) &&
-        simulationUserOp.paymaster !== null &&
-        "paymasterVerificationGasLimit" in successResult.data.executionResult
-    ) {
-        paymasterVerificationGasLimit =
-            successResult.data.executionResult.paymasterVerificationGasLimit ||
-            1n
+    const hasPaymaster = isVersion07(userOp) && userOp.paymaster !== null
+    const executionData = successResult.data.executionResult
 
-        paymasterVerificationGasLimit = scaleBigIntByPercent(
-            paymasterVerificationGasLimit,
-            paymasterGasLimitMultiplier
-        )
-    }
+    if (hasPaymaster) {
+        if (
+            !paymasterVerificationGasLimit &&
+            "paymasterVerificationGasLimit" in executionData
+        ) {
+            paymasterVerificationGasLimit =
+                executionData.paymasterVerificationGasLimit || 1n
+        }
 
-    if (
-        isVersion07(simulationUserOp) &&
-        simulationUserOp.paymaster !== null &&
-        "paymasterPostOpGasLimit" in successResult.data.executionResult
-    ) {
-        paymasterPostOpGasLimit =
-            successResult.data.executionResult.paymasterPostOpGasLimit || 1n
-
-        const userOpPaymasterPostOpGasLimit =
-            "paymasterPostOpGasLimit" in userOp
-                ? (userOp.paymasterPostOpGasLimit ?? 1n)
-                : 1n
-
-        paymasterPostOpGasLimit = maxBigInt(
-            userOpPaymasterPostOpGasLimit,
-            scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                paymasterGasLimitMultiplier
-            )
-        )
+        if ("paymasterPostOpGasLimit" in executionData) {
+            paymasterPostOpGasLimit =
+                executionData.paymasterPostOpGasLimit || 1n
+        }
     }
 
     if (simulationUserOp.callData === "0x") {

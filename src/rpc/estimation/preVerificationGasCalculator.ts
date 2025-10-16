@@ -28,7 +28,7 @@ import {
     toHex
 } from "viem"
 import { AltoConfig } from "../../createConfig"
-import { encodeHandleOpsCalldata } from "@alto/executor"
+import { encodeHandleOpsCalldata, getBundleGasLimit } from "@alto/executor"
 import {
     isVersion06,
     toPackedUserOp,
@@ -697,4 +697,28 @@ async function calcArbitrumPvg(
 
 // Monad consumes the entire gasLimit set by TX. To account for this, we need to know the gasLimit
 // the bundler sets for this userOp.
-export function calcMonadPvg(userOp: UserOperation) {}
+export function calcMonadPvg({
+    userOp,
+    config,
+    entryPoint
+}: { userOp: UserOperation; config: AltoConfig; entryPoint: Address }) {
+    const {
+        utilityWalletAddress: beneficiary,
+        v6CallGasLimitMultiplier,
+        v6VerificationGasLimitMultiplier,
+        v7VerificationGasLimitMultiplier,
+        v7PaymasterVerificationGasLimitMultiplier,
+        v7CallGasLimitMultiplier,
+        v7PaymasterPostOpGasLimitMultiplier
+    } = config
+
+    const bundlerGasLimit = getBundleGasLimit({
+        config,
+        userOps: [userOp],
+        entryPoint,
+        executorAddress: beneficiary
+    })
+
+    if (isVersion06(userOp)) {
+    }
+}
