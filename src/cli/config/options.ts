@@ -498,7 +498,8 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "arbitrum",
                 "hedera",
                 "mantle",
-                "etherlink"
+                "etherlink",
+                "monad"
             ],
             default: "default"
         },
