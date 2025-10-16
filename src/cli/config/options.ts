@@ -360,6 +360,12 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: true,
         default: 10_000
     },
+    "max-resubmits": {
+        description:
+            "Maximum number of times to resubmit a userOperation before dropping it (optional, no limit if not set)",
+        type: "number",
+        require: false
+    },
     "resubmit-multiplier-ceiling": {
         description:
             "Maximum multiplier for gasPrice when resubmitting transactions",

@@ -113,19 +113,45 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                const { userOpHash, userOp } = userOpInfo
+                const { userOpHash, userOp, submissionAttempts } = userOpInfo
+                const maxResubmits = this.config.maxResubmits
+
+                // Check if max resubmits has been reached
+                if (
+                    maxResubmits !== undefined &&
+                    submissionAttempts >= maxResubmits
+                ) {
+                    this.logger.warn(
+                        {
+                            userOpHash,
+                            submissionAttempts,
+                            maxResubmits
+                        },
+                        "dropping userOp: max resubmits reached"
+                    )
+                    const rejectedUserOp = {
+                        ...userOpInfo,
+                        reason: "max resubmits reached"
+                    }
+                    await this.dropUserOps(entryPoint, [rejectedUserOp])
+                    return
+                }
+
                 this.logger.warn(
                     {
                         userOpHash,
+                        submissionAttempts,
                         reason
                     },
                     "resubmitting user operation"
                 )
+
                 // Complete processing before re-adding to outstanding pool.
                 await this.store.removeProcessing({
                     entryPoint,
                     userOpInfo
                 })
+
                 const [success, failureReason] = await this.add(
                     userOp,
                     entryPoint
