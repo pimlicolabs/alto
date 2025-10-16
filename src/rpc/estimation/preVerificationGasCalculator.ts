@@ -1,13 +1,25 @@
 import crypto from "node:crypto"
+import { encodeHandleOpsCalldata, getBundleGasLimit } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
+    ArbitrumL1FeeAbi,
     MantleBvmGasPriceOracleAbi,
     OpL1FeeAbi,
     type UserOperation,
     type UserOperation06,
     type UserOperation07
 } from "@alto/types"
+import {
+    isVersion06,
+    isVersion07,
+    maxBigInt,
+    minBigInt,
+    randomBigInt,
+    scaleBigIntByPercent,
+    toPackedUserOp,
+    unscaleBigIntByPercent
+} from "@alto/utils"
 import {
     type Chain,
     type PublicClient,
@@ -26,16 +38,7 @@ import {
     toBytes,
     toHex
 } from "viem"
-import type { AltoConfig } from "../createConfig"
-import { encodeHandleOpsCalldata } from "../executor/utils"
-import { ArbitrumL1FeeAbi } from "../types/contracts/ArbitrumL1FeeAbi"
-import {
-    maxBigInt,
-    minBigInt,
-    randomBigInt,
-    unscaleBigIntByPercent
-} from "./bigInt"
-import { isVersion06, isVersion07, toPackedUserOp } from "./userop"
+import type { AltoConfig } from "../../createConfig"
 
 // Encodes a user operation into bytes for gas calculation
 function encodeUserOp(userOp: UserOperation): Uint8Array {
@@ -415,8 +418,8 @@ export function getSerializedHandleOpsTx({
     let processedOps = userOps
 
     if (randomizeSignature) {
-        processedOps = userOps.map((op) => {
-            const sigLength = size(op.signature)
+        processedOps = userOps.map((userOp) => {
+            const sigLength = size(userOp.signature)
             let newSignature: `0x${string}`
 
             const randomizeBytes = (length: number) =>
@@ -427,13 +430,13 @@ export function getSerializedHandleOpsTx({
                 newSignature = randomizeBytes(sigLength)
             } else {
                 // For longer signatures, only randomize the last 65 bytes
-                const originalPart = slice(op.signature, 0, sigLength - 65)
+                const originalPart = slice(userOp.signature, 0, sigLength - 65)
                 const randomPart = randomizeBytes(65)
                 newSignature = concat([originalPart, randomPart])
             }
 
             return {
-                ...op,
+                ...userOp,
                 signature: newSignature
             }
         })
@@ -441,7 +444,7 @@ export function getSerializedHandleOpsTx({
 
     // Apply removeZeros logic if needed
     const finalOps = removeZeros
-        ? processedOps.map((op) => fillUserOpWithDummyData(op))
+        ? processedOps.map((userOp) => fillUserOpWithDummyData(userOp))
         : processedOps
 
     const data = encodeHandleOpsCalldata({
@@ -459,14 +462,56 @@ export function getSerializedHandleOpsTx({
     return serializeTxWithDefaults(txParams)
 }
 
+// Shared utility for Arbitrum L1 gas estimation
+export async function getArbitrumL1GasEstimate({
+    publicClient,
+    userOps,
+    entryPoint
+}: {
+    publicClient: PublicClient<Transport, Chain | undefined>
+    userOps: UserOperation[]
+    entryPoint: Address
+}): Promise<{
+    gasForL1: bigint
+    l2BaseFee: bigint
+    l1BaseFeeEstimate: bigint
+}> {
+    const precompileAddress = "0x00000000000000000000000000000000000000C8"
+
+    const serializedTx = getSerializedHandleOpsTx({
+        userOps,
+        entryPoint,
+        chainId: publicClient.chain?.id ?? 10,
+        removeZeros: false
+    })
+
+    const arbGasPriceOracle = getContract({
+        abi: ArbitrumL1FeeAbi,
+        address: precompileAddress,
+        client: {
+            public: publicClient
+        }
+    })
+
+    const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([
+        entryPoint,
+        false,
+        serializedTx
+    ])
+
+    const [gasForL1, l2BaseFee, l1BaseFeeEstimate] = result
+
+    return { gasForL1, l2BaseFee, l1BaseFeeEstimate }
+}
+
 async function calcEtherlinkPvg(
-    op: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address,
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
     const serializedTx = getSerializedHandleOpsTx({
-        userOps: [op],
+        userOps: [userOp],
         entryPoint,
         chainId: 128123 // Etherlink chain ID
     })
@@ -495,13 +540,13 @@ async function calcEtherlinkPvg(
 
 async function calcMantlePvg(
     publicClient: PublicClient<Transport, Chain>,
-    op: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address,
     gasPriceManager: GasPriceManager,
     verify?: boolean
 ) {
     const serializedTx = getSerializedHandleOpsTx({
-        userOps: [op],
+        userOps: [userOp],
         entryPoint,
         chainId: publicClient.chain.id
     })
@@ -570,13 +615,13 @@ async function calcMantlePvg(
 
 async function calcOptimismPvg(
     publicClient: PublicClient<Transport, Chain>,
-    op: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address,
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
     const serializedTx = getSerializedHandleOpsTx({
-        userOps: [op],
+        userOps: [userOp],
         entryPoint,
         chainId: publicClient.chain.id,
         removeZeros: false,
@@ -621,34 +666,17 @@ async function calcOptimismPvg(
 
 async function calcArbitrumPvg(
     publicClient: PublicClient<Transport, Chain | undefined>,
-    op: UserOperation,
+    userOp: UserOperation,
     entryPoint: Address,
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const precompileAddress = "0x00000000000000000000000000000000000000C8"
-
-    const serializedTx = getSerializedHandleOpsTx({
-        userOps: [op],
-        entryPoint,
-        chainId: publicClient.chain?.id ?? 10
-    })
-
-    const arbGasPriceOracle = getContract({
-        abi: ArbitrumL1FeeAbi,
-        address: precompileAddress,
-        client: {
-            public: publicClient
-        }
-    })
-
-    const { result } = await arbGasPriceOracle.simulate.gasEstimateL1Component([
-        entryPoint,
-        false,
-        serializedTx
-    ])
-
-    let [gasForL1, l2BaseFee, l1BaseFeeEstimate] = result
+    const { gasForL1, l2BaseFee, l1BaseFeeEstimate } =
+        await getArbitrumL1GasEstimate({
+            publicClient,
+            userOps: [userOp],
+            entryPoint
+        })
 
     const arbitrumManager = gasPriceManager.arbitrumManager
 
@@ -662,8 +690,90 @@ async function calcArbitrumPvg(
             arbitrumManager.getMaxL2BaseFee()
         ])
 
-        gasForL1 = (gasForL1 * l2BaseFee * minL1Fee) / (maxL1Fee * maxL2Fee)
+        return (gasForL1 * l2BaseFee * minL1Fee) / (maxL1Fee * maxL2Fee)
     }
 
     return gasForL1
+}
+
+// Monad consumes the entire gasLimit set by TX. To account for this, we need to know the gasLimit
+// the bundler sets for this userOp.
+export async function calcMonadPvg({
+    userOp,
+    config,
+    entryPoint,
+    validate
+}: {
+    userOp: UserOperation
+    config: AltoConfig
+    entryPoint: Address
+    validate: boolean
+}) {
+    const {
+        utilityWalletAddress: beneficiary,
+        v6CallGasLimitMultiplier,
+        v6VerificationGasLimitMultiplier,
+        v7VerificationGasLimitMultiplier,
+        v7PaymasterVerificationGasLimitMultiplier,
+        v7CallGasLimitMultiplier,
+        v7PaymasterPostOpGasLimitMultiplier
+    } = config
+
+    const bundlerGasLimit = await getBundleGasLimit({
+        config,
+        userOps: [userOp],
+        entryPoint,
+        executorAddress: beneficiary
+    })
+
+    // Calculate actual gas used by removing multipliers based on version
+    let gasUsedByUserOp = 0n
+    if (isVersion06(userOp)) {
+        const realCallGasLimit = unscaleBigIntByPercent(
+            userOp.callGasLimit,
+            BigInt(v6CallGasLimitMultiplier)
+        )
+        const realVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.verificationGasLimit,
+            BigInt(v6VerificationGasLimitMultiplier)
+        )
+
+        gasUsedByUserOp = realCallGasLimit + realVerificationGasLimit
+    }
+
+    if (isVersion07(userOp)) {
+        const realCallGasLimit = unscaleBigIntByPercent(
+            userOp.callGasLimit,
+            BigInt(v7CallGasLimitMultiplier)
+        )
+        const realVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.verificationGasLimit,
+            BigInt(v7VerificationGasLimitMultiplier)
+        )
+        const realPaymasterVerificationGasLimit = unscaleBigIntByPercent(
+            userOp.paymasterVerificationGasLimit ?? 0n,
+            BigInt(v7PaymasterVerificationGasLimitMultiplier)
+        )
+        const realPaymasterPostOpGasLimit = unscaleBigIntByPercent(
+            userOp.paymasterPostOpGasLimit ?? 0n,
+            BigInt(v7PaymasterPostOpGasLimitMultiplier)
+        )
+
+        gasUsedByUserOp =
+            realCallGasLimit +
+            realVerificationGasLimit +
+            realPaymasterVerificationGasLimit +
+            realPaymasterPostOpGasLimit
+    }
+
+    // Monad uses the entire tx.gasLimit.
+    let burnedGas = bundlerGasLimit - scaleBigIntByPercent(gasUsedByUserOp, 70n)
+
+    if (validate) {
+        // We scale down 10% during validation to account for the variance in
+        // dummy paymasterData and signature fields.
+        burnedGas = scaleBigIntByPercent(burnedGas, 90n)
+    }
+
+    return burnedGas
 }

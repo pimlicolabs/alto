@@ -28,7 +28,6 @@ import {
 } from "@alto/utils"
 import { type Hex, getAddress, getContract } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import type { AltoConfig } from "../createConfig"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { getEip7702AuthAddress } from "../utils/eip7702"
@@ -822,9 +821,7 @@ export class Mempool {
 
                 gasUsed += calculateAA95GasFloor({
                     userOps: [userOp],
-                    beneficiary: // Use utility address if set, otherwise generate random beneficiary.
-                        this.config.utilityPrivateKey?.address ||
-                        privateKeyToAddress(generatePrivateKey())
+                    beneficiary: this.config.utilityWalletAddress
                 })
 
                 // Break on gas limit

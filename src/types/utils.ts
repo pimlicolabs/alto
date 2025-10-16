@@ -31,9 +31,3 @@ export class RpcError extends Error {
 
 export type Environment = "production" | "staging" | "development"
 export type ApiVersion = "v1" | "v2"
-export type ChainType =
-    | "default"
-    | "op-stack"
-    | "arbitrum"
-    | "hedera"
-    | "mantle"

@@ -159,7 +159,8 @@ export const compatibilityArgsSchema = z.object({
         "arbitrum",
         "hedera",
         "mantle",
-        "etherlink"
+        "etherlink",
+        "monad"
     ]),
     "legacy-transactions": z.boolean(),
     "api-version": z
@@ -283,9 +284,6 @@ export const gasEstimationArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val)),
     "simulation-paymaster-post-op-gas-limit": z
-        .string()
-        .transform((val) => BigInt(val)),
-    "paymaster-gas-limit-multiplier": z
         .string()
         .transform((val) => BigInt(val)),
     "eth-call-sender-address": addressSchema.optional(),

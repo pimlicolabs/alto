@@ -10,6 +10,7 @@ import {
     type Logger,
     isVersion06,
     isVersion07,
+    scaleBigIntByPercent,
     toPackedUserOp
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
@@ -24,6 +25,49 @@ import {
 import type { SignedAuthorizationList } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
+
+export const getBundleGasLimit = async ({
+    config,
+    userOps,
+    entryPoint,
+    executorAddress
+}: {
+    config: AltoConfig
+    userOps: UserOperation[]
+    entryPoint: Address
+    executorAddress: Address
+}): Promise<bigint> => {
+    const { rpcGasEstimate, publicClient } = config
+
+    let gasLimit: bigint
+
+    // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
+    if (rpcGasEstimate) {
+        gasLimit = await publicClient.estimateGas({
+            to: entryPoint,
+            account: executorAddress,
+            data: encodeHandleOpsCalldata({
+                userOps: userOps,
+                beneficiary: executorAddress
+            })
+        })
+    } else {
+        const aa95GasFloor = calculateAA95GasFloor({
+            userOps: userOps,
+            beneficiary: executorAddress
+        })
+
+        const eip7702UserOpCount = userOps.filter(
+            (userOp) => userOp.eip7702Auth
+        ).length
+        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
+
+        // Add 5% safety margin to local estimates.
+        gasLimit = scaleBigIntByPercent(aa95GasFloor + eip7702Overhead, 105n)
+    }
+
+    return gasLimit
+}
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
     const transactionUnderPriceError = e.walk((e: any) =>

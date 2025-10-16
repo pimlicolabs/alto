@@ -9,16 +9,17 @@ import {
 import { parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
 import {
-    calcExecutionPvgComponent,
-    calcL2PvgComponent
-} from "../../utils/preVerificationGasCalulator"
-import {
     deepHexlify,
     getUserOpHash,
     isVersion06,
     isVersion07
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
+import {
+    calcExecutionPvgComponent,
+    calcL2PvgComponent,
+    calcMonadPvg
+} from "../estimation/preVerificationGasCalculator"
 import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
@@ -92,7 +93,6 @@ const getGasEstimates = async ({
         simulationCallGasLimit,
         simulationPaymasterVerificationGasLimit,
         simulationPaymasterPostOpGasLimit,
-        paymasterGasLimitMultiplier,
         v6CallGasLimitMultiplier,
         v6VerificationGasLimitMultiplier,
         v7VerificationGasLimitMultiplier,
@@ -193,42 +193,22 @@ const getGasEstimates = async ({
 
     let paymasterPostOpGasLimit = 0n
 
-    if (
-        !paymasterVerificationGasLimit &&
-        isVersion07(simulationUserOp) &&
-        simulationUserOp.paymaster !== null &&
-        "paymasterVerificationGasLimit" in successResult.data.executionResult
-    ) {
-        paymasterVerificationGasLimit =
-            successResult.data.executionResult.paymasterVerificationGasLimit ||
-            1n
+    const hasPaymaster = isVersion07(userOp) && userOp.paymaster !== null
+    const executionData = successResult.data.executionResult
 
-        paymasterVerificationGasLimit = scaleBigIntByPercent(
-            paymasterVerificationGasLimit,
-            paymasterGasLimitMultiplier
-        )
-    }
+    if (hasPaymaster) {
+        if (
+            !paymasterVerificationGasLimit &&
+            "paymasterVerificationGasLimit" in executionData
+        ) {
+            paymasterVerificationGasLimit =
+                executionData.paymasterVerificationGasLimit || 1n
+        }
 
-    if (
-        isVersion07(simulationUserOp) &&
-        simulationUserOp.paymaster !== null &&
-        "paymasterPostOpGasLimit" in successResult.data.executionResult
-    ) {
-        paymasterPostOpGasLimit =
-            successResult.data.executionResult.paymasterPostOpGasLimit || 1n
-
-        const userOpPaymasterPostOpGasLimit =
-            "paymasterPostOpGasLimit" in userOp
-                ? (userOp.paymasterPostOpGasLimit ?? 1n)
-                : 1n
-
-        paymasterPostOpGasLimit = maxBigInt(
-            userOpPaymasterPostOpGasLimit,
-            scaleBigIntByPercent(
-                paymasterPostOpGasLimit,
-                paymasterGasLimitMultiplier
-            )
-        )
+        if ("paymasterPostOpGasLimit" in executionData) {
+            paymasterPostOpGasLimit =
+                executionData.paymasterPostOpGasLimit || 1n
+        }
     }
 
     if (simulationUserOp.callData === "0x") {
@@ -300,7 +280,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const {
             supportsEip7623,
             v7PreVerificationGasLimitMultiplier,
-            v6PreVerificationGasLimitMultiplier
+            v6PreVerificationGasLimitMultiplier,
+            chainType
         } = rpcHandler.config
 
         // Execute multiple async operations in parallel
@@ -388,6 +369,18 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             paymasterVerificationGasLimit,
             paymasterPostOpGasLimit
         } = finalGasLimits
+
+        if (chainType === "monad") {
+            preVerificationGas = await calcMonadPvg({
+                config: rpcHandler.config,
+                userOp: {
+                    ...userOp,
+                    ...finalGasLimits
+                },
+                entryPoint,
+                validate: false
+            })
+        }
 
         if (isVersion07(userOp)) {
             return {

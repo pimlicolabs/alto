@@ -22,7 +22,6 @@ import {
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "../executor/bundleManager"
@@ -193,7 +192,7 @@ export class RpcHandler {
 
         const gasLimits = calculateAA95GasFloor({
             userOps: [userOp],
-            beneficiary: privateKeyToAddress(generatePrivateKey())
+            beneficiary: this.config.utilityWalletAddress
         })
 
         if (gasLimits > this.config.maxGasPerBundle) {

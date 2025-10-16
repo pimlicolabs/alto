@@ -1,18 +1,12 @@
-import {
-    ArbitrumL1FeeAbi,
-    type RejectedUserOp,
-    type UserOpInfo,
-    type UserOperation,
-    type UserOperation06,
-    type UserOperation07,
-    type UserOperationBundle
+import type {
+    RejectedUserOp,
+    UserOpInfo,
+    UserOperation,
+    UserOperation06,
+    UserOperation07,
+    UserOperationBundle
 } from "@alto/types"
-import {
-    type Logger,
-    getSerializedHandleOpsTx,
-    scaleBigIntByPercent,
-    toPackedUserOp
-} from "@alto/utils"
+import { type Logger, scaleBigIntByPercent, toPackedUserOp } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -20,16 +14,16 @@ import {
     type StateOverride,
     decodeAbiParameters,
     decodeErrorResult,
-    encodeFunctionData,
-    getContract
+    encodeFunctionData
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
+import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGasCalculator"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
-import { calculateAA95GasFloor, encodeHandleOpsCalldata } from "./utils"
+import { getBundleGasLimit } from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -59,86 +53,22 @@ const getChainSpecificOverhead = async ({
 
     switch (chainType) {
         case "arbitrum": {
-            const precompileAddress =
-                "0x00000000000000000000000000000000000000C8"
-
-            const serializedTx = getSerializedHandleOpsTx({
+            const { gasForL1 } = await getArbitrumL1GasEstimate({
+                publicClient,
                 userOps,
-                entryPoint,
-                chainId: publicClient.chain?.id ?? 10,
-                removeZeros: false
+                entryPoint
             })
-
-            const arbGasPriceOracle = getContract({
-                abi: ArbitrumL1FeeAbi,
-                address: precompileAddress,
-                client: {
-                    public: publicClient
-                }
-            })
-
-            const { result } =
-                await arbGasPriceOracle.simulate.gasEstimateL1Component([
-                    entryPoint,
-                    false,
-                    serializedTx
-                ])
-
-            const [gasEstimateForL1, ,] = result
 
             return {
-                gasUsed: gasEstimateForL1,
+                gasUsed: gasForL1,
                 // scaling by 10% as recommended by docs.
                 // https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
-                gasLimit: scaleBigIntByPercent(gasEstimateForL1, 110n)
+                gasLimit: scaleBigIntByPercent(gasForL1, 110n)
             }
         }
         default:
             return { gasUsed: 0n, gasLimit: 0n }
     }
-}
-
-const getBundleGasLimit = async ({
-    config,
-    userOpBundle,
-    entryPoint,
-    executorAddress
-}: {
-    config: AltoConfig
-    userOpBundle: UserOpInfo[]
-    entryPoint: Address
-    executorAddress: Address
-}): Promise<bigint> => {
-    const { rpcGasEstimate, publicClient } = config
-
-    let gasLimit: bigint
-
-    // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
-    if (rpcGasEstimate) {
-        gasLimit = await publicClient.estimateGas({
-            to: entryPoint,
-            account: executorAddress,
-            data: encodeHandleOpsCalldata({
-                userOps: userOpBundle.map(({ userOp }) => userOp),
-                beneficiary: executorAddress
-            })
-        })
-    } else {
-        const aa95GasFloor = calculateAA95GasFloor({
-            userOps: userOpBundle.map(({ userOp }) => userOp),
-            beneficiary: executorAddress
-        })
-
-        const eip7702UserOpCount = userOpBundle.filter(
-            ({ userOp }) => userOp.eip7702Auth
-        ).length
-        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
-
-        // Add 5% safety margin to local estimates.
-        gasLimit = scaleBigIntByPercent(aa95GasFloor + eip7702Overhead, 105n)
-    }
-
-    return gasLimit
 }
 
 const getFilterOpsResult = async ({
@@ -450,17 +380,23 @@ export async function filterOpsAndEstimateGas({
             }
         }
 
-        // find overhead that can't be calculated onchain
-        const bundleGasUsed =
-            filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
-
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
             config,
-            userOpBundle: userOpsToBundle,
+            userOps: userOpsToBundle.map(({ userOp }) => userOp),
             entryPoint,
             executorAddress: beneficiary
         })
+
+        let bundleGasUsed = 0n
+        if (config.chainType === "monad") {
+            // Monad uses the entire tx.gasLimit.
+            bundleGasUsed = bundleGasLimit
+        } else {
+            // Find overhead that can't be calculated onchain.
+            bundleGasUsed =
+                filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
+        }
 
         return {
             status: "success",
