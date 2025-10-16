@@ -1,10 +1,10 @@
-import {
-    type RejectedUserOp,
-    type UserOpInfo,
-    type UserOperation,
-    type UserOperation06,
-    type UserOperation07,
-    type UserOperationBundle
+import type {
+    RejectedUserOp,
+    UserOpInfo,
+    UserOperation,
+    UserOperation06,
+    UserOperation07,
+    UserOperationBundle
 } from "@alto/types"
 import { type Logger, scaleBigIntByPercent, toPackedUserOp } from "@alto/utils"
 import * as sentry from "@sentry/node"
@@ -19,10 +19,10 @@ import {
 import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
+import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGasCalculator"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
-import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGasCalculator"
 import { getBundleGasLimit } from "./utils"
 
 export type FilterOpsResult =

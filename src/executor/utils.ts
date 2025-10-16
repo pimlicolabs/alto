@@ -10,8 +10,8 @@ import {
     type Logger,
     isVersion06,
     isVersion07,
-    toPackedUserOp,
-    scaleBigIntByPercent
+    scaleBigIntByPercent,
+    toPackedUserOp
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {

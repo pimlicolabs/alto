@@ -1,14 +1,24 @@
 import crypto from "node:crypto"
+import { encodeHandleOpsCalldata, getBundleGasLimit } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
 import {
     type Address,
+    ArbitrumL1FeeAbi,
     MantleBvmGasPriceOracleAbi,
     OpL1FeeAbi,
     type UserOperation,
     type UserOperation06,
-    type UserOperation07,
-    ArbitrumL1FeeAbi
+    type UserOperation07
 } from "@alto/types"
+import {
+    isVersion06,
+    isVersion07,
+    maxBigInt,
+    minBigInt,
+    randomBigInt,
+    toPackedUserOp,
+    unscaleBigIntByPercent
+} from "@alto/utils"
 import {
     type Chain,
     type PublicClient,
@@ -27,17 +37,7 @@ import {
     toBytes,
     toHex
 } from "viem"
-import { AltoConfig } from "../../createConfig"
-import { encodeHandleOpsCalldata, getBundleGasLimit } from "@alto/executor"
-import {
-    isVersion06,
-    toPackedUserOp,
-    isVersion07,
-    maxBigInt,
-    unscaleBigIntByPercent,
-    randomBigInt,
-    minBigInt
-} from "@alto/utils"
+import type { AltoConfig } from "../../createConfig"
 
 // Encodes a user operation into bytes for gas calculation
 function encodeUserOp(userOp: UserOperation): Uint8Array {
