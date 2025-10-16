@@ -351,15 +351,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
-        // Monad specific gasLimits
-        if (chainType === "monad") {
-            preVerificationGas = await calcMonadPvg({
-                config: rpcHandler.config,
-                userOp,
-                entryPoint
-            })
-        }
-
         const finalGasLimits = await rpcHandler.validator.validateHandleOp({
             userOp: {
                 ...userOp,
@@ -378,6 +369,16 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             paymasterVerificationGasLimit,
             paymasterPostOpGasLimit
         } = finalGasLimits
+
+        // Monad specific gasLimits
+        if (chainType === "monad") {
+            preVerificationGas = await calcMonadPvg({
+                config: rpcHandler.config,
+                userOp,
+                entryPoint
+            })
+            console.log("calcMonadPvg: ", preVerificationGas)
+        }
 
         if (isVersion07(userOp)) {
             return {
