@@ -152,10 +152,11 @@ export class Mempool {
                     userOpInfo
                 })
 
-                const [success, failureReason] = await this.add(
+                const [success, failureReason] = await this.add({
                     userOp,
-                    entryPoint
-                )
+                    entryPoint,
+                    submissionAttempts: userOpInfo.submissionAttempts + 1
+                })
 
                 if (!success) {
                     this.logger.error(
@@ -330,11 +331,17 @@ export class Mempool {
 
     // === Methods for adding userOps / creating bundles === //
 
-    async add(
-        userOp: UserOperation,
-        entryPoint: Address,
+    async add({
+        userOp,
+        entryPoint,
+        referencedContracts,
+        submissionAttempts = 0
+    }: {
+        userOp: UserOperation
+        entryPoint: Address
+        submissionAttempts?: number
         referencedContracts?: ReferencedCodeHashes
-    ): Promise<[boolean, string]> {
+    }): Promise<[boolean, string]> {
         const userOpHash = getUserOpHash({
             userOp,
             entryPointAddress: entryPoint,
@@ -409,7 +416,7 @@ export class Mempool {
                     userOpHash,
                     referencedContracts,
                     addedToMempool: Date.now(),
-                    submissionAttempts: 0
+                    submissionAttempts
                 }
             ]
         })
