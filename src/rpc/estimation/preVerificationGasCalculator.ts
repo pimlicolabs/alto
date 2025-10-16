@@ -16,6 +16,7 @@ import {
     maxBigInt,
     minBigInt,
     randomBigInt,
+    scaleBigIntByPercent,
     toPackedUserOp,
     unscaleBigIntByPercent
 } from "@alto/utils"
@@ -700,8 +701,14 @@ async function calcArbitrumPvg(
 export async function calcMonadPvg({
     userOp,
     config,
-    entryPoint
-}: { userOp: UserOperation; config: AltoConfig; entryPoint: Address }) {
+    entryPoint,
+    validate
+}: {
+    userOp: UserOperation
+    config: AltoConfig
+    entryPoint: Address
+    validate: boolean
+}) {
     const {
         utilityWalletAddress: beneficiary,
         v6CallGasLimitMultiplier,
@@ -759,6 +766,14 @@ export async function calcMonadPvg({
             realPaymasterPostOpGasLimit
     }
 
-    // Return the difference between bundler gas limit and actual gas used
-    return bundlerGasLimit - gasUsedByUserOp
+    // Monad uses the entire tx.gasLimit.
+    let burnedGas = bundlerGasLimit - scaleBigIntByPercent(gasUsedByUserOp, 70n)
+
+    if (validate) {
+        // We scale down 10% during validation to account for the variance in
+        // dummy paymasterData and signature fields.
+        burnedGas = scaleBigIntByPercent(burnedGas, 90n)
+    }
+
+    return burnedGas
 }

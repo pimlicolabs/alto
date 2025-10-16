@@ -47,7 +47,8 @@ const validatePvg = async ({
         requiredPvg = await calcMonadPvg({
             userOp,
             config,
-            entryPoint
+            entryPoint,
+            validate: true
         })
     } else {
         const executionGasComponent = calcExecutionPvgComponent({

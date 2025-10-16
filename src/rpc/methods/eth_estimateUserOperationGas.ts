@@ -374,8 +374,12 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         if (chainType === "monad") {
             preVerificationGas = await calcMonadPvg({
                 config: rpcHandler.config,
-                userOp,
-                entryPoint
+                userOp: {
+                    ...userOp,
+                    ...finalGasLimits
+                },
+                entryPoint,
+                validate: false
             })
         }
 

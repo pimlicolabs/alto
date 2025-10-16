@@ -380,10 +380,6 @@ export async function filterOpsAndEstimateGas({
             }
         }
 
-        // find overhead that can't be calculated onchain
-        const bundleGasUsed =
-            filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
-
         // Find gasLimit needed for this bundle
         const bundleGasLimit = await getBundleGasLimit({
             config,
@@ -391,6 +387,16 @@ export async function filterOpsAndEstimateGas({
             entryPoint,
             executorAddress: beneficiary
         })
+
+        let bundleGasUsed = 0n
+        if (config.chainType === "monad") {
+            // Monad uses the entire tx.gasLimit.
+            bundleGasUsed = bundleGasLimit
+        } else {
+            // Find overhead that can't be calculated onchain.
+            bundleGasUsed =
+                filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
+        }
 
         return {
             status: "success",
