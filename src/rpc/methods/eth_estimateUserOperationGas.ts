@@ -10,7 +10,8 @@ import { parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
 import {
     calcExecutionPvgComponent,
-    calcL2PvgComponent
+    calcL2PvgComponent,
+    calcMonadPvg
 } from "../estimation/preVerificationGasCalculator"
 import {
     deepHexlify,
@@ -92,7 +93,6 @@ const getGasEstimates = async ({
         simulationCallGasLimit,
         simulationPaymasterVerificationGasLimit,
         simulationPaymasterPostOpGasLimit,
-        paymasterGasLimitMultiplier,
         v6CallGasLimitMultiplier,
         v6VerificationGasLimitMultiplier,
         v7VerificationGasLimitMultiplier,
@@ -280,7 +280,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const {
             supportsEip7623,
             v7PreVerificationGasLimitMultiplier,
-            v6PreVerificationGasLimitMultiplier
+            v6PreVerificationGasLimitMultiplier,
+            chainType
         } = rpcHandler.config
 
         // Execute multiple async operations in parallel
@@ -351,6 +352,13 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         }
 
         // Monad specific gasLimits
+        if (chainType === "monad") {
+            preVerificationGas = await calcMonadPvg({
+                config: rpcHandler.config,
+                userOp,
+                entryPoint
+            })
+        }
 
         const finalGasLimits = await rpcHandler.validator.validateHandleOp({
             userOp: {

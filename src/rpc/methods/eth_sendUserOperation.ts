@@ -11,38 +11,59 @@ import type * as validation from "@alto/types"
 import { getAAError } from "@alto/utils"
 import {
     calcExecutionPvgComponent,
-    calcL2PvgComponent
+    calcL2PvgComponent,
+    calcMonadPvg
 } from "../estimation/preVerificationGasCalculator"
 import type { Hex } from "viem"
 import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
+import { AltoConfig } from "../../createConfig"
 
-const validatePvg = async (
-    apiVersion: ApiVersion,
-    rpcHandler: RpcHandler,
-    userOp: UserOperation,
-    entryPoint: Address,
+const validatePvg = async ({
+    apiVersion,
+    rpcHandler,
+    userOp,
+    entryPoint,
+    config,
     boost = false
-): Promise<[boolean, string]> => {
+}: {
+    apiVersion: ApiVersion
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    config: AltoConfig
+    boost?: boolean
+}): Promise<[boolean, string]> => {
     // PVG validation is skipped for v1
     if (apiVersion === "v1" || boost) {
         return [true, ""]
     }
 
-    const executionGasComponent = calcExecutionPvgComponent({
-        userOp,
-        supportsEip7623: rpcHandler.config.supportsEip7623,
-        config: rpcHandler.config
-    })
-    const l2GasComponent = await calcL2PvgComponent({
-        config: rpcHandler.config,
-        userOp,
-        entryPoint,
-        gasPriceManager: rpcHandler.gasPriceManager,
-        validate: true
-    })
-    const requiredPvg = executionGasComponent + l2GasComponent
+    let requiredPvg: bigint
+
+    if (config.chainType === "monad") {
+        // Monad consumes the entire gasLimit, so PVG is calculated differently
+        requiredPvg = await calcMonadPvg({
+            userOp,
+            config,
+            entryPoint
+        })
+    } else {
+        const executionGasComponent = calcExecutionPvgComponent({
+            userOp,
+            supportsEip7623: rpcHandler.config.supportsEip7623,
+            config: rpcHandler.config
+        })
+        const l2GasComponent = await calcL2PvgComponent({
+            config: rpcHandler.config,
+            userOp,
+            entryPoint,
+            gasPriceManager: rpcHandler.gasPriceManager,
+            validate: true
+        })
+        requiredPvg = executionGasComponent + l2GasComponent
+    }
 
     if (requiredPvg > userOp.preVerificationGas) {
         return [
@@ -127,7 +148,14 @@ export async function addToMempoolIfValid({
     ] = await Promise.all([
         getUserOpValidationResult(rpcHandler, userOp, entryPoint),
         rpcHandler.getNonceSeq(userOp, entryPoint),
-        validatePvg(apiVersion, rpcHandler, userOp, entryPoint, boost),
+        validatePvg({
+            apiVersion,
+            rpcHandler,
+            userOp,
+            entryPoint,
+            boost,
+            config: rpcHandler.config
+        }),
         rpcHandler.preMempoolChecks(userOp, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
             userOp,
