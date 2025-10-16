@@ -377,7 +377,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 userOp,
                 entryPoint
             })
-            console.log("calcMonadPvg: ", preVerificationGas)
         }
 
         if (isVersion07(userOp)) {
