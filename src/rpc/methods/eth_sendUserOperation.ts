@@ -8,11 +8,11 @@ import {
     sendUserOperationSchema
 } from "@alto/types"
 import type * as validation from "@alto/types"
+import { getAAError } from "@alto/utils"
 import {
     calcExecutionPvgComponent,
-    calcL2PvgComponent,
-    getAAError
-} from "@alto/utils"
+    calcL2PvgComponent
+} from "../estimation/preVerificationGasCalculator"
 import type { Hex } from "viem"
 import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
