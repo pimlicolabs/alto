@@ -456,13 +456,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "10"
     },
-    "arbitrum-gas-bid-multiplier": {
-        description:
-            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
-        type: "string",
-        require: false,
-        default: "5"
-    },
     "binary-search-max-retries": {
         description:
             "Maximum number of retries for binary search operations during gas estimation",
@@ -559,6 +552,20 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "boolean",
             require: false,
             default: false
+        },
+        "arbitrum-gas-bid-multiplier": {
+            description:
+                "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+            type: "string",
+            require: false,
+            default: "5"
+        },
+        "monad-reserve-balance": {
+            description:
+                "Minimum balance (in wei) that must be reserved for Monad chain user operations without paymasters",
+            type: "string",
+            require: false,
+            default: "10000000000000000000"
         }
     }
 

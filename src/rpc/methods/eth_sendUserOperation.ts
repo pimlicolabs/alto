@@ -9,9 +9,14 @@ import {
 } from "@alto/types"
 import type * as validation from "@alto/types"
 import { getAAError } from "@alto/utils"
-import type { Hex } from "viem"
+import { type Hex, formatEther } from "viem"
 import type { AltoConfig } from "../../createConfig"
-import { getNonceKeyAndSequence, getUserOpHash } from "../../utils/userop"
+import {
+    calculateRequiredPrefund,
+    getNonceKeyAndSequence,
+    getUserOpHash,
+    hasPaymaster
+} from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
     calcExecutionPvgComponent,
@@ -19,6 +24,45 @@ import {
     calcMonadPvg
 } from "../estimation/preVerificationGasCalculator"
 import type { RpcHandler } from "../rpcHandler"
+
+const validateChainRules = async ({
+    rpcHandler,
+    userOp,
+    config
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    config: AltoConfig
+}): Promise<[boolean, string]> => {
+    // Monad-specific validation
+    if (config.chainType === "monad") {
+        // Skip validation if userOp has a paymaster
+        if (hasPaymaster(userOp)) {
+            return [true, ""]
+        }
+
+        // Get sender's balance
+        const balance = await rpcHandler.config.publicClient.getBalance({
+            address: userOp.sender
+        })
+
+        // Calculate required prefund
+        const requiredPrefund = calculateRequiredPrefund(userOp)
+
+        // Check if sender balance - prefund >= monad reserve balance
+        const balanceAfterPrefund = balance - requiredPrefund
+        if (balanceAfterPrefund < config.monadReserveBalance) {
+            return [
+                false,
+                `Sender failed reserve balance check of ${formatEther(config.monadReserveBalance)} MON`
+            ]
+        }
+    }
+
+    // Add more chain-specific validations here in the future
+
+    return [true, ""]
+}
 
 const validatePvg = async ({
     apiVersion,
@@ -145,7 +189,8 @@ export async function addToMempoolIfValid({
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
         [preMempoolSuccess, preMempoolError],
-        [validEip7702Auth, validEip7702AuthError]
+        [validEip7702Auth, validEip7702AuthError],
+        [chainRulesSuccess, chainRulesError]
     ] = await Promise.all([
         getUserOpValidationResult(rpcHandler, userOp, entryPoint),
         rpcHandler.getNonceSeq(userOp, entryPoint),
@@ -161,6 +206,11 @@ export async function addToMempoolIfValid({
         rpcHandler.validateEip7702Auth({
             userOp,
             validateSender: true
+        }),
+        validateChainRules({
+            rpcHandler,
+            userOp,
+            config: rpcHandler.config
         })
     ])
 
@@ -186,6 +236,15 @@ export async function addToMempoolIfValid({
     if (!pvgSuccess) {
         rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
         throw new RpcError(pvgErrorReason, ERC7769Errors.SimulateValidation)
+    }
+
+    // Chain rules validation
+    if (!chainRulesSuccess) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            chainRulesError
+        )
+        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
     }
 
     // Nonce validation

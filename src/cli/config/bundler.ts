@@ -144,10 +144,6 @@ export const executorArgsSchema = z.object({
         .string()
         .transform((val) => BigInt(val))
         .default("10"),
-    "arbitrum-gas-bid-multiplier": z
-        .string()
-        .transform((val) => BigInt(val))
-        .default("5"),
     "binary-search-max-retries": z.number().int().min(1).default(3),
     "private-endpoint-submission-attempts": z.number().int().min(0).default(3)
 })
@@ -188,7 +184,15 @@ export const compatibilityArgsSchema = z.object({
         .string()
         .transform((val) => parseGwei(val))
         .optional(),
-    "supports-eip7623": z.boolean().default(false)
+    "supports-eip7623": z.boolean().default(false),
+    "arbitrum-gas-bid-multiplier": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("5"),
+    "monad-reserve-balance": z
+        .string()
+        .transform((val) => BigInt(val))
+        .default("10000000000000000000")
 })
 
 export const serverArgsSchema = z.object({
