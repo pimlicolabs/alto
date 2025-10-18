@@ -42,7 +42,7 @@
         "@opentelemetry/core": "^1.25.1",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.52.1",
         "@opentelemetry/instrumentation-fastify": "^0.38.0",
-        "@opentelemetry/instrumentation-http": "^0.52.1",
+        "@opentelemetry/instrumentation-http": "^0.206.0",
         "@opentelemetry/instrumentation-ioredis": "^0.42.0",
         "@opentelemetry/instrumentation-pino": "^0.41.0",
         "@opentelemetry/instrumentation-undici": "^0.4.0",
