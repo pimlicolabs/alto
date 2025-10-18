@@ -10,7 +10,7 @@
     "dependencies": {
         "@pimlico/alto": "workspace:./src/",
         "@types/node": "^18.16.3",
-        "dotenv": "^16.0.3",
+        "dotenv": "^17.2.3",
         "e2e": "link:",
         "eventemitter3": "^5.0.1",
         "execa": "^9.6.0",

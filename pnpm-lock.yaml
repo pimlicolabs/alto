@@ -114,8 +114,8 @@ importers:
         specifier: ^4.15.1
         version: 4.16.5
       dotenv:
-        specifier: ^16.0.3
-        version: 16.4.1
+        specifier: ^17.2.3
+        version: 17.2.3
       fastify:
         specifier: ^4.25.2
         version: 4.26.0
@@ -184,8 +184,8 @@ importers:
         specifier: ^18.16.3
         version: 18.16.3
       dotenv:
-        specifier: ^16.0.3
-        version: 16.4.1
+        specifier: ^17.2.3
+        version: 17.2.3
       e2e:
         specifier: 'link:'
         version: 'link:'
@@ -3146,8 +3146,8 @@ packages:
       path-type: 4.0.0
     dev: true
 
-  /dotenv@16.4.1:
-    resolution: {integrity: sha512-CjA3y+Dr3FyFDOAMnxZEGtnW9KBR2M0JvvUtXNW+dYJL5ROWxP9DUHCwgFqpMk0OXCc0ljhaNTr2w/kutYIcHQ==}
+  /dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
     engines: {node: '>=12'}
     dev: false
 
