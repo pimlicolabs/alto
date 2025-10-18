@@ -62,7 +62,7 @@
         "import-in-the-middle": "^1.14.2",
         "ioredis": "^5.4.1",
         "opentelemetry-instrumentation-fetch-node": "^1.2.3",
-        "pino": "^8.15.0",
+        "pino": "^10.1.0",
         "pino-http": "^8.4.0",
         "pino-pretty": "^10.0.0",
         "prom-client": "^14.2.0",
