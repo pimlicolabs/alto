@@ -7,7 +7,7 @@
         "test": "echo nope"
     },
     "dependencies": {
-        "@types/node": "^18.16.3",
+        "@types/node": "^24.8.1",
         "viem": "^2.9.5"
     }
 }
