@@ -74,7 +74,7 @@
     },
     "devDependencies": {
         "@types/yargs": "^17.0.24",
-        "nodemon": "^3.0.3",
+        "nodemon": "^3.1.10",
         "ts-node": "^10.9.2",
         "tsc-alias": "^1.8.8",
         "tsconfig-paths": "^4.2.0",
