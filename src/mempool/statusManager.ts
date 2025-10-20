@@ -14,11 +14,11 @@ interface UserOperationStatusStore {
 }
 
 class MemoryUserOperationStatusStore implements UserOperationStatusStore {
-    private store: Record<
+    private readonly ttlMs: number
+    private readonly store: Record<
         HexData32,
         { status: UserOperationStatus; timestamp: number }
     > = {}
-    private ttlMs: number
 
     constructor(ttlMs: number) {
         this.ttlMs = ttlMs
@@ -72,9 +72,9 @@ class MemoryUserOperationStatusStore implements UserOperationStatusStore {
 }
 
 class RedisUserOperationStatusStore implements UserOperationStatusStore {
-    private redis: Redis
-    private keyPrefix: string
-    private ttlSeconds: number
+    private readonly redis: Redis
+    private readonly keyPrefix: string
+    private readonly ttlSeconds: number
 
     constructor({
         config,
@@ -169,7 +169,7 @@ class RedisUserOperationStatusStore implements UserOperationStatusStore {
 }
 
 export class StatusManager {
-    private statusStore: UserOperationStatusStore
+    private readonly statusStore: UserOperationStatusStore
 
     constructor({
         config,

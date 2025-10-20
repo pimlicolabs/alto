@@ -3,8 +3,8 @@ import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class ArbitrumManager {
-    private l1BaseFeeQueue: MinMaxQueue
-    private l2BaseFeeQueue: MinMaxQueue
+    private readonly l1BaseFeeQueue: MinMaxQueue
+    private readonly l2BaseFeeQueue: MinMaxQueue
 
     constructor({ config }: { config: AltoConfig }) {
         this.l1BaseFeeQueue = createMinMaxQueue({

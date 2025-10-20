@@ -1,13 +1,14 @@
 import {
     type Address,
     type ApiVersion,
-    ERC7769Errors,
     type ReferencedCodeHashes,
-    RpcError,
+    type StorageMap,
+    type ValidationResult,
     type UserOperation,
+    RpcError,
+    ERC7769Errors,
     sendUserOperationSchema
 } from "@alto/types"
-import type * as validation from "@alto/types"
 import { getAAError } from "@alto/utils"
 import { type Hex, formatEther } from "viem"
 import type { AltoConfig } from "../../createConfig"
@@ -126,8 +127,8 @@ const getUserOpValidationResult = async (
     entryPoint: Address
 ): Promise<{
     queuedUserOps: UserOperation[]
-    validationResult: validation.ValidationResult & {
-        storageMap: validation.StorageMap
+    validationResult: ValidationResult & {
+        storageMap: StorageMap
         referencedContracts?: ReferencedCodeHashes
     }
 }> => {

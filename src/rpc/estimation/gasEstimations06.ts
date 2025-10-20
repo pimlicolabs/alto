@@ -1,7 +1,6 @@
 import type { StateOverrides, UserOperation06 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import type { Hex } from "viem"
-import { type Address, getContract } from "viem"
+import { type Hex, type Address, getContract } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
 import type { SimulateHandleOpResult } from "./types"
@@ -12,8 +11,8 @@ import {
 } from "./utils"
 
 export class GasEstimator06 {
-    private config: AltoConfig
-    private logger: Logger
+    private readonly config: AltoConfig
+    private readonly logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config

@@ -35,9 +35,9 @@ type SimulateHandleOpSuccessResult = {
 }
 
 export class GasEstimator07 {
-    private config: AltoConfig
-    private logger: Logger
-    private gasPriceManager: GasPriceManager
+    private readonly config: AltoConfig
+    private readonly logger: Logger
+    private readonly gasPriceManager: GasPriceManager
 
     constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
         this.config = config

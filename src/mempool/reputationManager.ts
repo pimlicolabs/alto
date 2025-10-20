@@ -199,19 +199,19 @@ export class NullReputationManager implements InterfaceReputationManager {
 }
 
 export class ReputationManager implements InterfaceReputationManager {
-    private config: AltoConfig
+    private readonly config: AltoConfig
+    private readonly throttledEntityMinMempoolCount: bigint
+    private readonly maxMempoolUserOpsPerSender: bigint
+    private readonly maxMempoolUserOpsPerNewUnstakedEntity: bigint
+    private readonly inclusionRateFactor: bigint
+    private readonly whitelist: Set<Address> = new Set()
+    private readonly blackList: Set<Address> = new Set()
+    private readonly bundlerReputationParams: ReputationParams
+    private readonly logger: Logger
     private entityCount: { [address: Address]: bigint } = {}
-    private throttledEntityMinMempoolCount: bigint
-    private maxMempoolUserOpsPerSender: bigint
-    private maxMempoolUserOpsPerNewUnstakedEntity: bigint
-    private inclusionRateFactor: bigint
     private entries: {
         [entryPoint: Address]: { [address: Address]: ReputationEntry }
     } = {}
-    private whitelist: Set<Address> = new Set()
-    private blackList: Set<Address> = new Set()
-    private bundlerReputationParams: ReputationParams
-    private logger: Logger
 
     constructor(config: AltoConfig) {
         this.config = config

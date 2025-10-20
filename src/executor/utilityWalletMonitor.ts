@@ -4,11 +4,11 @@ import { type Hex, formatEther } from "viem"
 import type { AltoConfig } from "../createConfig"
 
 export class UtilityWalletMonitor {
-    private config: AltoConfig
-    private utilityWalletAddress: Hex
+    private readonly config: AltoConfig
+    private readonly utilityWalletAddress: Hex
+    private readonly metrics: Metrics
+    private readonly logger: Logger
     private timer: NodeJS.Timer | undefined
-    private metrics: Metrics
-    private logger: Logger
 
     constructor({
         config,

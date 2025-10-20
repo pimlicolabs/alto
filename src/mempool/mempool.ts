@@ -38,15 +38,15 @@ import {
 import type { StatusManager } from "./statusManager"
 
 export class Mempool {
-    private config: AltoConfig
-    private metrics: Metrics
-    private statusManager: StatusManager
-    private reputationManager: InterfaceReputationManager
+    private readonly config: AltoConfig
+    private readonly metrics: Metrics
+    private readonly statusManager: StatusManager
+    private readonly reputationManager: InterfaceReputationManager
+    private readonly throttledEntityBundleCount: number
+    private readonly logger: Logger
+    private readonly validator: InterfaceValidator
+    private readonly eventManager: EventManager
     public store: MempoolStore
-    private throttledEntityBundleCount: number
-    private logger: Logger
-    private validator: InterfaceValidator
-    private eventManager: EventManager
 
     constructor({
         config,

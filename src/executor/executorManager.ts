@@ -3,9 +3,9 @@ import type { Mempool } from "@alto/mempool"
 import type {
     BundlingMode,
     SubmittedBundleInfo,
-    UserOperationBundle
+    UserOperationBundle,
+    GasPriceParameters
 } from "@alto/types"
-import type { GasPriceParameters } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import type { Block, Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -18,16 +18,16 @@ const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
 export class ExecutorManager {
-    private senderManager: SenderManager
-    private config: AltoConfig
-    private executor: Executor
-    private mempool: Mempool
-    private logger: Logger
-    private metrics: Metrics
-    private gasPriceManager: GasPriceManager
+    private readonly senderManager: SenderManager
+    private readonly config: AltoConfig
+    private readonly executor: Executor
+    private readonly mempool: Mempool
+    private readonly logger: Logger
+    private readonly metrics: Metrics
+    private readonly gasPriceManager: GasPriceManager
+    private readonly bundleManager: BundleManager
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
-    private bundleManager: BundleManager
     private unWatch: WatchBlocksReturnType | undefined
 
     private currentlyHandlingBlock = false
