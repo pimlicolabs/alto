@@ -337,15 +337,14 @@ export class MemoryOutstanding implements OutstandingStore {
         return removedOps
     }
 
-    dumpLocal(): Promise<UserOpInfo[]> {
-        return Promise.resolve(this.dump())
+    async dumpLocal(): Promise<UserOpInfo[]> {
+        return this.dump()
     }
 
-    clear(): Promise<void> {
+    async clear() {
         this.priorityQueue = []
         this.pendingOps.clear()
         this.hashLookup.clear()
-        return Promise.resolve()
     }
 }
 

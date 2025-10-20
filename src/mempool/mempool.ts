@@ -210,7 +210,7 @@ export class Mempool {
         op: UserOperation
     ) {
         if (!this.config.safeMode) {
-            return Promise.resolve()
+            return
         }
 
         const knownEntities = await this.getKnownEntities(entryPoint)
