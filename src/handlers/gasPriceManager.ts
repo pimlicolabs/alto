@@ -15,14 +15,14 @@ import { OptimismManager } from "./optimismManager"
 
 export class GasPriceManager {
     private readonly config: AltoConfig
-    private baseFeePerGasQueue: MinMaxQueue
-    private maxFeePerGasQueue: MinMaxQueue
-    private maxPriorityFeePerGasQueue: MinMaxQueue
-    private logger: Logger
+    private readonly baseFeePerGasQueue: MinMaxQueue
+    private readonly maxFeePerGasQueue: MinMaxQueue
+    private readonly maxPriorityFeePerGasQueue: MinMaxQueue
+    private readonly logger: Logger
 
-    public arbitrumManager: ArbitrumManager
-    public mantleManager: MantleManager
-    public optimismManager: OptimismManager
+    public readonly arbitrumManager: ArbitrumManager
+    public readonly mantleManager: MantleManager
+    public readonly optimismManager: OptimismManager
 
     constructor(config: AltoConfig) {
         this.config = config

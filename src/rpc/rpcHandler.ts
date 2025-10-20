@@ -9,9 +9,10 @@ import type {
     Mempool,
     StatusManager
 } from "@alto/mempool"
-import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
     type Address,
+    type ApiVersion,
+    type BundlerRequest,
     ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
@@ -30,21 +31,21 @@ import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 
 export class RpcHandler {
-    public config: AltoConfig
-    public validator: InterfaceValidator
-    public mempool: Mempool
-    public executor: Executor
-    public statusManager: StatusManager
-    public executorManager: ExecutorManager
-    public reputationManager: InterfaceReputationManager
-    public metrics: Metrics
-    public eventManager: EventManager
-    public gasPriceManager: GasPriceManager
-    public bundleManager: BundleManager
-    public logger: Logger
+    public readonly config: AltoConfig
+    public readonly validator: InterfaceValidator
+    public readonly mempool: Mempool
+    public readonly executor: Executor
+    public readonly statusManager: StatusManager
+    public readonly executorManager: ExecutorManager
+    public readonly reputationManager: InterfaceReputationManager
+    public readonly metrics: Metrics
+    public readonly eventManager: EventManager
+    public readonly gasPriceManager: GasPriceManager
+    public readonly bundleManager: BundleManager
+    public readonly logger: Logger
 
-    private methodHandlers: Map<string, MethodHandler>
-    private eip7702CodeCache: Map<Address, boolean>
+    private readonly methodHandlers: Map<string, MethodHandler>
+    private readonly eip7702CodeCache: Map<Address, boolean>
 
     constructor({
         config,

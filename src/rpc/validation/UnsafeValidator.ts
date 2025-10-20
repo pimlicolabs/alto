@@ -1,22 +1,20 @@
 import type { GasPriceManager } from "@alto/handlers"
-import type {
-    InterfaceValidator,
-    StateOverrides,
-    UserOperation06,
-    UserOperation07,
-    ValidationResult,
-    ValidationResult06,
-    ValidationResult07
-} from "@alto/types"
 import {
     type Address,
     ERC7769Errors,
     EntryPointV06Abi,
     type ExecutionResult,
+    type InterfaceValidator,
     type ReferencedCodeHashes,
     RpcError,
+    type StateOverrides,
     type StorageMap,
     type UserOperation,
+    type UserOperation06,
+    type UserOperation07,
+    type ValidationResult,
+    type ValidationResult06,
+    type ValidationResult07,
     entryPointExecutionErrorSchema06
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"

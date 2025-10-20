@@ -28,18 +28,19 @@ import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 
 export class BundleManager {
-    private reputationManager: InterfaceReputationManager
-    private config: AltoConfig
-    private mempool: Mempool
-    private statusManager: StatusManager
-    private logger: Logger
-    private metrics: Metrics
-    private eventManager: EventManager
-    private senderManager: SenderManager
+    private readonly reputationManager: InterfaceReputationManager
+    private readonly config: AltoConfig
+    private readonly mempool: Mempool
+    private readonly statusManager: StatusManager
+    private readonly logger: Logger
+    private readonly metrics: Metrics
+    private readonly eventManager: EventManager
+    private readonly senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
-    private receiptCache: ReceiptCache
-    private gasPriceManager: GasPriceManager
+    private readonly receiptCache: ReceiptCache
+    private readonly gasPriceManager: GasPriceManager
+    private readonly pendingBundles: Map<string, SubmittedBundleInfo> =
+        new Map()
 
     constructor({
         config,
@@ -199,44 +200,46 @@ export class BundleManager {
 
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
-            rejectedUserOps.map(async (userOpInfo) => {
-                const status = await this.getUserOpStatus({
-                    userOpInfo,
-                    entryPoint: submittedBundle.bundle.entryPoint,
-                    bundlerTxs: [
-                        submittedBundle.transactionHash,
-                        ...submittedBundle.previousTransactionHashes
-                    ],
-                    blockReceivedTimestamp
-                })
-
-                if (status === "not_found") {
-                    const { userOpHash } = userOpInfo
-
-                    await this.statusManager.set([userOpHash], {
-                        status: "failed",
-                        transactionHash
+            for (const userOpInfo of rejectedUserOps) {
+                ;(async () => {
+                    const status = await this.getUserOpStatus({
+                        userOpInfo,
+                        entryPoint: submittedBundle.bundle.entryPoint,
+                        bundlerTxs: [
+                            submittedBundle.transactionHash,
+                            ...submittedBundle.previousTransactionHashes
+                        ],
+                        blockReceivedTimestamp
                     })
 
-                    this.eventManager.emitFailedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber
-                    )
+                    if (status === "not_found") {
+                        const { userOpHash } = userOpInfo
 
-                    this.logger.info(
-                        {
-                            userOpHash,
+                        await this.statusManager.set([userOpHash], {
+                            status: "failed",
                             transactionHash
-                        },
-                        "user op failed onchain"
-                    )
+                        })
 
-                    this.metrics.userOpsOnChain
-                        .labels({ status: "reverted" })
-                        .inc(1)
-                }
-            })
+                        this.eventManager.emitFailedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            blockNumber
+                        )
+
+                        this.logger.info(
+                            {
+                                userOpHash,
+                                transactionHash
+                            },
+                            "user op failed onchain"
+                        )
+
+                        this.metrics.userOpsOnChain
+                            .labels({ status: "reverted" })
+                            .inc(1)
+                    }
+                })()
+            }
         })()
     }
 

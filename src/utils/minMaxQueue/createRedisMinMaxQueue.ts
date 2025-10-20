@@ -111,7 +111,7 @@ class SortedTtlSet {
             }
 
             // Find minimum value among valid entries
-            const bigIntValues = validValues.map((v) => BigInt(v))
+            const bigIntValues = validValues.map(BigInt)
             return bigIntValues.reduce((min, val) => (val < min ? val : min))
         } catch (err) {
             logger.error({ err }, "Failed to get min value")

@@ -19,10 +19,10 @@ import {
     type Address,
     type BaseError,
     type Hex,
+    type SignedAuthorizationList,
     encodeFunctionData,
     toBytes
 } from "viem"
-import type { SignedAuthorizationList } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 

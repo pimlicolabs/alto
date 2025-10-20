@@ -26,10 +26,10 @@ import {
     IntrinsicGasTooLowError,
     NonceTooHighError,
     NonceTooLowError,
+    type SendTransactionErrorType,
+    type SignedAuthorizationList,
     TransactionExecutionError
 } from "viem"
-import type { SendTransactionErrorType } from "viem"
-import type { SignedAuthorizationList } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {

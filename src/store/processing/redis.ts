@@ -6,11 +6,11 @@ import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../../createConfig"
 
 export class RedisProcessingStore implements ProcessingStore {
-    private redis: Redis
+    private readonly redis: Redis
 
-    private processingUserOpsSet: string // set of userOpHashes being processed
-    private processingSenderNonceSet: string // set of "sender:nonce" being processed
-    private processingDeploymentSet: string // set of senders with deployments being processed
+    private readonly processingUserOpsSet: string // set of userOpHashes being processed
+    private readonly processingSenderNonceSet: string // set of "sender:nonce" being processed
+    private readonly processingDeploymentSet: string // set of senders with deployments being processed
 
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`
