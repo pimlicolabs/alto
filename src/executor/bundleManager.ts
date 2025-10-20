@@ -199,7 +199,7 @@ export class BundleManager {
 
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
-            rejectedUserOps.map(async (userOpInfo) => {
+            rejectedUserOps.forEach(async (userOpInfo) => {
                 const status = await this.getUserOpStatus({
                     userOpInfo,
                     entryPoint: submittedBundle.bundle.entryPoint,
