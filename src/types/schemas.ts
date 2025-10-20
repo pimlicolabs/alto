@@ -17,7 +17,7 @@ export const hexNumberSchema = z
     .regex(hexDataPattern)
     .or(z.number())
     .or(z.bigint())
-    .transform((val) => BigInt(val))
+    .transform(BigInt)
     .refine((val) => val <= maxUint256, {
         message: "not a valid uint256"
     })

@@ -28,18 +28,19 @@ import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 
 export class BundleManager {
-    private reputationManager: InterfaceReputationManager
-    private config: AltoConfig
-    private mempool: Mempool
-    private statusManager: StatusManager
-    private logger: Logger
-    private metrics: Metrics
-    private eventManager: EventManager
-    private senderManager: SenderManager
+    private readonly reputationManager: InterfaceReputationManager
+    private readonly config: AltoConfig
+    private readonly mempool: Mempool
+    private readonly statusManager: StatusManager
+    private readonly logger: Logger
+    private readonly metrics: Metrics
+    private readonly eventManager: EventManager
+    private readonly senderManager: SenderManager
     private cachedLatestBlock: { value: bigint; timestamp: number } | null
-    private pendingBundles: Map<string, SubmittedBundleInfo> = new Map()
-    private receiptCache: ReceiptCache
-    private gasPriceManager: GasPriceManager
+    private readonly receiptCache: ReceiptCache
+    private readonly gasPriceManager: GasPriceManager
+    private readonly pendingBundles: Map<string, SubmittedBundleInfo> =
+        new Map()
 
     constructor({
         config,
