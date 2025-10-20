@@ -54,6 +54,10 @@ do
         usage
         exit 0
         ;;
+    *)
+        echo "Error: Invalid option -${OPTARG}"
+        usage
+        ;;
   esac
 done
 
