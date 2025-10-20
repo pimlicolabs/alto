@@ -28,7 +28,5 @@ test("Should throw if EntryPoint is not supported", async () => {
 
     const supportedEntryPoints = await bundlerClient.getSupportedEntryPoints()
 
-    expect(new Set(supportedEntryPoints)).toEqual(
-        new Set(actualEntryPoints)
-    )
+    expect(new Set(supportedEntryPoints)).toEqual(new Set(actualEntryPoints))
 })
