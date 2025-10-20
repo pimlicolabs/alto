@@ -10,7 +10,7 @@ import {
     createProcessingStore
 } from "@alto/store"
 import type { HexData32, UserOperation } from "@alto/types"
-import type { Metrics, Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type { AltoConfig } from "../createConfig"

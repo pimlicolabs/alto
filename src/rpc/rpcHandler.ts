@@ -10,15 +10,15 @@ import type {
     StatusManager
 } from "@alto/mempool"
 import {
+    type Address,
     type ApiVersion,
     type BundlerRequest,
-    type Address,
-    type InterfaceValidator,
-    type UserOperation,
     ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
-    RpcError
+    type InterfaceValidator,
+    RpcError,
+    type UserOperation
 } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"

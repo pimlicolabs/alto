@@ -1,7 +1,7 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type {
-    UserOperation,
     StateOverrides,
+    UserOperation,
     UserOperation07
 } from "@alto/types"
 import { isVersion06 } from "@alto/utils"

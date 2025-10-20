@@ -1,6 +1,6 @@
 import type { StateOverrides, UserOperation06 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { type Hex, type Address, getContract } from "viem"
+import { type Address, type Hex, getContract } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
 import type { SimulateHandleOpResult } from "./types"

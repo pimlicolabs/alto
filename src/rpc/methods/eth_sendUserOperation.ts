@@ -1,12 +1,12 @@
 import {
     type Address,
     type ApiVersion,
-    type ReferencedCodeHashes,
-    type StorageMap,
-    type ValidationResult,
-    type UserOperation,
-    RpcError,
     ERC7769Errors,
+    type ReferencedCodeHashes,
+    RpcError,
+    type StorageMap,
+    type UserOperation,
+    type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
 import { getAAError } from "@alto/utils"

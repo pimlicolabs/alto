@@ -2,9 +2,9 @@ import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
 import type {
     BundlingMode,
+    GasPriceParameters,
     SubmittedBundleInfo,
-    UserOperationBundle,
-    GasPriceParameters
+    UserOperationBundle
 } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import type { Block, Hex, WatchBlocksReturnType } from "viem"
