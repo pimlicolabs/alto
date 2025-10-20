@@ -200,44 +200,46 @@ export class BundleManager {
 
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
-            rejectedUserOps.forEach(async (userOpInfo) => {
-                const status = await this.getUserOpStatus({
-                    userOpInfo,
-                    entryPoint: submittedBundle.bundle.entryPoint,
-                    bundlerTxs: [
-                        submittedBundle.transactionHash,
-                        ...submittedBundle.previousTransactionHashes
-                    ],
-                    blockReceivedTimestamp
-                })
-
-                if (status === "not_found") {
-                    const { userOpHash } = userOpInfo
-
-                    await this.statusManager.set([userOpHash], {
-                        status: "failed",
-                        transactionHash
+            for (const userOpInfo of rejectedUserOps) {
+                ;(async () => {
+                    const status = await this.getUserOpStatus({
+                        userOpInfo,
+                        entryPoint: submittedBundle.bundle.entryPoint,
+                        bundlerTxs: [
+                            submittedBundle.transactionHash,
+                            ...submittedBundle.previousTransactionHashes
+                        ],
+                        blockReceivedTimestamp
                     })
 
-                    this.eventManager.emitFailedOnChain(
-                        userOpHash,
-                        transactionHash,
-                        blockNumber
-                    )
+                    if (status === "not_found") {
+                        const { userOpHash } = userOpInfo
 
-                    this.logger.info(
-                        {
-                            userOpHash,
+                        await this.statusManager.set([userOpHash], {
+                            status: "failed",
                             transactionHash
-                        },
-                        "user op failed onchain"
-                    )
+                        })
 
-                    this.metrics.userOpsOnChain
-                        .labels({ status: "reverted" })
-                        .inc(1)
-                }
-            })
+                        this.eventManager.emitFailedOnChain(
+                            userOpHash,
+                            transactionHash,
+                            blockNumber
+                        )
+
+                        this.logger.info(
+                            {
+                                userOpHash,
+                                transactionHash
+                            },
+                            "user op failed onchain"
+                        )
+
+                        this.metrics.userOpsOnChain
+                            .labels({ status: "reverted" })
+                            .inc(1)
+                    }
+                })()
+            }
         })()
     }
 
