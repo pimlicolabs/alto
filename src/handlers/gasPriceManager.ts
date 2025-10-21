@@ -78,8 +78,8 @@ export class GasPriceManager {
                     ? this.tryUpdateBaseFee()
                     : Promise.resolve()
             ])
-        } catch (error) {
-            this.logger.error(error, "Error during gas price initialization")
+        } catch (err) {
+            this.logger.error({ err }, "Error during gas price initialization")
         }
     }
 
