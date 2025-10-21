@@ -131,8 +131,8 @@ export class ExecutorManager {
             const intervalId = setInterval(async () => {
                 try {
                     await this.handleBlock()
-                } catch (error) {
-                    this.logger.error({ error }, "error while polling blocks")
+                } catch (err) {
+                    this.logger.error({ err }, "error while polling blocks")
                 }
             }, this.config.flashblocksPreconfirmationTime)
 
@@ -146,8 +146,8 @@ export class ExecutorManager {
                 onBlock: async (block) => {
                     await this.handleBlock(block)
                 },
-                onError: (error) => {
-                    this.logger.error({ error }, "error while watching blocks")
+                onError: (err) => {
+                    this.logger.error({ err }, "error while watching blocks")
                 },
                 includeTransactions: false,
                 emitMissed: false
@@ -493,7 +493,7 @@ export class ExecutorManager {
                     setTimeout(resolve, blockTime / 2)
                 )
             } catch (err) {
-                logger.warn({ error: err }, "failed to cancel bundle")
+                logger.warn({ err }, "failed to cancel bundle")
                 gasMultiplier += 20n // Increase gas by additional 20% each retry
             }
         }

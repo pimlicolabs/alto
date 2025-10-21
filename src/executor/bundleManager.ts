@@ -429,11 +429,11 @@ export class BundleManager {
                     )
                 }, this.config.publicClient.chain.blockTime ?? 1_000)
             })
-        } catch (error) {
+        } catch (err) {
             this.logger.error(
                 {
-                    userOpHash,
-                    error
+                    err,
+                    userOpHash
                 },
                 "Error checking frontrun status"
             )

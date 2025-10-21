@@ -257,9 +257,9 @@ export async function flushStuckTransaction({
                 { txHash, nonce: nonceToFlush, wallet: wallet.address },
                 "flushed stuck transaction"
             )
-        } catch (e) {
-            sentry.captureException(e)
-            logger.warn({ error: e }, "error flushing stuck transaction")
+        } catch (err) {
+            sentry.captureException(err)
+            logger.warn({ err }, "error flushing stuck transaction")
         }
     }
 }
