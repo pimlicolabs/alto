@@ -252,6 +252,7 @@ export class Executor {
                 childLogger.info(
                     {
                         transactionRequest: {
+                            executor: request.account.address,
                             maxFeePerGas: request.maxFeePerGas,
                             maxPriorityFeePerGas: request.maxPriorityFeePerGas,
                             nonce: request.nonce
