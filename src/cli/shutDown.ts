@@ -1,5 +1,9 @@
 import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool, StatusManager } from "@alto/mempool"
+import type {
+    SerializableSubmittedBundleInfo,
+    SubmittedBundleInfo
+} from "@alto/types"
 import {
     recoverableJsonParseWithBigint,
     recoverableJsonStringifyWithBigint
@@ -10,6 +14,54 @@ import type { Logger } from "pino"
 import type { AltoConfig } from "../createConfig"
 
 const getQueueName = (chainId: number) => `alto:mempool:restoration:${chainId}`
+
+// Transform SubmittedBundleInfo to a serializable format
+// Account obj loses their methods (like signTransaction) when JSON serialized,
+// so we only serialize the address
+function serializePendingBundle(
+    bundle: SubmittedBundleInfo
+): SerializableSubmittedBundleInfo {
+    return {
+        uid: bundle.uid,
+        transactionHash: bundle.transactionHash,
+        previousTransactionHashes: bundle.previousTransactionHashes,
+        transactionRequest: bundle.transactionRequest,
+        bundle: bundle.bundle,
+        executorAddress: bundle.executor.address,
+        lastReplaced: bundle.lastReplaced
+    }
+}
+
+// Reconstruct SubmittedBundleInfo from serialized format
+// Finds the matching Account object from the wallet pool to restore signing capability
+function deserializePendingBundle(
+    serializedBundle: SerializableSubmittedBundleInfo,
+    senderManager: SenderManager,
+    logger: Logger
+): SubmittedBundleInfo | null {
+    const allWallets = senderManager.getAllWallets()
+    const executor = allWallets.find(
+        (wallet) => wallet.address === serializedBundle.executorAddress
+    )
+
+    if (!executor) {
+        logger.warn(
+            { executorAddress: serializedBundle.executorAddress },
+            "[MEMPOOL-RESTORATION] Executor wallet not found in pool, skipping bundle"
+        )
+        return null
+    }
+
+    return {
+        uid: serializedBundle.uid,
+        transactionHash: serializedBundle.transactionHash,
+        previousTransactionHashes: serializedBundle.previousTransactionHashes,
+        transactionRequest: serializedBundle.transactionRequest,
+        bundle: serializedBundle.bundle,
+        executor,
+        lastReplaced: serializedBundle.lastReplaced
+    }
+}
 
 async function dropAllOperationsOnShutdown({
     config,
@@ -125,12 +177,17 @@ export async function persistShutdownState({
             pendingBundles.length > 0 ||
             userOpStatus.length > 0
         ) {
+            // Transform pending bundles to serializable format
+            const bundlesForSerialization = pendingBundles.map(
+                serializePendingBundle
+            )
+
             await restorationQueue.add({
                 type: "MEMPOOL_DATA",
                 chainId: config.publicClient.chain.id,
                 data: recoverableJsonStringifyWithBigint({
                     entrypointData,
-                    pendingBundles,
+                    pendingBundles: bundlesForSerialization,
                     userOpStatus
                 }),
                 timestamp: Date.now()
@@ -292,12 +349,21 @@ export async function restoreShutdownState({
                         }
                     }
 
-                    // Restore global pending bundles.
-                    for (const submittedBundle of data.pendingBundles) {
-                        bundleManager.trackBundle(submittedBundle)
-                        if (senderManager.lockWallet) {
-                            senderManager.lockWallet(submittedBundle.executor)
+                    // Restore global pending bundles
+                    for (const serializedBundle of data.pendingBundles) {
+                        const submittedBundle = deserializePendingBundle(
+                            serializedBundle,
+                            senderManager,
+                            logger
+                        )
+
+                        if (!submittedBundle) {
+                            // Wallet not found, already logged in deserializePendingBundle
+                            continue
                         }
+
+                        bundleManager.trackBundle(submittedBundle)
+                        senderManager.lockWallet(submittedBundle.executor)
                     }
 
                     // Restore global user op status.
