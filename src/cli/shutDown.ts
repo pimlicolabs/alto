@@ -21,13 +21,14 @@ const getQueueName = (chainId: number) => `alto:mempool:restoration:${chainId}`
 function serializePendingBundle(
     bundle: SubmittedBundleInfo
 ): SerializableSubmittedBundleInfo {
+    const executorAddress = bundle.executor.address
     return {
+        executorAddress,
         uid: bundle.uid,
         transactionHash: bundle.transactionHash,
         previousTransactionHashes: bundle.previousTransactionHashes,
         transactionRequest: bundle.transactionRequest,
         bundle: bundle.bundle,
-        executorAddress: bundle.executor.address,
         lastReplaced: bundle.lastReplaced
     }
 }
@@ -53,12 +54,12 @@ function deserializePendingBundle(
     }
 
     return {
+        executor,
         uid: serializedBundle.uid,
         transactionHash: serializedBundle.transactionHash,
         previousTransactionHashes: serializedBundle.previousTransactionHashes,
         transactionRequest: serializedBundle.transactionRequest,
         bundle: serializedBundle.bundle,
-        executor,
         lastReplaced: serializedBundle.lastReplaced
     }
 }
