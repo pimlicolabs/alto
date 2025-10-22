@@ -210,6 +210,10 @@ export function decodeSimulateHandleOpError(
             )
         }
     } else {
+        logger.warn(
+            { err: contractFunctionRevertedError },
+            "Unknown error, could not parse simulate validation result."
+        )
         throw new Error(
             "Unknown error, could not parse simulate validation result."
         )

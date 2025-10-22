@@ -237,12 +237,7 @@ export class GasEstimator07 {
                 }
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in executeSimulateHandleOp"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
@@ -385,10 +380,6 @@ export class GasEstimator07 {
             }
         } catch (error) {
             const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in simulateValidation"
-            )
             return decodedError as {
                 result: "failed"
                 data: string
@@ -435,12 +426,7 @@ export class GasEstimator07 {
                 data: result
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in simulateValidation"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
@@ -492,12 +478,7 @@ export class GasEstimator07 {
                 }
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in validateHandleOpV07"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
