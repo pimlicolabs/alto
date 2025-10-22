@@ -16,8 +16,6 @@ import type { AltoConfig } from "../createConfig"
 const getQueueName = (chainId: number) => `alto:mempool:restoration:${chainId}`
 
 // Transform SubmittedBundleInfo to a serializable format
-// Account obj loses their methods (like signTransaction) when JSON serialized,
-// so we only serialize the address
 function serializePendingBundle(
     bundle: SubmittedBundleInfo
 ): SerializableSubmittedBundleInfo {
@@ -33,8 +31,8 @@ function serializePendingBundle(
     }
 }
 
-// Reconstruct SubmittedBundleInfo from serialized format
-// Finds the matching Account object from the wallet pool to restore signing capability
+// Reconstruct SubmittedBundleInfo from serialized format.
+// Note: converts executorAddress to Account object from senderManager.
 function deserializePendingBundle(
     serializedBundle: SerializableSubmittedBundleInfo,
     senderManager: SenderManager,
@@ -178,7 +176,7 @@ export async function persistShutdownState({
             pendingBundles.length > 0 ||
             userOpStatus.length > 0
         ) {
-            // Transform pending bundles to serializable format
+            // Transform pendingBundles to serializable format
             const bundlesForSerialization = pendingBundles.map(
                 serializePendingBundle
             )
