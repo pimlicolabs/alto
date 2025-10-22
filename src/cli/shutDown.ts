@@ -363,7 +363,9 @@ export async function restoreShutdownState({
                         }
 
                         bundleManager.trackBundle(submittedBundle)
-                        senderManager.lockWallet(submittedBundle.executor)
+                        if (senderManager.lockWallet) {
+                            senderManager.lockWallet(submittedBundle.executor)
+                        }
                     }
 
                     // Restore global user op status.

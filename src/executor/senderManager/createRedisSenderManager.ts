@@ -115,9 +115,6 @@ export const createRedisSenderManager = async ({
         },
         getActiveWallets: () => {
             return [...activeWallets]
-        },
-        lockWallet: async (_wallet: Account) => {
-            // No-op: Method not used in redis mode.
         }
     }
 }
