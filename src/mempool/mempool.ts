@@ -253,7 +253,6 @@ export class Mempool {
                 ERC7769Errors.OpcodeValidation
             )
         }
-        return Promise.resolve()
     }
 
     async getKnownEntities(entryPoint: Address): Promise<{

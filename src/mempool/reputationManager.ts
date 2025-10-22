@@ -123,26 +123,26 @@ export class NullReputationManager implements InterfaceReputationManager {
         return
     }
 
-    increaseUserOpSeenStatus(
+    async increaseUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address
     ): Promise<void> {
-        return Promise.resolve()
+        return
     }
 
-    replaceUserOpSeenStatus(
+    async replaceUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address
     ): Promise<void> {
-        return Promise.resolve()
+        return
     }
 
-    decreaseUserOpSeenStatus(
+    async decreaseUserOpSeenStatus(
         _: UserOperation,
         _entryPoint: Address,
         _error: string
     ): Promise<void> {
-        return Promise.resolve()
+        return
     }
 
     updateUserOpIncludedStatus(

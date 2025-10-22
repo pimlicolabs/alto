@@ -33,24 +33,22 @@ class MemoryUserOperationStatusStore implements UserOperationStatusStore {
         }
     }
 
-    set(userOpHashes: HexData32[], status: UserOperationStatus) {
+    async set(userOpHashes: HexData32[], status: UserOperationStatus) {
         this.prune()
         const timestamp = Date.now()
         for (const userOpHash of userOpHashes) {
             this.store[userOpHash] = { status, timestamp }
         }
-        return Promise.resolve()
     }
 
-    get(userOpHash: HexData32) {
+    async get(userOpHash: HexData32) {
         this.prune()
         const entry = this.store[userOpHash]
-        return Promise.resolve(entry?.status)
+        return entry?.status
     }
 
-    delete(userOpHash: HexData32) {
+    async delete(userOpHash: HexData32) {
         delete this.store[userOpHash]
-        return Promise.resolve()
     }
 
     dumpAll() {

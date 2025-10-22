@@ -237,12 +237,12 @@ export class RpcHandler {
                           yParity: userOp.eip7702Auth.yParity
                       }
                   })
-                : Promise.resolve(userOp.sender),
+                : userOp.sender,
             this.config.publicClient.getTransactionCount({
                 address: userOp.sender
             }),
             this.eip7702CodeCache.has(delegationDesignator)
-                ? Promise.resolve("has-code")
+                ? "has-code"
                 : this.config.publicClient.getCode({
                       address: delegationDesignator
                   })
