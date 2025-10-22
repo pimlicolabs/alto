@@ -176,8 +176,8 @@ export async function persistShutdownState({
             pendingBundles.length > 0 ||
             userOpStatus.length > 0
         ) {
-            // Transform pendingBundles to serializable format
-            const bundlesForSerialization = pendingBundles.map(
+            // Transform pendingBundles to serialized format.
+            const serializedPendingBundles = pendingBundles.map(
                 serializePendingBundle
             )
 
@@ -186,7 +186,7 @@ export async function persistShutdownState({
                 chainId: config.publicClient.chain.id,
                 data: recoverableJsonStringifyWithBigint({
                     entrypointData,
-                    pendingBundles: bundlesForSerialization,
+                    pendingBundles: serializedPendingBundles,
                     userOpStatus
                 }),
                 timestamp: Date.now()
