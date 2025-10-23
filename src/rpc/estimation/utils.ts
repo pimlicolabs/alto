@@ -203,7 +203,7 @@ export function decodeSimulateHandleOpError(
 
             errorName = decoded.errorName
             args = decoded.args || []
-        } catch (decodeError) {
+        } catch {
             logger.warn({ rawRevertBytes }, "Failed to decode raw revert bytes")
             throw new Error(
                 "Unknown error, could not parse simulate validation result."
@@ -297,9 +297,9 @@ export async function prepareSimulationOverrides06({
         const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
 
         mergedStateOverrides[entryPoint] = {
-            ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
+            ...deepHexlify(mergedStateOverrides?.[entryPoint]),
             stateDiff: {
-                ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
+                ...mergedStateOverrides[entryPoint]?.stateDiff,
                 [senderCreatorOverride.slot]: senderCreatorOverride.value
             },
             code: entryPointOverride.deployedBytecode.object as Hex
@@ -340,9 +340,9 @@ export async function prepareSimulationOverrides07({
             const value = toHex(baseFee, { size: 32 })
 
             mergedStateOverrides[entryPoint] = {
-                ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
+                ...deepHexlify(mergedStateOverrides?.[entryPoint]),
                 stateDiff: {
-                    ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
+                    ...mergedStateOverrides[entryPoint]?.stateDiff,
                     [slot]: value
                 }
             }
