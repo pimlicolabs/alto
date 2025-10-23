@@ -17,7 +17,7 @@ import {
     type ValidationResult07,
     entryPointExecutionErrorSchema06
 } from "@alto/types"
-import { isVersion06, type Logger, type Metrics } from "@alto/utils"
+import { type Logger, type Metrics, isVersion06 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,

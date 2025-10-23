@@ -21,11 +21,11 @@ import {
     type UserOperation
 } from "@alto/types"
 import {
+    type Logger,
+    type Metrics,
     getNonceKeyAndSequence,
     isVersion06,
-    isVersion07,
-    type Logger,
-    type Metrics
+    isVersion07
 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"

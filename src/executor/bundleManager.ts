@@ -5,14 +5,14 @@ import type {
     Mempool,
     StatusManager
 } from "@alto/mempool"
-import { createReceiptCache, type ReceiptCache } from "@alto/receiptCache"
+import { type ReceiptCache, createReceiptCache } from "@alto/receiptCache"
 import type {
-    UserOperationReceipt,
     HexData32,
     SubmittedBundleInfo,
-    UserOpInfo
+    UserOpInfo,
+    UserOperationReceipt
 } from "@alto/types"
-import { parseUserOpReceipt, type Logger, type Metrics } from "@alto/utils"
+import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
 import {
     type Address,
     type Block,

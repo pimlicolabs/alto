@@ -7,7 +7,7 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
-import { type Address, type StateOverride, getContract, type Hex } from "viem"
+import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {

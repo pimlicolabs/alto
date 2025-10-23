@@ -1,8 +1,8 @@
 import {
-    userOperationReceiptSchema,
-    type UserOperationReceipt
+    type UserOperationReceipt,
+    userOperationReceiptSchema
 } from "@alto/types"
-import { asyncCallWithTimeout, type Logger } from "@alto/utils"
+import { type Logger, asyncCallWithTimeout } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import { type Hex, toHex } from "viem"

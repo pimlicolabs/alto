@@ -1,5 +1,5 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
-import { concat, getAddress, type SignedAuthorization } from "viem"
+import { type SignedAuthorization, concat, getAddress } from "viem"
 import { getEip7702AuthAddress } from "./eip7702"
 
 /// Convert an object to JSON string, handling bigint values
