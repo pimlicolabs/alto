@@ -316,11 +316,11 @@ export async function filterOpsAndEstimateGas({
         const offChainOverhead = results[1]
 
         // Keep track of invalid and valid ops
-        const rejectedUserOpHashes = new Set(
-            filterOpsResult.rejectedUserOps.map(({ userOpHash }) => userOpHash)
+        const rejectedUserOpHashes = filterOpsResult.rejectedUserOps.map(
+            ({ userOpHash }) => userOpHash
         )
         const userOpsToBundle = validUserOps.filter(
-            ({ userOpHash }) => !rejectedUserOpHashes.has(userOpHash)
+            ({ userOpHash }) => !rejectedUserOpHashes.includes(userOpHash)
         )
         const rejectedBySimulation = filterOpsResult.rejectedUserOps.map(
             ({ userOpHash, revertReason }) => {

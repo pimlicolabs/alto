@@ -221,7 +221,7 @@ export class Server {
 
         const apiVersion: ApiVersion = versionParsingResult.data
 
-        if (this.config.apiVersion.includes(apiVersion)) {
+        if (!this.config.apiVersion.includes(apiVersion)) {
             throw new RpcError(
                 `unsupported version ${apiVersion}`,
                 ERC7769Errors.InvalidFields
