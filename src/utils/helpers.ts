@@ -73,7 +73,7 @@ export function getAuthorizationStateOverrides({
     userOps: UserOperation[]
     stateOverrides?: StateOverrides
 }) {
-    const overrides: StateOverrides = { ...stateOverrides }
+    const overrides: StateOverrides = { ...(stateOverrides ?? {}) }
 
     for (const op of userOps) {
         if (op.eip7702Auth) {
