@@ -55,7 +55,7 @@ do
         exit 0
         ;;
     *)
-        echo "Error: Invalid option -${OPTARG}"
+        >&2 echo "Error: Invalid option -${OPTARG}"
         usage
         ;;
   esac
