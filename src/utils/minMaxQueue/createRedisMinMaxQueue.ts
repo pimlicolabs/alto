@@ -68,7 +68,7 @@ class SortedTtlSet {
     }
 
     async cleanup(): Promise<void> {
-        const cutoffTime = Date.now() / 1_000 - this.queueValidity * 5
+        const cutoffTime = Date.now() / 1000 - this.queueValidity * 5
         await this.redis.zremrangebyscore(
             this.redisKey,
             "-inf",
@@ -82,7 +82,7 @@ class SortedTtlSet {
                 return
             }
 
-            const now = Date.now() / 1_000
+            const now = Date.now() / 1000
             const valueStr = value.toString()
 
             // Add or update (if exists) with current timestamp
@@ -94,7 +94,7 @@ class SortedTtlSet {
     }
 
     private getValidCutoffTime(): number {
-        return Date.now() / 1_000 - this.queueValidity
+        return Date.now() / 1000 - this.queueValidity
     }
 
     async getMin(logger: Logger): Promise<bigint | null> {
@@ -134,7 +134,7 @@ class SortedTtlSet {
             }
 
             // Find maximum value among valid entries
-            const bigIntValues = validValues.map((v) => BigInt(v))
+            const bigIntValues = validValues.map(BigInt)
             return bigIntValues.reduce((max, val) => (val > max ? val : max))
         } catch (err) {
             logger.error({ err }, "Failed to get max value")

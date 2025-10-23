@@ -9,7 +9,7 @@ const updateQueues = (
     minDeque: QueueEntry[],
     maxDeque: QueueEntry[]
 ): { minDeque: QueueEntry[]; maxDeque: QueueEntry[]; timestamp: number } => {
-    const timestamp = Date.now() / 1_000 // Turn timestamp into seconds
+    const timestamp = Date.now() / 1000 // Turn timestamp into seconds
     const cutoffTime = timestamp - queueValidity
 
     // Remove expired entries

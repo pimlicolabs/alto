@@ -23,13 +23,13 @@ export function toViemStateOverrides(
             const entry: ViemStateOverride[number] = {
                 address: validatedAddress,
                 balance:
-                    override.balance !== undefined
-                        ? override.balance
-                        : undefined,
+                    override.balance === undefined
+                        ? undefined
+                        : override.balance,
                 nonce:
-                    override.nonce !== undefined
-                        ? Number(override.nonce)
-                        : undefined,
+                    override.nonce === undefined
+                        ? undefined
+                        : Number(override.nonce),
                 code: override.code
             }
 
@@ -53,7 +53,7 @@ export function toViemStateOverrides(
             }
 
             result.push(entry)
-        } catch (e) {
+        } catch {
             console.warn(`Invalid address in state override: ${address}`)
         }
     }

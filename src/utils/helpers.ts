@@ -73,12 +73,12 @@ export function getAuthorizationStateOverrides({
     userOps: UserOperation[]
     stateOverrides?: StateOverrides
 }) {
-    const overrides: StateOverrides = { ...(stateOverrides ?? {}) }
+    const overrides: StateOverrides = { ...stateOverrides }
 
     for (const op of userOps) {
         if (op.eip7702Auth) {
             overrides[op.sender] = {
-                ...(overrides[op.sender] || {}),
+                ...overrides[op.sender],
                 ...getAuthorizationStateOverride({
                     authorization: {
                         address: getEip7702AuthAddress(op.eip7702Auth),

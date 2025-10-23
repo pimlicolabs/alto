@@ -60,11 +60,11 @@ JSON.stringify = (
 }
 
 export class Server {
-    private config: AltoConfig
-    private fastify: FastifyInstance
-    private rpcEndpoint: RpcHandler
-    private registry: Registry
-    private metrics: Metrics
+    private readonly config: AltoConfig
+    private readonly fastify: FastifyInstance
+    private readonly rpcEndpoint: RpcHandler
+    private readonly registry: Registry
+    private readonly metrics: Metrics
 
     constructor({
         config,
@@ -179,7 +179,7 @@ export class Server {
     ): Promise<void> {
         try {
             request.body = JSON.parse(msgBuffer.toString())
-        } catch (err) {
+        } catch {
             socket.send(
                 JSON.stringify({
                     jsonrpc: "2.0",
@@ -221,7 +221,7 @@ export class Server {
 
         const apiVersion: ApiVersion = versionParsingResult.data
 
-        if (this.config.apiVersion.indexOf(apiVersion) === -1) {
+        if (this.config.apiVersion.includes(apiVersion)) {
             throw new RpcError(
                 `unsupported version ${apiVersion}`,
                 ERC7769Errors.InvalidFields
