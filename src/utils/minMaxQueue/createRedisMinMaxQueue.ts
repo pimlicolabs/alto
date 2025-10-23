@@ -59,7 +59,7 @@ class SortedTtlSet {
             this.cleanup().catch((err) => {
                 sentry.captureException(err)
             })
-        }, 60 * 1000)
+        }, 60 * 1_000)
 
         // Allow process to exit even if interval is active
         if (this.cleanupInterval.unref) {
@@ -68,7 +68,7 @@ class SortedTtlSet {
     }
 
     async cleanup(): Promise<void> {
-        const cutoffTime = Date.now() / 1000 - this.queueValidity * 5
+        const cutoffTime = Date.now() / 1_000 - this.queueValidity * 5
         await this.redis.zremrangebyscore(
             this.redisKey,
             "-inf",
@@ -82,7 +82,7 @@ class SortedTtlSet {
                 return
             }
 
-            const now = Date.now() / 1000
+            const now = Date.now() / 1_000
             const valueStr = value.toString()
 
             // Add or update (if exists) with current timestamp
@@ -94,7 +94,7 @@ class SortedTtlSet {
     }
 
     private getValidCutoffTime(): number {
-        return Date.now() / 1000 - this.queueValidity
+        return Date.now() / 1_000 - this.queueValidity
     }
 
     async getMin(logger: Logger): Promise<bigint | null> {

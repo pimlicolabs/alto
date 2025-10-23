@@ -178,7 +178,7 @@ export class RpcHandler {
             }
         }
 
-        if (userOp.verificationGasLimit < 10000n) {
+        if (userOp.verificationGasLimit < 10_000n) {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 

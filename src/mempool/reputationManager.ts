@@ -385,12 +385,12 @@ export class ReputationManager implements InterfaceReputationManager {
         if (!entry) {
             this.entries[entryPoint][address] = {
                 address,
-                opsSeen: 10000n,
+                opsSeen: 10_000n,
                 opsIncluded: 0n
             }
             return
         }
-        entry.opsSeen = 10000n
+        entry.opsSeen = 10_000n
         entry.opsIncluded = 0n
     }
 
@@ -779,7 +779,7 @@ export class ReputationManager implements InterfaceReputationManager {
         return (
             this.maxMempoolUserOpsPerNewUnstakedEntity +
             inclusionRate * this.inclusionRateFactor +
-            (entry.opsIncluded > 10000n ? 10000n : entry.opsIncluded)
+            (entry.opsIncluded > 10_000n ? 10_000n : entry.opsIncluded)
         )
     }
 }

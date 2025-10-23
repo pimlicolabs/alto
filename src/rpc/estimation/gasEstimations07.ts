@@ -93,7 +93,7 @@ export class GasEstimator07 {
         targetUserOp,
         stateOverride,
         retryCount = 0,
-        initialMinGas = 9000n,
+        initialMinGas = 9_000n,
         gasAllowance
     }: {
         entryPoint: Address
@@ -284,7 +284,7 @@ export class GasEstimator07 {
                         entryPoint,
                         packedQueuedOps,
                         packedTargetOp,
-                        9000n,
+                        9_000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
                     ],
