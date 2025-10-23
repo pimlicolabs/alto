@@ -395,37 +395,37 @@ export class ReputationManager implements InterfaceReputationManager {
     }
 
     crashedHandleOps(
-        op: UserOperation,
+        userOp: UserOperation,
         entryPoint: Address,
         reason: string
     ): void {
-        const isUserOpV06 = isVersion06(op)
+        const isUserOpV06 = isVersion06(userOp)
 
         if (reason.startsWith("AA3")) {
             // paymaster
             const paymaster = isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(op.paymasterAndData)
-                : (op.paymaster as Address | undefined)
+                ? getAddressFromInitCodeOrPaymasterAndData(
+                      userOp.paymasterAndData
+                  )
+                : userOp.paymaster
             if (paymaster) {
                 this.updateCrashedHandleOps(entryPoint, paymaster)
             }
         } else if (reason.startsWith("AA2")) {
-            const factory = isUserOpV06
-                ? undefined
-                : (op.factory as Address | undefined)
+            const factory = isUserOpV06 ? undefined : userOp.factory
 
             if (factory) {
                 this.updateCrashedHandleOps(entryPoint, factory)
             } else {
                 // sender
-                const sender = op.sender
+                const sender = userOp.sender
                 this.updateCrashedHandleOps(entryPoint, sender)
             }
         } else if (reason.startsWith("AA1")) {
             // init code
             const factory = isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(op.initCode)
-                : (op.factory as Address | undefined)
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
             if (factory) {
                 this.updateCrashedHandleOps(entryPoint, factory)
             }
@@ -456,17 +456,15 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
         if (paymaster) {
             this.updateIncludedStatus(entryPoint, paymaster)
         }
 
         if (accountDeployed) {
-            const factory = (
-                isUserOpV06
-                    ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                    : userOp.factory
-            ) as Address | undefined
+            const factory = isUserOpV06
+                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+                : userOp.factory
             if (factory) {
                 this.updateIncludedStatus(entryPoint, factory)
             }
@@ -489,16 +487,14 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
         if (paymaster) {
             this.increaseSeen(entryPoint, paymaster)
         }
 
-        const factory = (
-            isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                : userOp.factory
-        ) as Address | undefined
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
 
         this.logger.debug({ userOp, factory }, "increaseUserOpSeenStatus")
 
@@ -523,16 +519,14 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
         if (paymaster) {
             this.decreaseSeen(entryPoint, paymaster)
         }
 
-        const factory = (
-            isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                : userOp.factory
-        ) as Address | undefined
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
 
         this.logger.debug({ userOp, factory }, "increaseUserOpSeenStatus")
 
@@ -558,7 +552,7 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
 
         // can decrease if senderStakeInfo.isStaked is true
         // or when error does not include aa3
@@ -570,11 +564,9 @@ export class ReputationManager implements InterfaceReputationManager {
             this.decreaseSeen(entryPoint, paymaster)
         }
 
-        const factory = (
-            isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                : userOp.factory
-        ) as Address | undefined
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
 
         this.logger.debug({ userOp, factory }, "decreaseUserOpSeenStatus")
 
@@ -590,17 +582,15 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) + 1n
         }
 
-        const factory = (
-            isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                : userOp.factory
-        ) as Address | undefined
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) + 1n
         }
@@ -616,7 +606,7 @@ export class ReputationManager implements InterfaceReputationManager {
 
         const paymaster = isUserOpV06
             ? getAddressFromInitCodeOrPaymasterAndData(userOp.paymasterAndData)
-            : (userOp.paymaster as Address | undefined)
+            : userOp.paymaster
         if (paymaster) {
             this.entityCount[paymaster] =
                 (this.entityCount[paymaster] ?? 0n) - 1n
@@ -627,11 +617,9 @@ export class ReputationManager implements InterfaceReputationManager {
                     : this.entityCount[paymaster]
         }
 
-        const factory = (
-            isUserOpV06
-                ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
-                : userOp.factory
-        ) as Address | undefined
+        const factory = isUserOpV06
+            ? getAddressFromInitCodeOrPaymasterAndData(userOp.initCode)
+            : userOp.factory
         if (factory) {
             this.entityCount[factory] = (this.entityCount[factory] ?? 0n) - 1n
 

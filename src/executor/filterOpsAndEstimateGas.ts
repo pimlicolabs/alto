@@ -386,7 +386,7 @@ export async function filterOpsAndEstimateGas({
             executorAddress: beneficiary
         })
 
-        let bundleGasUsed = 0n
+        let bundleGasUsed: bigint
         if (config.chainType === "monad") {
             // Monad uses the entire tx.gasLimit.
             bundleGasUsed = bundleGasLimit
