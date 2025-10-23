@@ -118,11 +118,7 @@ export class GasEstimator07 {
                 { methodName, retryCount },
                 "Max retries reached in binary search"
             )
-            return {
-                result: "failed",
-                data: `Max retries reached when calling ${methodName}`,
-                code: ERC7769Errors.SimulateValidation
-            }
+            throw new Error(`Max retries reached when calling ${methodName}`)
         }
 
         const packedQueuedOps = packUserOps(queuedUserOps)
