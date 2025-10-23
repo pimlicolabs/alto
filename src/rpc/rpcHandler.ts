@@ -20,8 +20,13 @@ import {
     RpcError,
     type UserOperation
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
+import {
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07,
+    type Logger,
+    type Metrics
+} from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"

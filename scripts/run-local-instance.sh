@@ -7,7 +7,7 @@ tmux=
 forkMode=
 localMode=
 
-projectRoot=`pwd | sed 's%\(.*/alto\)/.*%\1%'`
+projectRoot=$(pwd | sed 's%\(.*/alto\)/.*%\1%')
 
 # helper functions.
 usage(){
