@@ -93,7 +93,7 @@ export class GasEstimator07 {
         targetUserOp,
         stateOverride,
         retryCount = 0,
-        initialMinGas = 9_000n,
+        initialMinGas = 9000n,
         gasAllowance
     }: {
         entryPoint: Address
@@ -284,7 +284,7 @@ export class GasEstimator07 {
                         entryPoint,
                         packedQueuedOps,
                         packedTargetOp,
-                        9_000n,
+                        9000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
                     ],
@@ -452,7 +452,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        stateOverrides?: StateOverrides | undefined
+        stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
@@ -509,7 +509,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        userStateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,
