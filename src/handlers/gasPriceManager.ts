@@ -84,12 +84,11 @@ export class GasPriceManager {
     }
 
     private getDefaultGasFee(chainId: number): bigint {
-        switch (chainId) {
-            case polygon.id:
-                return parseGwei("31")
-            default:
-                return 0n
+        if (chainId === polygon.id) {
+            return parseGwei("31")
         }
+
+        return 0n
     }
 
     private async getPolygonGasPriceParameters(): Promise<GasPriceParameters | null> {

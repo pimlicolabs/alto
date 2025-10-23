@@ -9,8 +9,6 @@ export const debugBundlerDumpReputationHandler = createMethodHandler({
         rpcHandler.ensureDebugEndpointsAreEnabled("debug_bundler_setReputation")
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        return Promise.resolve(
-            rpcHandler.reputationManager.dumpReputations(entryPoint)
-        )
+        return rpcHandler.reputationManager.dumpReputations(entryPoint)
     }
 })

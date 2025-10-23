@@ -352,6 +352,7 @@ export const setupServer = async ({
     }
 
     server.start()
+    executorManager.start()
 
     const gracefulShutdown = async (signal: string) => {
         rootLogger.info(`${signal} received, shutting down`)

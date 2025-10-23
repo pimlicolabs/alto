@@ -63,7 +63,9 @@ export class ExecutorManager {
         this.senderManager = senderManager
         this.bundlingMode = this.config.bundleMode
         this.bundleManager = bundleManager
+    }
 
+    start(): void {
         if (this.bundlingMode === "auto") {
             this.autoScalingBundling()
         }

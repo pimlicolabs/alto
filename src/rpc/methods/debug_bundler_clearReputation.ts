@@ -10,6 +10,6 @@ export const debugClearReputationHandler = createMethodHandler({
         )
         rpcHandler.reputationManager.clear()
 
-        return Promise.resolve("ok" as const)
+        return "ok" as const
     }
 })

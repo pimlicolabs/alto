@@ -203,7 +203,7 @@ export function decodeSimulateHandleOpError(
 
             errorName = decoded.errorName
             args = decoded.args || []
-        } catch (decodeError) {
+        } catch {
             logger.warn({ rawRevertBytes }, "Failed to decode raw revert bytes")
             throw new Error(
                 "Unknown error, could not parse simulate validation result."

@@ -210,7 +210,7 @@ export class Mempool {
         op: UserOperation
     ) {
         if (!this.config.safeMode) {
-            return Promise.resolve()
+            return
         }
 
         const knownEntities = await this.getKnownEntities(entryPoint)
@@ -253,7 +253,6 @@ export class Mempool {
                 ERC7769Errors.OpcodeValidation
             )
         }
-        return Promise.resolve()
     }
 
     async getKnownEntities(entryPoint: Address): Promise<{

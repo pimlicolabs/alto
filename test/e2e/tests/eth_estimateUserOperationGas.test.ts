@@ -67,11 +67,6 @@ describe.each([
             transport: http(anvilRpc)
         })
 
-        const publicClient = createPublicClient({
-            transport: http(anvilRpc),
-            chain: foundry
-        })
-
         beforeEach(async () => {
             revertingContract = await deployRevertingContract({
                 anvilRpc

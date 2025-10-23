@@ -57,9 +57,9 @@ export const createMemoryMinMaxQueue = ({
     let latestValue: bigint | null = null
 
     return {
-        saveValue: (value: bigint) => {
+        saveValue: async (value: bigint) => {
             if (value === 0n) {
-                return Promise.resolve()
+                return
             }
 
             const result = updateQueues(
@@ -71,20 +71,15 @@ export const createMemoryMinMaxQueue = ({
             minDeque = result.minDeque
             maxDeque = result.maxDeque
             latestValue = value
-            return Promise.resolve()
         },
-        getLatestValue: () => {
-            return Promise.resolve(latestValue)
+        getLatestValue: async () => {
+            return latestValue
         },
-        getMinValue: () => {
-            return Promise.resolve(
-                minDeque.length > 0 ? minDeque[0].value : null
-            )
+        getMinValue: async () => {
+            return minDeque.length > 0 ? minDeque[0].value : null
         },
-        getMaxValue: () => {
-            return Promise.resolve(
-                maxDeque.length > 0 ? maxDeque[0].value : null
-            )
+        getMaxValue: async () => {
+            return maxDeque.length > 0 ? maxDeque[0].value : null
         }
     }
 }

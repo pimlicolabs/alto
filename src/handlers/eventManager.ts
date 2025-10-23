@@ -57,7 +57,6 @@ export class EventManager {
                     removeOnFail: true
                 }
             })
-            return
         }
     }
 

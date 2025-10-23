@@ -261,8 +261,8 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // These methods aren't implemented
-    dumpLocal() {
-        return Promise.resolve([]) // We can't dump from redis as the latency is too high
+    async dumpLocal(): Promise<UserOpInfo[]> {
+        return [] // We can't dump from redis as the latency is too high
     }
 
     clear(): Promise<void> {

@@ -423,7 +423,7 @@ export function parseUserOpReceipt(
                 // Update startIndex to this UserOpEvent for the next UserOp's logs
                 startIndex = index
             }
-        } catch (e) {}
+        } catch {}
     }
 
     if (userOpEventIndex === -1 || startIndex === -1 || !userOpEventArgs) {

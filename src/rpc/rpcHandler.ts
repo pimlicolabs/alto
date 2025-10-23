@@ -20,8 +20,13 @@ import {
     RpcError,
     type UserOperation
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
+import {
+    type Logger,
+    type Metrics,
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07
+} from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
@@ -173,7 +178,7 @@ export class RpcHandler {
             }
         }
 
-        if (userOp.verificationGasLimit < 10000n) {
+        if (userOp.verificationGasLimit < 10_000n) {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
@@ -237,12 +242,12 @@ export class RpcHandler {
                           yParity: userOp.eip7702Auth.yParity
                       }
                   })
-                : Promise.resolve(userOp.sender),
+                : userOp.sender,
             this.config.publicClient.getTransactionCount({
                 address: userOp.sender
             }),
             this.eip7702CodeCache.has(delegationDesignator)
-                ? Promise.resolve("has-code")
+                ? "has-code"
                 : this.config.publicClient.getCode({
                       address: delegationDesignator
                   })

@@ -7,7 +7,7 @@ tmux=
 forkMode=
 localMode=
 
-projectRoot=`pwd | sed 's%\(.*/alto\)/.*%\1%'`
+projectRoot=$(pwd | sed 's%\(.*/alto\)/.*%\1%')
 
 # helper functions.
 usage(){
@@ -53,6 +53,10 @@ do
     h)
         usage
         exit 0
+        ;;
+    *)
+        >&2 echo "Error: Invalid option -${OPTARG}"
+        usage
         ;;
   esac
 done

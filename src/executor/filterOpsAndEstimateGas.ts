@@ -51,24 +51,22 @@ const getChainSpecificOverhead = async ({
 }: { config: AltoConfig; entryPoint: Address; userOps: UserOperation[] }) => {
     const { publicClient, chainType } = config
 
-    switch (chainType) {
-        case "arbitrum": {
-            const { gasForL1 } = await getArbitrumL1GasEstimate({
-                publicClient,
-                userOps,
-                entryPoint
-            })
+    if (chainType === "arbitrum") {
+        const { gasForL1 } = await getArbitrumL1GasEstimate({
+            publicClient,
+            userOps,
+            entryPoint
+        })
 
-            return {
-                gasUsed: gasForL1,
-                // scaling by 10% as recommended by docs.
-                // https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
-                gasLimit: scaleBigIntByPercent(gasForL1, 110n)
-            }
+        return {
+            gasUsed: gasForL1,
+            // scaling by 10% as recommended by docs.
+            // https://github.com/OffchainLabs/nitro-contracts/blob/bdb8f8c68b2229fe9309fe9c03b37017abd1a2cd/src/node-interface/NodeInterface.sol#L105
+            gasLimit: scaleBigIntByPercent(gasForL1, 110n)
         }
-        default:
-            return { gasUsed: 0n, gasLimit: 0n }
     }
+
+    return { gasUsed: 0n, gasLimit: 0n }
 }
 
 const getFilterOpsResult = async ({
@@ -160,8 +158,8 @@ const getFilterOpsResult = async ({
     }
 
     const stateOverride = [
-        ...(eip7702Override ? eip7702Override : []),
-        ...(simulationOverrides ? simulationOverrides : [])
+        ...(eip7702Override ?? []),
+        ...(simulationOverrides ?? [])
     ]
 
     const callResult = await publicClient.call({
@@ -240,13 +238,13 @@ const validateEip7702AuthNonces = async ({
         const expectedNonce = onchainNonces[i]
         const authNonce = userOpInfo.userOp.eip7702Auth.nonce
 
-        if (authNonce !== expectedNonce) {
+        if (authNonce === expectedNonce) {
+            validEip7702UserOps.push(userOpInfo)
+        } else {
             rejectedUserOps.push({
                 ...userOpInfo,
                 reason: `EIP-7702 auth nonce mismatch: expected ${expectedNonce}, got ${authNonce}`
             })
-        } else {
-            validEip7702UserOps.push(userOpInfo)
         }
     }
 
@@ -341,7 +339,7 @@ export async function filterOpsAndEstimateGas({
                 }
 
                 // Try to decode the revert reason
-                let decodedReason: string = revertReason
+                let decodedReason: string
                 try {
                     const errorResult = decodeErrorResult({
                         abi: entryPoint07Abi,
@@ -356,7 +354,7 @@ export async function filterOpsAndEstimateGas({
                     })
 
                     decodedReason = formattedError || revertReason
-                } catch (e) {
+                } catch {
                     // If decoding fails, keep the raw hex
                     decodedReason = revertReason
                 }
@@ -388,7 +386,7 @@ export async function filterOpsAndEstimateGas({
             executorAddress: beneficiary
         })
 
-        let bundleGasUsed = 0n
+        let bundleGasUsed: bigint
         if (config.chainType === "monad") {
             // Monad uses the entire tx.gasLimit.
             bundleGasUsed = bundleGasLimit

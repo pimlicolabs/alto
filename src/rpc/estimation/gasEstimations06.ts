@@ -39,7 +39,7 @@ export class GasEstimator06 {
         targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
-        userStateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const {
             publicClient,

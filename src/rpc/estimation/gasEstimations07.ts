@@ -7,8 +7,7 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
-import type { Hex } from "viem"
-import { type Address, type StateOverride, getContract } from "viem"
+import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {
@@ -435,7 +434,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        stateOverrides?: StateOverrides | undefined
+        stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
@@ -487,7 +486,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        userStateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,

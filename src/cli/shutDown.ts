@@ -145,10 +145,10 @@ export async function persistShutdownState({
         )
 
         // Collect all state
-        const [pendingBundles, userOpStatus] = await Promise.all([
+        const [pendingBundles, userOpStatus] = [
             bundleManager.getPendingBundles(),
             statusManager.dumpAll()
-        ])
+        ]
 
         const entrypointData = await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
