@@ -41,6 +41,8 @@ const validatePvg = async ({
     }
 
     let requiredPvg: bigint
+    const isBoosted =
+        userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
 
     if (config.chainType === "monad") {
         // Monad consumes the entire gasLimit, so PVG is calculated differently
@@ -66,7 +68,7 @@ const validatePvg = async ({
         requiredPvg = executionGasComponent + l2GasComponent
     }
 
-    if (requiredPvg > userOp.preVerificationGas) {
+    if (!isBoosted && requiredPvg > userOp.preVerificationGas) {
         return [
             false,
             `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
