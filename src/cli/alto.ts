@@ -134,14 +134,12 @@ alto.fail((msg, err) => {
     }
 
     let errorMessage: string | undefined
-    if (err !== undefined) {
-        if (err instanceof YargsError) {
-            errorMessage = err.message
-        } else {
-            errorMessage = err.stack
-        }
-    } else {
+    if (err === undefined) {
         errorMessage = msg || "Unknown error"
+    } else if (err instanceof YargsError) {
+        errorMessage = err.message
+    } else {
+        errorMessage = err.stack
     }
 
     // eslint-disable-next-line no-console

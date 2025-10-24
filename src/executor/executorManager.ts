@@ -667,7 +667,5 @@ export class ExecutorManager {
         this.metrics.replacedTransactions
             .labels({ reason, status: "success" })
             .inc()
-
-        return
     }
 }

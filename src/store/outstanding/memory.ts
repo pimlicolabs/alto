@@ -18,10 +18,12 @@ export class MemoryOutstanding implements OutstandingStore {
     private readonly pendingOps: Map<string, UserOpInfo[]> = new Map()
     private readonly hashLookup: Map<HexData32, UserOpInfo> = new Map()
     private readonly logger: Logger
+    private readonly config: AltoConfig
     private priorityQueue: UserOpInfo[] = []
 
-    constructor(private config: AltoConfig) {
+    constructor(config: AltoConfig) {
         // Setup args for getting userOpHash
+        this.config = config
         this.logger = config.getLogger(
             { module: "memory-outstanding-queue" },
             {
