@@ -35,6 +35,11 @@ export class ArbitrumManager {
         return maxL1BaseFee || maxUint128
     }
 
+    public async getMinL2BaseFee() {
+        const minL2BaseFee = await this.l2BaseFeeQueue.getMinValue()
+        return minL2BaseFee || 1n
+    }
+
     public async getMaxL2BaseFee() {
         const maxL2BaseFee = await this.l2BaseFeeQueue.getMaxValue()
         return maxL2BaseFee || maxUint128

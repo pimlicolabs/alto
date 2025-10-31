@@ -683,13 +683,15 @@ async function calcArbitrumPvg(
     arbitrumManager.saveL2BaseFee(l2BaseFee)
 
     if (validate) {
-        const [maxL1Fee, minL1Fee, maxL2Fee] = await Promise.all([
-            l1BaseFeeEstimate || arbitrumManager.getMaxL1BaseFee(),
-            arbitrumManager.getMinL1BaseFee(),
-            arbitrumManager.getMaxL2BaseFee()
-        ])
+        const [maxL1Fee, minL1Fee, maxL2BaseFee, minL2BaseFee] =
+            await Promise.all([
+                l1BaseFeeEstimate || arbitrumManager.getMaxL1BaseFee(),
+                arbitrumManager.getMinL1BaseFee(),
+                arbitrumManager.getMaxL2BaseFee(),
+                arbitrumManager.getMinL2BaseFee()
+            ])
 
-        return (gasForL1 * l2BaseFee * minL1Fee) / (maxL1Fee * maxL2Fee)
+        return (gasForL1 * minL2BaseFee * minL1Fee) / (maxL1Fee * maxL2BaseFee)
     }
 
     return gasForL1
