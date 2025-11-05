@@ -548,7 +548,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
         },
         "override-max-priority-fee-per-gas": {
             description:
-                "Override the chain's maxPriorityFeePerGas estimation with a static value (in wei)",
+                "Override the chain's maxPriorityFeePerGas estimation with a static value (in gwei)",
             type: "string",
             require: false
         },
