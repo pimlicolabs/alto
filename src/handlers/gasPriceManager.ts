@@ -137,6 +137,20 @@ export class GasPriceManager {
             )
         }
 
+        // Apply ceiling values if configured
+        if (this.config.ceilingMaxPriorityFeePerGas) {
+            maxPriorityFeePerGas = minBigInt(
+                maxPriorityFeePerGas,
+                this.config.ceilingMaxPriorityFeePerGas
+            )
+        }
+        if (this.config.ceilingMaxFeePerGas) {
+            maxFeePerGas = minBigInt(
+                maxFeePerGas,
+                this.config.ceilingMaxFeePerGas
+            )
+        }
+
         return {
             // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
             maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
@@ -201,14 +215,7 @@ export class GasPriceManager {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
-        const { publicClient, overrideMaxPriorityFeePerGas } = this.config
-
-        // Override maxPriorityFeePerGas if configured
-        if (overrideMaxPriorityFeePerGas) {
-            publicClient.chain.fees = {
-                maxPriorityFeePerGas: overrideMaxPriorityFeePerGas
-            }
-        }
+        const publicClient = this.config.publicClient
 
         try {
             const fees = await publicClient.estimateFeesPerGas()
