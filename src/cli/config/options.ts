@@ -546,6 +546,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false
         },
+        "override-max-priority-fee-per-gas": {
+            description:
+                "Override the chain's maxPriorityFeePerGas estimation with a static value (in wei)",
+            type: "string",
+            require: false
+        },
         "supports-eip7623": {
             description:
                 "Whether the chain supports EIP-7623 (Increase calldata cost to reduce maximum block size)",

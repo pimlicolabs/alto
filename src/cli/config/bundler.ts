@@ -167,6 +167,10 @@ export const compatibilityArgsSchema = z.object({
         .string()
         .transform((val) => parseGwei(val))
         .optional(),
+    "override-max-priority-fee-per-gas": z
+        .string()
+        .transform(BigInt)
+        .optional(),
     "supports-eip7623": z.boolean().default(false),
     "arbitrum-gas-bid-multiplier": z.string().transform(BigInt).default("5"),
     "monad-reserve-balance": z
