@@ -89,7 +89,6 @@ export const executorArgsSchema = z.object({
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "refilling-wallets": z.boolean().default(true),
     "refill-helper-contract": addressSchema.optional(),
-    "no-profit-bundling": z.boolean(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
@@ -164,6 +163,14 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "floor-max-priority-fee-per-gas": z
+        .string()
+        .transform((val) => parseGwei(val))
+        .optional(),
+    "ceiling-max-fee-per-gas": z
+        .string()
+        .transform((val) => parseGwei(val))
+        .optional(),
+    "ceiling-max-priority-fee-per-gas": z
         .string()
         .transform((val) => parseGwei(val))
         .optional(),

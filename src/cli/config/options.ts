@@ -385,12 +385,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "100"
     },
-    "no-profit-bundling": {
-        description:
-            "Bundle tx such that all beneficiary fees are spent on gas fees",
-        type: "boolean",
-        default: false
-    },
     "refill-helper-contract": {
         description: "Address of the Executor refill helper contract",
         type: "string",
@@ -543,6 +537,17 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
         "floor-max-priority-fee-per-gas": {
             description:
                 "Minimum value for maxPriorityFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
+        },
+        "ceiling-max-fee-per-gas": {
+            description: "Maximum value for maxFeePerGas to enforce (in gwei)",
+            type: "string",
+            require: false
+        },
+        "ceiling-max-priority-fee-per-gas": {
+            description:
+                "Maximum value for maxPriorityFeePerGas to enforce (in gwei)",
             type: "string",
             require: false
         },
