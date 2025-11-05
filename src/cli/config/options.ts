@@ -385,12 +385,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "100"
     },
-    "no-profit-bundling": {
-        description:
-            "Bundle tx such that all beneficiary fees are spent on gas fees",
-        type: "boolean",
-        default: false
-    },
     "refill-helper-contract": {
         description: "Address of the Executor refill helper contract",
         type: "string",
