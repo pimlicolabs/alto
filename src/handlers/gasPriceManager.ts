@@ -10,7 +10,7 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient } from "viem"
+import type { PublicClient } from "viem"
 import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
