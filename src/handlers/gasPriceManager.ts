@@ -203,7 +203,7 @@ export class GasPriceManager {
 
         const { publicClient, overrideMaxPriorityFeePerGas } = this.config
 
-        // Overirde maxPriorityFeePerGas if configured
+        // Override maxPriorityFeePerGas if configured
         if (overrideMaxPriorityFeePerGas) {
             publicClient.chain.fees = {
                 maxPriorityFeePerGas: overrideMaxPriorityFeePerGas
