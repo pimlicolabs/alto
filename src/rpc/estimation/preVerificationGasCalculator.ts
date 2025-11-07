@@ -694,7 +694,7 @@ async function calcArbitrumPvg(
         const pvg =
             (gasForL1 * minL2BaseFee * minL1Fee) / (maxL1Fee * maxL2BaseFee)
 
-        // Accept 5% tolerance during validation to account for the variance in random data during getArbitrumL1GasEstimate.
+        // Accept 5% tolerance during validation to account for changes in L1State during getArbitrumL1GasEstimate.
         return scaleBigIntByPercent(pvg, 95n)
     }
 
