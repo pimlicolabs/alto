@@ -10,7 +10,7 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
-import type { PublicClient } from "viem"
+import type { Chain, PublicClient } from "viem"
 import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
@@ -137,20 +137,6 @@ export class GasPriceManager {
             )
         }
 
-        // Apply ceiling values if configured
-        if (this.config.ceilingMaxPriorityFeePerGas) {
-            maxPriorityFeePerGas = minBigInt(
-                maxPriorityFeePerGas,
-                this.config.ceilingMaxPriorityFeePerGas
-            )
-        }
-        if (this.config.ceilingMaxFeePerGas) {
-            maxFeePerGas = minBigInt(
-                maxFeePerGas,
-                this.config.ceilingMaxFeePerGas
-            )
-        }
-
         return {
             // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
             maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
@@ -215,10 +201,26 @@ export class GasPriceManager {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
-        const publicClient = this.config.publicClient
+        const { publicClient, maxPriorityFeePerGasOverrride } = this.config
 
         try {
-            const fees = await publicClient.estimateFeesPerGas()
+            let chain: Chain | undefined = undefined
+
+            // If maxPriorityFeePerGasOverride is set, set it's override and use it when calculating gasPrices.
+            if (maxPriorityFeePerGasOverrride) {
+                chain = {
+                    ...publicClient.chain,
+                    fees: {
+                        ...publicClient.chain.fees,
+                        maxPriorityFeePerGas: maxPriorityFeePerGasOverrride
+                    }
+                }
+            }
+
+            const fees = await publicClient.estimateFeesPerGas({
+                chain
+            })
+
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
         } catch (e) {
