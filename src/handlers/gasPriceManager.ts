@@ -204,7 +204,7 @@ export class GasPriceManager {
         const { publicClient, maxPriorityFeePerGasOverrride } = this.config
 
         try {
-            let chain: Chain | undefined = undefined
+            let chain: Chain | undefined
 
             // If maxPriorityFeePerGasOverride is set, set it's override and use it when calculating gasPrices.
             if (maxPriorityFeePerGasOverrride) {
