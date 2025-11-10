@@ -13,7 +13,7 @@ For a full explanation of Alto, please visit our [docs page](https://docs.pimlic
 #### Run an instance of Alto with the following commands:
 ```bash
 pnpm install
-pnpm build
+pnpm build:all
 ./alto --entrypoints "0x5ff1...2789,0x0000...a032" --executor-private-keys "..." --utility-private-key "..." --min-balance "0" --rpc-url "http://localhost:8545" --network-name "local"
 ```
 To find a list of all options, run:
