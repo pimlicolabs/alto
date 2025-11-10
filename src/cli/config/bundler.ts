@@ -166,7 +166,7 @@ export const compatibilityArgsSchema = z.object({
         .string()
         .transform((val) => parseGwei(val))
         .optional(),
-    "max-priority-fee-per-gas-overrride": z
+    "static-max-priority-fee-per-gas": z
         .string()
         .transform((val) => parseGwei(val))
         .optional(),

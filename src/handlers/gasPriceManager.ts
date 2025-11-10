@@ -201,18 +201,18 @@ export class GasPriceManager {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
-        const { publicClient, maxPriorityFeePerGasOverrride } = this.config
+        const { publicClient, staticMaxPriorityFeePerGas } = this.config
 
         try {
             let chain: Chain | undefined
 
-            // If maxPriorityFeePerGasOverride is set, set it's override and use it when calculating gasPrices.
-            if (maxPriorityFeePerGasOverrride) {
+            // If staticMaxPriorityFeePerGas is set, use it as a static value instead of RPC estimation.
+            if (staticMaxPriorityFeePerGas) {
                 chain = {
                     ...publicClient.chain,
                     fees: {
                         ...publicClient.chain.fees,
-                        maxPriorityFeePerGas: maxPriorityFeePerGasOverrride
+                        maxPriorityFeePerGas: staticMaxPriorityFeePerGas
                     }
                 }
             }
