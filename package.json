@@ -13,6 +13,7 @@
         "clean": "rimraf ./src/esm ./src/*.tsbuildinfo",
         "clean-modules": "rimraf ./src/node_modules node_modules",
         "build": "pnpm run clean && pnpm run -r build",
+        "build:all": "pnpm run build:contracts && pnpm run build",
         "build:contracts:PimlicoSimulations": "forge build --quiet --root contracts --evm-version london --out ../src/contracts/ src/PimlicoSimulations.sol ",
         "build:contracts:EPFilterOpsOverride06": "forge build --quiet --root contracts --evm-version london --optimize --optimizer-runs 1000000 --via-ir --use solc:0.8.17 --out ../src/contracts/ src/v06/EntryPointFilterOpsOverride.sol",
         "build:contracts:EPFilterOpsOverride07": "forge build --quiet --root contracts --evm-version paris --optimize --optimizer-runs 1000000 --via-ir --use solc:0.8.23 --out ../src/contracts/ src/v07/EntryPointFilterOpsOverride.sol",
