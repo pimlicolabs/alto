@@ -175,26 +175,21 @@ export const encodeHandleOpsCalldata = ({
 export const getAuthorizationList = (
     userOpInfos: UserOpInfo[]
 ): SignedAuthorizationList | undefined => {
-    const authMap = new Map<string, SignedAuthorizationList[number]>()
+    const authMap = new Map<Address, SignedAuthorizationList[number]>()
 
     // Deduplicate EIP-7702 auths if userOp.sender has multiple same eip7702Auth fields.
     for (const { userOp } of userOpInfos) {
-        const { eip7702Auth } = userOp
-        if (eip7702Auth) {
-            const address = getEip7702AuthAddress(eip7702Auth)
-            const key = `${address}-${eip7702Auth.chainId}-${eip7702Auth.nonce}-${eip7702Auth.r}-${eip7702Auth.s}-${eip7702Auth.v}-${eip7702Auth.yParity}`
-
-            if (!authMap.has(key)) {
-                authMap.set(key, {
-                    address,
-                    chainId: eip7702Auth.chainId,
-                    nonce: eip7702Auth.nonce,
-                    r: eip7702Auth.r,
-                    s: eip7702Auth.s,
-                    v: eip7702Auth.v,
-                    yParity: eip7702Auth.yParity
-                })
-            }
+        const { eip7702Auth, sender } = userOp
+        if (eip7702Auth && !authMap.has(sender)) {
+            authMap.set(sender, {
+                address: getEip7702AuthAddress(eip7702Auth),
+                chainId: eip7702Auth.chainId,
+                nonce: eip7702Auth.nonce,
+                r: eip7702Auth.r,
+                s: eip7702Auth.s,
+                v: eip7702Auth.v,
+                yParity: eip7702Auth.yParity
+            })
         }
     }
 
