@@ -6,9 +6,7 @@ import {
     ArbitrumL1FeeAbi,
     MantleBvmGasPriceOracleAbi,
     OpL1FeeAbi,
-    type UserOperation,
-    type UserOperation06,
-    type UserOperation07
+    type UserOperation
 } from "@alto/types"
 import {
     isVersion06,
@@ -42,9 +40,9 @@ import type { AltoConfig } from "../../createConfig"
 
 // Encodes a user operation into bytes for gas calculation
 function encodeUserOp(userOp: UserOperation): Uint8Array {
-    const p = fillUserOpWithDummyData(userOp)
+    const filledUserOp = fillUserOpWithDummyData(userOp)
 
-    if (isVersion06(userOp)) {
+    if (isVersion06(filledUserOp)) {
         return toBytes(
             encodeAbiParameters(
                 [
@@ -66,12 +64,13 @@ function encodeUserOp(userOp: UserOperation): Uint8Array {
                         type: "tuple"
                     }
                 ],
-                [p as UserOperation06]
+                [filledUserOp]
             )
         )
     }
+
     // For v0.7, we need to pack the user operation
-    const packedOp = toPackedUserOp(p as UserOperation07)
+    const packedUserOp = toPackedUserOp(filledUserOp)
     return toBytes(
         encodeAbiParameters(
             [
@@ -91,7 +90,7 @@ function encodeUserOp(userOp: UserOperation): Uint8Array {
                     type: "tuple"
                 }
             ],
-            [packedOp]
+            [packedUserOp]
         )
     )
 }
@@ -684,13 +683,19 @@ async function calcArbitrumPvg(
     arbitrumManager.saveL2BaseFee(l2BaseFee)
 
     if (validate) {
-        const [maxL1Fee, minL1Fee, maxL2Fee] = await Promise.all([
-            l1BaseFeeEstimate || arbitrumManager.getMaxL1BaseFee(),
-            arbitrumManager.getMinL1BaseFee(),
-            arbitrumManager.getMaxL2BaseFee()
-        ])
+        const [maxL1Fee, minL1Fee, maxL2BaseFee, minL2BaseFee] =
+            await Promise.all([
+                l1BaseFeeEstimate || arbitrumManager.getMaxL1BaseFee(),
+                arbitrumManager.getMinL1BaseFee(),
+                arbitrumManager.getMaxL2BaseFee(),
+                arbitrumManager.getMinL2BaseFee()
+            ])
 
-        return (gasForL1 * l2BaseFee * minL1Fee) / (maxL1Fee * maxL2Fee)
+        const pvg =
+            (gasForL1 * minL2BaseFee * minL1Fee) / (maxL1Fee * maxL2BaseFee)
+
+        // Accept 5% tolerance during validation to account for changes in L1State during getArbitrumL1GasEstimate.
+        return scaleBigIntByPercent(pvg, 95n)
     }
 
     return gasForL1

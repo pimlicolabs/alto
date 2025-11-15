@@ -5,9 +5,9 @@ import type { ProcessingStore } from "./types"
 
 export class InMemoryProcessingStore implements ProcessingStore {
     // Use Sets for boolean membership tracking (matching Redis store)
-    private processingUserOpsSet = new Set<Hex>()
-    private processingSenderNonceSet = new Set<string>()
-    private processingDeploymentSet = new Set<Address>()
+    private readonly processingUserOpsSet = new Set<Hex>()
+    private readonly processingSenderNonceSet = new Set<string>()
+    private readonly processingDeploymentSet = new Set<Address>()
 
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`

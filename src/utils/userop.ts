@@ -284,6 +284,40 @@ export const getNonceKeyAndSequence = (nonce: bigint) => {
     return [nonceKey, nonceSequence]
 }
 
+// Check if a userOperation has a paymaster
+export function hasPaymaster(userOp: UserOperation): boolean {
+    if (isVersion06(userOp)) {
+        return !!userOp.paymasterAndData && userOp.paymasterAndData !== "0x"
+    }
+    return !!userOp.paymaster && userOp.paymaster !== "0x"
+}
+
+export function calculateRequiredPrefund(userOp: UserOperation): bigint {
+    if (isVersion06(userOp)) {
+        const mul = hasPaymaster(userOp) ? 3n : 1n
+        const requiredGas =
+            userOp.callGasLimit +
+            userOp.verificationGasLimit * mul +
+            userOp.preVerificationGas
+
+        return requiredGas * userOp.maxFeePerGas
+    }
+
+    // v0.7/v0.8 logic: sum all gas limits directly
+    const paymasterVerificationGasLimit =
+        userOp.paymasterVerificationGasLimit ?? 0n
+    const paymasterPostOpGasLimit = userOp.paymasterPostOpGasLimit ?? 0n
+
+    const requiredGas =
+        userOp.verificationGasLimit +
+        userOp.callGasLimit +
+        paymasterVerificationGasLimit +
+        paymasterPostOpGasLimit +
+        userOp.preVerificationGas
+
+    return requiredGas * userOp.maxFeePerGas
+}
+
 export function toUnpackedUserOp(
     packedUserOp: PackedUserOperation
 ): UserOperation07 {
@@ -389,7 +423,7 @@ export function parseUserOpReceipt(
                 // Update startIndex to this UserOpEvent for the next UserOp's logs
                 startIndex = index
             }
-        } catch (e) {}
+        } catch {}
     }
 
     if (userOpEventIndex === -1 || startIndex === -1 || !userOpEventArgs) {

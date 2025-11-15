@@ -59,7 +59,7 @@ class SortedTtlSet {
             this.cleanup().catch((err) => {
                 sentry.captureException(err)
             })
-        }, 60 * 1000)
+        }, 60 * 1_000)
 
         // Allow process to exit even if interval is active
         if (this.cleanupInterval.unref) {
@@ -111,7 +111,7 @@ class SortedTtlSet {
             }
 
             // Find minimum value among valid entries
-            const bigIntValues = validValues.map((v) => BigInt(v))
+            const bigIntValues = validValues.map(BigInt)
             return bigIntValues.reduce((min, val) => (val < min ? val : min))
         } catch (err) {
             logger.error({ err }, "Failed to get min value")
@@ -134,7 +134,7 @@ class SortedTtlSet {
             }
 
             // Find maximum value among valid entries
-            const bigIntValues = validValues.map((v) => BigInt(v))
+            const bigIntValues = validValues.map(BigInt)
             return bigIntValues.reduce((max, val) => (val > max ? val : max))
         } catch (err) {
             logger.error({ err }, "Failed to get max value")

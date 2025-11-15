@@ -7,7 +7,7 @@ tmux=
 forkMode=
 localMode=
 
-projectRoot=`pwd | sed 's%\(.*/alto\)/.*%\1%'`
+projectRoot=$(pwd | sed 's%\(.*/alto\)/.*%\1%')
 
 # helper functions.
 usage(){
@@ -54,31 +54,35 @@ do
         usage
         exit 0
         ;;
+    *)
+        >&2 echo "Error: Invalid option -${OPTARG}"
+        usage
+        ;;
   esac
 done
 
 # check for required flags.
-if [ -n "$localMode" ] && [ -n "$forkMode" ]; then
+if [[ -n "$localMode" ]] && [[ -n "$forkMode" ]]; then
     echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
-if [ -z "$localMode" ] && [ -z "$forkMode" ]; then
+if [[ -z "$localMode" ]] && [[ -z "$forkMode" ]]; then
     echo "[Err] Must be ran in either fork or local mode. Run again with either flag -f or -l." && exit 1
 fi
 
-if [ -n "$localMode" ]; then
-    [ -n "$rpcUrl" ] && echo "[NOTE] Flag -r cannot be used in local mode" && exit 1
-    [ -n "$blockNum" ] && echo "[NOTE] Flag -b cannot be used in local mode" && exit 1
-elif [ -n "$forkMode" ]; then
-    [ -z "$rpcUrl" ] && echo "[NOTE] Flag -r is missing, required in forking mode" && exit 1
-    [ -z "$blockNum" ] && echo "[NOTE] Flag -b is missing, required in forking mode" && exit 1
+if [[ -n "$localMode" ]]; then
+    [[ -n "$rpcUrl" ]] && echo "[NOTE] Flag -r cannot be used in local mode" && exit 1
+    [[ -n "$blockNum" ]] && echo "[NOTE] Flag -b cannot be used in local mode" && exit 1
+elif [[ -n "$forkMode" ]]; then
+    [[ -z "$rpcUrl" ]] && echo "[NOTE] Flag -r is missing, required in forking mode" && exit 1
+    [[ -z "$blockNum" ]] && echo "[NOTE] Flag -b is missing, required in forking mode" && exit 1
 fi
 
-if [ -n "$localMode" ] && [ -z "$forkMode" ]; then
+if [[ -n "$localMode" ]] && [[ -z "$forkMode" ]]; then
     # build alto intance.
     pnpm build
 
-    if [ -z "$tmux" ]; then
+    if [[ -z "$tmux" ]]; then
         # launch both instances in same terminal.
         anvil &
 
@@ -117,13 +121,13 @@ if [ -n "$localMode" ] && [ -z "$forkMode" ]; then
     fi
 fi
 
-if [ -n "$forkMode" ] && [ -z "$localMode" ]; then
+if [[ -n "$forkMode" ]] && [[ -z "$localMode" ]]; then
     forkTimestamp=$(cast block $blockNum --rpc-url $rpcUrl | grep time | awk '{print $2}' | tr -d '\n')
 
     # build alto intance.
     pnpm build
 
-    if [ -z "$tmux" ]; then
+    if [[ -z "$tmux" ]]; then
         # launch both instances in same terminal.
         anvil --fork-url $rpcUrl \
               --fork-block-number $blockNum \

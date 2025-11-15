@@ -7,8 +7,7 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
-import type { Hex } from "viem"
-import { type Address, type StateOverride, getContract } from "viem"
+import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {
@@ -35,9 +34,9 @@ type SimulateHandleOpSuccessResult = {
 }
 
 export class GasEstimator07 {
-    private config: AltoConfig
-    private logger: Logger
-    private gasPriceManager: GasPriceManager
+    private readonly config: AltoConfig
+    private readonly logger: Logger
+    private readonly gasPriceManager: GasPriceManager
 
     constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
         this.config = config
@@ -118,11 +117,7 @@ export class GasEstimator07 {
                 { methodName, retryCount },
                 "Max retries reached in binary search"
             )
-            return {
-                result: "failed",
-                data: `Max retries reached when calling ${methodName}`,
-                code: ERC7769Errors.SimulateValidation
-            }
+            throw new Error(`Max retries reached when calling ${methodName}`)
         }
 
         const packedQueuedOps = packUserOps(queuedUserOps)
@@ -237,12 +232,7 @@ export class GasEstimator07 {
                 }
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in executeSimulateHandleOp"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
@@ -385,10 +375,6 @@ export class GasEstimator07 {
             }
         } catch (error) {
             const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in simulateValidation"
-            )
             return decodedError as {
                 result: "failed"
                 data: string
@@ -435,12 +421,7 @@ export class GasEstimator07 {
                 data: result
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in simulateValidation"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
@@ -453,7 +434,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        stateOverrides?: StateOverrides | undefined
+        stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
@@ -492,12 +473,7 @@ export class GasEstimator07 {
                 }
             }
         } catch (error) {
-            const decodedError = decodeSimulateHandleOpError(error, this.logger)
-            this.logger.warn(
-                { err: error, data: decodedError.data },
-                "Contract function reverted in validateHandleOpV07"
-            )
-            return decodedError
+            return decodeSimulateHandleOpError(error, this.logger)
         }
     }
 
@@ -510,7 +486,7 @@ export class GasEstimator07 {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
-        userStateOverrides?: StateOverrides | undefined
+        userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,

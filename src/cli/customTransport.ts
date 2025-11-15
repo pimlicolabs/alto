@@ -16,10 +16,10 @@ import { simulationErrors } from "../rpc/estimation/utils"
 import { EntryPointV06Abi } from "../types/contracts"
 
 export type RpcRequest = {
-    jsonrpc?: "2.0" | undefined
+    jsonrpc?: "2.0"
     method: string
-    params?: any | undefined
-    id?: number | undefined
+    params?: any
+    id?: number
 }
 
 const EXECUTION_RESULT_SELECTOR = toFunctionSelector(

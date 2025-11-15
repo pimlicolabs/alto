@@ -24,13 +24,13 @@ const deserialize = (data: string): UserOpInfo => {
 }
 
 class RedisOutstandingQueue implements OutstandingStore {
-    private redis: Redis
+    private readonly redis: Redis
 
-    private senderNonceKeyPrefix: string // sender + nonceKey -> userOpHash
-    private readyQueue: string // Queue of userOpHashes (sorted by composite of userOp.nonceSeq + userOp.maxFeePerGas)
-    private userOpHashMap: string // userOpHash -> boolean
-    private deploymentHashMap: string // sender -> deployment userOpHash
-    private senderNonceQueueTtl: number // TTL for sender nonce queues in seconds
+    private readonly senderNonceKeyPrefix: string // sender + nonceKey -> userOpHash
+    private readonly readyQueue: string // Queue of userOpHashes (sorted by composite of userOp.nonceSeq + userOp.maxFeePerGas)
+    private readonly userOpHashMap: string // userOpHash -> boolean
+    private readonly deploymentHashMap: string // sender -> deployment userOpHash
+    private readonly senderNonceQueueTtl: number // TTL for sender nonce queues in seconds
 
     constructor({
         config,
@@ -261,8 +261,8 @@ class RedisOutstandingQueue implements OutstandingStore {
     }
 
     // These methods aren't implemented
-    dumpLocal() {
-        return Promise.resolve([]) // We can't dump from redis as the latency is too high
+    async dumpLocal(): Promise<UserOpInfo[]> {
+        return [] // We can't dump from redis as the latency is too high
     }
 
     clear(): Promise<void> {

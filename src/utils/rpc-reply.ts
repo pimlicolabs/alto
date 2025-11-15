@@ -3,8 +3,8 @@ import type * as WebSocket from "ws"
 import { RpcStatus } from "./fastify-rpc-decorators"
 
 class RpcReply {
-    private reply: FastifyReply | null
-    private websocket: WebSocket.WebSocket | null
+    private readonly reply: FastifyReply | null
+    private readonly websocket: WebSocket.WebSocket | null
 
     constructor(
         reply: FastifyReply | null,
@@ -31,7 +31,7 @@ class RpcReply {
         }
     }
 
-    public setRpcStatus(status: RpcStatus): RpcReply {
+    public setRpcStatus(status: RpcStatus): this {
         this.reply?.setRpcStatus(status)
 
         return this

@@ -10,8 +10,7 @@ import {
     createProcessingStore
 } from "@alto/store"
 import type { HexData32, UserOperation } from "@alto/types"
-import type { Metrics } from "@alto/utils"
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -144,7 +143,6 @@ export const createMempoolStore = ({
                     "Failed to remove from outstanding mempool"
                 )
                 sentry.captureException(err)
-                return Promise.resolve()
             }
         },
         dumpOutstanding: async (entryPoint: Address) => {
@@ -240,27 +238,27 @@ export const createMempoolStore = ({
             }
         },
 
-        validateSenderLimits: ({
+        validateSenderLimits: async ({
             entryPoint,
             userOp
         }: { entryPoint: Address; userOp: UserOperation }) => {
             const { outstanding } = getStoreHandlers(entryPoint)
 
             if (!outstanding.validateParallelLimit(userOp)) {
-                return Promise.resolve({
+                return {
                     valid: false,
                     reason: "AA25 invalid account nonce: Maximum number of parallel user operations for that is allowed for this sender reached"
-                })
+                }
             }
 
             if (!outstanding.validateQueuedLimit(userOp)) {
-                return Promise.resolve({
+                return {
                     valid: false,
                     reason: "AA25 invalid account nonce: Maximum number of queued user operations reached for this sender and nonce key"
-                })
+                }
             }
 
-            return Promise.resolve({ valid: true })
+            return { valid: true }
         },
 
         // misc

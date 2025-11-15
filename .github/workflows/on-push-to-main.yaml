@@ -12,12 +12,10 @@ jobs:
   build:
     name: Build
     uses: ./.github/workflows/build.yaml
-    secrets: inherit
 
   test:
     name: Test E2E
     uses: ./.github/workflows/e2e.yaml
-    secrets: inherit
 
   changesets:
     name: Changesets

@@ -9,9 +9,10 @@ import type {
     Mempool,
     StatusManager
 } from "@alto/mempool"
-import type { ApiVersion, BundlerRequest } from "@alto/types"
 import {
     type Address,
+    type ApiVersion,
+    type BundlerRequest,
     ERC7769Errors,
     EntryPointV06Abi,
     EntryPointV07Abi,
@@ -19,8 +20,13 @@ import {
     RpcError,
     type UserOperation
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
-import { getNonceKeyAndSequence, isVersion06, isVersion07 } from "@alto/utils"
+import {
+    type Logger,
+    type Metrics,
+    getNonceKeyAndSequence,
+    isVersion06,
+    isVersion07
+} from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
@@ -30,21 +36,21 @@ import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
 
 export class RpcHandler {
-    public config: AltoConfig
-    public validator: InterfaceValidator
-    public mempool: Mempool
-    public executor: Executor
-    public statusManager: StatusManager
-    public executorManager: ExecutorManager
-    public reputationManager: InterfaceReputationManager
-    public metrics: Metrics
-    public eventManager: EventManager
-    public gasPriceManager: GasPriceManager
-    public bundleManager: BundleManager
-    public logger: Logger
+    public readonly config: AltoConfig
+    public readonly validator: InterfaceValidator
+    public readonly mempool: Mempool
+    public readonly executor: Executor
+    public readonly statusManager: StatusManager
+    public readonly executorManager: ExecutorManager
+    public readonly reputationManager: InterfaceReputationManager
+    public readonly metrics: Metrics
+    public readonly eventManager: EventManager
+    public readonly gasPriceManager: GasPriceManager
+    public readonly bundleManager: BundleManager
+    public readonly logger: Logger
 
-    private methodHandlers: Map<string, MethodHandler>
-    private eip7702CodeCache: Map<Address, boolean>
+    private readonly methodHandlers: Map<string, MethodHandler>
+    private readonly eip7702CodeCache: Map<Address, boolean>
 
     constructor({
         config,
@@ -172,7 +178,7 @@ export class RpcHandler {
             }
         }
 
-        if (userOp.verificationGasLimit < 10000n) {
+        if (userOp.verificationGasLimit < 10_000n) {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
@@ -236,12 +242,12 @@ export class RpcHandler {
                           yParity: userOp.eip7702Auth.yParity
                       }
                   })
-                : Promise.resolve(userOp.sender),
+                : userOp.sender,
             this.config.publicClient.getTransactionCount({
                 address: userOp.sender
             }),
             this.eip7702CodeCache.has(delegationDesignator)
-                ? Promise.resolve("has-code")
+                ? "has-code"
                 : this.config.publicClient.getCode({
                       address: delegationDesignator
                   })

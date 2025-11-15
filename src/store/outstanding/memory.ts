@@ -15,13 +15,15 @@ const senderNonceSlot = (userOp: UserOperation) => {
 }
 
 export class MemoryOutstanding implements OutstandingStore {
-    private pendingOps: Map<string, UserOpInfo[]> = new Map()
+    private readonly pendingOps: Map<string, UserOpInfo[]> = new Map()
+    private readonly hashLookup: Map<HexData32, UserOpInfo> = new Map()
+    private readonly logger: Logger
+    private readonly config: AltoConfig
     private priorityQueue: UserOpInfo[] = []
-    private hashLookup: Map<HexData32, UserOpInfo> = new Map()
-    private logger: Logger
 
-    constructor(private config: AltoConfig) {
+    constructor(config: AltoConfig) {
         // Setup args for getting userOpHash
+        this.config = config
         this.logger = config.getLogger(
             { module: "memory-outstanding-queue" },
             {
@@ -337,15 +339,14 @@ export class MemoryOutstanding implements OutstandingStore {
         return removedOps
     }
 
-    dumpLocal(): Promise<UserOpInfo[]> {
-        return Promise.resolve(this.dump())
+    async dumpLocal(): Promise<UserOpInfo[]> {
+        return this.dump()
     }
 
-    clear(): Promise<void> {
+    async clear() {
         this.priorityQueue = []
         this.pendingOps.clear()
         this.hashLookup.clear()
-        return Promise.resolve()
     }
 }
 

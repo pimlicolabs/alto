@@ -14,10 +14,10 @@ type QueueMessage = OpEventType & {
 }
 
 export class EventManager {
-    private chainId: number
-    private logger: Logger
-    private metrics: Metrics
-    private redisEventManagerQueue?: QueueType<QueueMessage>
+    private readonly chainId: number
+    private readonly logger: Logger
+    private readonly metrics: Metrics
+    private readonly redisEventManagerQueue?: QueueType<QueueMessage>
 
     constructor({
         config,
@@ -57,7 +57,6 @@ export class EventManager {
                     removeOnFail: true
                 }
             })
-            return
         }
     }
 

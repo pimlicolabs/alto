@@ -3,9 +3,14 @@ import {
     RpcError,
     gasStationResult
 } from "@alto/types"
-import { type Logger, maxBigInt, minBigInt } from "@alto/utils"
+import {
+    type Logger,
+    maxBigInt,
+    minBigInt,
+    scaleBigIntByPercent
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
-import { type PublicClient, parseGwei } from "viem"
+import type { Chain, PublicClient } from "viem"
 import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
@@ -15,14 +20,14 @@ import { OptimismManager } from "./optimismManager"
 
 export class GasPriceManager {
     private readonly config: AltoConfig
-    private baseFeePerGasQueue: MinMaxQueue
-    private maxFeePerGasQueue: MinMaxQueue
-    private maxPriorityFeePerGasQueue: MinMaxQueue
-    private logger: Logger
+    private readonly baseFeePerGasQueue: MinMaxQueue
+    private readonly maxFeePerGasQueue: MinMaxQueue
+    private readonly maxPriorityFeePerGasQueue: MinMaxQueue
+    private readonly logger: Logger
 
-    public arbitrumManager: ArbitrumManager
-    public mantleManager: MantleManager
-    public optimismManager: OptimismManager
+    public readonly arbitrumManager: ArbitrumManager
+    public readonly mantleManager: MantleManager
+    public readonly optimismManager: OptimismManager
 
     constructor(config: AltoConfig) {
         this.config = config
@@ -78,17 +83,8 @@ export class GasPriceManager {
                     ? this.tryUpdateBaseFee()
                     : Promise.resolve()
             ])
-        } catch (error) {
-            this.logger.error(error, "Error during gas price initialization")
-        }
-    }
-
-    private getDefaultGasFee(chainId: number): bigint {
-        switch (chainId) {
-            case polygon.id:
-                return parseGwei("31")
-            default:
-                return 0n
+        } catch (err) {
+            this.logger.error({ err }, "Error during gas price initialization")
         }
     }
 
@@ -112,45 +108,40 @@ export class GasPriceManager {
     private bumpTheGasPrice(
         gasPriceParameters: GasPriceParameters
     ): GasPriceParameters {
-        const bumpAmount = this.config.gasPriceBump
-
-        const maxPriorityFeePerGas = maxBigInt(
-            gasPriceParameters.maxPriorityFeePerGas,
-            this.getDefaultGasFee(this.config.chainId)
-        )
-        const maxFeePerGas = maxBigInt(
+        let [maxFeePerGas, maxPriorityFeePerGas] = [
             gasPriceParameters.maxFeePerGas,
-            maxPriorityFeePerGas
+            gasPriceParameters.maxPriorityFeePerGas
+        ]
+
+        // Apply bump percentage
+        maxPriorityFeePerGas = scaleBigIntByPercent(
+            maxPriorityFeePerGas,
+            this.config.gasPriceBump
+        )
+        maxFeePerGas = scaleBigIntByPercent(
+            maxFeePerGas,
+            this.config.gasPriceBump
         )
 
-        const result = {
-            maxFeePerGas: (maxFeePerGas * bumpAmount) / 100n,
-            maxPriorityFeePerGas: (maxPriorityFeePerGas * bumpAmount) / 100n
-        }
-
-        if (
-            this.config.floorMaxFeePerGas ||
-            this.config.floorMaxPriorityFeePerGas
-        ) {
-            const maxFeePerGas = this.config.floorMaxFeePerGas
-                ? maxBigInt(this.config.floorMaxFeePerGas, result.maxFeePerGas)
-                : result.maxFeePerGas
-
-            const maxPriorityFeePerGas = this.config.floorMaxPriorityFeePerGas
-                ? maxBigInt(
-                      this.config.floorMaxPriorityFeePerGas,
-                      result.maxPriorityFeePerGas
-                  )
-                : result.maxPriorityFeePerGas
-
-            return {
-                // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
-                maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
+        // Apply floor values if configured
+        if (this.config.floorMaxPriorityFeePerGas) {
+            maxPriorityFeePerGas = maxBigInt(
+                this.config.floorMaxPriorityFeePerGas,
                 maxPriorityFeePerGas
-            }
+            )
+        }
+        if (this.config.floorMaxFeePerGas) {
+            maxFeePerGas = maxBigInt(
+                this.config.floorMaxFeePerGas,
+                maxFeePerGas
+            )
         }
 
-        return result
+        return {
+            // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
+            maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
+            maxPriorityFeePerGas
+        }
     }
 
     private async getFallBackMaxPriorityFeePerGas(
@@ -210,10 +201,26 @@ export class GasPriceManager {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
+        const { publicClient, staticMaxPriorityFeePerGas } = this.config
+
         try {
-            const fees = await this.config.publicClient.estimateFeesPerGas({
-                chain: this.config.publicClient.chain
+            let chain: Chain | undefined
+
+            // If staticMaxPriorityFeePerGas is set, use it as a static value instead of RPC estimation.
+            if (staticMaxPriorityFeePerGas) {
+                chain = {
+                    ...publicClient.chain,
+                    fees: {
+                        ...publicClient.chain.fees,
+                        maxPriorityFeePerGas: staticMaxPriorityFeePerGas
+                    }
+                }
+            }
+
+            const fees = await publicClient.estimateFeesPerGas({
+                chain
             })
+
             maxFeePerGas = fees.maxFeePerGas
             maxPriorityFeePerGas = fees.maxPriorityFeePerGas
         } catch (e) {
@@ -233,7 +240,7 @@ export class GasPriceManager {
             try {
                 maxPriorityFeePerGas =
                     await this.getFallBackMaxPriorityFeePerGas(
-                        this.config.publicClient,
+                        publicClient,
                         maxFeePerGas ?? 0n
                     )
             } catch (e) {
@@ -247,8 +254,7 @@ export class GasPriceManager {
             this.logger.warn("maxFeePerGas is undefined, using fallback value")
             try {
                 maxFeePerGas =
-                    (await this.config.publicClient.getGasPrice()) +
-                    maxPriorityFeePerGas
+                    (await publicClient.getGasPrice()) + maxPriorityFeePerGas
             } catch (e) {
                 this.logger.error("failed to get fallback maxFeePerGas")
                 sentry.captureException(e)
@@ -265,59 +271,20 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response.
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
-        let maxFeePerGas = 0n
-        let maxPriorityFeePerGas = 0n
-
         if (this.config.chainId === polygon.id) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
-                const gasPrice = this.bumpTheGasPrice({
-                    maxFeePerGas: polygonEstimate.maxFeePerGas,
-                    maxPriorityFeePerGas: polygonEstimate.maxPriorityFeePerGas
-                })
-
-                return {
-                    maxFeePerGas: maxBigInt(
-                        gasPrice.maxFeePerGas,
-                        maxFeePerGas
-                    ),
-                    maxPriorityFeePerGas: maxBigInt(
-                        gasPrice.maxPriorityFeePerGas,
-                        maxPriorityFeePerGas
-                    )
-                }
+                return this.bumpTheGasPrice(polygonEstimate)
             }
         }
 
         if (this.config.legacyTransactions) {
-            const gasPrice = this.bumpTheGasPrice(
-                await this.getLegacyTransactionGasPrice()
-            )
-            return {
-                maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
-                maxPriorityFeePerGas: maxBigInt(
-                    gasPrice.maxPriorityFeePerGas,
-                    maxPriorityFeePerGas
-                )
-            }
+            const legacyGasPrice = await this.getLegacyTransactionGasPrice()
+            return this.bumpTheGasPrice(legacyGasPrice)
         }
 
-        const estimatedPrice = await this.estimateGasPrice()
-
-        maxFeePerGas = estimatedPrice.maxFeePerGas
-        maxPriorityFeePerGas = estimatedPrice.maxPriorityFeePerGas
-
-        const gasPrice = this.bumpTheGasPrice({
-            maxFeePerGas,
-            maxPriorityFeePerGas
-        })
-        return {
-            maxFeePerGas: maxBigInt(gasPrice.maxFeePerGas, maxFeePerGas),
-            maxPriorityFeePerGas: maxBigInt(
-                gasPrice.maxPriorityFeePerGas,
-                maxPriorityFeePerGas
-            )
-        }
+        const estimatedGasPrice = await this.estimateGasPrice()
+        return this.bumpTheGasPrice(estimatedGasPrice)
     }
 
     // This method throws if it can't get a valid RPC response.

@@ -1,24 +1,22 @@
 import type { SenderManager } from "@alto/executor"
 import type { GasPriceManager } from "@alto/handlers"
-import type {
-    InterfaceValidator,
-    UserOperation06,
-    UserOperation07,
-    ValidationResult,
-    ValidationResult06,
-    ValidationResult07
-} from "@alto/types"
 import {
     type Address,
     CodeHashGetterAbi,
     CodeHashGetterBytecode,
     ERC7769Errors,
     EntryPointV06Abi,
+    type InterfaceValidator,
     type ReferencedCodeHashes,
     RpcError,
     type StakeInfo,
     type StorageMap,
     type UserOperation,
+    type UserOperation06,
+    type UserOperation07,
+    type ValidationResult,
+    type ValidationResult06,
+    type ValidationResult07,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
@@ -52,7 +50,7 @@ export class SafeValidator
     extends UnsafeValidator
     implements InterfaceValidator
 {
-    private senderManager: SenderManager
+    private readonly senderManager: SenderManager
 
     constructor({
         config,

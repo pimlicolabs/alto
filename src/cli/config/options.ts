@@ -391,12 +391,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "100"
     },
-    "no-profit-bundling": {
-        description:
-            "Bundle tx such that all beneficiary fees are spent on gas fees",
-        type: "boolean",
-        default: false
-    },
     "refill-helper-contract": {
         description: "Address of the Executor refill helper contract",
         type: "string",
@@ -461,13 +455,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false,
         default: "10"
-    },
-    "arbitrum-gas-bid-multiplier": {
-        description:
-            "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
-        type: "string",
-        require: false,
-        default: "5"
     },
     "binary-search-max-retries": {
         description:
@@ -559,12 +546,32 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false
         },
+        "static-max-priority-fee-per-gas": {
+            description:
+                "Static maxPriorityFeePerGas value (in gwei) instead of RPC estimation",
+            type: "string",
+            require: false
+        },
         "supports-eip7623": {
             description:
                 "Whether the chain supports EIP-7623 (Increase calldata cost to reduce maximum block size)",
             type: "boolean",
             require: false,
             default: false
+        },
+        "arbitrum-gas-bid-multiplier": {
+            description:
+                "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+            type: "string",
+            require: false,
+            default: "5"
+        },
+        "monad-reserve-balance": {
+            description:
+                "Minimum balance (in wei) that must be reserved for Monad chain user operations without paymasters",
+            type: "string",
+            require: false,
+            default: "10000000000000000000"
         }
     }
 

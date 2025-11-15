@@ -26,10 +26,10 @@ import {
     IntrinsicGasTooLowError,
     NonceTooHighError,
     NonceTooLowError,
+    type SendTransactionErrorType,
+    type SignedAuthorizationList,
     TransactionExecutionError
 } from "viem"
-import type { SendTransactionErrorType } from "viem"
-import type { SignedAuthorizationList } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
@@ -252,12 +252,12 @@ export class Executor {
                 childLogger.info(
                     {
                         transactionRequest: {
+                            executor: request.account.address,
                             maxFeePerGas: request.maxFeePerGas,
                             maxPriorityFeePerGas: request.maxPriorityFeePerGas,
                             nonce: request.nonce
                         },
                         txHash: transactionHash,
-                        opHashes: getUserOpHashes(txParam.userOps),
                         isPrivate: usePrivateEndpoint
                     },
                     "submitted bundle transaction"
@@ -267,7 +267,7 @@ export class Executor {
             } catch (e: unknown) {
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
-                        this.logger.warn("Transaction underpriced, retrying")
+                        childLogger.warn("Transaction underpriced, retrying")
 
                         request.nonce = await publicClient.getTransactionCount({
                             address: account.address,
@@ -298,7 +298,7 @@ export class Executor {
                 }
 
                 if (e instanceof FeeCapTooLowError) {
-                    this.logger.warn("max fee < basefee, retrying")
+                    childLogger.warn("max fee < basefee, retrying")
 
                     if (request.gasPrice) {
                         request.gasPrice = scaleBigIntByPercent(
@@ -328,7 +328,7 @@ export class Executor {
                     const cause = error.cause
 
                     if (cause instanceof NonceTooLowError) {
-                        this.logger.warn("Nonce too low, retrying")
+                        childLogger.warn("Nonce too low, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
                             blockTag: "latest"
@@ -336,7 +336,7 @@ export class Executor {
                     }
 
                     if (cause instanceof NonceTooHighError) {
-                        this.logger.warn("Nonce too high, retrying")
+                        childLogger.warn("Nonce too high, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
                             blockTag: "latest"
@@ -344,7 +344,7 @@ export class Executor {
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
-                        this.logger.warn("Intrinsic gas too low, retrying")
+                        childLogger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
                     }
                 }
@@ -426,8 +426,8 @@ export class Executor {
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
+            userOps: getUserOpHashes(userOpsToBundle),
             submissionAttempts: userOpBundle.submissionAttempts,
-            userOperations: getUserOpHashes(userOpsToBundle),
             entryPoint
         })
 

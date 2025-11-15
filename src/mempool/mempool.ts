@@ -38,15 +38,15 @@ import {
 import type { StatusManager } from "./statusManager"
 
 export class Mempool {
-    private config: AltoConfig
-    private metrics: Metrics
-    private statusManager: StatusManager
-    private reputationManager: InterfaceReputationManager
+    private readonly config: AltoConfig
+    private readonly metrics: Metrics
+    private readonly statusManager: StatusManager
+    private readonly reputationManager: InterfaceReputationManager
+    private readonly throttledEntityBundleCount: number
+    private readonly logger: Logger
+    private readonly validator: InterfaceValidator
+    private readonly eventManager: EventManager
     public store: MempoolStore
-    private throttledEntityBundleCount: number
-    private logger: Logger
-    private validator: InterfaceValidator
-    private eventManager: EventManager
 
     constructor({
         config,
@@ -237,7 +237,7 @@ export class Mempool {
         op: UserOperation
     ) {
         if (!this.config.safeMode) {
-            return Promise.resolve()
+            return
         }
 
         const knownEntities = await this.getKnownEntities(entryPoint)
@@ -280,7 +280,6 @@ export class Mempool {
                 ERC7769Errors.OpcodeValidation
             )
         }
-        return Promise.resolve()
     }
 
     async getKnownEntities(entryPoint: Address): Promise<{
