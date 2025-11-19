@@ -8,8 +8,8 @@ import {
     jsonRpcSchema
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
-import websocket from "@fastify/websocket"
 import cors from "@fastify/cors"
+import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -78,7 +78,7 @@ export class Server {
         rpcEndpoint: RpcHandler
         registry: Registry
         metrics: Metrics
-        local: Boolean
+        local: boolean
     }) {
         this.config = config
         const logger = config.getLogger(
@@ -94,7 +94,9 @@ export class Server {
             disableRequestLogging: true
         })
 
-        if(local) { this.fastify.register(cors, { origin: true }) }
+        if (local) {
+            this.fastify.register(cors, { origin: true })
+        }
 
         this.fastify.register(rpcDecorators)
 

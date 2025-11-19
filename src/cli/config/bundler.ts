@@ -221,7 +221,7 @@ export const debugArgsSchema = z.object({
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
     "deploy-simulations-contract": z.boolean(),
-    "local": z.boolean(),
+    local: z.boolean()
 })
 
 export const gasEstimationArgsSchema = z.object({

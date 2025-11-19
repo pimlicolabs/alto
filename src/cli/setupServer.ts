@@ -186,8 +186,8 @@ const getServer = ({
     config: AltoConfig
     rpcEndpoint: RpcHandler
     registry: Registry
-    metrics: Metrics,
-    local: Boolean
+    metrics: Metrics
+    local: boolean
 }) => {
     return new Server({
         config,
@@ -211,7 +211,7 @@ export const setupServer = async ({
     metrics: Metrics
     senderManager: SenderManager
     gasPriceManager: GasPriceManager
-    local: Boolean
+    local: boolean
 }) => {
     const validator = getValidator({
         config,
