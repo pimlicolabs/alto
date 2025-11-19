@@ -180,18 +180,21 @@ const getServer = ({
     config,
     rpcEndpoint,
     registry,
-    metrics
+    metrics,
+    local
 }: {
     config: AltoConfig
     rpcEndpoint: RpcHandler
     registry: Registry
-    metrics: Metrics
+    metrics: Metrics,
+    local: Boolean
 }) => {
     return new Server({
         config,
         rpcEndpoint,
         registry,
-        metrics
+        metrics,
+        local
     })
 }
 
@@ -200,13 +203,15 @@ export const setupServer = async ({
     registry,
     metrics,
     senderManager,
-    gasPriceManager
+    gasPriceManager,
+    local
 }: {
     config: AltoConfig
     registry: Registry
     metrics: Metrics
     senderManager: SenderManager
     gasPriceManager: GasPriceManager
+    local: Boolean
 }) => {
     const validator = getValidator({
         config,
@@ -329,7 +334,8 @@ export const setupServer = async ({
         config,
         rpcEndpoint,
         registry,
-        metrics
+        metrics,
+        local
     })
 
     const shutdownLogger = rootLogger.child(

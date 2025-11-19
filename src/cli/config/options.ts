@@ -750,6 +750,12 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: true
+    },
+    "local": {
+        description: "Run the bundler locally",
+        type: "boolean",
+        require: true,
+        default: false
     }
 }
 

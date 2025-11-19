@@ -1,0 +1,35 @@
+{
+  "lib/account-abstraction-v6": {
+    "branch": {
+      "name": "releases/v0.6",
+      "rev": "abff2aca61a8f0934e533d0d352978055fddbd96"
+    }
+  },
+  "lib/account-abstraction-v7": {
+    "branch": {
+      "name": "releases/v0.7",
+      "rev": "7af70c8993a6f42973f520ae0752386a5032abe7"
+    }
+  },
+  "lib/account-abstraction-v8": {
+    "rev": "4cbc06072cdc19fd60f285c5997f4f7f57a588de"
+  },
+  "lib/forge-std": {
+    "rev": "ae570fec082bfe1c1f45b0acca4a2b4f84d345ce"
+  },
+  "lib/openzeppelin-contracts-v4.8.3": {
+    "rev": "0a25c1940ca220686588c4af3ec526f725fe2582"
+  },
+  "lib/openzeppelin-contracts-v5.0.2": {
+    "rev": "dbb6104ce834628e473d2173bbc9d47f81a9eec3"
+  },
+  "lib/openzeppelin-contracts-v5.1.0": {
+    "rev": "69c8def5f222ff96f2b5beff05dfba996368aa79"
+  },
+  "lib/singleton-paymaster": {
+    "rev": "349f1043989306f63c37c3419ba4cca191b205b2"
+  },
+  "lib/solady": {
+    "rev": "1dd8967b93b379ca6cf384640e0715e55ef08e3d"
+  }
+}

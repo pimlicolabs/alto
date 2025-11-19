@@ -9,6 +9,7 @@ import {
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
 import websocket from "@fastify/websocket"
+import cors from "@fastify/cors"
 import * as sentry from "@sentry/node"
 import Fastify, {
     type FastifyBaseLogger,
@@ -70,12 +71,14 @@ export class Server {
         config,
         rpcEndpoint,
         registry,
-        metrics
+        metrics,
+        local
     }: {
         config: AltoConfig
         rpcEndpoint: RpcHandler
         registry: Registry
         metrics: Metrics
+        local: Boolean
     }) {
         this.config = config
         const logger = config.getLogger(
@@ -86,10 +89,12 @@ export class Server {
         )
 
         this.fastify = Fastify({
-            logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
+            logger: logger as FastifyBaseLogger,
             requestTimeout: config.timeout,
             disableRequestLogging: true
         })
+
+        if(local) { this.fastify.register(cors, { origin: true }) }
 
         this.fastify.register(rpcDecorators)
 
