@@ -265,7 +265,7 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        rpcHandler.mempool.add(userOp, entryPoint)
+        rpcHandler.mempool.add({ userOp, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }
@@ -273,7 +273,7 @@ export async function addToMempoolIfValid({
     // userOp validation
     if (rpcHandler.config.dangerousSkipUserOperationValidation) {
         const [isMempoolAddSuccess, mempoolAddError] =
-            await rpcHandler.mempool.add(userOp, entryPoint)
+            await rpcHandler.mempool.add({ userOp, entryPoint })
 
         if (!isMempoolAddSuccess) {
             rpcHandler.eventManager.emitFailedValidation(
@@ -300,9 +300,11 @@ export async function addToMempoolIfValid({
 
     // Finally, add to mempool
     const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
-        userOp,
-        entryPoint,
-        validationResult.referencedContracts
+        {
+            userOp,
+            entryPoint,
+            referencedContracts: validationResult.referencedContracts
+        }
     )
 
     if (!isMempoolAddSuccess) {
