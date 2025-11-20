@@ -87,7 +87,7 @@ export class Server {
         )
 
         this.fastify = Fastify({
-            logger: logger as FastifyBaseLogger,
+            logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
             requestTimeout: config.timeout,
             disableRequestLogging: true
         })
