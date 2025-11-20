@@ -31,6 +31,7 @@ export function createConfig(
             private?: WalletClient<Transport, Chain>
             public: WalletClient<Transport, Chain>
         }
+        enableCors: boolean
     }
 ): AltoConfig {
     const { logger, ...rest } = config

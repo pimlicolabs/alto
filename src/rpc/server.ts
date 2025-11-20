@@ -71,14 +71,12 @@ export class Server {
         config,
         rpcEndpoint,
         registry,
-        metrics,
-        local
+        metrics
     }: {
         config: AltoConfig
         rpcEndpoint: RpcHandler
         registry: Registry
         metrics: Metrics
-        local: boolean
     }) {
         this.config = config
         const logger = config.getLogger(
@@ -93,8 +91,7 @@ export class Server {
             requestTimeout: config.timeout,
             disableRequestLogging: true
         })
-
-        if (local) {
+        if (config.enableCors) {
             this.fastify.register(cors, { origin: true })
         }
 

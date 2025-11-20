@@ -118,7 +118,7 @@ const getViemChain = ({
 
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const args = parseArgs(args_)
-    const local = args.local
+    const enableCors = args.enableCors
     const logger = args.json
         ? initProductionLogger(args.logLevel)
         : initDebugLogger(args.logLevel)
@@ -242,7 +242,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         ...args,
         logger,
         publicClient,
-        walletClients
+        walletClients,
+        enableCors
     })
 
     const gasPriceManager = new GasPriceManager(config)
@@ -280,7 +281,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         registry,
         metrics,
         senderManager,
-        gasPriceManager,
-        local
+        gasPriceManager
     })
 }
