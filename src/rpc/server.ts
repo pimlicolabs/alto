@@ -8,6 +8,7 @@ import {
     jsonRpcSchema
 } from "@alto/types"
 import type { Metrics } from "@alto/utils"
+import cors from "@fastify/cors"
 import websocket from "@fastify/websocket"
 import * as sentry from "@sentry/node"
 import Fastify, {
@@ -90,6 +91,9 @@ export class Server {
             requestTimeout: config.timeout,
             disableRequestLogging: true
         })
+        if (config.enableCors) {
+            this.fastify.register(cors, { origin: true })
+        }
 
         this.fastify.register(rpcDecorators)
 

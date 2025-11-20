@@ -756,6 +756,12 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         type: "boolean",
         require: true,
         default: true
+    },
+    "enable-cors": {
+        description: "Enable CORS for local bundler access",
+        type: "boolean",
+        require: true,
+        default: false
     }
 }
 
