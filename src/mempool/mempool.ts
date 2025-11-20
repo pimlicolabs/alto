@@ -193,6 +193,7 @@ export class Mempool {
                     status: "rejected",
                     transactionHash: null
                 })
+                this.metrics.userOpsDropped.labels({ reason }).inc()
                 this.logger.warn(
                     {
                         userOperation: jsonStringifyWithBigint(userOp),
@@ -856,8 +857,8 @@ export class Mempool {
                     beneficiary: this.config.utilityWalletAddress
                 })
 
-                // Break on gas limit
-                if (gasUsed > maxGasLimit) {
+                // Check bundle gasLimit if bundle is not empty
+                if (currentBundle.userOps.length > 0 && gasUsed > maxGasLimit) {
                     // Put current op back to front of unused for next bundle
                     unusedUserOps.unshift(currentUserOp)
                     break

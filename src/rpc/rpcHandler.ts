@@ -201,10 +201,10 @@ export class RpcHandler {
             beneficiary: this.config.utilityWalletAddress
         })
 
-        if (gasLimits > this.config.maxGasPerBundle) {
+        if (gasLimits > this.config.maxGasPerUserOp) {
             return [
                 false,
-                `User operation gas limits exceed the max gas per bundle: ${gasLimits} > ${this.config.maxGasPerBundle}`
+                `User operation gas limits exceed the max gas per userOp: ${gasLimits} > ${this.config.maxGasPerUserOp}`
             ]
         }
 
