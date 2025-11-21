@@ -565,9 +565,9 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: false,
             default: false
         },
-        "arbitrum-gas-bid-multiplier": {
+        "arbitrum-base-fee-multiplier": {
             description:
-                "Multiplier for gas bid on Arbitrum networks to account for baseFee fluctuations",
+                "Multiplier for gas bids on Arbitrum networks to account for baseFee fluctuations",
             type: "string",
             require: false,
             default: "5"
