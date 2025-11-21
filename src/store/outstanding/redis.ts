@@ -30,6 +30,7 @@ class RedisOutstandingQueue implements OutstandingStore {
     private readonly readyQueue: string // Queue of userOpHashes (sorted by composite of userOp.nonceSeq + userOp.maxFeePerGas)
     private readonly userOpHashMap: string // userOpHash -> boolean
     private readonly deploymentHashMap: string // sender -> deployment userOpHash
+    private readonly eip7702AuthHashMap: string // sender -> eip7702Auth userOpHash
     private readonly senderNonceQueueTtl: number // TTL for sender nonce queues in seconds
 
     constructor({
@@ -51,6 +52,7 @@ class RedisOutstandingQueue implements OutstandingStore {
         this.senderNonceKeyPrefix = `${redisPrefix}:sender`
         this.userOpHashMap = `${redisPrefix}:userop-hash`
         this.deploymentHashMap = `${redisPrefix}:deployment-senders`
+        this.eip7702AuthHashMap = `${redisPrefix}:eip7702-auth-senders`
 
         // Calculate TTL for sender nonce queues (10 blocks worth of time)
         this.senderNonceQueueTtl = config.blockTime * 10
@@ -120,6 +122,27 @@ class RedisOutstandingQueue implements OutstandingStore {
             }
         }
 
+        // Check for conflicting EIP-7702 auth.
+        if (userOp.eip7702Auth) {
+            const existingEip7702AuthHash = (await this.redis.hget(
+                this.eip7702AuthHashMap,
+                sender
+            )) as HexData32 | null
+
+            if (existingEip7702AuthHash) {
+                const removedUserOps = await this.remove([
+                    existingEip7702AuthHash
+                ])
+
+                if (removedUserOps.length > 0) {
+                    return {
+                        reason: "conflicting_7702_auth" as const,
+                        userOpInfo: removedUserOps[0]
+                    }
+                }
+            }
+        }
+
         return undefined
     }
 
@@ -155,6 +178,15 @@ class RedisOutstandingQueue implements OutstandingStore {
             // Add sender to deployment hash if this is a deployment.
             if (isDeployment(userOp)) {
                 pipeline.hset(this.deploymentHashMap, userOp.sender, userOpHash)
+            }
+
+            // Add sender to eip7702Auth hash if this has eip7702Auth.
+            if (userOp.eip7702Auth) {
+                pipeline.hset(
+                    this.eip7702AuthHashMap,
+                    userOp.sender,
+                    userOpHash
+                )
             }
         }
 
@@ -203,6 +235,11 @@ class RedisOutstandingQueue implements OutstandingStore {
             // Remove sender from deployment hash if this was a deployment.
             if (isDeploymentOp) {
                 removalPipeline.hdel(this.deploymentHashMap, userOp.sender)
+            }
+
+            // Remove sender from eip7702Auth hash if this had eip7702Auth.
+            if (userOp.eip7702Auth) {
+                removalPipeline.hdel(this.eip7702AuthHashMap, userOp.sender)
             }
 
             removedUserOps.push(userOpInfo)

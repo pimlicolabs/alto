@@ -372,10 +372,17 @@ export class Mempool {
             const hasHigherFees = hasHigherPriorityFee && hasHigherMaxFee
 
             if (!hasHigherFees) {
-                const message =
-                    reason === "conflicting_deployment"
-                        ? "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
-                        : "AA25 invalid account nonce: User operation already present in mempool"
+                let message: string
+                if (reason === "conflicting_deployment") {
+                    message =
+                        "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
+                } else if (reason === "conflicting_7702_auth") {
+                    message =
+                        "AA10 sender already constructed: A conflicting userOperation with eip7702Auth for this sender is already in the mempool"
+                } else {
+                    message =
+                        "AA25 invalid account nonce: User operation already present in mempool"
+                }
 
                 // Re-add to outstanding as it wasn't replaced
                 await this.store.addOutstanding({
