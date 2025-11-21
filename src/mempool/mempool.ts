@@ -378,7 +378,7 @@ export class Mempool {
                         "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
                 } else if (reason === "conflicting_7702_auth") {
                     message =
-                        "AA10 sender already constructed: A conflicting userOperation with eip7702Auth for this sender is already in the mempool"
+                        "Sender already has an inflight EIP-7702 authorization"
                 } else {
                     message =
                         "AA25 invalid account nonce: User operation already present in mempool"
