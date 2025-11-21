@@ -157,6 +157,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const userOpsDropped = new Counter({
+        name: "alto_user_operations_dropped_total",
+        help: "Number of user operations dropped from mempool",
+        labelNames: ["reason"] as const,
+        registers
+    })
+
     const userOpsSubmissionAttempts = new Histogram({
         name: "alto_user_operations_attempts_before_inclusion",
         help: "Number of submission attempts needed before a user operation was included on-chain",
@@ -231,6 +238,7 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationCount,
         replacedTransactions,
         userOpsResubmitted,
+        userOpsDropped,
         utilityWalletBalance,
         utilityWalletInsufficientBalance,
         executorWalletsBalances,
