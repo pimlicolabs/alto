@@ -5,10 +5,10 @@ import {
     type ReferencedCodeHashes,
     RpcError,
     type StorageMap,
+    type UserOpInfo,
     type UserOperation,
     type ValidationResult,
-    sendUserOperationSchema,
-    UserOpInfo
+    sendUserOperationSchema
 } from "@alto/types"
 import { getAAError } from "@alto/utils"
 import { type Hex, formatEther } from "viem"
