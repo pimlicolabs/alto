@@ -7,7 +7,8 @@ import {
     type StorageMap,
     type UserOperation,
     type ValidationResult,
-    sendUserOperationSchema
+    sendUserOperationSchema,
+    UserOpInfo
 } from "@alto/types"
 import { getAAError } from "@alto/utils"
 import { type Hex, formatEther } from "viem"
@@ -184,6 +185,13 @@ export async function addToMempoolIfValid({
         chainId: rpcHandler.config.chainId
     })
 
+    const userOpInfo: UserOpInfo = {
+        userOp,
+        userOpHash,
+        addedToMempool: Date.now(),
+        submissionAttempts: 0
+    }
+
     // Execute multiple async operations in parallel
     const [
         { queuedUserOps, validationResult },
@@ -265,7 +273,7 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        rpcHandler.mempool.add({ userOp, entryPoint })
+        rpcHandler.mempool.add({ userOpInfo, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }
@@ -273,7 +281,7 @@ export async function addToMempoolIfValid({
     // userOp validation
     if (rpcHandler.config.dangerousSkipUserOperationValidation) {
         const [isMempoolAddSuccess, mempoolAddError] =
-            await rpcHandler.mempool.add({ userOp, entryPoint })
+            await rpcHandler.mempool.add({ userOpInfo, entryPoint })
 
         if (!isMempoolAddSuccess) {
             rpcHandler.eventManager.emitFailedValidation(
@@ -301,9 +309,8 @@ export async function addToMempoolIfValid({
     // Finally, add to mempool
     const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
         {
-            userOp,
-            entryPoint,
-            referencedContracts: validationResult.referencedContracts
+            userOpInfo,
+            entryPoint
         }
     )
 

@@ -6,7 +6,6 @@ import {
     EntryPointV06Abi,
     EntryPointV07Abi,
     type InterfaceValidator,
-    type ReferencedCodeHashes,
     type RejectedUserOp,
     RpcError,
     type StorageMap,
@@ -19,7 +18,6 @@ import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
-    getUserOpHash,
     isVersion06,
     isVersion07,
     isVersion08,
@@ -113,7 +111,7 @@ export class Mempool {
     }) {
         await Promise.all(
             userOps.map(async (userOpInfo) => {
-                const { userOpHash, userOp, submissionAttempts } = userOpInfo
+                const { userOpHash, submissionAttempts } = userOpInfo
                 const maxResubmits = this.config.maxResubmits
 
                 // Check if max resubmits has been reached
@@ -153,9 +151,8 @@ export class Mempool {
                 })
 
                 const [success, failureReason] = await this.add({
-                    userOp,
-                    entryPoint,
-                    submissionAttempts: userOpInfo.submissionAttempts + 1
+                    userOpInfo,
+                    entryPoint
                 })
 
                 if (!success) {
@@ -332,21 +329,13 @@ export class Mempool {
     // === Methods for adding userOps / creating bundles === //
 
     async add({
-        userOp,
-        entryPoint,
-        referencedContracts,
-        submissionAttempts = 0
+        userOpInfo,
+        entryPoint
     }: {
-        userOp: UserOperation
+        userOpInfo: UserOpInfo
         entryPoint: Address
-        submissionAttempts?: number
-        referencedContracts?: ReferencedCodeHashes
     }): Promise<[boolean, string]> {
-        const userOpHash = getUserOpHash({
-            userOp,
-            entryPointAddress: entryPoint,
-            chainId: this.config.chainId
-        })
+        const { userOp, userOpHash } = userOpInfo
 
         // Check if the userOp is already known or conflicts with existing operations
         const validation = await this.store.checkDuplicatesAndConflicts({
@@ -410,15 +399,7 @@ export class Mempool {
 
         await this.store.addOutstanding({
             entryPoint,
-            userOpInfos: [
-                {
-                    userOp,
-                    userOpHash,
-                    referencedContracts,
-                    addedToMempool: Date.now(),
-                    submissionAttempts
-                }
-            ]
+            userOpInfos: [userOpInfo]
         })
 
         await this.statusManager.set([userOpHash], {
