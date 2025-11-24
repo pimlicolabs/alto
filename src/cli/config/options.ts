@@ -570,7 +570,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "Multiplier for gas bids on Arbitrum networks to account for baseFee fluctuations",
             type: "string",
             require: false,
-            default: "5"
+            default: "150"
         },
         "monad-reserve-balance": {
             description:
