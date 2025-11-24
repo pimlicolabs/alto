@@ -6,6 +6,7 @@ import {
     type UserOperation,
     estimateUserOperationGasSchema
 } from "@alto/types"
+import { parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
 import {
     deepHexlify,
@@ -129,7 +130,7 @@ const getGasEstimates = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
-    let simulationUserOp = {
+    const simulationUserOp = {
         ...userOp,
         maxFeePerGas: 1n,
         maxPriorityFeePerGas: 1n,
@@ -142,12 +143,19 @@ const getGasEstimates = async ({
     const isBoosted =
         userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
 
-    // Set maxFeePerGas/maxPriorityFeePerGas to 0 to simulate boosted userOp.
     if (isBoosted) {
-        simulationUserOp = {
-            ...simulationUserOp,
-            maxFeePerGas: 0n,
-            maxPriorityFeePerGas: 0n
+        const sender = userOp.sender
+        if (mutableStateOverrides === undefined) {
+            mutableStateOverrides = {}
+        }
+
+        // gas estimation simulation is done with maxFeePerGas/maxPriorityFeePerGas = 1.
+        // Because of this, sender must have atleast maxGas of wei.
+        const maxGas = parseEther("100")
+
+        mutableStateOverrides[sender] = {
+            ...deepHexlify(mutableStateOverrides[sender] || {}),
+            balance: toHex(maxGas)
         }
     }
 
