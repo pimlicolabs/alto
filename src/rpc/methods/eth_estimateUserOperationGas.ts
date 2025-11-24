@@ -151,7 +151,7 @@ const getGasEstimates = async ({
 
         // gas estimation simulation is done with maxFeePerGas/maxPriorityFeePerGas = 1.
         // Because of this, sender must have atleast maxGas of wei.
-        const maxGas = parseEther("100")
+        const maxGas = parseEther("1000000")
 
         mutableStateOverrides[sender] = {
             ...deepHexlify(mutableStateOverrides[sender] || {}),
