@@ -12,6 +12,8 @@ import {
 } from "@alto/types"
 import { getAAError } from "@alto/utils"
 import { type Hex, slice } from "viem"
+import type { AltoConfig } from "../../createConfig"
+import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
@@ -24,8 +26,6 @@ import {
     calcMonadPvg
 } from "../estimation/preVerificationGasCalculator"
 import type { RpcHandler } from "../rpcHandler"
-import { AltoConfig } from "../../createConfig"
-import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 
 const validateChainRules = async ({
     rpcHandler,

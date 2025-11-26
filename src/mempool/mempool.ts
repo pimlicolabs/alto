@@ -779,7 +779,7 @@ export class Mempool {
             if (!nextUserOp) break
 
             // Derive version.
-            let version = getViemEntryPointVersion(
+            const version = getViemEntryPointVersion(
                 nextUserOp.userOp,
                 entryPoint
             )

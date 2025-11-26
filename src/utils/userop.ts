@@ -22,9 +22,9 @@ import {
     zeroAddress
 } from "viem"
 import {
+    type EntryPointVersion,
     entryPoint07Abi,
-    getUserOperationHash,
-    type EntryPointVersion
+    getUserOperationHash
 } from "viem/account-abstraction"
 import { z } from "zod"
 import { getEip7702AuthAddress } from "./eip7702"
@@ -470,9 +470,11 @@ export const getViemEntryPointVersion = (
 ): EntryPointVersion => {
     if (isVersion08(userOp, entryPoint)) {
         return "0.8"
-    } else if (isVersion07(userOp)) {
-        return "0.7"
-    } else {
-        return "0.6"
     }
+
+    if (isVersion07(userOp)) {
+        return "0.7"
+    }
+
+    return "0.6"
 }
