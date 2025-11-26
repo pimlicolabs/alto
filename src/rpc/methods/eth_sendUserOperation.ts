@@ -76,7 +76,7 @@ const validateChainRules = async ({
                     networkBaseFee: await gasPriceManager.getBaseFee(),
                     beneficiary: utilityWalletAddress
                 })
-            } catch (err) {
+            } catch {
                 return [
                     false,
                     "Balance reserve error, sender needs atleast 10 MON at the end of the transaction."
