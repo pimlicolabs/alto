@@ -272,15 +272,6 @@ export async function addToMempoolIfValid({
         throw new RpcError(pvgErrorReason, ERC7769Errors.SimulateValidation)
     }
 
-    // Chain rules validation
-    if (!chainRulesSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(
-            userOpHash,
-            chainRulesError
-        )
-        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
-    }
-
     // Nonce validation
     const [, userOpNonceSeq] = getNonceKeyAndSequence(userOp.nonce)
     if (userOpNonceSeq < currentNonceSeq) {
@@ -301,6 +292,15 @@ export async function addToMempoolIfValid({
         rpcHandler.mempool.add({ userOpInfo, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
+    }
+
+    // Chain rules validation
+    if (!chainRulesSuccess) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            chainRulesError
+        )
+        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
     }
 
     // userOp validation
