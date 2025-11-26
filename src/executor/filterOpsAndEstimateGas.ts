@@ -69,7 +69,7 @@ const getChainSpecificOverhead = async ({
     return { gasUsed: 0n, gasLimit: 0n }
 }
 
-const getFilterOpsResult = async ({
+export const getFilterOpsResult = async ({
     config,
     userOpBundle,
     networkBaseFee,

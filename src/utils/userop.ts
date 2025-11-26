@@ -21,7 +21,11 @@ import {
     toHex,
     zeroAddress
 } from "viem"
-import { entryPoint07Abi, getUserOperationHash } from "viem/account-abstraction"
+import {
+    entryPoint07Abi,
+    getUserOperationHash,
+    type EntryPointVersion
+} from "viem/account-abstraction"
 import { z } from "zod"
 import { getEip7702AuthAddress } from "./eip7702"
 
@@ -458,4 +462,17 @@ export function parseUserOpReceipt(
     }
 
     return userOpReceipt
+}
+
+export const getViemEntryPointVersion = (
+    userOp: UserOperation,
+    entryPoint: Address
+): EntryPointVersion => {
+    if (isVersion08(userOp, entryPoint)) {
+        return "0.8"
+    } else if (isVersion07(userOp)) {
+        return "0.7"
+    } else {
+        return "0.6"
+    }
 }
