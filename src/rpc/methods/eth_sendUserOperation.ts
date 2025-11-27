@@ -79,7 +79,7 @@ const validateChainRules = async ({
             } catch {
                 return [
                     false,
-                    "Balance reserve error, sender needs atleast 10 MON at the end of the transaction."
+                    "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
                 ]
             }
         }
