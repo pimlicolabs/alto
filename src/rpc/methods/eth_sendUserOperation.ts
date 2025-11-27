@@ -11,13 +11,13 @@ import {
     sendUserOperationSchema
 } from "@alto/types"
 import { getAAError } from "@alto/utils"
-import { type Hex, formatEther } from "viem"
+import { type Hex, slice } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 import {
-    calculateRequiredPrefund,
     getNonceKeyAndSequence,
     getUserOpHash,
-    hasPaymaster
+    getViemEntryPointVersion
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -30,34 +30,58 @@ import type { RpcHandler } from "../rpcHandler"
 const validateChainRules = async ({
     rpcHandler,
     userOp,
+    entryPoint,
     config
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
+    entryPoint: Address
     config: AltoConfig
 }): Promise<[boolean, string]> => {
     // Monad-specific validation
     if (config.chainType === "monad") {
-        // Skip validation if userOp has a paymaster
-        if (hasPaymaster(userOp)) {
-            return [true, ""]
-        }
-
-        // Get sender's balance
-        const balance = await rpcHandler.config.publicClient.getBalance({
+        const { gasPriceManager } = rpcHandler
+        const { publicClient, utilityWalletAddress } = config
+        const senderCode = await publicClient.getCode({
             address: userOp.sender
         })
 
-        // Calculate required prefund
-        const requiredPrefund = calculateRequiredPrefund(userOp)
+        const is7702Delegated =
+            senderCode && slice(senderCode, 0, 3) === "0xef0100"
 
-        // Check if sender balance - prefund >= monad reserve balance
-        const balanceAfterPrefund = balance - requiredPrefund
-        if (balanceAfterPrefund < config.monadReserveBalance) {
-            return [
-                false,
-                `Sender failed reserve balance check of ${formatEther(config.monadReserveBalance)} MON`
-            ]
+        if (is7702Delegated || userOp.eip7702Auth) {
+            // Need to do a balance reserve check for 7702 userOps
+            try {
+                const userOpInfo = {
+                    userOp,
+                    userOpHash: getUserOpHash({
+                        userOp,
+                        entryPointAddress: entryPoint,
+                        chainId: rpcHandler.config.chainId
+                    }),
+                    addedToMempool: Date.now(),
+                    submissionAttempts: 0
+                }
+
+                const userOpBundle = {
+                    entryPoint,
+                    version: getViemEntryPointVersion(userOp, entryPoint),
+                    userOps: [userOpInfo],
+                    submissionAttempts: 0
+                }
+
+                await getFilterOpsResult({
+                    userOpBundle,
+                    config,
+                    networkBaseFee: await gasPriceManager.getBaseFee(),
+                    beneficiary: utilityWalletAddress
+                })
+            } catch {
+                return [
+                    false,
+                    "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
+                ]
+            }
         }
     }
 
@@ -219,6 +243,7 @@ export async function addToMempoolIfValid({
         validateChainRules({
             rpcHandler,
             userOp,
+            entryPoint,
             config: rpcHandler.config
         })
     ])
@@ -247,15 +272,6 @@ export async function addToMempoolIfValid({
         throw new RpcError(pvgErrorReason, ERC7769Errors.SimulateValidation)
     }
 
-    // Chain rules validation
-    if (!chainRulesSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(
-            userOpHash,
-            chainRulesError
-        )
-        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
-    }
-
     // Nonce validation
     const [, userOpNonceSeq] = getNonceKeyAndSequence(userOp.nonce)
     if (userOpNonceSeq < currentNonceSeq) {
@@ -276,6 +292,15 @@ export async function addToMempoolIfValid({
         rpcHandler.mempool.add({ userOpInfo, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
+    }
+
+    // Chain rules validation
+    if (!chainRulesSuccess) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            chainRulesError
+        )
+        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
     }
 
     // userOp validation

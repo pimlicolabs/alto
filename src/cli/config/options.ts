@@ -571,13 +571,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "150"
-        },
-        "monad-reserve-balance": {
-            description:
-                "Minimum balance (in wei) that must be reserved for Monad chain user operations without paymasters",
-            type: "string",
-            require: false,
-            default: "10000000000000000000"
         }
     }
 

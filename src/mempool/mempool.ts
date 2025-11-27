@@ -18,14 +18,13 @@ import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
+    getViemEntryPointVersion,
     isVersion06,
     isVersion07,
-    isVersion08,
     jsonStringifyWithBigint,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { type Hex, getAddress, getContract } from "viem"
-import type { EntryPointVersion } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { calculateAA95GasFloor } from "../executor/utils"
 import { getEip7702AuthAddress } from "../utils/eip7702"
@@ -780,14 +779,10 @@ export class Mempool {
             if (!nextUserOp) break
 
             // Derive version.
-            let version: EntryPointVersion
-            if (isVersion08(nextUserOp.userOp, entryPoint)) {
-                version = "0.8"
-            } else if (isVersion07(nextUserOp.userOp)) {
-                version = "0.7"
-            } else {
-                version = "0.6"
-            }
+            const version = getViemEntryPointVersion(
+                nextUserOp.userOp,
+                entryPoint
+            )
 
             // Setup next bundle.
             const currentBundle: UserOperationBundle = {

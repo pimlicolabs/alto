@@ -173,11 +173,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
-    "arbitrum-base-fee-multiplier": z.string().transform(BigInt).default("150"),
-    "monad-reserve-balance": z
-        .string()
-        .transform(BigInt)
-        .default("10000000000000000000")
+    "arbitrum-base-fee-multiplier": z.string().transform(BigInt).default("150")
 })
 
 export const serverArgsSchema = z.object({
