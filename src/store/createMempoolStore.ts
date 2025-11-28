@@ -262,15 +262,13 @@ export const createMempoolStore = ({
         },
 
         // misc
-        getQueuedOutstandingUserOps: async ({
-            userOp,
-            entryPoint
-        }: {
+        getQueuedOutstandingUserOps: async ({}: {
             userOp: UserOperation
             entryPoint: Address
         }) => {
-            const { outstanding } = getStoreHandlers(entryPoint)
-            return await outstanding.getQueuedUserOps(userOp)
+            return []
+            //const { outstanding } = getStoreHandlers(entryPoint)
+            //return await outstanding.getQueuedUserOps(userOp)
         },
         clearOutstanding: async (entryPoint: Address) => {
             const { outstanding } = getStoreHandlers(entryPoint)
