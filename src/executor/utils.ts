@@ -70,11 +70,13 @@ export const getBundleGasLimit = async ({
 }
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
-    const transactionUnderPriceError = e.walk((e: any) =>
-        e?.message
-            ?.toLowerCase()
-            .includes("replacement transaction underpriced")
-    )
+    const transactionUnderPriceError = e.walk((e: any) => {
+        const message = e?.message?.toLowerCase()
+        return (
+            message?.includes("replacement transaction underpriced") || // Geth error message
+            message?.includes("could not replace existing tx") // Erigon error message
+        )
+    })
     return transactionUnderPriceError !== null
 }
 
