@@ -289,7 +289,8 @@ export const redisArgsSchema = z.object({
     "redis-key-prefix": z.string().default("alto"),
     "redis-endpoint": z.string().optional(),
     "redis-events-queue-endpoint": z.string().optional(),
-    "redis-events-queue-name": z.string().optional()
+    "redis-events-queue-name": z.string().optional(),
+    "redis-events-queue-flush-interval": z.number().default(1000)
 })
 
 export type IBundlerArgs = z.infer<typeof bundlerArgsSchema>

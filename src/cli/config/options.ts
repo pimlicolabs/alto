@@ -166,6 +166,13 @@ export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
         type: "string",
         require: false,
         default: "UserOperationStatusBullEventsQueue"
+    },
+    "redis-events-queue-flush-interval": {
+        description:
+            "Interval in milliseconds to flush batched events to Redis (default: 1000ms)",
+        type: "number",
+        require: false,
+        default: 1000
     }
 }
 

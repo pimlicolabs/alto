@@ -5,7 +5,6 @@ import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { OpEventType } from "../types/schemas"
-import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
     userOperationHash: Hex
@@ -18,6 +17,9 @@ export class EventManager {
     private readonly logger: Logger
     private readonly metrics: Metrics
     private readonly redisEventManagerQueue?: QueueType<QueueMessage>
+    private readonly eventBuffer: QueueMessage[] = []
+    private readonly flushInterval: number
+    private flushTimer?: NodeJS.Timeout
 
     constructor({
         config,
@@ -27,6 +29,7 @@ export class EventManager {
         metrics: Metrics
     }) {
         this.chainId = config.chainId
+        this.flushInterval = config.redisEventsQueueFlushInterval
 
         this.logger = config.getLogger(
             { module: "event_manager" },
@@ -39,7 +42,7 @@ export class EventManager {
         if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
             const queueName = config.redisEventsQueueName
             this.logger.info(
-                `Using redis with queue name ${queueName} for userOp event queue`
+                `Using redis with queue name ${queueName} for userOp event queue (flush interval: ${this.flushInterval}ms)`
             )
             const redis = new Redis(config.redisEventsQueueEndpoint)
 
@@ -57,6 +60,72 @@ export class EventManager {
                     removeOnFail: true
                 }
             })
+
+            this.startFlushTimer()
+        }
+    }
+
+    private startFlushTimer() {
+        this.flushTimer = setInterval(() => {
+            this.flushEvents()
+        }, this.flushInterval)
+
+        // Ensure the timer doesn't prevent the process from exiting
+        this.flushTimer.unref()
+    }
+
+    private async flushEvents() {
+        if (!this.redisEventManagerQueue || this.eventBuffer.length === 0) {
+            return
+        }
+
+        const eventsToFlush = this.eventBuffer.splice(0)
+        const eventCount = eventsToFlush.length
+
+        this.logger.debug(
+            { eventCount },
+            "Flushing batched events to Redis"
+        )
+
+        try {
+            await this.redisEventManagerQueue.addBulk(
+                eventsToFlush.map((entry) => ({
+                    data: entry,
+                    opts: {
+                        removeOnComplete: true,
+                        removeOnFail: true
+                    }
+                }))
+            )
+
+            for (const event of eventsToFlush) {
+                this.metrics.emittedOpEvents
+                    .labels({
+                        event_type: event.eventType,
+                        status: "success"
+                    })
+                    .inc()
+            }
+
+            this.logger.debug(
+                { eventCount },
+                "Successfully flushed events to Redis"
+            )
+        } catch (err) {
+            this.logger.error(
+                { err, eventCount },
+                "Failed to flush events to Redis"
+            )
+            sentry.captureException(err)
+
+            for (const event of eventsToFlush) {
+                this.metrics.emittedOpEvents
+                    .labels({
+                        event_type: event.eventType,
+                        status: "failed"
+                    })
+                    .inc()
+            }
         }
     }
 
@@ -222,61 +291,13 @@ export class EventManager {
             return
         }
 
-        const entry = {
+        const entry: QueueMessage = {
             userOperationHash: userOpHash,
             eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
         }
 
-        this.emitWithTimeout(entry, event.eventType)
-    }
-
-    private emitWithTimeout(entry: QueueMessage, eventType: string) {
-        if (!this.redisEventManagerQueue) {
-            return
-        }
-
-        asyncCallWithTimeout(
-            this.redisEventManagerQueue.add(entry, {
-                removeOnComplete: true,
-                removeOnFail: true
-            }),
-            500 // 500ms timeout
-        )
-            .then(() => {
-                this.metrics.emittedOpEvents
-                    .labels({
-                        event_type: eventType,
-                        status: "success"
-                    })
-                    .inc()
-            })
-            .catch((err) => {
-                if (err instanceof AsyncTimeoutError) {
-                    this.logger.warn(
-                        { userOpHash: entry.userOperationHash, eventType },
-                        "Event emission timed out after 500ms"
-                    )
-                    this.metrics.emittedOpEvents
-                        .labels({
-                            event_type: eventType,
-                            status: "timeout"
-                        })
-                        .inc()
-                } else {
-                    this.logger.error(
-                        { err },
-                        "Failed to send userOperation status event"
-                    )
-                    sentry.captureException(err)
-                    this.metrics.emittedOpEvents
-                        .labels({
-                            event_type: eventType,
-                            status: "failed"
-                        })
-                        .inc()
-                }
-            })
+        this.eventBuffer.push(entry)
     }
 }
