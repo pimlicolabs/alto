@@ -86,13 +86,11 @@ const getMempool = ({
 }
 
 const getEventManager = ({
-    config,
-    metrics
+    config
 }: {
     config: AltoConfig
-    metrics: Metrics
 }) => {
-    return new EventManager({ config, metrics })
+    return new EventManager({ config })
 }
 
 const getExecutor = ({
@@ -217,8 +215,7 @@ export const setupServer = async ({
     const reputationManager = getReputationManager(config)
 
     const eventManager = getEventManager({
-        config,
-        metrics
+        config
     })
 
     // When running with horizontal scaling enabled, only one instance should have this flag enabled,
