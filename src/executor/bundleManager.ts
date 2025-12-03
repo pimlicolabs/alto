@@ -80,10 +80,7 @@ export class BundleManager {
         )
 
         // Initialize receipt cache
-        this.receiptCache = createReceiptCache(
-            config,
-            1 * 60 * 1000 // 1 minutes TTL
-        )
+        this.receiptCache = createReceiptCache(config, config.receiptCacheTtl)
     }
 
     getPendingBundles(): SubmittedBundleInfo[] {

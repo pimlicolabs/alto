@@ -128,6 +128,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Time in milliseconds for preconfirmation (flashblocks)",
         type: "number",
         default: undefined
+    },
+    "receipt-cache-ttl": {
+        description: "TTL for the user operation receipt cache in milliseconds",
+        type: "number",
+        default: 60000,
+        require: false
     }
 }
 
