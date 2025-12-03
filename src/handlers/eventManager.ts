@@ -1,4 +1,4 @@
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
@@ -15,18 +15,15 @@ type QueueMessage = OpEventType & {
 export class EventManager {
     private readonly chainId: number
     private readonly logger: Logger
-    private readonly metrics: Metrics
     private readonly redisEventManagerQueue?: QueueType<QueueMessage>
     private readonly eventBuffer: QueueMessage[] = []
     private readonly flushInterval: number
     private flushTimer?: NodeJS.Timeout
 
     constructor({
-        config,
-        metrics
+        config
     }: {
         config: AltoConfig
-        metrics: Metrics
     }) {
         this.chainId = config.chainId
         this.flushInterval = config.redisEventsQueueFlushInterval
@@ -37,7 +34,6 @@ export class EventManager {
                 level: config.logLevel
             }
         )
-        this.metrics = metrics
 
         if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
             const queueName = config.redisEventsQueueName
@@ -74,7 +70,7 @@ export class EventManager {
         this.flushTimer.unref()
     }
 
-    private async flushEvents() {
+    private flushEvents() {
         if (!this.redisEventManagerQueue || this.eventBuffer.length === 0) {
             return
         }
@@ -82,51 +78,16 @@ export class EventManager {
         const eventsToFlush = this.eventBuffer.splice(0)
         const eventCount = eventsToFlush.length
 
-        this.logger.debug(
-            { eventCount },
-            "Flushing batched events to Redis"
-        )
-
-        try {
-            await this.redisEventManagerQueue.addBulk(
-                eventsToFlush.map((entry) => ({
-                    data: entry,
-                    opts: {
-                        removeOnComplete: true,
-                        removeOnFail: true
-                    }
-                }))
-            )
-
-            for (const event of eventsToFlush) {
-                this.metrics.emittedOpEvents
-                    .labels({
-                        event_type: event.eventType,
-                        status: "success"
-                    })
-                    .inc()
-            }
-
-            this.logger.debug(
-                { eventCount },
-                "Successfully flushed events to Redis"
-            )
-        } catch (err) {
-            this.logger.error(
-                { err, eventCount },
-                "Failed to flush events to Redis"
-            )
-            sentry.captureException(err)
-
-            for (const event of eventsToFlush) {
-                this.metrics.emittedOpEvents
-                    .labels({
-                        event_type: event.eventType,
-                        status: "failed"
-                    })
-                    .inc()
-            }
-        }
+        // Fire and forget - don't block the timer
+        this.redisEventManagerQueue
+            .addBulk(eventsToFlush.map((entry) => ({ data: entry })))
+            .catch((err) => {
+                this.logger.error(
+                    { err, eventCount },
+                    "Failed to flush events to Redis"
+                )
+                sentry.captureException(err)
+            })
     }
 
     // emits when the userOperation was mined onchain but reverted during the callphase
@@ -136,7 +97,7 @@ export class EventManager {
         reason: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "execution_reverted_onchain",
@@ -155,7 +116,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "failed_onchain",
@@ -173,7 +134,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "frontran_onchain",
@@ -191,7 +152,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "included_onchain",
@@ -205,7 +166,7 @@ export class EventManager {
 
     // emits when the userOperation is placed in the nonce queue
     emitQueued(userOpHash: Hex) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "queued"
@@ -215,7 +176,7 @@ export class EventManager {
 
     // emits when the userOperation is first seen
     emitReceived(userOpHash: Hex, timestamp?: number) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "received"
@@ -226,7 +187,7 @@ export class EventManager {
 
     // emits when the userOperation failed to get added to the mempool
     emitFailedValidation(userOpHash: Hex, reason?: string, aaError?: string) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "failed_validation",
@@ -244,7 +205,7 @@ export class EventManager {
         transactionHash
     }: { userOpHashes: Hex[]; transactionHash: Hex }) {
         for (const hash of userOpHashes) {
-            this.emitEvent({
+            this.queueEvent({
                 userOpHash: hash,
                 event: {
                     eventType: "submitted",
@@ -256,7 +217,7 @@ export class EventManager {
 
     // emits when the userOperation was dropped from the internal mempool
     emitDropped(userOpHash: Hex, reason?: string, aaError?: string) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "dropped",
@@ -270,7 +231,7 @@ export class EventManager {
 
     // emits when the userOperation was added to the internal mempool
     emitAddedToMempool(userOpHash: Hex) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "added_to_mempool"
@@ -278,7 +239,7 @@ export class EventManager {
         })
     }
 
-    private emitEvent({
+    private queueEvent({
         userOpHash,
         event,
         timestamp
