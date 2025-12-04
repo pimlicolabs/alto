@@ -167,7 +167,11 @@ export class UnsafeValidator implements InterfaceValidator {
         if (error.result === "failed") {
             const data = error.data.toString()
 
-            if (data.includes("AA31") || data.includes("AA21")) {
+            if (
+                data.includes("AA31") ||
+                data.includes("AA21") ||
+                data.includes("AA50")
+            ) {
                 const errorMessage = data
                 throw new RpcError(
                     `UserOperation reverted during simulation with reason: ${errorMessage}`,
