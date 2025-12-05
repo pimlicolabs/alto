@@ -62,12 +62,19 @@ export class EventManager {
     }
 
     private startFlushTimer() {
+        // Don't start flush timer if redis is not configured.
+        if (!this.redisEventManagerQueue) {
+            return
+        }
+
         this.flushTimer = setInterval(() => {
             this.flushEvents()
         }, this.flushInterval)
 
-        // Ensure the timer doesn't prevent the process from exiting
-        this.flushTimer.unref()
+        // Allow process to exit even if interval is active.
+        if (this.flushTimer.unref) {
+            this.flushTimer.unref()
+        }
     }
 
     private flushEvents() {
@@ -83,13 +90,12 @@ export class EventManager {
             this.redisEventManagerQueue.addBulk(
                 eventsToFlush.map((entry) => ({ data: entry }))
             ),
-            500
+            500 // 500ms timeout
         ).catch((err) => {
             this.logger.error(
                 { err, eventCount },
                 "Failed to flush events to Redis"
             )
-            sentry.captureException(err)
         })
     }
 
