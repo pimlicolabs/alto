@@ -16,7 +16,6 @@ export class EventManager {
     private readonly logger: Logger
     private readonly redisEventManagerQueue?: QueueType<QueueMessage>
     private readonly eventBuffer: QueueMessage[] = []
-    private readonly flushInterval: number
     private flushTimer?: NodeJS.Timeout
 
     constructor({
@@ -25,7 +24,7 @@ export class EventManager {
         config: AltoConfig
     }) {
         this.chainId = config.chainId
-        this.flushInterval = config.redisEventsQueueFlushInterval
+        const flushInterval = config.redisEventsQueueFlushInterval
 
         this.logger = config.getLogger(
             { module: "event_manager" },
@@ -37,7 +36,7 @@ export class EventManager {
         if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
             const queueName = config.redisEventsQueueName
             this.logger.info(
-                `Using redis with queue name ${queueName} for userOp event queue (flush interval: ${this.flushInterval}ms)`
+                `Using redis with queue name ${queueName} for userOp event queue (flush interval: ${flushInterval}ms)`
             )
             const redis = new Redis(config.redisEventsQueueEndpoint)
 
@@ -56,11 +55,11 @@ export class EventManager {
                 }
             })
 
-            this.startFlushTimer()
+            this.startFlushTimer(flushInterval)
         }
     }
 
-    private startFlushTimer() {
+    private startFlushTimer(flushInterval: number) {
         // Don't start flush timer if redis is not configured.
         if (!this.redisEventManagerQueue) {
             return
@@ -68,7 +67,7 @@ export class EventManager {
 
         this.flushTimer = setInterval(() => {
             this.flushEvents()
-        }, this.flushInterval)
+        }, flushInterval)
 
         // Allow process to exit even if interval is active.
         if (this.flushTimer.unref) {
