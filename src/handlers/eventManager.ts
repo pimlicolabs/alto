@@ -1,5 +1,4 @@
 import { type Logger, asyncCallWithTimeout } from "@alto/utils"
-import * as sentry from "@sentry/node"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
