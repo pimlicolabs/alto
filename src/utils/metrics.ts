@@ -199,13 +199,6 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const emittedOpEvents = new Counter({
-        name: "alto_emitted_user_operation_events",
-        help: "Total number of emitted UserOperation status events",
-        labelNames: ["event_type", "status"] as const,
-        registers
-    })
-
     const walletsProcessingTime = new Histogram({
         name: "alto_executor_wallets_processing_duration_seconds",
         help: "Time spent processing user operations by executor wallets",
@@ -243,7 +236,6 @@ export function createMetrics(registry: Registry, register = true) {
         utilityWalletInsufficientBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
-        emittedOpEvents,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
         altoSecondValidationFailed

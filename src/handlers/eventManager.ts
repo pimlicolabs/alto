@@ -1,11 +1,9 @@
-import type { Logger, Metrics } from "@alto/utils"
-import * as sentry from "@sentry/node"
+import { type Logger, asyncCallWithTimeout } from "@alto/utils"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
 import type { Hex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { OpEventType } from "../types/schemas"
-import { AsyncTimeoutError, asyncCallWithTimeout } from "../utils/asyncTimeout"
 
 type QueueMessage = OpEventType & {
     userOperationHash: Hex
@@ -16,17 +14,17 @@ type QueueMessage = OpEventType & {
 export class EventManager {
     private readonly chainId: number
     private readonly logger: Logger
-    private readonly metrics: Metrics
     private readonly redisEventManagerQueue?: QueueType<QueueMessage>
+    private readonly eventBuffer: QueueMessage[] = []
+    private flushTimer?: NodeJS.Timeout
 
     constructor({
-        config,
-        metrics
+        config
     }: {
         config: AltoConfig
-        metrics: Metrics
     }) {
         this.chainId = config.chainId
+        const flushInterval = config.redisEventsQueueFlushInterval
 
         this.logger = config.getLogger(
             { module: "event_manager" },
@@ -34,12 +32,11 @@ export class EventManager {
                 level: config.logLevel
             }
         )
-        this.metrics = metrics
 
         if (config.redisEventsQueueEndpoint && config.redisEventsQueueName) {
             const queueName = config.redisEventsQueueName
             this.logger.info(
-                `Using redis with queue name ${queueName} for userOp event queue`
+                `Using redis with queue name ${queueName} for userOp event queue (flush interval: ${flushInterval}ms)`
             )
             const redis = new Redis(config.redisEventsQueueEndpoint)
 
@@ -57,7 +54,50 @@ export class EventManager {
                     removeOnFail: true
                 }
             })
+
+            this.startFlushTimer(flushInterval)
         }
+    }
+
+    private startFlushTimer(flushInterval: number) {
+        // Don't start flush timer if redis is not configured.
+        if (!this.redisEventManagerQueue) {
+            return
+        }
+
+        this.flushTimer = setInterval(() => {
+            this.flushEvents()
+        }, flushInterval)
+
+        // Allow process to exit even if interval is active.
+        if (this.flushTimer.unref) {
+            this.flushTimer.unref()
+        }
+    }
+
+    private flushEvents() {
+        if (!this.redisEventManagerQueue || this.eventBuffer.length === 0) {
+            return
+        }
+
+        const eventsToFlush = this.eventBuffer.splice(0)
+        const eventCount = eventsToFlush.length
+
+        // Fire and forget - don't block the timer
+        asyncCallWithTimeout(
+            this.redisEventManagerQueue.addBulk(
+                eventsToFlush.map((entry) => ({
+                    data: entry,
+                    opts: { removeOnFail: true, removeOnComplete: true }
+                }))
+            ),
+            500 // 500ms timeout
+        ).catch((err) => {
+            this.logger.error(
+                { err, eventCount },
+                "Failed to flush events to Redis"
+            )
+        })
     }
 
     // emits when the userOperation was mined onchain but reverted during the callphase
@@ -67,7 +107,7 @@ export class EventManager {
         reason: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "execution_reverted_onchain",
@@ -86,7 +126,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "failed_onchain",
@@ -104,7 +144,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "frontran_onchain",
@@ -122,7 +162,7 @@ export class EventManager {
         transactionHash: Hex,
         blockNumber: bigint
     ) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "included_onchain",
@@ -136,7 +176,7 @@ export class EventManager {
 
     // emits when the userOperation is placed in the nonce queue
     emitQueued(userOpHash: Hex) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "queued"
@@ -146,7 +186,7 @@ export class EventManager {
 
     // emits when the userOperation is first seen
     emitReceived(userOpHash: Hex, timestamp?: number) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "received"
@@ -157,7 +197,7 @@ export class EventManager {
 
     // emits when the userOperation failed to get added to the mempool
     emitFailedValidation(userOpHash: Hex, reason?: string, aaError?: string) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "failed_validation",
@@ -175,7 +215,7 @@ export class EventManager {
         transactionHash
     }: { userOpHashes: Hex[]; transactionHash: Hex }) {
         for (const hash of userOpHashes) {
-            this.emitEvent({
+            this.queueEvent({
                 userOpHash: hash,
                 event: {
                     eventType: "submitted",
@@ -187,7 +227,7 @@ export class EventManager {
 
     // emits when the userOperation was dropped from the internal mempool
     emitDropped(userOpHash: Hex, reason?: string, aaError?: string) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "dropped",
@@ -201,7 +241,7 @@ export class EventManager {
 
     // emits when the userOperation was added to the internal mempool
     emitAddedToMempool(userOpHash: Hex) {
-        this.emitEvent({
+        this.queueEvent({
             userOpHash,
             event: {
                 eventType: "added_to_mempool"
@@ -209,7 +249,7 @@ export class EventManager {
         })
     }
 
-    private emitEvent({
+    private queueEvent({
         userOpHash,
         event,
         timestamp
@@ -222,61 +262,13 @@ export class EventManager {
             return
         }
 
-        const entry = {
+        const entry: QueueMessage = {
             userOperationHash: userOpHash,
             eventTimestamp: timestamp ?? Date.now(),
             chainId: this.chainId,
             ...event
         }
 
-        this.emitWithTimeout(entry, event.eventType)
-    }
-
-    private emitWithTimeout(entry: QueueMessage, eventType: string) {
-        if (!this.redisEventManagerQueue) {
-            return
-        }
-
-        asyncCallWithTimeout(
-            this.redisEventManagerQueue.add(entry, {
-                removeOnComplete: true,
-                removeOnFail: true
-            }),
-            500 // 500ms timeout
-        )
-            .then(() => {
-                this.metrics.emittedOpEvents
-                    .labels({
-                        event_type: eventType,
-                        status: "success"
-                    })
-                    .inc()
-            })
-            .catch((err) => {
-                if (err instanceof AsyncTimeoutError) {
-                    this.logger.warn(
-                        { userOpHash: entry.userOperationHash, eventType },
-                        "Event emission timed out after 500ms"
-                    )
-                    this.metrics.emittedOpEvents
-                        .labels({
-                            event_type: eventType,
-                            status: "timeout"
-                        })
-                        .inc()
-                } else {
-                    this.logger.error(
-                        { err },
-                        "Failed to send userOperation status event"
-                    )
-                    sentry.captureException(err)
-                    this.metrics.emittedOpEvents
-                        .labels({
-                            event_type: eventType,
-                            status: "failed"
-                        })
-                        .inc()
-                }
-            })
+        this.eventBuffer.push(entry)
     }
 }

@@ -128,6 +128,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Time in milliseconds for preconfirmation (flashblocks)",
         type: "number",
         default: undefined
+    },
+    "receipt-cache-ttl": {
+        description: "TTL for the user operation receipt cache in milliseconds",
+        type: "number",
+        default: 60000,
+        require: false
     }
 }
 
@@ -166,6 +172,13 @@ export const redisOptions: CliCommandOptions<IRedisArgsInput> = {
         type: "string",
         require: false,
         default: "UserOperationStatusBullEventsQueue"
+    },
+    "redis-events-queue-flush-interval": {
+        description:
+            "Interval in milliseconds to flush batched events to Redis (default: 1000ms)",
+        type: "number",
+        require: false,
+        default: 1000
     }
 }
 
