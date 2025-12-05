@@ -86,7 +86,10 @@ export class EventManager {
         // Fire and forget - don't block the timer
         asyncCallWithTimeout(
             this.redisEventManagerQueue.addBulk(
-                eventsToFlush.map((entry) => ({ data: entry }))
+                eventsToFlush.map((entry) => ({
+                    data: entry,
+                    opts: { removeOnFail: true, removeOnComplete: true }
+                }))
             ),
             500 // 500ms timeout
         ).catch((err) => {
