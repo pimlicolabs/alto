@@ -1,4 +1,4 @@
-import type { Logger } from "@alto/utils"
+import { asyncCallWithTimeout, type Logger } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Queue, { type Queue as QueueType } from "bull"
 import Redis from "ioredis"
@@ -79,15 +79,18 @@ export class EventManager {
         const eventCount = eventsToFlush.length
 
         // Fire and forget - don't block the timer
-        this.redisEventManagerQueue
-            .addBulk(eventsToFlush.map((entry) => ({ data: entry })))
-            .catch((err) => {
-                this.logger.error(
-                    { err, eventCount },
-                    "Failed to flush events to Redis"
-                )
-                sentry.captureException(err)
-            })
+        asyncCallWithTimeout(
+            this.redisEventManagerQueue.addBulk(
+                eventsToFlush.map((entry) => ({ data: entry }))
+            ),
+            500
+        ).catch((err) => {
+            this.logger.error(
+                { err, eventCount },
+                "Failed to flush events to Redis"
+            )
+            sentry.captureException(err)
+        })
     }
 
     // emits when the userOperation was mined onchain but reverted during the callphase
