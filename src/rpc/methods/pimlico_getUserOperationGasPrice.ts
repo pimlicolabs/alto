@@ -6,8 +6,12 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
     method: "pimlico_getUserOperationGasPrice",
     schema: pimlicoGetUserOperationGasPriceSchema,
     handler: async ({ rpcHandler }) => {
+        const startTime = performance.now()
+
+        const gasPriceStart = performance.now()
         let { maxFeePerGas, maxPriorityFeePerGas } =
             await rpcHandler.gasPriceManager.getGasPrice()
+        const gasPriceDuration = performance.now() - gasPriceStart
 
         if (rpcHandler.config.chainType === "hedera") {
             maxFeePerGas /= 10n ** 9n
@@ -16,7 +20,7 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
 
         const { slow, standard, fast } = rpcHandler.config.gasPriceMultipliers
 
-        return {
+        const result = {
             slow: {
                 maxFeePerGas: scaleBigIntByPercent(maxFeePerGas, slow),
                 maxPriorityFeePerGas: scaleBigIntByPercent(
@@ -39,5 +43,17 @@ export const pimlicoGetUserOperationGasPriceHandler = createMethodHandler({
                 )
             }
         }
+
+        const totalDuration = performance.now() - startTime
+
+        rpcHandler.logger.info(
+            {
+                gasPriceDurationMs: gasPriceDuration.toFixed(2),
+                totalDurationMs: totalDuration.toFixed(2)
+            },
+            "pimlico_getUserOperationGasPrice timing"
+        )
+
+        return result
     }
 })
