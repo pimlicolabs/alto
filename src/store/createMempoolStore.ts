@@ -221,7 +221,7 @@ export const createMempoolStore = ({
             if (wouldConflict === "conflicting_7702_auth") {
                 return {
                     valid: false,
-                    reason: "Sender already has an inflight EIP-7702 authorization"
+                    reason: "AA10 sender already constructed: Sender already has an inflight EIP-7702 authorization"
                 }
             }
 
