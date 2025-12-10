@@ -2,6 +2,11 @@ import type { Address } from "abitype"
 import type { HexData32, UserOpInfo, UserOperation } from "../types/schemas"
 import type { ConflictingOutstandingType } from "./outstanding"
 
+export type ConflictType =
+    | "conflicting_nonce"
+    | "conflicting_deployment"
+    | "conflicting_7702_auth"
+
 export type StoreType = "outstanding" | "processing"
 
 export type ValidationResult =

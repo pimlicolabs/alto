@@ -1,8 +1,9 @@
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { ConflictType } from "../types"
 
 export type ConflictingOutstandingType =
     | {
-          reason: "conflicting_nonce" | "conflicting_deployment"
+          conflictReason: ConflictType
           userOpInfo: UserOpInfo
       }
     | undefined

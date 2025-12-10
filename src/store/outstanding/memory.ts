@@ -87,41 +87,56 @@ export class MemoryOutstanding implements OutstandingStore {
     ): Promise<ConflictingOutstandingType> {
         const outstandingOps = this.dump()
 
-        let conflictingReason: ConflictingOutstandingType
+        for (const existingUserOpInfo of outstandingOps) {
+            const { userOp: existingUserOp, userOpHash: existingUserOpHash } =
+                existingUserOpInfo
 
-        for (const userOpInfo of outstandingOps) {
-            const { userOp: mempoolUserOp } = userOpInfo
+            const isSameSender = existingUserOp.sender === userOp.sender
 
-            const isSameSender = mempoolUserOp.sender === userOp.sender
-            if (isSameSender && mempoolUserOp.nonce === userOp.nonce) {
-                const removed = await this.remove([userOpInfo.userOpHash])
-                if (removed.length > 0) {
-                    conflictingReason = {
-                        reason: "conflicting_nonce",
-                        userOpInfo: removed[0]
-                    }
-                }
-                break
-            }
+            // Check each conflict type.
+            const isConflictingNonce =
+                isSameSender && existingUserOp.nonce === userOp.nonce
+
+            const isConflictingEip7702Auth =
+                isSameSender && userOp.eip7702Auth && existingUserOp.eip7702Auth
 
             const isConflictingDeployment =
                 isSameSender &&
                 isDeployment(userOp) &&
-                isDeployment(mempoolUserOp)
+                isDeployment(existingUserOp)
 
-            if (isConflictingDeployment) {
-                const removed = await this.remove([userOpInfo.userOpHash])
+            if (isConflictingNonce) {
+                const removed = await this.remove([existingUserOpHash])
                 if (removed.length > 0) {
-                    conflictingReason = {
-                        reason: "conflicting_deployment",
+                    return {
+                        conflictReason: "conflicting_nonce",
                         userOpInfo: removed[0]
                     }
                 }
-                break
+            }
+
+            if (isConflictingEip7702Auth) {
+                const removed = await this.remove([existingUserOpHash])
+                if (removed.length > 0) {
+                    return {
+                        conflictReason: "conflicting_7702_auth",
+                        userOpInfo: removed[0]
+                    }
+                }
+            }
+
+            if (isConflictingDeployment) {
+                const removed = await this.remove([existingUserOpHash])
+                if (removed.length > 0) {
+                    return {
+                        conflictReason: "conflicting_deployment",
+                        userOpInfo: removed[0]
+                    }
+                }
             }
         }
 
-        return conflictingReason
+        return undefined
     }
 
     async contains(userOpHash: HexData32): Promise<boolean> {
