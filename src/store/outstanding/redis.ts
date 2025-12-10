@@ -86,7 +86,11 @@ class RedisOutstandingQueue implements OutstandingStore {
 
         // Check all conflicts in a single round trip
         const pipeline = this.redis.pipeline()
-        pipeline.zrangebyscore(senderNonceQueue, Number(nonceSeq), Number(nonceSeq))
+        pipeline.zrangebyscore(
+            senderNonceQueue,
+            Number(nonceSeq),
+            Number(nonceSeq)
+        )
         pipeline.hget(this.deploymentHashMap, sender)
         pipeline.hget(this.eip7702AuthHashMap, sender)
 
@@ -96,7 +100,8 @@ class RedisOutstandingQueue implements OutstandingStore {
         const [nonceResult, deploymentResult, eip7702AuthResult] = results
         const conflictingNonceHashes = (nonceResult?.[1] as string[]) || []
         const existingDeploymentHash = deploymentResult?.[1] as HexData32 | null
-        const existingEip7702AuthHash = eip7702AuthResult?.[1] as HexData32 | null
+        const existingEip7702AuthHash =
+            eip7702AuthResult?.[1] as HexData32 | null
 
         // Check for conflicting nonce
         if (conflictingNonceHashes.length > 0) {
