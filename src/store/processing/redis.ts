@@ -1,9 +1,10 @@
-import type { ProcessingStore } from "@alto/store"
 import type { UserOpInfo, UserOperation } from "@alto/types"
 import { isDeployment } from "@alto/utils"
 import { Redis } from "ioredis"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import type { ConflictType } from "../types"
+import type { ProcessingStore } from "./types"
 
 export class RedisProcessingStore implements ProcessingStore {
     private readonly redis: Redis
@@ -11,6 +12,7 @@ export class RedisProcessingStore implements ProcessingStore {
     private readonly processingUserOpsSet: string // set of userOpHashes being processed
     private readonly processingSenderNonceSet: string // set of "sender:nonce" being processed
     private readonly processingDeploymentSet: string // set of senders with deployments being processed
+    private readonly processingEip7702AuthSet: string // set of senders with eip7702Auth being processed
 
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`
@@ -31,6 +33,7 @@ export class RedisProcessingStore implements ProcessingStore {
         this.processingUserOpsSet = `${redisPrefix}:userOps`
         this.processingSenderNonceSet = `${redisPrefix}:senderNonce`
         this.processingDeploymentSet = `${redisPrefix}:deployment`
+        this.processingEip7702AuthSet = `${redisPrefix}:eip7702Auth`
     }
 
     async addProcessing(userOpInfo: UserOpInfo): Promise<void> {
@@ -48,6 +51,10 @@ export class RedisProcessingStore implements ProcessingStore {
 
         if (isDeploymentOp) {
             multi.sadd(this.processingDeploymentSet, userOp.sender)
+        }
+
+        if (userOp.eip7702Auth) {
+            multi.sadd(this.processingEip7702AuthSet, userOp.sender)
         }
 
         await multi.exec()
@@ -70,6 +77,10 @@ export class RedisProcessingStore implements ProcessingStore {
             multi.srem(this.processingDeploymentSet, userOp.sender)
         }
 
+        if (userOp.eip7702Auth) {
+            multi.srem(this.processingEip7702AuthSet, userOp.sender)
+        }
+
         await multi.exec()
     }
 
@@ -81,9 +92,7 @@ export class RedisProcessingStore implements ProcessingStore {
         return isMember === 1
     }
 
-    async wouldConflict(
-        userOp: UserOperation
-    ): Promise<"nonce_conflict" | "deployment_conflict" | undefined> {
+    async wouldConflict(userOp: UserOperation): Promise<ConflictType | undefined> {
         const senderNonceId = this.encodeSenderNonceId(
             userOp.sender,
             userOp.nonce
@@ -92,21 +101,30 @@ export class RedisProcessingStore implements ProcessingStore {
         // Use MULTI for atomic read in single round trip
         const multi = this.redis.multi()
         multi.sismember(this.processingDeploymentSet, userOp.sender)
+        multi.sismember(this.processingEip7702AuthSet, userOp.sender)
         multi.sismember(this.processingSenderNonceSet, senderNonceId)
 
         const results = await multi.exec()
         if (!results) return undefined
 
-        const [deploymentResult, nonceResult] = results
+        const [deploymentResult, eip7702AuthResult, nonceResult] = results
         const hasDeployment = deploymentResult?.[1] === 1
+        const hasEip7702Auth = eip7702AuthResult?.[1] === 1
         const hasNonce = nonceResult?.[1] === 1
 
-        if (hasDeployment) {
-            return "deployment_conflict"
+        // Check deployment conflict
+        if (isDeployment(userOp) && hasDeployment) {
+            return "conflicting_deployment"
         }
 
+        // Check EIP-7702 auth conflict
+        if (userOp.eip7702Auth && hasEip7702Auth) {
+            return "conflicting_7702_auth"
+        }
+
+        // Check nonce conflict
         if (hasNonce) {
-            return "nonce_conflict"
+            return "conflicting_nonce"
         }
 
         return undefined
