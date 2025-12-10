@@ -2,7 +2,7 @@ import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 
 export type ConflictingOutstandingType =
     | {
-          reason:
+          conflictReason:
               | "conflicting_nonce"
               | "conflicting_deployment"
               | "conflicting_7702_auth"

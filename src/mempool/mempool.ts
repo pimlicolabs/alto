@@ -355,7 +355,7 @@ export class Mempool {
         })
 
         if (conflicting) {
-            const { userOpInfo, reason } = conflicting
+            const { userOpInfo, conflictReason } = conflicting
             const conflictingUserOp = userOpInfo.userOp
 
             const hasHigherPriorityFee =
@@ -373,10 +373,10 @@ export class Mempool {
 
             if (!hasHigherFees) {
                 let message: string
-                if (reason === "conflicting_deployment") {
+                if (conflictReason === "conflicting_deployment") {
                     message =
                         "AA10 sender already constructed: A conflicting userOperation with initCode for this sender is already in the mempool"
-                } else if (reason === "conflicting_7702_auth") {
+                } else if (conflictReason === "conflicting_7702_auth") {
                     message =
                         "Sender already has an inflight EIP-7702 authorization"
                 } else {

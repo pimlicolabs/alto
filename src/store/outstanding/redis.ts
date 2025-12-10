@@ -95,7 +95,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
             if (removedUserOps.length > 0) {
                 return {
-                    reason: "conflicting_nonce" as const,
+                    conflictReason: "conflicting_nonce" as const,
                     userOpInfo: removedUserOps[0]
                 }
             }
@@ -115,7 +115,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
                 if (removedUserOps.length > 0) {
                     return {
-                        reason: "conflicting_deployment" as const,
+                        conflictReason: "conflicting_deployment" as const,
                         userOpInfo: removedUserOps[0]
                     }
                 }
@@ -136,7 +136,7 @@ class RedisOutstandingQueue implements OutstandingStore {
 
                 if (removedUserOps.length > 0) {
                     return {
-                        reason: "conflicting_7702_auth" as const,
+                        conflictReason: "conflicting_7702_auth" as const,
                         userOpInfo: removedUserOps[0]
                     }
                 }
