@@ -80,17 +80,27 @@ class RedisOutstandingQueue implements OutstandingStore {
     async popConflicting(userOp: UserOperation) {
         const { sender, nonce } = userOp
         const [nonceSeq] = getNonceKeyAndSequence(nonce)
-
-        // Check for conflicting nonce.
         const senderNonceQueue = this.getSenderNonceQueue(userOp)
-        const conflictingHashes = await this.redis.zrangebyscore(
-            senderNonceQueue,
-            Number(nonceSeq),
-            Number(nonceSeq)
-        )
+        const isDeploymentOp = isDeployment(userOp)
+        const hasEip7702Auth = !!userOp.eip7702Auth
 
-        if (conflictingHashes.length > 0) {
-            const conflictingHash = conflictingHashes[0] as HexData32
+        // Check all conflicts in a single round trip
+        const pipeline = this.redis.pipeline()
+        pipeline.zrangebyscore(senderNonceQueue, Number(nonceSeq), Number(nonceSeq))
+        pipeline.hget(this.deploymentHashMap, sender)
+        pipeline.hget(this.eip7702AuthHashMap, sender)
+
+        const results = await pipeline.exec()
+        if (!results) return undefined
+
+        const [nonceResult, deploymentResult, eip7702AuthResult] = results
+        const conflictingNonceHashes = (nonceResult?.[1] as string[]) || []
+        const existingDeploymentHash = deploymentResult?.[1] as HexData32 | null
+        const existingEip7702AuthHash = eip7702AuthResult?.[1] as HexData32 | null
+
+        // Check for conflicting nonce
+        if (conflictingNonceHashes.length > 0) {
+            const conflictingHash = conflictingNonceHashes[0] as HexData32
             const removedUserOps = await this.remove([conflictingHash])
 
             if (removedUserOps.length > 0) {
@@ -101,44 +111,26 @@ class RedisOutstandingQueue implements OutstandingStore {
             }
         }
 
-        // Check for conflicting deployment.
-        if (isDeployment(userOp)) {
-            const existingDeploymentHash = (await this.redis.hget(
-                this.deploymentHashMap,
-                sender
-            )) as HexData32 | null
+        // Check for conflicting deployment
+        if (isDeploymentOp && existingDeploymentHash) {
+            const removedUserOps = await this.remove([existingDeploymentHash])
 
-            if (existingDeploymentHash) {
-                const removedUserOps = await this.remove([
-                    existingDeploymentHash
-                ])
-
-                if (removedUserOps.length > 0) {
-                    return {
-                        conflictReason: "conflicting_deployment" as const,
-                        userOpInfo: removedUserOps[0]
-                    }
+            if (removedUserOps.length > 0) {
+                return {
+                    conflictReason: "conflicting_deployment" as const,
+                    userOpInfo: removedUserOps[0]
                 }
             }
         }
 
-        // Check for conflicting EIP-7702 auth.
-        if (userOp.eip7702Auth) {
-            const existingEip7702AuthHash = (await this.redis.hget(
-                this.eip7702AuthHashMap,
-                sender
-            )) as HexData32 | null
+        // Check for conflicting EIP-7702 auth
+        if (hasEip7702Auth && existingEip7702AuthHash) {
+            const removedUserOps = await this.remove([existingEip7702AuthHash])
 
-            if (existingEip7702AuthHash) {
-                const removedUserOps = await this.remove([
-                    existingEip7702AuthHash
-                ])
-
-                if (removedUserOps.length > 0) {
-                    return {
-                        conflictReason: "conflicting_7702_auth" as const,
-                        userOpInfo: removedUserOps[0]
-                    }
+            if (removedUserOps.length > 0) {
+                return {
+                    conflictReason: "conflicting_7702_auth" as const,
+                    userOpInfo: removedUserOps[0]
                 }
             }
         }
