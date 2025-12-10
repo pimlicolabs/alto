@@ -57,7 +57,9 @@ export class InMemoryProcessingStore implements ProcessingStore {
         return this.processingUserOpsSet.has(userOpHash)
     }
 
-    async wouldConflict(userOp: UserOperation): Promise<ConflictType | undefined> {
+    async wouldConflict(
+        userOp: UserOperation
+    ): Promise<ConflictType | undefined> {
         const isDeploymentOp = isDeployment(userOp)
         const senderNonceId = this.encodeSenderNonceId(
             userOp.sender,

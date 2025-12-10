@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
-import { ConflictType } from "../types"
+import type { ConflictType } from "../types"
 
 export type ConflictingOutstandingType =
     | {

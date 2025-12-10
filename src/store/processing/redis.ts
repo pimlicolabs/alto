@@ -92,7 +92,9 @@ export class RedisProcessingStore implements ProcessingStore {
         return isMember === 1
     }
 
-    async wouldConflict(userOp: UserOperation): Promise<ConflictType | undefined> {
+    async wouldConflict(
+        userOp: UserOperation
+    ): Promise<ConflictType | undefined> {
         const senderNonceId = this.encodeSenderNonceId(
             userOp.sender,
             userOp.nonce

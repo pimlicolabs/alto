@@ -1,6 +1,6 @@
 import type { UserOpInfo, UserOperation } from "@alto/types"
 import type { Hex } from "viem"
-import { ConflictType } from "../types"
+import type { ConflictType } from "../types"
 
 export interface ProcessingStore {
     addProcessing(userOp: UserOpInfo): Promise<void>
