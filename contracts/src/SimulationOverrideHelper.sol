@@ -14,6 +14,7 @@ library SimulationOverrideHelper {
     address private constant DEFAULT_SENDER_CREATOR_06 = 0x7fc98430eAEdbb6070B35B39D798725049088348;
     address private constant DEFAULT_SENDER_CREATOR_07 = 0xEFC2c1444eBCC4Db75e7613d20C6a62fF67A167C;
     address private constant DEFAULT_SENDER_CREATOR_08 = 0x449ED7C3e6Fee6a97311d4b55475DF59C44AdD33;
+    address private constant DEFAULT_SENDER_CREATOR_09 = 0x0A630a99Df908A81115A3022927Be82f9299987e;
 
     // Get the sender creator address for EntryPoint 0.6
     function getSenderCreator06() internal view returns (address) {
@@ -31,6 +32,12 @@ library SimulationOverrideHelper {
     function getSenderCreator08() internal view returns (address) {
         address creator = StorageSlot.getAddressSlot(SENDER_CREATOR_SLOT).value;
         return creator == address(0) ? DEFAULT_SENDER_CREATOR_08 : creator;
+    }
+
+    // Get the sender creator address for EntryPoint 0.9
+    function getSenderCreator09() internal view returns (address) {
+        address creator = StorageSlot.getAddressSlot(SENDER_CREATOR_SLOT).value;
+        return creator == address(0) ? DEFAULT_SENDER_CREATOR_09 : creator;
     }
 
     // Get the effective block base fee per gas
