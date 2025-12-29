@@ -1,3 +1,4 @@
+import type { AltoConfig } from "../createConfig"
 import {
     type PackedUserOperation,
     type UserOperation,
@@ -441,4 +442,21 @@ export const getViemEntryPointVersion = (
     }
 
     return "0.6"
+}
+
+export const getEntryPointSimulationsAddress = ({
+    version,
+    config
+}: {
+    version: EntryPointVersion
+    config: AltoConfig
+}): Address | undefined => {
+    switch (version) {
+        case "0.9":
+            return config.entrypointSimulationContractV9
+        case "0.8":
+            return config.entrypointSimulationContractV8
+        default:
+            return config.entrypointSimulationContractV7
+    }
 }

@@ -6,7 +6,12 @@ import {
     type UserOperation07,
     pimlicoSimulationsAbi
 } from "@alto/types"
-import { type Logger, isVersion08, toPackedUserOp } from "@alto/utils"
+import {
+    type Logger,
+    getEntryPointSimulationsAddress,
+    getViemEntryPointVersion,
+    toPackedUserOp
+} from "@alto/utils"
 import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
@@ -55,15 +60,14 @@ export class GasEstimator07 {
         entryPoint: Address,
         userOp: UserOperation07
     ) {
-        const is08 = isVersion08(userOp, entryPoint)
-        const epSimulationsAddress = is08
-            ? this.config.entrypointSimulationContractV8
-            : this.config.entrypointSimulationContractV7
+        const version = getViemEntryPointVersion(userOp, entryPoint)
+        const epSimulationsAddress = getEntryPointSimulationsAddress({
+            version,
+            config: this.config
+        })
 
         if (!epSimulationsAddress) {
-            const errorMsg = `Cannot find entryPointSimulations Address for version ${
-                is08 ? "08" : "07"
-            }`
+            const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
             this.logger.warn(errorMsg)
             throw new Error(errorMsg)
         }

@@ -23,7 +23,8 @@ import type { Metrics } from "@alto/utils"
 import {
     getAddressFromInitCodeOrPaymasterAndData,
     getAuthorizationStateOverrides,
-    isVersion08,
+    getEntryPointSimulationsAddress,
+    getViemEntryPointVersion,
     jsonStringifyWithBigint,
     toPackedUserOp
 } from "@alto/utils"
@@ -430,12 +431,10 @@ export class SafeValidator
             toPackedUserOp(uop)
         )
 
-        const isV8 = isVersion08(userOp, entryPoint)
-
-        const entryPointSimulationsAddress = isV8
-            ? this.config.entrypointSimulationContractV8
-            : this.config.entrypointSimulationContractV7
-
+        const entryPointSimulationsAddress = getEntryPointSimulationsAddress({
+            version: getViemEntryPointVersion(userOp, entryPoint),
+            config: this.config
+        })
         const pimlicoSimulationsAddress = this.config.pimlicoSimulationContract
 
         if (!entryPointSimulationsAddress || !pimlicoSimulationsAddress) {
