@@ -235,6 +235,10 @@ export const gasEstimationArgsSchema = z.object({
         (v) => (v === "" ? undefined : v),
         addressSchema.optional()
     ),
+    "entrypoint-simulation-contract-v9": z.preprocess(
+        (v) => (v === "" ? undefined : v),
+        addressSchema.optional()
+    ),
     "binary-search-tolerance-delta": z
         .string()
         .transform(BigInt)

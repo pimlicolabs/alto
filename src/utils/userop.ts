@@ -428,6 +428,10 @@ export const getViemEntryPointVersion = (
     userOp: UserOperation,
     entryPoint: Address
 ): EntryPointVersion => {
+    if (isVersion09(userOp, entryPoint)) {
+        return "0.9"
+    }
+
     if (isVersion08(userOp, entryPoint)) {
         return "0.8"
     }
