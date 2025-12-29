@@ -10,6 +10,7 @@ import "account-abstraction-v7/interfaces/IPaymaster.sol";
 import "account-abstraction-v7/core/NonceManager.sol";
 import "account-abstraction-v7/utils/Exec.sol";
 
+// @note: There are some differences between 0.7 and 0.8, we need to override such that 0.8 uses the 0.7 PackedUserOperation struct
 import "./overrides/SenderCreator.sol";
 import "./overrides/Eip7702Support.sol";
 import "./overrides/StakeManager.sol";
@@ -423,16 +424,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 maxContextLength;
         uint256 len;
         assembly ("memory-safe") {
-            success :=
-                call(
-                    pmVerificationGasLimit,
-                    paymaster,
-                    0,
-                    add(validatePaymasterCall, 0x20),
-                    mload(validatePaymasterCall),
-                    0,
-                    0
-                )
+            success := call(
+                pmVerificationGasLimit,
+                paymaster,
+                0,
+                add(validatePaymasterCall, 0x20),
+                mload(validatePaymasterCall),
+                0,
+                0
+            )
             len := returndatasize()
             // return data from validatePaymasterUserOp is (bytes context, validationData)
             // encoded as:
@@ -553,8 +553,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
 
         uint256 requiredPreFund = _getRequiredPrefund(mUserOp);
         outOpInfo.prefund = requiredPreFund;
-        validationData =
-            _validateAccountPrepayment(opIndex, userOp, outOpInfo, requiredPreFund, userOp.unpackVerificationGasLimit());
+        validationData = _validateAccountPrepayment(
+            opIndex, userOp, outOpInfo, requiredPreFund, userOp.unpackVerificationGasLimit()
+        );
 
         require(_validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce), FailedOp(opIndex, "AA25 invalid account nonce"));
 
@@ -660,8 +661,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         try IPaymaster(paymaster).postOp{gas: mUserOp.paymasterPostOpGasLimit}(
                             mode, context, actualGasCost, gasPrice
                         ) {
-                            // solhint-disable-next-line no-empty-blocks
-                        } catch {
+                        // solhint-disable-next-line no-empty-blocks
+                        }
+                        catch {
                             // NOTE: comment out EntryPoint 0.8 postOpRevert error and replace with FailedOpWithRevert
                             // so that postOp estimation reverts are handled the same for both 0.7 and 0.8
                             //
