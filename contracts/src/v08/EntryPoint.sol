@@ -7,14 +7,13 @@ pragma solidity ^0.8.28;
 import "account-abstraction-v7/interfaces/IAccount.sol";
 import "account-abstraction-v7/interfaces/IAccountExecute.sol";
 import "account-abstraction-v7/interfaces/IPaymaster.sol";
-import "account-abstraction-v7/core/NonceManager.sol";
-import "account-abstraction-v7/utils/Exec.sol";
 
 // @note: There are some differences between 0.7 and 0.8, we need to override such that 0.8 uses the 0.7 PackedUserOperation struct
-import "./overrides/SenderCreator.sol";
-import "./overrides/Eip7702Support.sol";
-import "./overrides/StakeManager.sol";
-import "./overrides/UserOperationLib.sol";
+import "./overrides/StakeManager.sol"; // Must override StakeManager because IEntryPoint uses 0.7 IStakeManager
+import "./overrides/NonceManager.sol"; // Must override NonceManager because IEntryPoint uses 0.7 INonceManager
+import "./overrides/SenderCreator.sol"; // Must override sender creator because 0.8 logic is different from 0.7
+import "./overrides/Eip7702Support.sol"; // Must override EIP-7702 (0.8 specific)
+import "./overrides/UserOperationLib.sol"; // Must override user operation library because 0.8 logic is different from 0.7
 
 import "account-abstraction-v8/core/Helpers.sol";
 
