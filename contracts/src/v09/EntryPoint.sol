@@ -412,7 +412,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
         uint256 opIndex,
         PackedUserOperation calldata op,
         UserOpInfo memory opInfo,
-        uint256 requiredPrefund
+        uint256 requiredPrefund,
+        uint256 verificationGasLimit
     ) internal virtual returns (uint256 validationData) {
         unchecked {
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -424,12 +425,28 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
                 uint256 bal = balanceOf(sender);
                 missingAccountFunds = bal > requiredPrefund ? 0 : requiredPrefund - bal;
             }
-            validationData = _callValidateUserOp(opIndex, op, opInfo, missingAccountFunds);
+            validationData = _callValidateUserOp(opIndex, op, opInfo, missingAccountFunds, verificationGasLimit);
             if (paymaster == address(0)) {
                 if (!_tryDecrementDeposit(sender, requiredPrefund)) {
                     revert FailedOp(opIndex, "AA21 didn't pay prefund");
                 }
             }
+        }
+    }
+
+    function _paymasterValidation(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory outOpInfo)
+        public
+        returns (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit)
+    {
+        bytes memory context;
+
+        MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
+        _copyUserOpToMemory(userOp, mUserOp);
+        outOpInfo.userOpHash = getUserOpHash(userOp);
+
+        outOpInfo.prefund = _getRequiredPrefund(mUserOp);
+        if (mUserOp.paymaster != address(0)) {
+            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
     }
 
@@ -446,9 +463,10 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
         uint256 opIndex,
         PackedUserOperation calldata op,
         UserOpInfo memory opInfo,
-        uint256 missingAccountFunds
+        uint256 missingAccountFunds,
+        uint256 verificationGasLimit
     ) internal virtual returns (uint256 validationData) {
-        uint256 gasLimit = opInfo.mUserOp.verificationGasLimit;
+        uint256 gasLimit = verificationGasLimit;
         address sender = opInfo.mUserOp.sender;
         bool success;
         {
@@ -644,10 +662,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
      * @return validationData          - The account's validationData.
      * @return paymasterValidationData - The paymaster's validationData.
      */
-    function _validatePrepayment(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory outOpInfo)
-        internal
+    function _validatePrepayment(
+        uint256 opIndex,
+        PackedUserOperation calldata userOp,
+        UserOpInfo memory outOpInfo,
+        bool validatePaymasterPrepayment
+    )
+        public
         virtual
-        returns (uint256 validationData, uint256 paymasterValidationData)
+        returns (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit)
     {
         uint256 preGas = gasleft();
         MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
@@ -668,7 +691,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
 
         uint256 requiredPreFund = _getRequiredPrefund(mUserOp);
         outOpInfo.prefund = requiredPreFund;
-        validationData = _validateAccountPrepayment(opIndex, userOp, outOpInfo, requiredPreFund);
+        validationData = _validateAccountPrepayment(
+            opIndex, userOp, outOpInfo, requiredPreFund, userOp.unpackVerificationGasLimit()
+        );
 
         require(_validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce), FailedOp(opIndex, "AA25 invalid account nonce"));
 
@@ -679,9 +704,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
         }
 
         bytes memory context;
-        if (mUserOp.paymaster != address(0)) {
+        uint256 remainingGas = gasleft();
+        if (mUserOp.paymaster != address(0) && validatePaymasterPrepayment) {
             (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
+        paymasterVerificationGasLimit = ((remainingGas - gasleft()) * 115) / 100;
         unchecked {
             outOpInfo.contextOffset = _getOffsetOfMemoryBytes(context);
             outOpInfo.preOpGas = preGas - gasleft() + userOp.preVerificationGas;
