@@ -69,7 +69,7 @@ function encodeUserOp(userOp: UserOperation): Uint8Array {
         )
     }
 
-    // For v0.7, we need to pack the user operation
+    // For 0.7, 0.8, 0.9 we need to pack the user operation
     const packedUserOp = toPackedUserOp(filledUserOp)
     return toBytes(
         encodeAbiParameters(

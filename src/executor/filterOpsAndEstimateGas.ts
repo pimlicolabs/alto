@@ -4,6 +4,7 @@ import type {
     UserOperation,
     UserOperation06,
     UserOperation07,
+    UserOperation08,
     UserOperationBundle
 } from "@alto/types"
 import { type Logger, scaleBigIntByPercent, toPackedUserOp } from "@alto/utils"
@@ -122,7 +123,7 @@ export const getFilterOpsResult = async ({
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOp(userOp as UserOperation07)
+                        toPackedUserOp(userOp as UserOperation08)
                     ),
                     beneficiary,
                     entryPoint
