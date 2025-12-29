@@ -30,3 +30,6 @@
 [submodule "contracts/lib/singleton-paymaster"]
 	path = contracts/lib/singleton-paymaster
 	url = https://github.com/pimlicolabs/singleton-paymaster
+[submodule "contracts/lib/account-abstraction-v9"]
+	path = contracts/lib/account-abstraction-v9
+	url = https://github.com/eth-infinitism/account-abstraction
