@@ -21,8 +21,8 @@ import "./overrides/NonceManager.sol";
 import {IEntryPoint as IEntryPoint09} from "account-abstraction-v9/interfaces/IEntryPoint.sol"; // Must import IEntryPoint 0.9 for 0.9 specific errors.
 import {ValidationData, _parseValidationData, finalizeAllocation} from "account-abstraction-v9/core/Helpers.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
 /// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/a5ngpwSm/
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
