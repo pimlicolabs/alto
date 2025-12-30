@@ -24,7 +24,7 @@ import {ValidationData, _parseValidationData, finalizeAllocation} from "account-
 import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
-/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/a5ngpwSm/
+/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/NONzRkac/
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
     // Custom event for bubbling up callphase reverts.
     error CallPhaseReverted(bytes reason);
