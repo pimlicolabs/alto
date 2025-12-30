@@ -138,10 +138,10 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidation(
-        PackedUserOperation[] calldata queuedUserOps,
-        PackedUserOperation calldata targetUserOp
-    ) external returns (ValidationResult memory) {
+    function simulateValidation(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
+        external
+        returns (ValidationResult memory)
+    {
         // Validate all queued operations first to set up state
         for (uint256 i = 0; i < queuedUserOps.length; i++) {
             simulateValidation(queuedUserOps[i]);

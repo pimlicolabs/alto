@@ -27,8 +27,7 @@ enum BinarySearchMode {
  */
 contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
     EntryPointSimulations07 immutable thisContract = this;
-    IEntryPoint.AggregatorStakeInfo private NOT_AGGREGATED =
-        IEntryPoint.AggregatorStakeInfo(address(0), StakeInfo(0, 0));
+    AggregatorStakeInfo private NOT_AGGREGATED = AggregatorStakeInfo(address(0), StakeInfo(0, 0));
 
     using UserOperationLib for PackedUserOperation;
 
@@ -139,10 +138,10 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         revert("Invalid mode");
     }
 
-    function simulateValidation(
-        PackedUserOperation[] calldata queuedUserOps,
-        PackedUserOperation calldata targetUserOp
-    ) external returns (ValidationResult memory) {
+    function simulateValidation(PackedUserOperation[] calldata queuedUserOps, PackedUserOperation calldata targetUserOp)
+        external
+        returns (ValidationResult memory)
+    {
         // Validate all queued operations first to set up state
         for (uint256 i = 0; i < queuedUserOps.length; i++) {
             simulateValidation(queuedUserOps[i]);
@@ -197,8 +196,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
 
             // Execute calldata
             (address target, bytes memory targetCallData) = _encodeTargetCallData(userOp, opInfo.userOpHash);
-            (bool success,) = target.call(targetCallData);
-            success;
+            target.call(targetCallData);
         }
     }
 
