@@ -201,6 +201,30 @@ export function getUserOpHash({
     entryPointAddress: Address
     chainId: number
 }): Hex {
+    if (isVersion09(userOp, entryPointAddress)) {
+        const authorization = userOp.eip7702Auth
+            ? {
+                  address: getEip7702AuthAddress(userOp.eip7702Auth),
+                  chainId: userOp.eip7702Auth.chainId,
+                  nonce: userOp.eip7702Auth.nonce,
+                  r: userOp.eip7702Auth.r,
+                  s: userOp.eip7702Auth.s,
+                  yParity: userOp.eip7702Auth.yParity,
+                  v: userOp.eip7702Auth.v
+              }
+            : undefined
+
+        return getUserOperationHash({
+            chainId,
+            entryPointAddress,
+            entryPointVersion: "0.9",
+            userOperation: {
+                ...toViemUserOp(userOp),
+                authorization
+            }
+        })
+    }
+
     if (isVersion08(userOp, entryPointAddress)) {
         const authorization = userOp.eip7702Auth
             ? {
