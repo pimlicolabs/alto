@@ -13,7 +13,8 @@ import {
     type UserOperation,
     entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address
+    entryPoint08Address,
+    entryPoint09Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
@@ -38,6 +39,10 @@ describe.each([
     {
         entryPoint: entryPoint08Address,
         entryPointVersion: "0.8" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint09Address,
+        entryPointVersion: "0.9" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports boost_sendUserOperation",

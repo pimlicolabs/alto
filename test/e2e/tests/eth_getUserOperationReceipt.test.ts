@@ -14,6 +14,7 @@ import {
     entryPoint07Abi,
     entryPoint07Address,
     entryPoint08Address,
+    entryPoint09Address,
     getUserOperationHash,
     toPackedUserOperation
 } from "viem/account-abstraction"
@@ -51,6 +52,10 @@ describe.each([
     {
         entryPoint: entryPoint08Address,
         entryPointVersion: "0.8" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint09Address,
+        entryPointVersion: "0.9" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_getUserOperationReceipt",

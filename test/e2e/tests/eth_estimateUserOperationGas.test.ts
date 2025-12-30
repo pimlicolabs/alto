@@ -19,7 +19,8 @@ import {
     createBundlerClient,
     entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address
+    entryPoint08Address,
+    entryPoint09Address
 } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import { foundry } from "viem/chains"
@@ -49,6 +50,10 @@ describe.each([
     {
         entryPoint: entryPoint08Address,
         entryPointVersion: "0.8" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint09Address,
+        entryPointVersion: "0.9" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_estimateUserOperationGas",

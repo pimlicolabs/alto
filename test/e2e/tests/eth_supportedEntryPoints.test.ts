@@ -3,7 +3,8 @@ import {
     createBundlerClient,
     entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address
+    entryPoint08Address,
+    entryPoint09Address
 } from "viem/account-abstraction"
 import { beforeEach, expect, inject, test } from "vitest"
 import { beforeEachCleanUp } from "../src/utils/index.js"
@@ -19,7 +20,8 @@ test("Should throw if EntryPoint is not supported", async () => {
     const actualEntryPoints = [
         entryPoint06Address,
         entryPoint07Address,
-        entryPoint08Address
+        entryPoint08Address,
+        entryPoint09Address
     ]
 
     const bundlerClient = createBundlerClient({

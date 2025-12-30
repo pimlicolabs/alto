@@ -96,10 +96,17 @@ export const getSmartAccountClient = async ({
 
     let account: SmartAccount
 
-    if (use7702 && entryPointVersion === "0.8") {
+    if (
+        use7702 &&
+        (entryPointVersion === "0.8" || entryPointVersion === "0.9")
+    ) {
         account = await toSimple7702SmartAccount({
             owner: privateKeyToAccount(privateKey),
-            client: publicClient
+            client: publicClient,
+            entryPoint: {
+                address: getEntryPointAddress(entryPointVersion),
+                version: entryPointVersion
+            }
         })
     } else if (use7702) {
         account = await toSimpleSmartAccount({
@@ -232,6 +239,8 @@ export const getSimple7702AccountImplementationAddress = (
     entryPointVersion: EntryPointVersion
 ) => {
     switch (entryPointVersion) {
+        case "0.9":
+            return "0xa46cc63eBF4Bd77888AA327837d20b23A63a56B5"
         case "0.8":
             return "0xe6Cae83BdE06E4c305530e199D7217f42808555B"
         case "0.7":

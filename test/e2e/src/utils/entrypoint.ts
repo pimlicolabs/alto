@@ -5,7 +5,9 @@ import {
     entryPoint07Abi,
     entryPoint07Address,
     entryPoint08Abi,
-    entryPoint08Address
+    entryPoint08Address,
+    entryPoint09Abi,
+    entryPoint09Address
 } from "viem/account-abstraction"
 
 export const getEntryPointAddress = (version: EntryPointVersion) => {
@@ -16,6 +18,8 @@ export const getEntryPointAddress = (version: EntryPointVersion) => {
             return entryPoint07Address
         case "0.8":
             return entryPoint08Address
+        case "0.9":
+            return entryPoint09Address
     }
 }
 
@@ -27,5 +31,7 @@ export const getEntryPointAbi = (version: EntryPointVersion) => {
             return entryPoint07Abi
         case "0.8":
             return entryPoint08Abi
+        case "0.9":
+            return entryPoint09Abi
     }
 }
