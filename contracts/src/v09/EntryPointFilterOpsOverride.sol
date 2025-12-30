@@ -31,7 +31,13 @@ import "./IEntryPointFilterOpsOverride.sol";
  * Only one instance required on each chain.
  * @custom:security-contact https://bounty.ethereum.org
  */
-contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, IEntryPointFilterOpsOverride09 {
+contract EntryPointFilterOpsOverride09 is
+    IEntryPoint,
+    StakeManager,
+    NonceManager,
+    ERC165,
+    IEntryPointFilterOpsOverride09
+{
     using UserOperationLib for PackedUserOperation;
     using Eip7702Support for address;
 

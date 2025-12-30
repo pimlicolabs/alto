@@ -84,6 +84,18 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     //     }
     // }
 
+    // if (config.entrypointSimulationContractV9) {
+    //     const simulations = config.entrypointSimulationContractV9
+    //     const simulationsCode = await config.publicClient.getCode({
+    //         address: simulations
+    //     })
+    //     if (simulationsCode === undefined || simulationsCode === "0x") {
+    //         throw new Error(
+    //             `EntryPointSimulationsV9 contract ${simulations} does not exist`
+    //         )
+    //     }
+    // }
+
     if (config.refillHelperContract) {
         const refillHelper = config.refillHelperContract
         const refillHelperCode = await config.publicClient.getCode({
@@ -223,6 +235,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             deployedContracts.entrypointSimulationContractV7
         args.entrypointSimulationContractV8 =
             deployedContracts.entrypointSimulationContractV8
+        args.entrypointSimulationContractV9 =
+            deployedContracts.entrypointSimulationContractV9
         args.pimlicoSimulationContract =
             deployedContracts.pimlicoSimulationContract
         logger.info(
@@ -231,6 +245,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                     deployedContracts.entrypointSimulationContractV7,
                 entrypointSimulationContractV8:
                     deployedContracts.entrypointSimulationContractV8,
+                entrypointSimulationContractV9:
+                    deployedContracts.entrypointSimulationContractV9,
                 pimlicoSimulationContract:
                     deployedContracts.pimlicoSimulationContract
             },

@@ -17,6 +17,9 @@ import entrypointSimulationsJsonV7 from "../contracts/EntryPointSimulations.sol/
 import entrypointSimulationsJsonV8 from "../contracts/EntryPointSimulations.sol/EntryPointSimulations08.json" with {
     type: "json"
 }
+import entrypointSimulationsJsonV9 from "../contracts/EntryPointSimulations.sol/EntryPointSimulations09.json" with {
+    type: "json"
+}
 import pimlicoSimulationsJson from "../contracts/PimlicoSimulations.sol/PimlicoSimulations.json" with {
     type: "json"
 }
@@ -49,6 +52,7 @@ export const deploySimulationsContract = async ({
 }): Promise<{
     entrypointSimulationContractV7: Hex
     entrypointSimulationContractV8: Hex
+    entrypointSimulationContractV9: Hex
     pimlicoSimulationContract: Hex
 }> => {
     const utilityPrivateKey = args.utilityPrivateKey
@@ -81,15 +85,24 @@ export const deploySimulationsContract = async ({
         from: args.deterministicDeployerAddress
     })
 
+    const epSimulationsV9 = getContractAddress({
+        opcode: "CREATE2",
+        bytecode: entrypointSimulationsJsonV9.bytecode.object as Hex,
+        salt,
+        from: args.deterministicDeployerAddress
+    })
+
     const [
         isPimlicoDeployed,
         isDeployedV7,
         isDeployedV8,
+        isDeployedV9,
         isDeterministicDeployerDeployed
     ] = await Promise.all([
         isContractDeployed({ publicClient, address: pimlicoSimulations }),
         isContractDeployed({ publicClient, address: epSimulationsV7 }),
         isContractDeployed({ publicClient, address: epSimulationsV8 }),
+        isContractDeployed({ publicClient, address: epSimulationsV9 }),
         isContractDeployed({
             publicClient,
             address: args.deterministicDeployerAddress
@@ -99,13 +112,15 @@ export const deploySimulationsContract = async ({
     if (
         isDeployedV7 &&
         isDeployedV8 &&
+        isDeployedV9 &&
         isPimlicoDeployed &&
         isDeterministicDeployerDeployed
     ) {
         return {
             pimlicoSimulationContract: pimlicoSimulations,
             entrypointSimulationContractV7: epSimulationsV7,
-            entrypointSimulationContractV8: epSimulationsV8
+            entrypointSimulationContractV8: epSimulationsV8,
+            entrypointSimulationContractV9: epSimulationsV9
         }
     }
 
@@ -177,21 +192,42 @@ export const deploySimulationsContract = async ({
         }
     }
 
+    // if (!isDeployedV9) {
+    //     try {
+    //         const deployHash = await walletClient.sendTransaction({
+    //             chain: publicClient.chain,
+    //             to: args.deterministicDeployerAddress,
+    //             data: concat([
+    //                 salt,
+    //                 entrypointSimulationsJsonV9.bytecode.object as Hex
+    //             ])
+    //         })
+
+    //         await publicClient.waitForTransactionReceipt({
+    //             hash: deployHash
+    //         })
+    //     } catch {
+    //         logger.error("Failed to deploy simulationsContract V9")
+    //     }
+    // }
+
     const deployStatus = await Promise.all([
         isContractDeployed({ publicClient, address: pimlicoSimulations }),
         isContractDeployed({ publicClient, address: epSimulationsV7 }),
-        isContractDeployed({ publicClient, address: epSimulationsV8 })
+        isContractDeployed({ publicClient, address: epSimulationsV8 }),
+        isContractDeployed({ publicClient, address: epSimulationsV9 })
     ])
 
-    // EntryPointSimulationsV8 is optional as not all chains support cancun.
+    // EntryPointSimulationsV8 and V9 are optional as not all chains support cancun.
     if (!deployStatus[1]) {
-        logger.error("Failed to deploy simulationsContract V8")
+        logger.error("Failed to deploy simulationsContract V7")
     }
 
     if (deployStatus[0]) {
         return {
             entrypointSimulationContractV7: epSimulationsV7,
             entrypointSimulationContractV8: epSimulationsV8,
+            entrypointSimulationContractV9: epSimulationsV9,
             pimlicoSimulationContract: pimlicoSimulations
         }
     }
