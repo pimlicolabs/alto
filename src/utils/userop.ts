@@ -31,21 +31,21 @@ import { z } from "zod"
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "./eip7702"
 
-// Type predicate check if the UserOperation is V06.
+// Type predicate check if the UserOperation is v0.6
 export function isVersion06(
     operation: UserOperation
 ): operation is UserOperation06 {
     return "initCode" in operation && "paymasterAndData" in operation
 }
 
-// Type predicate to check if the UserOperation is V07.
+// Type predicate to check if the UserOperation is v0.7
 export function isVersion07(
     operation: UserOperation
 ): operation is UserOperation07 {
     return "factory" in operation && "paymaster" in operation
 }
 
-// Type predicate to check if the UserOperation is V08.
+// Type predicate to check if the UserOperation is v0.8
 export function isVersion08(
     operation: UserOperation,
     entryPointAddress: Address
@@ -53,7 +53,7 @@ export function isVersion08(
     return entryPointAddress.startsWith("0x433708")
 }
 
-// Type predicate to check if the UserOperation is V09.
+// Type predicate to check if the UserOperation is v0.9
 export function isVersion09(
     operation: UserOperation,
     entryPointAddress: Address
@@ -63,11 +63,11 @@ export function isVersion09(
 
 // Check if a userOperation is a deployment operation
 export function isDeployment(userOp: UserOperation): boolean {
-    const is06Deployment =
+    const isDeployment06 =
         isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
-    const is07Deployment =
+    const isDeployment07 =
         isVersion07(userOp) && !!userOp.factory && userOp.factory !== "0x"
-    return is06Deployment || is07Deployment
+    return isDeployment06 || isDeployment07
 }
 
 function unPackInitCode(initCode: Hex) {

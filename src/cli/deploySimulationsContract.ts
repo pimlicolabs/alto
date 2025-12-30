@@ -218,9 +218,14 @@ export const deploySimulationsContract = async ({
         isContractDeployed({ publicClient, address: epSimulationsV9 })
     ])
 
-    // EntryPointSimulationsV8 and V9 are optional as not all chains support cancun.
-    if (!deployStatus[1]) {
-        logger.error("Failed to deploy simulationsContract V7")
+    // EntryPointSimulationsV8 is optional as not all chains support cancun.
+    if (!deployStatus[2]) {
+        logger.error("Failed to deploy simulationsContract 0.7")
+    }
+
+    // EntryPointSimulationsV8 is optional as not all chains support cancun.
+    if (!deployStatus[3]) {
+        logger.error("Failed to deploy simulationsContract 0.9")
     }
 
     if (deployStatus[0]) {
