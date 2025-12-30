@@ -1,14 +1,13 @@
-import type { AltoConfig } from "../createConfig"
 import {
     type PackedUserOperation,
     type UserOperation,
     type UserOperation06,
     type UserOperation07,
+    type UserOperation08,
+    type UserOperation09,
     type UserOperationReceipt,
     logSchema,
-    receiptSchema,
-    UserOperation08,
-    UserOperation09
+    receiptSchema
 } from "@alto/types"
 import {
     type Address,
@@ -29,6 +28,7 @@ import {
     toPackedUserOperation
 } from "viem/account-abstraction"
 import { z } from "zod"
+import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "./eip7702"
 
 // Type predicate check if the UserOperation is V06.
