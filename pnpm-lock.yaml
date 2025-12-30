@@ -200,7 +200,7 @@ importers:
         version: 9.6.0
       permissionless:
         specifier: ^0.2.46
-        version: 0.2.46(viem@2.38.1)
+        version: 0.2.46(viem@2.43.3)
       prool:
         specifier: ^0.0.16
         version: 0.0.16(@pimlico/alto@test+e2e+src)
@@ -208,8 +208,8 @@ importers:
         specifier: ^10.9.2
         version: 10.9.2(@swc/core@1.3.105)(@types/node@18.16.3)(typescript@5.9.3)
       viem:
-        specifier: ^2.38.1
-        version: 2.38.1(typescript@5.9.3)
+        specifier: ^2.43.3
+        version: 2.43.3(typescript@5.9.3)
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@18.16.3)(tsx@4.19.4)
@@ -2706,20 +2706,6 @@ packages:
       typescript: 5.3.3
     dev: false
 
-  /abitype@1.1.0(typescript@5.9.3):
-    resolution: {integrity: sha512-6Vh4HcRxNMLA0puzPjM5GBgT4aAcFGKZzSgAXvuZ27shJP6NEpielTuqbBmZILR5/xd0PizkBGy5hReKz9jl5A==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-      zod: ^3.22.0 || ^4.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-      zod:
-        optional: true
-    dependencies:
-      typescript: 5.9.3
-    dev: false
-
   /abitype@1.2.3(typescript@5.3.3)(zod@3.22.4):
     resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
     peerDependencies:
@@ -2733,6 +2719,20 @@ packages:
     dependencies:
       typescript: 5.3.3
       zod: 3.22.4
+    dev: false
+
+  /abitype@1.2.3(typescript@5.9.3):
+    resolution: {integrity: sha512-Ofer5QUnuUdTFsBRwARMoWKOH1ND5ehwYhJ3OJ/BQO+StkwQjHw0XyVh4vDttzHB7QOFhPHa/o413PJ82gU/Tg==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+      zod: ^3.22.0 || ^4.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+      zod:
+        optional: true
+    dependencies:
+      typescript: 5.9.3
     dev: false
 
   /abort-controller@3.0.0:
@@ -4154,8 +4154,8 @@ packages:
       - zod
     dev: false
 
-  /ox@0.9.6(typescript@5.9.3):
-    resolution: {integrity: sha512-8SuCbHPvv2eZLYXrNmC0EC12rdzXQLdhnOMlHDW2wiCPLxBrOOJwX5L5E61by+UjTPOryqQiRSnjIKCI+GykKg==}
+  /ox@0.11.1(typescript@5.9.3):
+    resolution: {integrity: sha512-1l1gOLAqg0S0xiN1dH5nkPna8PucrZgrIJOfS49MLNiMevxu07Iz4ZjuJS9N+xifvT+PsZyIptS7WHM8nC+0+A==}
     peerDependencies:
       typescript: '>=5.4.0'
     peerDependenciesMeta:
@@ -4168,7 +4168,7 @@ packages:
       '@noble/hashes': 1.8.0
       '@scure/bip32': 1.7.0
       '@scure/bip39': 1.6.0
-      abitype: 1.1.0(typescript@5.9.3)
+      abitype: 1.2.3(typescript@5.9.3)
       eventemitter3: 5.0.1
       typescript: 5.9.3
     transitivePeerDependencies:
@@ -4268,7 +4268,7 @@ packages:
     engines: {node: '>= 14.16'}
     dev: false
 
-  /permissionless@0.2.46(viem@2.38.1):
+  /permissionless@0.2.46(viem@2.43.3):
     resolution: {integrity: sha512-AKZ053h647ub35++nMPbBl06YWvTBLrEnEOFmbJDS9d1d3GtWXc+DRvOFaz2Su/tqb8kkg0wrF0uwk0oQpzLKA==}
     peerDependencies:
       ox: 0.6.7
@@ -4277,7 +4277,7 @@ packages:
       ox:
         optional: true
     dependencies:
-      viem: 2.38.1(typescript@5.9.3)
+      viem: 2.43.3(typescript@5.9.3)
     dev: false
 
   /pg-int8@1.0.1:
@@ -5137,29 +5137,6 @@ packages:
   /v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
 
-  /viem@2.38.1(typescript@5.9.3):
-    resolution: {integrity: sha512-+5c5b8AmGBYJGMU0A3spIFgsBXseV1E+LlQnSDG80IBoXYDqeQ2XZ8wrwCl9FqLVeP+8NgXtouJaPpmv9VGwHQ==}
-    peerDependencies:
-      typescript: '>=5.0.4'
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-    dependencies:
-      '@noble/curves': 1.9.1
-      '@noble/hashes': 1.8.0
-      '@scure/bip32': 1.7.0
-      '@scure/bip39': 1.6.0
-      abitype: 1.1.0(typescript@5.9.3)
-      isows: 1.0.7(ws@8.18.3)
-      ox: 0.9.6(typescript@5.9.3)
-      typescript: 5.9.3
-      ws: 8.18.3
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-      - zod
-    dev: false
-
   /viem@2.43.3(typescript@5.3.3)(zod@3.22.4):
     resolution: {integrity: sha512-zM251fspfSjENCtfmT7cauuD+AA/YAlkFU7cksdEQJxj7wDuO0XFRWRH+RMvfmTFza88B9kug5cKU+Wk2nAjJg==}
     peerDependencies:
@@ -5176,6 +5153,29 @@ packages:
       isows: 1.0.7(ws@8.18.3)
       ox: 0.11.1(typescript@5.3.3)(zod@3.22.4)
       typescript: 5.3.3
+      ws: 8.18.3
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+      - zod
+    dev: false
+
+  /viem@2.43.3(typescript@5.9.3):
+    resolution: {integrity: sha512-zM251fspfSjENCtfmT7cauuD+AA/YAlkFU7cksdEQJxj7wDuO0XFRWRH+RMvfmTFza88B9kug5cKU+Wk2nAjJg==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+    dependencies:
+      '@noble/curves': 1.9.1
+      '@noble/hashes': 1.8.0
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      abitype: 1.2.3(typescript@5.9.3)
+      isows: 1.0.7(ws@8.18.3)
+      ox: 0.11.1(typescript@5.9.3)
+      typescript: 5.9.3
       ws: 8.18.3
     transitivePeerDependencies:
       - bufferutil

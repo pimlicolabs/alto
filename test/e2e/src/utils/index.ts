@@ -130,6 +130,7 @@ export const getSmartAccountClient = async ({
                 address: getEntryPointAddress(entryPointVersion),
                 version: entryPointVersion
             },
+            factoryAddress: getFactoryAddress(entryPointVersion),
             owner: privateKeyToAccount(privateKey)
         })
     }
