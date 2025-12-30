@@ -383,7 +383,6 @@ contract EntryPointSimulations09 is EntryPoint, IEntryPointSimulations {
     /// @notice simulates a single userOperation (taken from EntryPoint simulation example)
     function simulateHandleOpSingle(PackedUserOperation calldata op, address target, bytes memory targetCallData)
         public
-        nonReentrant
         returns (ExecutionResult memory)
     {
         UserOpInfo memory opInfo;
