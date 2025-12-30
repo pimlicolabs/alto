@@ -23,11 +23,7 @@ import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 import "../SimulationOverrideHelper.sol";
 import "./IEntryPointFilterOpsOverride.sol";
 
-/**
- * Account-Abstraction (EIP-4337) singleton EntryPoint v0.8 implementation.
- * Only one instance required on each chain.
- * @custom:security-contact https://bounty.ethereum.org
- */
+/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/ha2YsRp8/
 contract EntryPointFilterOpsOverride08 is
     IEntryPoint,
     StakeManager,
