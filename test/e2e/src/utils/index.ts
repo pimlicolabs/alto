@@ -99,10 +99,17 @@ export const getSmartAccountClient = async ({
 
     let account: SmartAccount
 
-    if (
-        use7702 &&
-        (entryPointVersion === "0.8" || entryPointVersion === "0.9")
-    ) {
+    if (use7702 && entryPointVersion === "0.9") {
+        account = await toSimple7702SmartAccount({
+            owner: privateKeyToAccount(privateKey),
+            client: publicClient,
+            entryPoint: {
+                address: getEntryPointAddress(entryPointVersion),
+                abi: getEntryPointAbi(entryPointVersion),
+                version: "0.8" // TODO: Remove this if block once permissionless.js's toSimple7702SmartAccount supports 0.9
+            }
+        })
+    } else if (use7702 && entryPointVersion === "0.8") {
         account = await toSimple7702SmartAccount({
             owner: privateKeyToAccount(privateKey),
             client: publicClient,
@@ -126,6 +133,16 @@ export const getSmartAccountClient = async ({
         account.getFactoryArgs = async () => ({
             factory: undefined,
             factoryData: undefined
+        })
+    } else if (entryPointVersion === "0.9") {
+        account = await toSimpleSmartAccount({
+            client: publicClient,
+            entryPoint: {
+                address: getEntryPointAddress(entryPointVersion),
+                version: "0.8" // TODO: Remove this if block once permissionless.js's toSimple7702SmartAccount supports 0.9
+            },
+            factoryAddress: getSimpleAccountFactoryAddress(entryPointVersion),
+            owner: privateKeyToAccount(privateKey)
         })
     } else {
         account = await toSimpleSmartAccount({
