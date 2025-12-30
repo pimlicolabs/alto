@@ -10,7 +10,7 @@ import {
     entryPoint09Address
 } from "viem/account-abstraction"
 
-export const getSimpleFactoryAddress = (version: EntryPointVersion) => {
+export const getSimpleAccountFactoryAddress = (version: EntryPointVersion) => {
     switch (version) {
         case "0.6":
             return "0x9406Cc6185a346906296840746125a0E44976454"

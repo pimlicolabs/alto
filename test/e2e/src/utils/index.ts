@@ -26,7 +26,10 @@ import {
     privateKeyToAddress
 } from "viem/accounts"
 import { foundry } from "viem/chains"
-import { getEntryPointAddress } from "./entrypoint.ts"
+import {
+    getEntryPointAddress,
+    getSimpleAccountFactoryAddress
+} from "./entrypoint.ts"
 
 export const getAnvilWalletClient = ({
     addressIndex,
@@ -105,6 +108,7 @@ export const getSmartAccountClient = async ({
             client: publicClient,
             entryPoint: {
                 address: getEntryPointAddress(entryPointVersion),
+                abi: getEntryPointAbi(entryPointVersion),
                 version: entryPointVersion
             }
         })
@@ -130,7 +134,7 @@ export const getSmartAccountClient = async ({
                 address: getEntryPointAddress(entryPointVersion),
                 version: entryPointVersion
             },
-            factoryAddress: getFactoryAddress(entryPointVersion),
+            factoryAddress: getSimpleAccountFactoryAddress(entryPointVersion),
             owner: privateKeyToAccount(privateKey)
         })
     }
