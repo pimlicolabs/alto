@@ -18,8 +18,8 @@ import "account-abstraction-v9/core/SenderCreator.sol";
 import "account-abstraction-v9/core/Eip7702Support.sol";
 import "account-abstraction-v9/utils/Exec.sol";
 
-import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
-import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
+import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
 import "../SimulationOverrideHelper.sol";
 import "./IEntryPointFilterOpsOverride.sol";
@@ -108,7 +108,7 @@ contract EntryPointFilterOpsOverride09 is
     }
 
     /// @inheritdoc IEntryPoint
-    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external virtual nonReentrant {
+    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external virtual {
         uint256 opslen = ops.length;
         UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
         unchecked {
@@ -129,7 +129,6 @@ contract EntryPointFilterOpsOverride09 is
     function handleAggregatedOps(UserOpsPerAggregator[] calldata opsPerAggregator, address payable beneficiary)
         external
         virtual
-        nonReentrant
     {
         unchecked {
             uint256 opasLen = opsPerAggregator.length;
