@@ -27,9 +27,9 @@ import {
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
+    getEntryPointAbi,
     getEntryPointAddress,
-    getSimpleAccountFactoryAddress,
-    getEntryPointAbi
+    getSimpleAccountFactoryAddress
 } from "./entrypoint.ts"
 
 export const getAnvilWalletClient = ({
