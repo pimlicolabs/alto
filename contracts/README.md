@@ -69,3 +69,4 @@ This contract is used by the bundler for gasEstimation and during eth_sendUserOp
 - update `_validateAccountPrepayment` such that we pass in a verificationGasLimit when calling IAccount.validateUserOp (instead of relying on userOp.verificationGasLimit)
 - update `_validatePaymasterPrepayment` such that we pass in a paymasterVerificationGasLimit when calling IPaymaster.validatePaymasterUserOp (instead of relying on userOp.paymasterVerificationGasLimit)
 - Remove re-entrancy guard for 0.9 (due to the msg.sender === tx.origin check, during simulations msg.sender is PimlicoSimulations)
+- We have to override some of the EntryPoint 0.8 / 0.9 code to support the 0.7 packedUserOp struct. This is purely a syntax change, code functionality remains the same.
