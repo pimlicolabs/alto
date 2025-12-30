@@ -544,6 +544,12 @@ describe.each([
         // ============================================================
 
         test("Should throw AA10: sender already constructed", async () => {
+            if (entryPointVersion === "0.9") {
+                // AA10 is no longer thrown for 0.9 since
+                // source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.9/contracts/core/EntryPoint.sol#L529-L537
+                return
+            }
+
             const privateKey = generatePrivateKey()
             const client = await getSmartAccountClient({
                 entryPointVersion,
