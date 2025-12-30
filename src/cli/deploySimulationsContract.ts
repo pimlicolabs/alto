@@ -192,24 +192,24 @@ export const deploySimulationsContract = async ({
         }
     }
 
-    // if (!isDeployedV9) {
-    //     try {
-    //         const deployHash = await walletClient.sendTransaction({
-    //             chain: publicClient.chain,
-    //             to: args.deterministicDeployerAddress,
-    //             data: concat([
-    //                 salt,
-    //                 entrypointSimulationsJsonV9.bytecode.object as Hex
-    //             ])
-    //         })
+    if (!isDeployedV9) {
+        try {
+            const deployHash = await walletClient.sendTransaction({
+                chain: publicClient.chain,
+                to: args.deterministicDeployerAddress,
+                data: concat([
+                    salt,
+                    entrypointSimulationsJsonV9.bytecode.object as Hex
+                ])
+            })
 
-    //         await publicClient.waitForTransactionReceipt({
-    //             hash: deployHash
-    //         })
-    //     } catch {
-    //         logger.error("Failed to deploy simulationsContract V9")
-    //     }
-    // }
+            await publicClient.waitForTransactionReceipt({
+                hash: deployHash
+            })
+        } catch {
+            logger.error("Failed to deploy simulationsContract V9")
+        }
+    }
 
     const deployStatus = await Promise.all([
         isContractDeployed({ publicClient, address: pimlicoSimulations }),
