@@ -68,3 +68,4 @@ This contract is used by the bundler for gasEstimation and during eth_sendUserOp
 - update `_postExecution` to return the paymasterPostOpGas used
 - update `_validateAccountPrepayment` such that we pass in a verificationGasLimit when calling IAccount.validateUserOp (instead of relying on userOp.verificationGasLimit)
 - update `_validatePaymasterPrepayment` such that we pass in a paymasterVerificationGasLimit when calling IPaymaster.validatePaymasterUserOp (instead of relying on userOp.paymasterVerificationGasLimit)
+- Remove re-entrancy guard for 0.9 (due to the msg.sender === tx.origin check, during simulations msg.sender is PimlicoSimulations)
