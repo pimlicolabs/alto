@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.20
+
+### Patch Changes
+
+- 0b9b22ffdf2c4d3a7f1483c14949696e4c9256b0: Added EntryPoint 0.9 support
+
 ## 0.0.19
 
 ### Patch Changes
