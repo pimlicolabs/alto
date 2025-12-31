@@ -1,38 +1,36 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.28;
+
 /* solhint-disable avoid-low-level-calls */
+/* solhint-disable gas-calldata-parameters */
 /* solhint-disable no-inline-assembly */
 
-import "account-abstraction-v8/interfaces/IAccount.sol";
-import "account-abstraction-v8/interfaces/IAccountExecute.sol";
-import "account-abstraction-v8/interfaces/IEntryPoint.sol";
-import "account-abstraction-v8/interfaces/IPaymaster.sol";
+// @note: Versions 0.7 and 0.9 have identical interfaces.
+import "account-abstraction-v7/interfaces/IAccount.sol";
+import "account-abstraction-v7/interfaces/IAccountExecute.sol";
+import "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import "account-abstraction-v7/interfaces/IPaymaster.sol";
 
-import "account-abstraction-v8/core/UserOperationLib.sol";
-import "account-abstraction-v8/core/StakeManager.sol";
-import "account-abstraction-v8/core/NonceManager.sol";
-import "account-abstraction-v8/core/Helpers.sol";
-import "account-abstraction-v8/core/SenderCreator.sol";
-import "account-abstraction-v8/core/Eip7702Support.sol";
-import "account-abstraction-v8/utils/Exec.sol";
+// @note: There are some differences between 0.7 and 0.9, we need to override such that 0.9 uses the 0.7 PackedUserOperation struct.
+import "./overrides/UserOperationLib.sol";
+import "./overrides/SenderCreator.sol";
+import "./overrides/Eip7702Support.sol";
+import "./overrides/StakeManager.sol";
+import "./overrides/NonceManager.sol";
 
-import "@openzeppelin-v5.1.0/contracts/utils/ReentrancyGuardTransient.sol";
+import {IEntryPoint as IEntryPoint09} from "account-abstraction-v9/interfaces/IEntryPoint.sol"; // Must import IEntryPoint 0.9 for 0.9 specific errors.
+import {ValidationData, _parseValidationData, finalizeAllocation} from "account-abstraction-v9/core/Helpers.sol";
+
 import "@openzeppelin-v5.1.0/contracts/utils/introspection/ERC165.sol";
 import "@openzeppelin-v5.1.0/contracts/utils/cryptography/EIP712.sol";
 
-import "../SimulationOverrideHelper.sol";
-import "./IEntryPointFilterOpsOverride.sol";
+/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/NONzRkac/
+contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ERC165, EIP712 {
+    // Custom event for bubbling up callphase reverts.
+    error CallPhaseReverted(bytes reason);
 
-/// @custom:notice This EntryPoint closely resembles the actual EntryPoint with some diffs seen at https://www.diffchecker.com/ha2YsRp8/
-contract EntryPointFilterOpsOverride08 is
-    IEntryPoint,
-    StakeManager,
-    NonceManager,
-    ReentrancyGuardTransient,
-    ERC165,
-    IEntryPointFilterOpsOverride08
-{
     using UserOperationLib for PackedUserOperation;
+    using Eip7702Support for address;
 
     /**
      * internal-use constants
@@ -51,111 +49,43 @@ contract EntryPointFilterOpsOverride08 is
     // Threshold below which no penalty would be charged
     uint256 private constant PENALTY_GAS_THRESHOLD = 40000;
 
+    uint48 private constant VALIDITY_BLOCK_RANGE_FLAG = 0x800000000000;
+    uint48 private constant VALIDITY_BLOCK_RANGE_MASK = 0x7fffffffffff;
+
+    SenderCreator private immutable _senderCreator = new SenderCreator();
+
     string internal constant DOMAIN_NAME = "ERC4337";
     string internal constant DOMAIN_VERSION = "1";
 
-    constructor() {}
+    bytes32 private transient currentUserOpHash;
 
-    // START: Copied from EntryPoint simulations contract //
-    // We can't rely on "immutable" (constructor-initialized) variables in simulation
-    // There is a custom call at the start of handleOps that initializes the domain separator
-    // Source: https://github.com/eth-infinitism/account-abstraction/blob/4cbc06/contracts/core/EntryPointSimulations.sol#L193-L214
-    bytes32 private __domainSeparatorV4;
+    error Reentrancy();
 
-    bytes32 private constant TYPE_HASH =
-        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    constructor() EIP712(DOMAIN_NAME, DOMAIN_VERSION) {}
 
-    function __buildDomainSeparator() private view returns (bytes32) {
-        bytes32 _hashedName = keccak256(bytes(DOMAIN_NAME));
-        bytes32 _hashedVersion = keccak256(bytes(DOMAIN_VERSION));
-        return keccak256(abi.encode(TYPE_HASH, _hashedName, _hashedVersion, block.chainid, address(this)));
+    modifier nonReentrant() {
+        require(
+            // solhint-disable avoid-tx-origin
+            tx.origin == msg.sender && msg.sender.code.length == 0,
+            Reentrancy()
+        );
+        _;
     }
-
-    // Can't rely on "immutable" (constructor-initialized) variables" in simulation
-    // must be called once before simulation.
-    function initDomainSeparator() external {
-        __domainSeparatorV4 = __buildDomainSeparator();
-    }
-
-    function getDomainSeparatorV4() public view returns (bytes32) {
-        return __domainSeparatorV4;
-    }
-    // END: Copied from EntryPoint simulations contract //
 
     /// @inheritdoc IEntryPoint
-    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external nonReentrant {
-        uint256 opslen = ops.length;
-        UserOpInfo[] memory opInfos = new UserOpInfo[](opslen);
-        unchecked {
-            _iterateValidationPhase(ops, opInfos, address(0), 0);
-
-            uint256 collected = 0;
-            emit BeforeExecution();
-
-            for (uint256 i = 0; i < opslen; i++) {
-                collected += _executeUserOp(i, ops[i], opInfos[i]);
-            }
-
-            _compensate(beneficiary, collected);
-        }
+    function handleOps(PackedUserOperation[] calldata ops, address payable beneficiary) external virtual nonReentrant {
+        (ops, beneficiary);
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
     }
 
     /// @inheritdoc IEntryPoint
     function handleAggregatedOps(UserOpsPerAggregator[] calldata opsPerAggregator, address payable beneficiary)
         external
+        virtual
         nonReentrant
     {
-        unchecked {
-            uint256 opasLen = opsPerAggregator.length;
-            uint256 totalOps = 0;
-            for (uint256 i = 0; i < opasLen; i++) {
-                UserOpsPerAggregator calldata opa = opsPerAggregator[i];
-                PackedUserOperation[] calldata ops = opa.userOps;
-                IAggregator aggregator = opa.aggregator;
-
-                // address(1) is special marker of "signature error"
-                require(address(aggregator) != address(1), SignatureValidationFailed(address(aggregator)));
-
-                if (address(aggregator) != address(0)) {
-                    // solhint-disable-next-line no-empty-blocks
-                    try aggregator.validateSignatures(ops, opa.signature) {}
-                    catch {
-                        revert SignatureValidationFailed(address(aggregator));
-                    }
-                }
-
-                totalOps += ops.length;
-            }
-
-            UserOpInfo[] memory opInfos = new UserOpInfo[](totalOps);
-
-            uint256 opIndex = 0;
-            for (uint256 a = 0; a < opasLen; a++) {
-                UserOpsPerAggregator calldata opa = opsPerAggregator[a];
-                PackedUserOperation[] calldata ops = opa.userOps;
-                IAggregator aggregator = opa.aggregator;
-
-                opIndex += _iterateValidationPhase(ops, opInfos, address(aggregator), opIndex);
-            }
-
-            emit BeforeExecution();
-
-            uint256 collected = 0;
-            opIndex = 0;
-            for (uint256 a = 0; a < opasLen; a++) {
-                UserOpsPerAggregator calldata opa = opsPerAggregator[a];
-                emit SignatureAggregatorChanged(address(opa.aggregator));
-                PackedUserOperation[] calldata ops = opa.userOps;
-                uint256 opslen = ops.length;
-
-                for (uint256 i = 0; i < opslen; i++) {
-                    collected += _executeUserOp(opIndex, ops[i], opInfos[opIndex]);
-                    opIndex++;
-                }
-            }
-
-            _compensate(beneficiary, collected);
-        }
+        (opsPerAggregator, beneficiary);
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
     }
 
     /// @inheritdoc IEntryPoint
@@ -164,36 +94,42 @@ contract EntryPointFilterOpsOverride08 is
         return MessageHashUtils.toTypedDataHash(getDomainSeparatorV4(), userOp.hash(overrideInitCodeHash));
     }
 
+    function getCurrentUserOpHash() public view returns (bytes32) {
+        return currentUserOpHash;
+    }
+
     /// @inheritdoc IEntryPoint
-    function getSenderAddress(bytes calldata initCode) external {
+    function getSenderAddress(bytes calldata initCode) external virtual {
         address sender = senderCreator().createSender(initCode);
         revert SenderAddressResult(sender);
     }
 
-    /// @inheritdoc IEntryPoint
     function senderCreator() public view virtual returns (ISenderCreator) {
-        address creator = SimulationOverrideHelper.getSenderCreator08();
-        return ISenderCreator(creator);
+        return this.senderCreator();
     }
 
     /// @inheritdoc IEntryPoint
-    function delegateAndRevert(address target, bytes calldata data) external {
-        (bool success, bytes memory ret) = target.delegatecall(data);
-        revert DelegateAndRevert(success, ret);
+    function delegateAndRevert(address target, bytes calldata data) external virtual {
+        (target, data);
+        revert("SHOULD NOT BE CALLED DURING SIMULATIONS");
     }
 
-    function getPackedUserOpTypeHash() external pure returns (bytes32) {
+    function getPackedUserOpTypeHash() external pure virtual returns (bytes32) {
         return UserOperationLib.PACKED_USEROP_TYPEHASH;
     }
 
-    /// @inheritdoc IERC165
-    function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
-        // note: solidity "type(IEntryPoint).interfaceId" is without inherited methods but we want to check everything
-        return interfaceId
-            == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
-            || interfaceId == type(IEntryPoint).interfaceId || interfaceId == type(IStakeManager).interfaceId
-            || interfaceId == type(INonceManager).interfaceId || super.supportsInterface(interfaceId);
+    function getDomainSeparatorV4() public view virtual returns (bytes32) {
+        return _domainSeparatorV4();
     }
+
+    ///// @inheritdoc IERC165
+    //function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
+    //    // note: solidity "type(IEntryPoint).interfaceId" is without inherited methods but we want to check everything
+    //    return interfaceId
+    //            == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
+    //        || interfaceId == type(IEntryPoint).interfaceId || interfaceId == type(IStakeManager).interfaceId
+    //        || interfaceId == type(INonceManager).interfaceId || super.supportsInterface(interfaceId);
+    //}
 
     /**
      * Compensate the caller's beneficiary address with the collected fees of all UserOperations.
@@ -201,9 +137,10 @@ contract EntryPointFilterOpsOverride08 is
      * @param amount      - Amount to transfer.
      */
     function _compensate(address payable beneficiary, uint256 amount) internal virtual {
-        require(beneficiary != address(0), "AA90 invalid beneficiary");
-        (bool success,) = beneficiary.call{value: amount}("");
-        require(success, "AA91 failed send to beneficiary");
+        require(beneficiary != address(0), IEntryPoint09.InvalidBeneficiary(beneficiary));
+        currentUserOpHash = bytes32(0);
+        (bool success, bytes memory ret) = beneficiary.call{value: amount}("");
+        require(success, IEntryPoint09.FailedSendToBeneficiary(beneficiary, amount, ret));
     }
 
     /**
@@ -216,90 +153,50 @@ contract EntryPointFilterOpsOverride08 is
     function _executeUserOp(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory opInfo)
         internal
         virtual
-        returns (uint256 collected)
+        returns (uint256 collected, uint256 paymasterPostOpGasLimit)
     {
+        (opIndex);
+        currentUserOpHash = opInfo.userOpHash;
         uint256 preGas = gasleft();
         bytes memory context = _getMemoryBytesFromOffset(opInfo.contextOffset);
-        bool success;
         {
-            uint256 saveFreePtr = _getFreePtr();
             bytes calldata callData = userOp.callData;
-            bytes memory innerCall;
             bytes4 methodSig;
-            assembly ("memory-safe") {
+            assembly {
                 let len := callData.length
                 if gt(len, 3) { methodSig := calldataload(callData.offset) }
             }
             if (methodSig == IAccountExecute.executeUserOp.selector) {
                 bytes memory executeUserOp = abi.encodeCall(IAccountExecute.executeUserOp, (userOp, opInfo.userOpHash));
-                innerCall = abi.encodeCall(this.innerHandleOp, (executeUserOp, opInfo, context));
+                (collected, paymasterPostOpGasLimit) = innerHandleOp(executeUserOp, opInfo, context, preGas);
             } else {
-                innerCall = abi.encodeCall(this.innerHandleOp, (callData, opInfo, context));
-            }
-            assembly ("memory-safe") {
-                success := call(gas(), address(), 0, add(innerCall, 0x20), mload(innerCall), 0, 32)
-                collected := mload(0)
-            }
-            _restoreFreePtr(saveFreePtr);
-        }
-        if (!success) {
-            bytes32 innerRevertCode;
-            assembly ("memory-safe") {
-                let len := returndatasize()
-                if eq(32, len) {
-                    returndatacopy(0, 0, 32)
-                    innerRevertCode := mload(0)
-                }
-            }
-            if (innerRevertCode == INNER_OUT_OF_GAS) {
-                // handleOps was called with gas limit too low. abort entire bundle.
-                // can only be caused by bundler (leaving not enough gas for inner call)
-                revert FailedOp(opIndex, "AA95 out of gas");
-            } else if (innerRevertCode == INNER_REVERT_LOW_PREFUND) {
-                // innerCall reverted on prefund too low. treat entire prefund as "gas cost"
-                uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
-                uint256 actualGasCost = opInfo.prefund;
-                _emitPrefundTooLow(opInfo);
-                _emitUserOperationEvent(opInfo, false, actualGasCost, actualGas);
-                collected = actualGasCost;
-            } else {
-                uint256 freePtr = _getFreePtr();
-                emit PostOpRevertReason(
-                    opInfo.userOpHash,
-                    opInfo.mUserOp.sender,
-                    opInfo.mUserOp.nonce,
-                    Exec.getReturnData(REVERT_REASON_MAX_LEN)
-                );
-                _restoreFreePtr(freePtr);
-
-                uint256 actualGas = preGas - gasleft() + opInfo.preOpGas;
-                collected = _postExecution(IPaymaster.PostOpMode.postOpReverted, opInfo, context, actualGas);
+                (collected, paymasterPostOpGasLimit) = innerHandleOp(callData, opInfo, context, preGas);
             }
         }
     }
 
-    /**
-     * Emit the UserOperationEvent for the given UserOperation.
-     *
-     * @param opInfo         - The details of the current UserOperation.
-     * @param success        - Whether the execution of the UserOperation has succeeded or not.
-     * @param actualGasCost  - The actual cost of the consumed gas charged from the sender or the paymaster.
-     * @param actualGas      - The actual amount of gas used.
-     */
-    function _emitUserOperationEvent(UserOpInfo memory opInfo, bool success, uint256 actualGasCost, uint256 actualGas)
-        internal
-        virtual
-    {
-        emit UserOperationEvent(
-            opInfo.userOpHash,
-            opInfo.mUserOp.sender,
-            opInfo.mUserOp.paymaster,
-            opInfo.mUserOp.nonce,
-            success,
-            actualGasCost,
-            actualGas
-        );
-    }
+    ///**
+    // * Emit the UserOperationEvent for the given UserOperation.
+    // *
+    // * @param opInfo         - The details of the current UserOperation.
+    // * @param success        - Whether the execution of the UserOperation has succeeded or not.
+    // * @param actualGasCost  - The actual cost of the consumed gas charged from the sender or the paymaster.
+    // * @param actualGas      - The actual amount of gas used.
+    // */
+    //function _emitUserOperationEvent(UserOpInfo memory opInfo, bool success, uint256 actualGasCost, uint256 actualGas)
+    //    internal
+    //    virtual
+    //{
+    //    emit UserOperationEvent(
+    //        opInfo.userOpHash,
+    //        opInfo.mUserOp.sender,
+    //        opInfo.mUserOp.paymaster,
+    //        opInfo.mUserOp.nonce,
+    //        success,
+    //        actualGasCost,
+    //        actualGas
+    //    );
+    //}
 
     /**
      * Emit the UserOperationPrefundTooLow event for the given UserOperation.
@@ -310,34 +207,34 @@ contract EntryPointFilterOpsOverride08 is
         emit UserOperationPrefundTooLow(opInfo.userOpHash, opInfo.mUserOp.sender, opInfo.mUserOp.nonce);
     }
 
-    /**
-     * Iterate over calldata PackedUserOperation array and perform account and paymaster validation.
-     * @notice UserOpInfo is a global array of all UserOps while PackedUserOperation is grouped per aggregator.
-     *
-     * @param ops - an array of UserOps to be validated
-     * @param opInfos - an array of UserOp metadata being read and filled in during this function's execution
-     * @param expectedAggregator - an address of the aggregator specified for a given UserOp if any, or address(0)
-     * @param opIndexOffset - an offset for the index between 'ops' and 'opInfos' arrays, see the notice.
-     * @return opsLen - processed UserOps (length of "ops" array)
-     */
-    function _iterateValidationPhase(
-        PackedUserOperation[] calldata ops,
-        UserOpInfo[] memory opInfos,
-        address expectedAggregator,
-        uint256 opIndexOffset
-    ) internal returns (uint256 opsLen) {
-        unchecked {
-            opsLen = ops.length;
-            for (uint256 i = 0; i < opsLen; i++) {
-                UserOpInfo memory opInfo = opInfos[opIndexOffset + i];
-                (uint256 validationData, uint256 pmValidationData) =
-                    _validatePrepayment(opIndexOffset + i, ops[i], opInfo);
-                _validateAccountAndPaymasterValidationData(
-                    opIndexOffset + i, validationData, pmValidationData, expectedAggregator
-                );
-            }
-        }
-    }
+    ///**
+    // * Iterate over calldata PackedUserOperation array and perform account and paymaster validation.
+    // * @notice UserOpInfo is a global array of all UserOps while PackedUserOperation is grouped per aggregator.
+    // *
+    // * @param ops - an array of UserOps to be validated
+    // * @param opInfos - an array of UserOp metadata being read and filled in during this function's execution
+    // * @param expectedAggregator - an address of the aggregator specified for a given UserOp if any, or address(0)
+    // * @param opIndexOffset - an offset for the index between 'ops' and 'opInfos' arrays, see the notice.
+    // * @return opsLen - processed UserOps (length of "ops" array)
+    // */
+    //function _iterateValidationPhase(
+    //    PackedUserOperation[] calldata ops,
+    //    UserOpInfo[] memory opInfos,
+    //    address expectedAggregator,
+    //    uint256 opIndexOffset
+    //) internal virtual returns (uint256 opsLen) {
+    //    unchecked {
+    //        opsLen = ops.length;
+    //        for (uint256 i = 0; i < opsLen; i++) {
+    //            UserOpInfo memory opInfo = opInfos[opIndexOffset + i];
+    //            (uint256 validationData, uint256 pmValidationData) =
+    //                _validatePrepayment(opIndexOffset + i, ops[i], opInfo);
+    //            _validateAccountAndPaymasterValidationData(
+    //                opIndexOffset + i, validationData, pmValidationData, expectedAggregator
+    //            );
+    //        }
+    //    }
+    //}
 
     /**
      * A memory copy of UserOp static fields only.
@@ -372,16 +269,14 @@ contract EntryPointFilterOpsOverride08 is
      * @param context  - The context bytes.
      * @return actualGasCost - the actual cost in eth this UserOperation paid for gas
      */
-    function innerHandleOp(bytes memory callData, UserOpInfo memory opInfo, bytes calldata context)
-        external
-        returns (uint256 actualGasCost)
+    function innerHandleOp(bytes memory callData, UserOpInfo memory opInfo, bytes memory context, uint256 preGas)
+        public
+        returns (uint256 actualGasCost, uint256 paymasterPostOpGasLimit)
     {
-        uint256 preGas = gasleft();
-        require(msg.sender == address(this), "AA92 internal call only");
         MemoryUserOp memory mUserOp = opInfo.mUserOp;
 
         uint256 callGasLimit = mUserOp.callGasLimit;
-        //unchecked { /* Ignore AA95 check during simulations */
+        //unchecked {
         //    // handleOps was called with gas limit too low. abort entire bundle.
         //    if (gasleft() * 63 / 64 < callGasLimit + mUserOp.paymasterPostOpGasLimit + INNER_GAS_OVERHEAD) {
         //        assembly ("memory-safe") {
@@ -395,13 +290,16 @@ contract EntryPointFilterOpsOverride08 is
         if (callData.length > 0) {
             bool success = Exec.call(mUserOp.sender, 0, callData, callGasLimit);
             if (!success) {
-                uint256 freePtr = _getFreePtr();
+                //uint256 freePtr = _getFreePtr();
+                //bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                //if (result.length > 0) {
+                //    emit UserOperationRevertReason(opInfo.userOpHash, mUserOp.sender, mUserOp.nonce, result);
+                //}
+                //_restoreFreePtr(freePtr);
+                //mode = IPaymaster.PostOpMode.opReverted;
+
                 bytes memory result = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                if (result.length > 0) {
-                    emit UserOperationRevertReason(opInfo.userOpHash, mUserOp.sender, mUserOp.nonce, result);
-                }
-                _restoreFreePtr(freePtr);
-                mode = IPaymaster.PostOpMode.opReverted;
+                revert CallPhaseReverted(result);
             }
         }
 
@@ -428,11 +326,14 @@ contract EntryPointFilterOpsOverride08 is
         (mUserOp.maxPriorityFeePerGas, mUserOp.maxFeePerGas) = UserOperationLib.unpackUints(userOp.gasFees);
         bytes calldata paymasterAndData = userOp.paymasterAndData;
         if (paymasterAndData.length > 0) {
-            require(paymasterAndData.length >= UserOperationLib.PAYMASTER_DATA_OFFSET, "AA93 invalid paymasterAndData");
+            require(
+                paymasterAndData.length >= UserOperationLib.PAYMASTER_DATA_OFFSET,
+                IEntryPoint09.InvalidPaymasterData(paymasterAndData.length)
+            );
             address paymaster;
             (paymaster, mUserOp.paymasterVerificationGasLimit, mUserOp.paymasterPostOpGasLimit) =
                 UserOperationLib.unpackPaymasterStaticFields(paymasterAndData);
-            require(paymaster != address(0), "AA98 invalid paymaster");
+            require(paymaster != address(0), IEntryPoint09.InvalidPaymaster(paymaster));
             mUserOp.paymaster = paymaster;
         }
     }
@@ -469,14 +370,19 @@ contract EntryPointFilterOpsOverride08 is
                     // Already validated it is an EIP-7702 delegate (and hence, already has code) - see getUserOpHash()
                     // Note: Can be called multiple times as long as an appropriate initCode is supplied
                     senderCreator().initEip7702Sender{gas: opInfo.mUserOp.verificationGasLimit}(sender, initCode[20:]);
+                    address delegate = sender._getEip7702Delegate();
+                    emit IEntryPoint09.EIP7702AccountInitialized(opInfo.userOpHash, sender, delegate);
                 }
                 return;
             }
-            if (sender.code.length != 0) {
-                revert FailedOp(opIndex, "AA10 sender already constructed");
-            }
             if (initCode.length < 20) {
                 revert FailedOp(opIndex, "AA99 initCode too small");
+            }
+            address factory = address(bytes20(initCode[0:20]));
+            if (sender.code.length != 0) {
+                // ignoring the initcode for an existing 'sender' contract
+                emit IEntryPoint09.IgnoredInitCode(opInfo.userOpHash, sender, factory);
+                return;
             }
             address sender1 = senderCreator().createSender{gas: opInfo.mUserOp.verificationGasLimit}(initCode);
             if (sender1 == address(0)) {
@@ -488,7 +394,6 @@ contract EntryPointFilterOpsOverride08 is
             if (sender1.code.length == 0) {
                 revert FailedOp(opIndex, "AA15 initCode must create sender");
             }
-            address factory = address(bytes20(initCode[0:20]));
             emit AccountDeployed(opInfo.userOpHash, sender, factory, opInfo.mUserOp.paymaster);
         }
     }
@@ -507,7 +412,8 @@ contract EntryPointFilterOpsOverride08 is
         uint256 opIndex,
         PackedUserOperation calldata op,
         UserOpInfo memory opInfo,
-        uint256 requiredPrefund
+        uint256 requiredPrefund,
+        uint256 verificationGasLimit
     ) internal virtual returns (uint256 validationData) {
         unchecked {
             MemoryUserOp memory mUserOp = opInfo.mUserOp;
@@ -519,12 +425,28 @@ contract EntryPointFilterOpsOverride08 is
                 uint256 bal = balanceOf(sender);
                 missingAccountFunds = bal > requiredPrefund ? 0 : requiredPrefund - bal;
             }
-            validationData = _callValidateUserOp(opIndex, op, opInfo, missingAccountFunds);
+            validationData = _callValidateUserOp(opIndex, op, opInfo, missingAccountFunds, verificationGasLimit);
             if (paymaster == address(0)) {
                 if (!_tryDecrementDeposit(sender, requiredPrefund)) {
                     revert FailedOp(opIndex, "AA21 didn't pay prefund");
                 }
             }
+        }
+    }
+
+    function _paymasterValidation(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory outOpInfo)
+        public
+        returns (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit)
+    {
+        bytes memory context;
+
+        MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
+        _copyUserOpToMemory(userOp, mUserOp);
+        outOpInfo.userOpHash = getUserOpHash(userOp);
+
+        outOpInfo.prefund = _getRequiredPrefund(mUserOp);
+        if (mUserOp.paymaster != address(0)) {
+            (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
     }
 
@@ -541,9 +463,10 @@ contract EntryPointFilterOpsOverride08 is
         uint256 opIndex,
         PackedUserOperation calldata op,
         UserOpInfo memory opInfo,
-        uint256 missingAccountFunds
+        uint256 missingAccountFunds,
+        uint256 verificationGasLimit
     ) internal virtual returns (uint256 validationData) {
-        uint256 gasLimit = opInfo.mUserOp.verificationGasLimit;
+        uint256 gasLimit = verificationGasLimit;
         address sender = opInfo.mUserOp.sender;
         bool success;
         {
@@ -554,7 +477,9 @@ contract EntryPointFilterOpsOverride08 is
                 success := call(gasLimit, sender, 0, add(callData, 0x20), mload(callData), 0, 32)
                 validationData := mload(0)
                 // any return data size other than 32 is considered failure
-                if iszero(eq(returndatasize(), 32)) { success := 0 }
+                if iszero(eq(returndatasize(), 32)) {
+                    success := 0
+                }
             }
             _restoreFreePtr(saveFreePtr);
         }
@@ -595,13 +520,14 @@ contract EntryPointFilterOpsOverride08 is
             uint256 pmVerificationGasLimit = mUserOp.paymasterVerificationGasLimit;
             (context, validationData) = _callValidatePaymasterUserOp(opIndex, op, opInfo);
             if (preGas - gasleft() > pmVerificationGasLimit) {
-                revert FailedOp(opIndex, "AA36 over paymasterVerificationGasLimit");
+                revert FailedOp(opIndex, "AA36 over pmVerificationGasLimit");
             }
         }
     }
 
     function _callValidatePaymasterUserOp(uint256 opIndex, PackedUserOperation calldata op, UserOpInfo memory opInfo)
         internal
+        virtual
         returns (bytes memory context, uint256 validationData)
     {
         uint256 freePtr = _getFreePtr();
@@ -612,19 +538,17 @@ contract EntryPointFilterOpsOverride08 is
         bool success;
         uint256 contextLength;
         uint256 contextOffset;
-        uint256 maxContextLength;
         uint256 len;
         assembly ("memory-safe") {
-            success :=
-                call(
-                    paymasterVerificationGasLimit,
-                    paymaster,
-                    0,
-                    add(validatePaymasterCall, 0x20),
-                    mload(validatePaymasterCall),
-                    0,
-                    0
-                )
+            success := call(
+                paymasterVerificationGasLimit,
+                paymaster,
+                0,
+                add(validatePaymasterCall, 0x20),
+                mload(validatePaymasterCall),
+                0,
+                0
+            )
             len := returndatasize()
             // return data from validatePaymasterUserOp is (bytes context, validationData)
             // encoded as:
@@ -639,14 +563,20 @@ contract EntryPointFilterOpsOverride08 is
             returndatacopy(freePtr, 0, len)
             validationData := mload(add(freePtr, 32))
             contextOffset := mload(freePtr)
-            maxContextLength := sub(len, 96)
             context := add(freePtr, 64)
             contextLength := mload(context)
         }
 
         unchecked {
-            if (!success || contextOffset != 64 || contextLength + 31 < maxContextLength) {
+            if (!success) {
                 revert FailedOpWithRevert(opIndex, "AA33 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
+            }
+            // for a given 'contextLength', calculate the only valid 'returndatasize' value
+            uint256 expectedReturnDataSize = 96 + ((contextLength + 31) / 32) * 32;
+            if (contextOffset != 64 || len != expectedReturnDataSize) {
+                revert FailedOpWithRevert(
+                    opIndex, "AA35 malformed paymaster data", Exec.getReturnData(REVERT_REASON_MAX_LEN)
+                );
             }
         }
         finalizeAllocation(freePtr, len);
@@ -665,21 +595,28 @@ contract EntryPointFilterOpsOverride08 is
         uint256 paymasterValidationData,
         address expectedAggregator
     ) internal view virtual {
-        (address aggregator, bool outOfTimeRange) = _getValidationData(validationData);
+        (address aggregator, bool outOfValidityRange, bool isBlockRange) = _getValidationData(validationData);
         if (expectedAggregator != aggregator) {
             revert FailedOp(opIndex, "AA24 signature error");
         }
-        if (outOfTimeRange) {
+        if (outOfValidityRange) {
+            if (isBlockRange) {
+                revert FailedOp(opIndex, "AA27 outside valid block range");
+            }
             revert FailedOp(opIndex, "AA22 expired or not due");
         }
         // pmAggregator is not a real signature aggregator: we don't have logic to handle it as address.
         // Non-zero address means that the paymaster fails due to some signature check (which is ok only during estimation).
         address pmAggregator;
-        (pmAggregator, outOfTimeRange) = _getValidationData(paymasterValidationData);
+        (pmAggregator, outOfValidityRange, isBlockRange) = _getValidationData(paymasterValidationData);
         if (pmAggregator != address(0)) {
             revert FailedOp(opIndex, "AA34 signature error");
         }
-        if (outOfTimeRange) {
+        if (outOfValidityRange) {
+            if (isBlockRange) {
+                revert FailedOp(opIndex, "AA37 paymaster inval block range");
+            }
+            // solhint-disable-next-line gas-small-strings
             revert FailedOp(opIndex, "AA32 paymaster expired or not due");
         }
     }
@@ -688,20 +625,29 @@ contract EntryPointFilterOpsOverride08 is
      * Parse validationData into its components.
      * @param validationData - The packed validation data (sigFailed, validAfter, validUntil).
      * @return aggregator the aggregator of the validationData
-     * @return outOfTimeRange true if current time is outside the time range of this validationData.
+     * @return outOfValidityRange true if current time is outside the time range of this validationData.
      */
     function _getValidationData(uint256 validationData)
         internal
         view
         virtual
-        returns (address aggregator, bool outOfTimeRange)
+        returns (address aggregator, bool outOfValidityRange, bool isBlockRange)
     {
         if (validationData == 0) {
-            return (address(0), false);
+            return (address(0), false, false);
         }
         ValidationData memory data = _parseValidationData(validationData);
-        uint256 blockTimestamp = SimulationOverrideHelper.getBlockTimestamp();
-        outOfTimeRange = blockTimestamp > data.validUntil || blockTimestamp <= data.validAfter;
+        // using top bit of 'validAfter' and 'validUntil' to indicate block-range instead of time-range
+        if (data.validAfter >= VALIDITY_BLOCK_RANGE_FLAG && data.validUntil >= VALIDITY_BLOCK_RANGE_FLAG) {
+            uint48 validAfterBlock = data.validAfter & VALIDITY_BLOCK_RANGE_MASK;
+            uint48 validUntilBlock = data.validUntil & VALIDITY_BLOCK_RANGE_MASK;
+            outOfValidityRange = block.number > validUntilBlock || block.number <= validAfterBlock;
+            isBlockRange = true;
+        } else {
+            // solhint-disable-next-line not-rely-on-time
+            outOfValidityRange = block.timestamp > data.validUntil || block.timestamp <= data.validAfter;
+            isBlockRange = false;
+        }
         aggregator = data.aggregator;
     }
 
@@ -716,16 +662,21 @@ contract EntryPointFilterOpsOverride08 is
      * @return validationData          - The account's validationData.
      * @return paymasterValidationData - The paymaster's validationData.
      */
-    function _validatePrepayment(uint256 opIndex, PackedUserOperation calldata userOp, UserOpInfo memory outOpInfo)
-        internal
+    function _validatePrepayment(
+        uint256 opIndex,
+        PackedUserOperation calldata userOp,
+        UserOpInfo memory outOpInfo,
+        bool validatePaymasterPrepayment
+    )
+        public
         virtual
-        returns (uint256 validationData, uint256 paymasterValidationData)
+        returns (uint256 validationData, uint256 paymasterValidationData, uint256 paymasterVerificationGasLimit)
     {
         uint256 preGas = gasleft();
         MemoryUserOp memory mUserOp = outOpInfo.mUserOp;
         _copyUserOpToMemory(userOp, mUserOp);
 
-        // getUserOpHash uses temporary allocations, no required after it returns
+        // 'getUserOpHash' uses temporary memory allocation and all data allocated inside can be reused after it returns
         uint256 freePtr = _getFreePtr();
         outOpInfo.userOpHash = getUserOpHash(userOp);
         _restoreFreePtr(freePtr);
@@ -740,7 +691,9 @@ contract EntryPointFilterOpsOverride08 is
 
         uint256 requiredPreFund = _getRequiredPrefund(mUserOp);
         outOpInfo.prefund = requiredPreFund;
-        validationData = _validateAccountPrepayment(opIndex, userOp, outOpInfo, requiredPreFund);
+        validationData = _validateAccountPrepayment(
+            opIndex, userOp, outOpInfo, requiredPreFund, userOp.unpackVerificationGasLimit()
+        );
 
         require(_validateAndUpdateNonce(mUserOp.sender, mUserOp.nonce), FailedOp(opIndex, "AA25 invalid account nonce"));
 
@@ -751,9 +704,11 @@ contract EntryPointFilterOpsOverride08 is
         }
 
         bytes memory context;
-        if (mUserOp.paymaster != address(0)) {
+        uint256 remainingGas = gasleft();
+        if (mUserOp.paymaster != address(0) && validatePaymasterPrepayment) {
             (context, paymasterValidationData) = _validatePaymasterPrepayment(opIndex, userOp, outOpInfo);
         }
+        paymasterVerificationGasLimit = ((remainingGas - gasleft()) * 115) / 100;
         unchecked {
             outOpInfo.contextOffset = _getOffsetOfMemoryBytes(context);
             outOpInfo.preOpGas = preGas - gasleft() + userOp.preVerificationGas;
@@ -776,7 +731,7 @@ contract EntryPointFilterOpsOverride08 is
         UserOpInfo memory opInfo,
         bytes memory context,
         uint256 actualGas
-    ) internal virtual returns (uint256 actualGasCost) {
+    ) internal virtual returns (uint256 actualGasCost, uint256 paymasterPostOpGasLimit) {
         uint256 preGas = gasleft();
         unchecked {
             address refundAddress;
@@ -799,14 +754,23 @@ contract EntryPointFilterOpsOverride08 is
                     actualGasCost = actualGas * gasPrice;
                     uint256 postOpPreGas = gasleft();
                     if (mode != IPaymaster.PostOpMode.postOpReverted) {
+                        uint256 remainingGas = gasleft();
                         try IPaymaster(paymaster).postOp{gas: mUserOp.paymasterPostOpGasLimit}(
                             mode, context, actualGasCost, gasPrice
                         ) {
-                            // solhint-disable-next-line no-empty-blocks
-                        } catch {
-                            bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
-                            revert PostOpReverted(reason);
+                        // solhint-disable-next-line no-empty-blocks
                         }
+                        catch {
+                            // NOTE: comment out EntryPoint 0.9 postOpRevert error and replace with FailedOpWithRevert
+                            // so that postOp estimation reverts are handled the same for both 0.7 and 0.9
+                            //
+                            // bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
+                            // revert PostOpReverted(reason);
+                            revert FailedOpWithRevert(
+                                0, "AA50 postOp reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN)
+                            );
+                        }
+                        paymasterPostOpGasLimit = remainingGas - gasleft();
                     }
                     // Calculating a penalty for unused postOp gas
                     // note that if postOp is reverted, the maximum penalty (10% of postOpGasLimit) is charged.
@@ -821,7 +785,7 @@ contract EntryPointFilterOpsOverride08 is
                 if (mode == IPaymaster.PostOpMode.postOpReverted) {
                     actualGasCost = prefund;
                     _emitPrefundTooLow(opInfo);
-                    _emitUserOperationEvent(opInfo, false, actualGasCost, actualGas);
+                    //_emitUserOperationEvent(opInfo, false, actualGasCost, actualGas);
                 } else {
                     assembly ("memory-safe") {
                         mstore(0, INNER_REVERT_LOW_PREFUND)
@@ -831,8 +795,8 @@ contract EntryPointFilterOpsOverride08 is
             } else {
                 uint256 refund = prefund - actualGasCost;
                 _incrementDeposit(refundAddress, refund);
-                bool success = mode == IPaymaster.PostOpMode.opSucceeded;
-                _emitUserOperationEvent(opInfo, success, actualGasCost, actualGas);
+                //bool success = mode == IPaymaster.PostOpMode.opSucceeded;
+                //_emitUserOperationEvent(opInfo, success, actualGasCost, actualGas);
             }
         } // unchecked
     }
@@ -842,12 +806,11 @@ contract EntryPointFilterOpsOverride08 is
      * Relayer/block builder might submit the TX with higher priorityFee, but the user should not be affected.
      * @param mUserOp - The userOp to get the gas price from.
      */
-    function _getUserOpGasPrice(MemoryUserOp memory mUserOp) internal view returns (uint256) {
+    function _getUserOpGasPrice(MemoryUserOp memory mUserOp) internal view virtual returns (uint256) {
         unchecked {
             uint256 maxFeePerGas = mUserOp.maxFeePerGas;
             uint256 maxPriorityFeePerGas = mUserOp.maxPriorityFeePerGas;
-            uint256 blockBaseFeePerGas = SimulationOverrideHelper.getBlockBaseFee();
-            return min(maxFeePerGas, maxPriorityFeePerGas + blockBaseFeePerGas);
+            return min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
         }
     }
 
@@ -893,7 +856,7 @@ contract EntryPointFilterOpsOverride08 is
         }
     }
 
-    function _getUnusedGasPenalty(uint256 gasUsed, uint256 gasLimit) internal pure returns (uint256) {
+    function _getUnusedGasPenalty(uint256 gasUsed, uint256 gasLimit) internal pure virtual returns (uint256) {
         unchecked {
             if (gasLimit <= gasUsed + PENALTY_GAS_THRESHOLD) {
                 return 0;

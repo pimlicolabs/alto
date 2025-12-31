@@ -24,7 +24,8 @@ import {
     UserOperationReceiptNotFoundError,
     entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address
+    entryPoint08Address,
+    entryPoint09Address
 } from "viem/account-abstraction"
 import {
     generatePrivateKey,
@@ -56,6 +57,10 @@ describe.each([
     {
         entryPoint: entryPoint08Address,
         entryPointVersion: "0.8" as EntryPointVersion
+    },
+    {
+        entryPoint: entryPoint09Address,
+        entryPointVersion: "0.9" as EntryPointVersion
     }
 ])(
     "$entryPointVersion supports eth_sendUserOperation",
@@ -644,6 +649,12 @@ describe.each([
         // ============================================================
 
         test("Should throw AA10: sender already constructed", async () => {
+            if (entryPointVersion === "0.9") {
+                // AA10 is no longer thrown for 0.9 since
+                // source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.9/contracts/core/EntryPoint.sol#L529-L537
+                return
+            }
+
             const privateKey = generatePrivateKey()
             const client = await getSmartAccountClient({
                 entryPointVersion,

@@ -18,6 +18,9 @@ import entryPointOverride07 from "../contracts/EntryPointFilterOpsOverride.sol/E
 import entryPointOverride08 from "../contracts/EntryPointFilterOpsOverride.sol/EntryPointFilterOpsOverride08.json" with {
     type: "json"
 }
+import entryPointOverride09 from "../contracts/EntryPointFilterOpsOverride.sol/EntryPointFilterOpsOverride09.json" with {
+    type: "json"
+}
 
 export const getSenderCreatorOverride = (entryPoint: Address) => {
     const slot = keccak256(toHex("SENDER_CREATOR"))
@@ -54,6 +57,10 @@ export const getFilterOpsStateOverride = ({
 
     let code: Hex
     switch (version) {
+        case "0.9": {
+            code = entryPointOverride09.deployedBytecode.object as Hex
+            break
+        }
         case "0.8": {
             code = entryPointOverride08.deployedBytecode.object as Hex
             break

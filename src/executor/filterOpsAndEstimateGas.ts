@@ -4,6 +4,8 @@ import type {
     UserOperation,
     UserOperation06,
     UserOperation07,
+    UserOperation08,
+    UserOperation09,
     UserOperationBundle
 } from "@alto/types"
 import { type Logger, scaleBigIntByPercent, toPackedUserOp } from "@alto/utils"
@@ -116,13 +118,27 @@ export const getFilterOpsResult = async ({
     // Create promises for parallel execution
     let data: Hex
     switch (version) {
+        case "0.9": {
+            data = encodeFunctionData({
+                abi: pimlicoSimulationsAbi,
+                functionName: "filterOps09",
+                args: [
+                    userOps.map(({ userOp }) =>
+                        toPackedUserOp(userOp as UserOperation09)
+                    ),
+                    beneficiary,
+                    entryPoint
+                ]
+            })
+            break
+        }
         case "0.8": {
             data = encodeFunctionData({
                 abi: pimlicoSimulationsAbi,
                 functionName: "filterOps08",
                 args: [
                     userOps.map(({ userOp }) =>
-                        toPackedUserOp(userOp as UserOperation07)
+                        toPackedUserOp(userOp as UserOperation08)
                     ),
                     beneficiary,
                     entryPoint

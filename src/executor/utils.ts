@@ -150,10 +150,12 @@ export const packUserOps = (userOps: UserOperation[]) => {
         return []
     }
 
-    const isV06 = isVersion06(userOps[0])
-    const packedUserOps = isV06
+    const is06 = isVersion06(userOps[0])
+
+    const packedUserOps = is06
         ? userOps
         : userOps.map((userOp) => toPackedUserOp(userOp as UserOperation07))
+
     return packedUserOps as PackedUserOperation[]
 }
 

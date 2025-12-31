@@ -7,11 +7,9 @@ import {
 } from "@alto/types"
 import {
     getUserOpHash,
-    isVersion07,
-    isVersion08,
+    getViemEntryPointVersion,
     parseUserOpReceipt
 } from "@alto/utils"
-import type { EntryPointVersion } from "viem/account-abstraction"
 import { createMethodHandler } from "../createMethodHandler"
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
@@ -49,15 +47,8 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             submissionAttempts: 0
         }
 
-        // Derive version
-        let version: EntryPointVersion
-        if (isVersion08(userOp, entryPoint)) {
-            version = "0.8"
-        } else if (isVersion07(userOp)) {
-            version = "0.7"
-        } else {
-            version = "0.6"
-        }
+        // Derive version.
+        const version = getViemEntryPointVersion(userOp, entryPoint)
 
         const bundle: UserOperationBundle = {
             entryPoint,

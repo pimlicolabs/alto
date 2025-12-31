@@ -3,6 +3,8 @@ import {
     type UserOperation,
     type UserOperation06,
     type UserOperation07,
+    type UserOperation08,
+    type UserOperation09,
     type UserOperationReceipt,
     logSchema,
     receiptSchema
@@ -11,11 +13,9 @@ import {
     type Address,
     type Hex,
     type TransactionReceipt,
-    concat,
     decodeEventLog,
     getAbiItem,
     getAddress,
-    pad,
     size,
     slice,
     toHex,
@@ -24,54 +24,50 @@ import {
 import {
     type EntryPointVersion,
     entryPoint07Abi,
-    getUserOperationHash
+    getUserOperationHash,
+    toPackedUserOperation
 } from "viem/account-abstraction"
 import { z } from "zod"
+import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "./eip7702"
 
-// Type predicate check if the UserOperation is V06.
+// Type predicate check if the UserOperation is v0.6
 export function isVersion06(
     operation: UserOperation
 ): operation is UserOperation06 {
     return "initCode" in operation && "paymasterAndData" in operation
 }
 
-// Type predicate to check if the UserOperation is V07.
+// Type predicate to check if the UserOperation is v0.7
 export function isVersion07(
     operation: UserOperation
 ): operation is UserOperation07 {
     return "factory" in operation && "paymaster" in operation
 }
 
-// Type predicate to check if the UserOperation is V07.
+// Type predicate to check if the UserOperation is v0.8
 export function isVersion08(
     operation: UserOperation,
     entryPointAddress: Address
 ): operation is UserOperation07 {
-    return entryPointAddress.startsWith("0x4337")
+    return entryPointAddress.startsWith("0x433708")
+}
+
+// Type predicate to check if the UserOperation is v0.9
+export function isVersion09(
+    operation: UserOperation,
+    entryPointAddress: Address
+): operation is UserOperation07 {
+    return entryPointAddress.startsWith("0x433709")
 }
 
 // Check if a userOperation is a deployment operation
 export function isDeployment(userOp: UserOperation): boolean {
-    const isV6Deployment =
+    const isDeployment06 =
         isVersion06(userOp) && !!userOp.initCode && userOp.initCode !== "0x"
-    const isV7Deployment =
+    const isDeployment07 =
         isVersion07(userOp) && !!userOp.factory && userOp.factory !== "0x"
-    return isV6Deployment || isV7Deployment
-}
-
-function getInitCode(unpackedUserOp: UserOperation07) {
-    return unpackedUserOp.factory
-        ? concat([
-              unpackedUserOp.factory === "0x7702"
-                  ? pad(unpackedUserOp.factory, {
-                        dir: "right",
-                        size: 20
-                    })
-                  : unpackedUserOp.factory,
-              unpackedUserOp.factoryData || ("0x" as Hex)
-          ])
-        : "0x"
+    return isDeployment06 || isDeployment07
 }
 
 function unPackInitCode(initCode: Hex) {
@@ -88,15 +84,6 @@ function unPackInitCode(initCode: Hex) {
     }
 }
 
-function getAccountGasLimits(unpackedUserOp: UserOperation07) {
-    return concat([
-        pad(toHex(unpackedUserOp.verificationGasLimit), {
-            size: 16
-        }),
-        pad(toHex(unpackedUserOp.callGasLimit), { size: 16 })
-    ])
-}
-
 function unpackAccountGasLimits(accountGasLimits: Hex) {
     return {
         verificationGasLimit: BigInt(slice(accountGasLimits, 0, 16)),
@@ -104,35 +91,11 @@ function unpackAccountGasLimits(accountGasLimits: Hex) {
     }
 }
 
-function getGasLimits(unpackedUserOp: UserOperation07) {
-    return concat([
-        pad(toHex(unpackedUserOp.maxPriorityFeePerGas), {
-            size: 16
-        }),
-        pad(toHex(unpackedUserOp.maxFeePerGas), { size: 16 })
-    ])
-}
-
 function unpackGasLimits(gasLimits: Hex) {
     return {
         maxPriorityFeePerGas: BigInt(slice(gasLimits, 0, 16)),
         maxFeePerGas: BigInt(slice(gasLimits, 16))
     }
-}
-
-function getPaymasterAndData(unpackedUserOp: UserOperation07) {
-    return unpackedUserOp.paymaster
-        ? concat([
-              unpackedUserOp.paymaster,
-              pad(toHex(unpackedUserOp.paymasterVerificationGasLimit || 0n), {
-                  size: 16
-              }),
-              pad(toHex(unpackedUserOp.paymasterPostOpGasLimit || 0n), {
-                  size: 16
-              }),
-              unpackedUserOp.paymasterData || ("0x" as Hex)
-          ])
-        : "0x"
 }
 
 function unpackPaymasterAndData(paymasterAndData: Hex) {
@@ -156,20 +119,36 @@ function unpackPaymasterAndData(paymasterAndData: Hex) {
     }
 }
 
-export function toPackedUserOp(
-    unpackedUserOp: UserOperation07
-): PackedUserOperation {
-    return {
-        sender: unpackedUserOp.sender,
-        nonce: unpackedUserOp.nonce,
-        initCode: getInitCode(unpackedUserOp),
-        callData: unpackedUserOp.callData,
-        accountGasLimits: getAccountGasLimits(unpackedUserOp),
-        preVerificationGas: unpackedUserOp.preVerificationGas,
-        gasFees: getGasLimits(unpackedUserOp),
-        paymasterAndData: getPaymasterAndData(unpackedUserOp),
-        signature: unpackedUserOp.signature
+// Convert Alto's UserOperation07/08/09 (with null) to viem's format (with undefined)
+export function toViemUserOp(
+    userOp: UserOperation07 | UserOperation08 | UserOperation09
+) {
+    const base = {
+        ...userOp,
+        paymaster: userOp.paymaster ?? undefined,
+        paymasterData: userOp.paymasterData ?? undefined,
+        paymasterVerificationGasLimit:
+            userOp.paymasterVerificationGasLimit ?? undefined,
+        paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit ?? undefined,
+        factory: userOp.factory ?? undefined,
+        factoryData: userOp.factoryData ?? undefined
     }
+
+    // UserOperation09 has paymasterSignature field
+    if ("paymasterSignature" in userOp) {
+        return {
+            ...base,
+            paymasterSignature: userOp.paymasterSignature ?? undefined
+        }
+    }
+
+    return base
+}
+
+export function toPackedUserOp(
+    unpacked: UserOperation07 | UserOperation08 | UserOperation09
+): PackedUserOperation {
+    return toPackedUserOperation(toViemUserOp(unpacked))
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
@@ -222,6 +201,30 @@ export function getUserOpHash({
     entryPointAddress: Address
     chainId: number
 }): Hex {
+    if (isVersion09(userOp, entryPointAddress)) {
+        const authorization = userOp.eip7702Auth
+            ? {
+                  address: getEip7702AuthAddress(userOp.eip7702Auth),
+                  chainId: userOp.eip7702Auth.chainId,
+                  nonce: userOp.eip7702Auth.nonce,
+                  r: userOp.eip7702Auth.r,
+                  s: userOp.eip7702Auth.s,
+                  yParity: userOp.eip7702Auth.yParity,
+                  v: userOp.eip7702Auth.v
+              }
+            : undefined
+
+        return getUserOperationHash({
+            chainId,
+            entryPointAddress,
+            entryPointVersion: "0.9",
+            userOperation: {
+                ...toViemUserOp(userOp),
+                authorization
+            }
+        })
+    }
+
     if (isVersion08(userOp, entryPointAddress)) {
         const authorization = userOp.eip7702Auth
             ? {
@@ -240,15 +243,7 @@ export function getUserOpHash({
             entryPointAddress,
             entryPointVersion: "0.8",
             userOperation: {
-                ...userOp,
-                paymaster: userOp.paymaster ?? undefined,
-                paymasterData: userOp.paymasterData ?? undefined,
-                paymasterVerificationGasLimit:
-                    userOp.paymasterVerificationGasLimit ?? undefined,
-                paymasterPostOpGasLimit:
-                    userOp.paymasterPostOpGasLimit ?? undefined,
-                factory: userOp.factory ?? undefined,
-                factoryData: userOp.factoryData ?? undefined,
+                ...toViemUserOp(userOp),
                 authorization
             }
         })
@@ -259,17 +254,7 @@ export function getUserOpHash({
             chainId,
             entryPointAddress,
             entryPointVersion: "0.7",
-            userOperation: {
-                ...userOp,
-                paymaster: userOp.paymaster ?? undefined,
-                paymasterData: userOp.paymasterData ?? undefined,
-                paymasterPostOpGasLimit:
-                    userOp.paymasterPostOpGasLimit ?? undefined,
-                paymasterVerificationGasLimit:
-                    userOp.paymasterVerificationGasLimit ?? undefined,
-                factory: userOp.factory ?? undefined,
-                factoryData: userOp.factoryData ?? undefined
-            }
+            userOperation: toViemUserOp(userOp)
         })
     }
 
@@ -468,6 +453,10 @@ export const getViemEntryPointVersion = (
     userOp: UserOperation,
     entryPoint: Address
 ): EntryPointVersion => {
+    if (isVersion09(userOp, entryPoint)) {
+        return "0.9"
+    }
+
     if (isVersion08(userOp, entryPoint)) {
         return "0.8"
     }
@@ -477,4 +466,21 @@ export const getViemEntryPointVersion = (
     }
 
     return "0.6"
+}
+
+export const getEntryPointSimulationsAddress = ({
+    version,
+    config
+}: {
+    version: EntryPointVersion
+    config: AltoConfig
+}): Address | undefined => {
+    switch (version) {
+        case "0.9":
+            return config.entrypointSimulationContractV9
+        case "0.8":
+            return config.entrypointSimulationContractV8
+        default:
+            return config.entrypointSimulationContractV7
+    }
 }

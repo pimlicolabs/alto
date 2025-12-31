@@ -244,7 +244,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             description:
                 "Address of the EntryPoint simulations contract for v0.8",
             type: "string",
-            alias: "c",
+            require: false
+        },
+        "entrypoint-simulation-contract-v9": {
+            description:
+                "Address of the EntryPoint simulations contract for v0.9",
+            type: "string",
             require: false
         },
         "binary-search-tolerance-delta": {
