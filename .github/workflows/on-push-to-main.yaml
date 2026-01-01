@@ -102,6 +102,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Setup .npmrc for provenance
+        uses: actions/setup-node@v3
+        with:
+          node-version: '24'
+          registry-url: "https://registry.npmjs.org"
+
       - name: Build
         run: |
           pnpm run build:contracts && pnpm run build && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
@@ -112,3 +118,4 @@ jobs:
           publish: pnpm run changeset:release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
