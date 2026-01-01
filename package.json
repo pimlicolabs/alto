@@ -32,7 +32,7 @@
         "lint:fix": "pnpm run lint --apply",
         "format": "biome format . --write",
         "changeset": "changeset",
-        "changeset:release": "changeset publish --provenance",
+        "changeset:release": "changeset publish",
         "changeset:version": "changeset version && pnpm install --lockfile-only"
     },
     "devDependencies": {
