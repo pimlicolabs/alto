@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Clone repository
         uses: actions/checkout@v3
@@ -22,7 +26,7 @@ jobs:
         run: pnpm install
 
       - name: Setup .npmrc file
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           registry-url: "https://registry.npmjs.org"
 
@@ -37,6 +41,4 @@ jobs:
           pnpm run build:contracts && pnpm run build && jq '. + {type: "module"}' ./src/package.json > ./src/package.tmp.json && mv ./src/package.tmp.json ./src/package.json
 
       - name: Publish alto to npm
-        run: cd src && npm publish --access public --tag $(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_ORG_PIMLICO_TOKEN }}
+        run: cd src && npm publish --provenance --access public --tag $(git branch --show-current | tr -cs '[:alnum:]-' '-' | tr '[:upper:]' '[:lower:]' | sed 's/-$//')
