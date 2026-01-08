@@ -1,5 +1,4 @@
 import { type SenderManager, getUserOpHashes } from "@alto/executor"
-import * as sentry from "@sentry/node"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -14,6 +13,7 @@ import type {
     UserOperationReceipt
 } from "@alto/types"
 import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import {
     type Address,
     type Block,
