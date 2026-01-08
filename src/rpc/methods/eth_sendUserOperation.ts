@@ -230,10 +230,10 @@ export async function addToMempoolIfValid({
     const [
         { queuedUserOps, validationResult },
         currentNonceSeq,
-        [pvgSuccess, pvgErrorReason],
-        [gasPriceValid, gasPriceError],
-        [validEip7702Auth, validEip7702AuthError],
-        [chainRulesSuccess, chainRulesError]
+        [isPvgValid, pvgError],
+        [isGasPriceValid, gasPriceError],
+        [isEip7702AuthValid, eip7702AuthError],
+        [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
         getUserOpValidationResult(rpcHandler, userOp, entryPoint),
         rpcHandler.getNonceSeq(userOp, entryPoint),
@@ -259,24 +259,24 @@ export async function addToMempoolIfValid({
     ])
 
     // Validate eip7702Auth
-    if (!validEip7702Auth) {
+    if (!isEip7702AuthValid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            validEip7702AuthError
+            eip7702AuthError
         )
-        throw new RpcError(validEip7702AuthError, ERC7769Errors.InvalidFields)
+        throw new RpcError(eip7702AuthError, ERC7769Errors.InvalidFields)
     }
 
     // Gas price validation
-    if (!gasPriceValid) {
+    if (!isGasPriceValid) {
         rpcHandler.eventManager.emitFailedValidation(userOpHash, gasPriceError)
         throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
     }
 
     // PreVerificationGas validation
-    if (!pvgSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
-        throw new RpcError(pvgErrorReason, ERC7769Errors.SimulateValidation)
+    if (!isPvgValid) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgError)
+        throw new RpcError(pvgError, ERC7769Errors.SimulateValidation)
     }
 
     // Nonce validation
@@ -302,7 +302,7 @@ export async function addToMempoolIfValid({
     }
 
     // Chain rules validation
-    if (!chainRulesSuccess) {
+    if (!isChainRulesValid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
             chainRulesError
