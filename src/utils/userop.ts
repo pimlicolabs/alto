@@ -75,7 +75,7 @@ export function validatePaymasterSignature(
         return null
     }
 
-    // Magic bytes indicating paymaster signature data should follow
+    // Magic bytes indicating packedUserOp's paymasterData should follow
     // See: https://docs.erc4337.io/paymasters/paymaster-signature.html
     const paymasterSigMagic: Hex = "0x22e325a297439656"
     const magicSize = size(paymasterSigMagic) // 8 bytes
