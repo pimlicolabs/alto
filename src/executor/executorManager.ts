@@ -343,6 +343,11 @@ export class ExecutorManager {
 
         const pendingBundles = this.bundleManager.getPendingBundles()
 
+        this.logger.info(
+            { pendingBundlesCount: pendingBundles.length },
+            "handleBlock called"
+        )
+
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
@@ -388,9 +393,9 @@ export class ExecutorManager {
                     })
                 }
 
-                // Fatal error - clean up the bundle so it doesn't get stuck
-                if (bundleStatus.status === "fatal_error") {
-                    await this.bundleManager.processFatalErrorBundle({
+                // Internal error - clean up the bundle so it doesn't get stuck
+                if (bundleStatus.status === "internal_error") {
+                    await this.bundleManager.processInternalErrorBundle({
                         submittedBundle: pendingBundles[index],
                         error: bundleStatus.error
                     })

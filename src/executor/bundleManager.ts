@@ -111,10 +111,10 @@ export class BundleManager {
                             ),
                             err: errorMessage
                         },
-                        "Fatal error processing bundle status"
+                        "Internal error whilst getting bundle status"
                     )
                     return {
-                        status: "fatal_error" as const,
+                        status: "internal_error" as const,
                         error: errorMessage
                     }
                 }
@@ -263,7 +263,7 @@ export class BundleManager {
         })()
     }
 
-    async processFatalErrorBundle({
+    async processInternalErrorBundle({
         submittedBundle,
         error
     }: {
@@ -279,7 +279,7 @@ export class BundleManager {
                 userOpHashes: getUserOpHashes(userOps),
                 error
             },
-            "Fatal error processing bundle - cleaning up and dropping"
+            "Internal error processing bundle - cleaning up and dropping"
         )
 
         // Clean up the bundle so it doesn't get stuck
@@ -296,7 +296,7 @@ export class BundleManager {
 
         // Increment metrics for failed userOps
         this.metrics.userOpsOnChain
-            .labels({ status: "fatal_error" })
+            .labels({ status: "internal_error" })
             .inc(userOps.length)
     }
 
