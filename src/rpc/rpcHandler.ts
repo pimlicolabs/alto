@@ -25,7 +25,8 @@ import {
     type Metrics,
     getNonceKeyAndSequence,
     isVersion06,
-    isVersion07
+    isVersion07,
+    validatePaymasterSignature
 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"
@@ -141,11 +142,24 @@ export class RpcHandler {
         }
     }
 
-    async preMempoolChecks(
-        userOp: UserOperation,
-        apiVersion: ApiVersion,
+    validateUserOpFields({
+        userOp,
+        entryPoint,
         boost = false
-    ): Promise<[boolean, string]> {
+    }: {
+        userOp: UserOperation
+        entryPoint: Address
+        boost?: boolean
+    }): [boolean, string] {
+        // Validate paymaster signature for EntryPoint 0.9
+        const paymasterSignatureError = validatePaymasterSignature(
+            userOp,
+            entryPoint
+        )
+        if (paymasterSignatureError) {
+            return [false, paymasterSignatureError]
+        }
+
         if (
             this.config.legacyTransactions &&
             userOp.maxFeePerGas !== userOp.maxPriorityFeePerGas
@@ -154,28 +168,6 @@ export class RpcHandler {
                 false,
                 "maxPriorityFeePerGas must equal maxFeePerGas on chains that don't support EIP-1559"
             ]
-        }
-
-        if (apiVersion !== "v1" && !this.config.safeMode && !boost) {
-            const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
-                await this.gasPriceManager.getLowestValidGasPrices()
-
-            const maxFeePerGas = userOp.maxFeePerGas
-            const maxPriorityFeePerGas = userOp.maxPriorityFeePerGas
-
-            if (maxFeePerGas < lowestMaxFeePerGas) {
-                return [
-                    false,
-                    `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                ]
-            }
-
-            if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
-                return [
-                    false,
-                    `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                ]
-            }
         }
 
         if (userOp.verificationGasLimit < 10_000n) {
@@ -205,6 +197,38 @@ export class RpcHandler {
             return [
                 false,
                 `User operation gas limits exceed the max gas per userOp: ${gasLimits} > ${this.config.maxGasPerUserOp}`
+            ]
+        }
+
+        return [true, ""]
+    }
+
+    async validateUserOpGasPrice(
+        userOp: UserOperation,
+        apiVersion: ApiVersion,
+        boost = false
+    ): Promise<[boolean, string]> {
+        if (apiVersion === "v1" || this.config.safeMode || boost) {
+            return [true, ""]
+        }
+
+        const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
+            await this.gasPriceManager.getLowestValidGasPrices()
+
+        const maxFeePerGas = userOp.maxFeePerGas
+        const maxPriorityFeePerGas = userOp.maxPriorityFeePerGas
+
+        if (maxFeePerGas < lowestMaxFeePerGas) {
+            return [
+                false,
+                `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
+            return [
+                false,
+                `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             ]
         }
 

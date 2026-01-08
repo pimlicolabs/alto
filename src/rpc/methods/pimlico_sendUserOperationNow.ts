@@ -26,17 +26,26 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+        // Validate userOp fields (sync - fail fast before expensive async checks)
+        const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+            userOp,
+            entryPoint
+        })
+        if (!fieldsValid) {
+            throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+        }
+
         const userOpHash = getUserOpHash({
             userOp,
             entryPointAddress: entryPoint,
             chainId: rpcHandler.config.chainId
         })
 
-        const [preMempoolValid, preMempoolError] =
-            await rpcHandler.preMempoolChecks(userOp, apiVersion)
-
-        if (!preMempoolValid) {
-            throw new RpcError(preMempoolError, ERC7769Errors.InvalidFields)
+        // Validate gas price (async)
+        const [gasPriceValid, gasPriceError] =
+            await rpcHandler.validateUserOpGasPrice(userOp, apiVersion)
+        if (!gasPriceValid) {
+            throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
         }
 
         // Prepare bundle

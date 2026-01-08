@@ -203,6 +203,16 @@ export async function addToMempoolIfValid({
 }): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+    // Validate userOp fields (sync - fail fast before expensive async checks)
+    const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+        userOp,
+        entryPoint,
+        boost
+    })
+    if (!fieldsValid) {
+        throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+    }
+
     const userOpHash = getUserOpHash({
         userOp,
         entryPointAddress: entryPoint,
@@ -221,7 +231,7 @@ export async function addToMempoolIfValid({
         { queuedUserOps, validationResult },
         currentNonceSeq,
         [pvgSuccess, pvgErrorReason],
-        [preMempoolSuccess, preMempoolError],
+        [gasPriceValid, gasPriceError],
         [validEip7702Auth, validEip7702AuthError],
         [chainRulesSuccess, chainRulesError]
     ] = await Promise.all([
@@ -235,7 +245,7 @@ export async function addToMempoolIfValid({
             boost,
             config: rpcHandler.config
         }),
-        rpcHandler.preMempoolChecks(userOp, apiVersion, boost),
+        rpcHandler.validateUserOpGasPrice(userOp, apiVersion, boost),
         rpcHandler.validateEip7702Auth({
             userOp,
             validateSender: true
@@ -257,13 +267,10 @@ export async function addToMempoolIfValid({
         throw new RpcError(validEip7702AuthError, ERC7769Errors.InvalidFields)
     }
 
-    // Pre mempool validation
-    if (!preMempoolSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(
-            userOpHash,
-            preMempoolError
-        )
-        throw new RpcError(preMempoolError, ERC7769Errors.InvalidFields)
+    // Gas price validation
+    if (!gasPriceValid) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, gasPriceError)
+        throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
     }
 
     // PreVerificationGas validation

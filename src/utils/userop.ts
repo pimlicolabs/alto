@@ -61,6 +61,45 @@ export function isVersion09(
     return entryPointAddress.startsWith("0x433709")
 }
 
+/**
+ * Validates that EntryPoint 0.9 userOps don't have incomplete paymaster signatures.
+ * If paymasterData ends with PAYMASTER_SIG_MAGIC, it means the signature placeholder
+ * is present but the actual signature is missing.
+ *
+ * @returns null if valid, error message string if invalid
+ */
+export function validatePaymasterSignature(
+    userOp: UserOperation,
+    entryPointAddress: Address
+): string | null {
+    if (!isVersion09(userOp, entryPointAddress)) {
+        return null
+    }
+
+    const paymasterData = userOp.paymasterData
+    if (!paymasterData || paymasterData === "0x") {
+        return null
+    }
+
+    // Magic bytes indicating paymaster signature data should follow
+    // See: https://docs.erc4337.io/paymasters/paymaster-signature.html
+    const paymasterSigMagic: Hex = "0x22e325a297439656"
+    const magicSize = size(paymasterSigMagic) // 8 bytes
+    const dataSize = size(paymasterData)
+
+    if (dataSize < magicSize) {
+        return null
+    }
+
+    // Get the last 8 bytes and compare with magic
+    const lastBytes = slice(paymasterData, dataSize - magicSize)
+    if (lastBytes === paymasterSigMagic) {
+        return "paymasterData contains signature placeholder (PAYMASTER_SIG_MAGIC) but is missing the actual signature. The paymaster signature must be appended after the magic bytes. See https://docs.erc4337.io/paymasters/paymaster-signature.html"
+    }
+
+    return null
+}
+
 // Check if a userOperation is a deployment operation
 export function isDeployment(userOp: UserOperation): boolean {
     const isDeployment06 =
