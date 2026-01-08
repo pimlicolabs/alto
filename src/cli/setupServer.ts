@@ -399,7 +399,10 @@ export const setupServer = async ({
         try {
             await gracefulShutdown("unhandledRejection")
         } catch (shutdownErr) {
-            rootLogger.error({ err: toError(shutdownErr) }, "Shutdown error")
+            rootLogger.error(
+                { err: toError(shutdownErr) },
+                "Error during unhandledRejection shutdown"
+            )
             process.exit(1)
         }
     })
@@ -410,7 +413,10 @@ export const setupServer = async ({
         try {
             await gracefulShutdown("uncaughtException")
         } catch (shutdownErr) {
-            rootLogger.error({ err: toError(shutdownErr) }, "Shutdown error")
+            rootLogger.error(
+                { err: toError(shutdownErr) },
+                "Error during uncaughtException shutdown"
+            )
             process.exit(1)
         }
     })
