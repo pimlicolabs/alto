@@ -88,7 +88,7 @@ export function validatePaymasterSignature(
     // Get the last 8 bytes and compare with magic
     const lastBytes = slice(paymasterData, dataSize - magicSize)
     if (lastBytes === paymasterSigMagic) {
-        return "paymasterData contains signature placeholder (PAYMASTER_SIG_MAGIC) but is missing the actual signature. The paymaster signature must be appended after the magic bytes. See https://docs.erc4337.io/paymasters/paymaster-signature.html"
+        return "paymasterData incorrectly contains PAYMASTER_SIG_MAGIC signature placeholder. The actual paymaster signature must be included in userOp.paymasterSignature instead."
     }
 
     return null
