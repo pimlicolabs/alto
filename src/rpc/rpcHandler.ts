@@ -145,11 +145,11 @@ export class RpcHandler {
     validateUserOpFields({
         userOp,
         entryPoint,
-        boost = false
+        isBoosted = false
     }: {
         userOp: UserOperation
         entryPoint: Address
-        boost?: boolean
+        isBoosted?: boolean
     }): [boolean, string] {
         // Validate paymaster signature for EntryPoint 0.9
         const paymasterSignatureError = validatePaymasterSignature(
@@ -174,7 +174,7 @@ export class RpcHandler {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
-        if (!boost && userOp.preVerificationGas === 0n) {
+        if (!isBoosted && userOp.preVerificationGas === 0n) {
             return [
                 false,
                 "userOperation preVerification gas must be larger than 0"
@@ -206,9 +206,9 @@ export class RpcHandler {
     async validateUserOpGasPrice(
         userOp: UserOperation,
         apiVersion: ApiVersion,
-        boost = false
+        isBoosted = false
     ): Promise<[boolean, string]> {
-        if (apiVersion === "v1" || this.config.safeMode || boost) {
+        if (apiVersion === "v1" || this.config.safeMode || isBoosted) {
             return [true, ""]
         }
 

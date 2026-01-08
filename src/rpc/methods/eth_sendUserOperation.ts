@@ -96,17 +96,17 @@ const validatePvg = async ({
     userOp,
     entryPoint,
     config,
-    boost = false
+    isBoosted = false
 }: {
     apiVersion: ApiVersion
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     config: AltoConfig
-    boost?: boolean
+    isBoosted?: boolean
 }): Promise<[boolean, string]> => {
     // PVG validation is skipped for v1
-    if (apiVersion === "v1" || boost) {
+    if (apiVersion === "v1" || isBoosted) {
         return [true, ""]
     }
 
@@ -193,13 +193,13 @@ export async function addToMempoolIfValid({
     userOp,
     entryPoint,
     apiVersion,
-    boost = false
+    isBoosted = false
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     apiVersion: ApiVersion
-    boost?: boolean
+    isBoosted?: boolean
 }): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
@@ -207,7 +207,7 @@ export async function addToMempoolIfValid({
     const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
         userOp,
         entryPoint,
-        boost
+        isBoosted
     })
     if (!fieldsValid) {
         throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
@@ -242,10 +242,10 @@ export async function addToMempoolIfValid({
             rpcHandler,
             userOp,
             entryPoint,
-            boost,
+            isBoosted,
             config: rpcHandler.config
         }),
-        rpcHandler.validateUserOpGasPrice(userOp, apiVersion, boost),
+        rpcHandler.validateUserOpGasPrice(userOp, apiVersion, isBoosted),
         rpcHandler.validateEip7702Auth({
             userOp,
             validateSender: true
