@@ -249,7 +249,7 @@ export async function addToMempoolIfValid({
             isBoosted,
             config: rpcHandler.config
         }),
-        rpcHandler.validateUserOpGasPrice(userOp, apiVersion, isBoosted),
+        rpcHandler.validateUserOpGasPrice({ userOp, apiVersion, isBoosted }),
         rpcHandler.validateEip7702Auth({
             userOp,
             validateSender: true
