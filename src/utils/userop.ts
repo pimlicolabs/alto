@@ -81,15 +81,15 @@ export function validatePaymasterSignature({
     // Magic bytes indicating packedUserOp's paymasterData should follow
     // See: https://docs.erc4337.io/paymasters/paymaster-signature.html
     const paymasterSigMagic: Hex = "0x22e325a297439656"
-    const magicSize = size(paymasterSigMagic) // 8 bytes
-    const dataSize = size(paymasterData)
+    const magicBytesSize = size(paymasterSigMagic) // 8 bytes
+    const paymasterDataSize = size(paymasterData)
 
-    if (dataSize < magicSize) {
+    if (paymasterDataSize < magicBytesSize) {
         return null
     }
 
     // Get the last 8 bytes and compare with magic
-    const lastBytes = slice(paymasterData, dataSize - magicSize)
+    const lastBytes = slice(paymasterData, paymasterDataSize - magicBytesSize)
     if (lastBytes === paymasterSigMagic) {
         return "paymasterData incorrectly contains PAYMASTER_SIG_MAGIC signature placeholder. The actual paymaster signature must be included in userOp.paymasterSignature instead."
     }
