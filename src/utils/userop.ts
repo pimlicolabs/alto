@@ -62,11 +62,14 @@ export function isVersion09(
 }
 
 // Validates that EntryPoint 0.9 userOps don't include PAYMASTER_SIG_MAGIC (should be included in userOp.paymasterSignature rather than userOp.paymasterData)
-export function validatePaymasterSignature(
-    userOp: UserOperation,
-    entryPointAddress: Address
-): string | null {
-    if (!isVersion09(userOp, entryPointAddress)) {
+export function validatePaymasterSignature({
+    userOp,
+    entryPoint
+}: {
+    userOp: UserOperation
+    entryPoint: Address
+}): string | null {
+    if (!isVersion09(userOp, entryPoint)) {
         return null
     }
 

@@ -152,10 +152,10 @@ export class RpcHandler {
         isBoosted?: boolean
     }): [boolean, string] {
         // Validate paymaster signature for EntryPoint 0.9
-        const paymasterSignatureError = validatePaymasterSignature(
+        const paymasterSignatureError = validatePaymasterSignature({
             userOp,
             entryPoint
-        )
+        })
         if (paymasterSignatureError) {
             return [false, paymasterSignatureError]
         }
@@ -203,11 +203,15 @@ export class RpcHandler {
         return [true, ""]
     }
 
-    async validateUserOpGasPrice(
-        userOp: UserOperation,
-        apiVersion: ApiVersion,
+    async validateUserOpGasPrice({
+        userOp,
+        apiVersion,
         isBoosted = false
-    ): Promise<[boolean, string]> {
+    }: {
+        userOp: UserOperation
+        apiVersion: ApiVersion
+        isBoosted?: boolean
+    }): Promise<[boolean, string]> {
         if (apiVersion === "v1" || this.config.safeMode || isBoosted) {
             return [true, ""]
         }
@@ -351,7 +355,10 @@ export class RpcHandler {
         return [true, ""]
     }
 
-    async getNonceSeq(userOp: UserOperation, entryPoint: Address) {
+    async getNonceSeq({
+        userOp,
+        entryPoint
+    }: { userOp: UserOperation; entryPoint: Address }) {
         const entryPointContract = getContract({
             address: entryPoint,
             abi: isVersion06(userOp) ? EntryPointV06Abi : EntryPointV07Abi,

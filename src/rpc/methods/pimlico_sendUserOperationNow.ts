@@ -43,7 +43,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         // Validate gas price (async)
         const [gasPriceValid, gasPriceError] =
-            await rpcHandler.validateUserOpGasPrice(userOp, apiVersion)
+            await rpcHandler.validateUserOpGasPrice({ userOp, apiVersion })
         if (!gasPriceValid) {
             throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
         }

@@ -146,11 +146,15 @@ const validatePvg = async ({
     return [true, ""]
 }
 
-const getUserOpValidationResult = async (
-    rpcHandler: RpcHandler,
-    userOp: UserOperation,
+const getUserOpValidationResult = async ({
+    rpcHandler,
+    userOp,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
     entryPoint: Address
-): Promise<{
+}): Promise<{
     queuedUserOps: UserOperation[]
     validationResult: ValidationResult & {
         storageMap: StorageMap
@@ -235,8 +239,8 @@ export async function addToMempoolIfValid({
         [isEip7702AuthValid, eip7702AuthError],
         [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
-        getUserOpValidationResult(rpcHandler, userOp, entryPoint),
-        rpcHandler.getNonceSeq(userOp, entryPoint),
+        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
             rpcHandler,
