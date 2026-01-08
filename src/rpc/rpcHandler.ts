@@ -25,7 +25,8 @@ import {
     type Metrics,
     getNonceKeyAndSequence,
     isVersion06,
-    isVersion07
+    isVersion07,
+    validatePaymasterSignature
 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
 import { recoverAuthorizationAddress } from "viem/utils"
@@ -141,11 +142,24 @@ export class RpcHandler {
         }
     }
 
-    async preMempoolChecks(
-        userOp: UserOperation,
-        apiVersion: ApiVersion,
-        boost = false
-    ): Promise<[boolean, string]> {
+    validateUserOpFields({
+        userOp,
+        entryPoint,
+        isBoosted = false
+    }: {
+        userOp: UserOperation
+        entryPoint: Address
+        isBoosted?: boolean
+    }): [boolean, string] {
+        // Validate paymaster signature for EntryPoint 0.9
+        const paymasterSignatureError = validatePaymasterSignature({
+            userOp,
+            entryPoint
+        })
+        if (paymasterSignatureError) {
+            return [false, paymasterSignatureError]
+        }
+
         if (
             this.config.legacyTransactions &&
             userOp.maxFeePerGas !== userOp.maxPriorityFeePerGas
@@ -156,33 +170,11 @@ export class RpcHandler {
             ]
         }
 
-        if (apiVersion !== "v1" && !this.config.safeMode && !boost) {
-            const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
-                await this.gasPriceManager.getLowestValidGasPrices()
-
-            const maxFeePerGas = userOp.maxFeePerGas
-            const maxPriorityFeePerGas = userOp.maxPriorityFeePerGas
-
-            if (maxFeePerGas < lowestMaxFeePerGas) {
-                return [
-                    false,
-                    `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                ]
-            }
-
-            if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
-                return [
-                    false,
-                    `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
-                ]
-            }
-        }
-
         if (userOp.verificationGasLimit < 10_000n) {
             return [false, "verificationGasLimit must be at least 10000"]
         }
 
-        if (!boost && userOp.preVerificationGas === 0n) {
+        if (!isBoosted && userOp.preVerificationGas === 0n) {
             return [
                 false,
                 "userOperation preVerification gas must be larger than 0"
@@ -205,6 +197,42 @@ export class RpcHandler {
             return [
                 false,
                 `User operation gas limits exceed the max gas per userOp: ${gasLimits} > ${this.config.maxGasPerUserOp}`
+            ]
+        }
+
+        return [true, ""]
+    }
+
+    async validateUserOpGasPrice({
+        userOp,
+        apiVersion,
+        isBoosted = false
+    }: {
+        userOp: UserOperation
+        apiVersion: ApiVersion
+        isBoosted?: boolean
+    }): Promise<[boolean, string]> {
+        if (apiVersion === "v1" || this.config.safeMode || isBoosted) {
+            return [true, ""]
+        }
+
+        const { lowestMaxFeePerGas, lowestMaxPriorityFeePerGas } =
+            await this.gasPriceManager.getLowestValidGasPrices()
+
+        const maxFeePerGas = userOp.maxFeePerGas
+        const maxPriorityFeePerGas = userOp.maxPriorityFeePerGas
+
+        if (maxFeePerGas < lowestMaxFeePerGas) {
+            return [
+                false,
+                `maxFeePerGas must be at least ${lowestMaxFeePerGas} (current maxFeePerGas: ${maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        if (maxPriorityFeePerGas < lowestMaxPriorityFeePerGas) {
+            return [
+                false,
+                `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             ]
         }
 
@@ -327,7 +355,10 @@ export class RpcHandler {
         return [true, ""]
     }
 
-    async getNonceSeq(userOp: UserOperation, entryPoint: Address) {
+    async getNonceSeq({
+        userOp,
+        entryPoint
+    }: { userOp: UserOperation; entryPoint: Address }) {
         const entryPointContract = getContract({
             address: entryPoint,
             abi: isVersion06(userOp) ? EntryPointV06Abi : EntryPointV07Abi,

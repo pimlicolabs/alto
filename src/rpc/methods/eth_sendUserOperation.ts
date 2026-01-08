@@ -96,17 +96,17 @@ const validatePvg = async ({
     userOp,
     entryPoint,
     config,
-    boost = false
+    isBoosted = false
 }: {
     apiVersion: ApiVersion
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     config: AltoConfig
-    boost?: boolean
+    isBoosted?: boolean
 }): Promise<[boolean, string]> => {
     // PVG validation is skipped for v1
-    if (apiVersion === "v1" || boost) {
+    if (apiVersion === "v1" || isBoosted) {
         return [true, ""]
     }
 
@@ -146,11 +146,15 @@ const validatePvg = async ({
     return [true, ""]
 }
 
-const getUserOpValidationResult = async (
-    rpcHandler: RpcHandler,
-    userOp: UserOperation,
+const getUserOpValidationResult = async ({
+    rpcHandler,
+    userOp,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
     entryPoint: Address
-): Promise<{
+}): Promise<{
     queuedUserOps: UserOperation[]
     validationResult: ValidationResult & {
         storageMap: StorageMap
@@ -193,15 +197,25 @@ export async function addToMempoolIfValid({
     userOp,
     entryPoint,
     apiVersion,
-    boost = false
+    isBoosted = false
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     apiVersion: ApiVersion
-    boost?: boolean
+    isBoosted?: boolean
 }): Promise<{ userOpHash: Hex; result: "added" | "queued" }> {
     rpcHandler.ensureEntryPointIsSupported(entryPoint)
+
+    // Validate userOp fields (sync - fail fast before expensive async checks)
+    const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+        userOp,
+        entryPoint,
+        isBoosted
+    })
+    if (!fieldsValid) {
+        throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+    }
 
     const userOpHash = getUserOpHash({
         userOp,
@@ -220,22 +234,22 @@ export async function addToMempoolIfValid({
     const [
         { queuedUserOps, validationResult },
         currentNonceSeq,
-        [pvgSuccess, pvgErrorReason],
-        [preMempoolSuccess, preMempoolError],
-        [validEip7702Auth, validEip7702AuthError],
-        [chainRulesSuccess, chainRulesError]
+        [isPvgValid, pvgError],
+        [isGasPriceValid, gasPriceError],
+        [isEip7702AuthValid, eip7702AuthError],
+        [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
-        getUserOpValidationResult(rpcHandler, userOp, entryPoint),
-        rpcHandler.getNonceSeq(userOp, entryPoint),
+        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
             rpcHandler,
             userOp,
             entryPoint,
-            boost,
+            isBoosted,
             config: rpcHandler.config
         }),
-        rpcHandler.preMempoolChecks(userOp, apiVersion, boost),
+        rpcHandler.validateUserOpGasPrice({ userOp, apiVersion, isBoosted }),
         rpcHandler.validateEip7702Auth({
             userOp,
             validateSender: true
@@ -249,27 +263,24 @@ export async function addToMempoolIfValid({
     ])
 
     // Validate eip7702Auth
-    if (!validEip7702Auth) {
+    if (!isEip7702AuthValid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            validEip7702AuthError
+            eip7702AuthError
         )
-        throw new RpcError(validEip7702AuthError, ERC7769Errors.InvalidFields)
+        throw new RpcError(eip7702AuthError, ERC7769Errors.InvalidFields)
     }
 
-    // Pre mempool validation
-    if (!preMempoolSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(
-            userOpHash,
-            preMempoolError
-        )
-        throw new RpcError(preMempoolError, ERC7769Errors.InvalidFields)
+    // Gas price validation
+    if (!isGasPriceValid) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, gasPriceError)
+        throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
     }
 
     // PreVerificationGas validation
-    if (!pvgSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgErrorReason)
-        throw new RpcError(pvgErrorReason, ERC7769Errors.SimulateValidation)
+    if (!isPvgValid) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgError)
+        throw new RpcError(pvgError, ERC7769Errors.SimulateValidation)
     }
 
     // Nonce validation
@@ -295,7 +306,7 @@ export async function addToMempoolIfValid({
     }
 
     // Chain rules validation
-    if (!chainRulesSuccess) {
+    if (!isChainRulesValid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
             chainRulesError

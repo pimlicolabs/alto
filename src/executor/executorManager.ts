@@ -383,6 +383,14 @@ export class ExecutorManager {
                         networkBaseFee
                     })
                 }
+
+                // Internal error - clean up the bundle so it doesn't get stuck
+                if (bundleStatus.status === "internal_error") {
+                    await this.bundleManager.processInternalErrorBundle({
+                        submittedBundle: pendingBundles[index],
+                        error: bundleStatus.error
+                    })
+                }
             })
         )
 

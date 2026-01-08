@@ -61,6 +61,42 @@ export function isVersion09(
     return entryPointAddress.startsWith("0x433709")
 }
 
+// Validates that EntryPoint 0.9 userOps don't include PAYMASTER_SIG_MAGIC (should be included in userOp.paymasterSignature rather than userOp.paymasterData)
+export function validatePaymasterSignature({
+    userOp,
+    entryPoint
+}: {
+    userOp: UserOperation
+    entryPoint: Address
+}): string | null {
+    if (!isVersion09(userOp, entryPoint)) {
+        return null
+    }
+
+    const paymasterData = userOp.paymasterData
+    if (!paymasterData || paymasterData === "0x") {
+        return null
+    }
+
+    // Magic bytes indicating packedUserOp's paymasterData should follow
+    // See: https://docs.erc4337.io/paymasters/paymaster-signature.html
+    const paymasterSigMagic: Hex = "0x22e325a297439656"
+    const magicBytesSize = size(paymasterSigMagic) // 8 bytes
+    const paymasterDataSize = size(paymasterData)
+
+    if (paymasterDataSize < magicBytesSize) {
+        return null
+    }
+
+    // Get the last 8 bytes and compare with magic
+    const lastBytes = slice(paymasterData, paymasterDataSize - magicBytesSize)
+    if (lastBytes === paymasterSigMagic) {
+        return "paymasterData incorrectly contains PAYMASTER_SIG_MAGIC signature placeholder. The actual paymaster signature must be included in userOp.paymasterSignature instead."
+    }
+
+    return null
+}
+
 // Check if a userOperation is a deployment operation
 export function isDeployment(userOp: UserOperation): boolean {
     const isDeployment06 =

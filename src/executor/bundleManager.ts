@@ -13,6 +13,7 @@ import type {
     UserOperationReceipt
 } from "@alto/types"
 import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import {
     type Address,
     type Block,
@@ -91,12 +92,20 @@ export class BundleManager {
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {
         return Promise.all(
-            pendingBundles.map((bundle) => {
-                return getBundleStatus({
-                    submittedBundle: bundle,
-                    publicClient: this.config.publicClient,
-                    logger: this.logger
-                })
+            pendingBundles.map(async (bundle) => {
+                try {
+                    return await getBundleStatus({
+                        submittedBundle: bundle,
+                        publicClient: this.config.publicClient,
+                        logger: this.logger
+                    })
+                } catch (err) {
+                    sentry.captureException(err)
+                    return {
+                        status: "internal_error" as const,
+                        error: err instanceof Error ? err.message : String(err)
+                    }
+                }
             })
         )
     }
@@ -240,6 +249,43 @@ export class BundleManager {
                 })()
             }
         })()
+    }
+
+    async processInternalErrorBundle({
+        submittedBundle,
+        error
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        error: string
+    }) {
+        const { bundle, transactionHash } = submittedBundle
+        const { userOps } = bundle
+
+        this.logger.error(
+            {
+                transactionHash,
+                userOpHashes: getUserOpHashes(userOps),
+                error
+            },
+            "Internal error processing bundle - cleaning up and dropping"
+        )
+
+        // Clean up the bundle so it doesn't get stuck
+        await this.freeSubmittedBundle(submittedBundle)
+
+        // Mark all userOps as failed
+        await this.statusManager.set(
+            userOps.map((op) => op.userOpHash),
+            {
+                status: "failed",
+                transactionHash
+            }
+        )
+
+        // Increment metrics for failed userOps
+        this.metrics.userOpsOnChain
+            .labels({ status: "internal_error" })
+            .inc(userOps.length)
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {

@@ -1505,5 +1505,61 @@ describe.each([
                 )
             }
         })
+
+        test("Should throw if paymasterData contains PAYMASTER_SIG_MAGIC (EntryPoint 0.9 only)", async () => {
+            // This validation only applies to EntryPoint 0.9
+            if (entryPointVersion !== "0.9") {
+                return
+            }
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // Set paymaster with paymasterData ending in PAYMASTER_SIG_MAGIC
+            // This magic value (0x22e325a297439656) indicates the signature should be in paymasterSignature field
+            // See: https://docs.erc4337.io/paymasters/paymaster-signature.html
+            const paymasterSigMagic = "0x22e325a297439656"
+            op.paymaster = paymaster
+            op.paymasterVerificationGasLimit = 100_000n
+            op.paymasterPostOpGasLimit = 50_000n
+            // Append PAYMASTER_SIG_MAGIC to valid paymaster data - this should be rejected
+            op.paymasterData = concat([
+                encodePaymasterData(),
+                paymasterSigMagic as Hex
+            ])
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                // Check that the error mentions PAYMASTER_SIG_MAGIC
+                expect(error.details).toMatch(/PAYMASTER_SIG_MAGIC/i)
+
+                // Check for RPC error code
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
+        })
     }
 )

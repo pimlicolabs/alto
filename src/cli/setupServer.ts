@@ -390,19 +390,17 @@ export const setupServer = async ({
         })
     }
 
+    const toError = (err: unknown) =>
+        err instanceof Error ? err : new Error(String(err))
+
     // Handle unhandled rejections with the actual rejection reason
     process.on("unhandledRejection", async (err) => {
-        rootLogger.error(
-            {
-                err
-            },
-            "Unhandled Promise Rejection"
-        )
+        rootLogger.error({ err: toError(err) }, "Unhandled Promise Rejection")
         try {
             await gracefulShutdown("unhandledRejection")
-        } catch (err) {
+        } catch (shutdownErr) {
             rootLogger.error(
-                { err },
+                { err: toError(shutdownErr) },
                 "Error during unhandledRejection shutdown"
             )
             process.exit(1)
@@ -411,14 +409,12 @@ export const setupServer = async ({
 
     // Handle uncaught exceptions with the actual error
     process.on("uncaughtException", async (err) => {
-        rootLogger.error({ err }, "Uncaught Exception")
+        rootLogger.error({ err: toError(err) }, "Uncaught Exception")
         try {
             await gracefulShutdown("uncaughtException")
-        } catch (err) {
+        } catch (shutdownErr) {
             rootLogger.error(
-                {
-                    err
-                },
+                { err: toError(shutdownErr) },
                 "Error during uncaughtException shutdown"
             )
             process.exit(1)
