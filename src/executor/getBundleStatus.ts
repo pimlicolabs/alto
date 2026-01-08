@@ -21,15 +21,22 @@ export type BundleNotFound = {
     status: "not_found"
 }
 
+export type BundleFatalError = {
+    status: "fatal_error"
+    error: string
+}
+
 export type BundleStatus<
-    status extends "included" | "reverted" | "not_found" =
+    status extends "included" | "reverted" | "not_found" | "fatal_error" =
         | "included"
         | "reverted"
         | "not_found"
+        | "fatal_error"
 > =
     | (status extends "included" ? BundleIncluded : never)
     | (status extends "reverted" ? BundleReverted : never)
     | (status extends "not_found" ? BundleNotFound : never)
+    | (status extends "fatal_error" ? BundleFatalError : never)
 
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({

@@ -416,7 +416,9 @@ export function parseUserOpReceipt(
     }
 
     if (userOpEventIndex === -1 || startIndex === -1 || !userOpEventArgs) {
-        throw new Error("fatal: no UserOpEvent in logs")
+        throw new Error(
+            `fatal: no UserOpEvent in logs, ${userOpEventIndex} ${startIndex} ${userOpEventArgs}`
+        )
     }
 
     // Get logs between the starting point and our UserOpEvent

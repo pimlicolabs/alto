@@ -1,4 +1,5 @@
 import { type SenderManager, getUserOpHashes } from "@alto/executor"
+import * as sentry from "@sentry/node"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
     InterfaceReputationManager,
@@ -91,12 +92,32 @@ export class BundleManager {
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {
         return Promise.all(
-            pendingBundles.map((bundle) => {
-                return getBundleStatus({
-                    submittedBundle: bundle,
-                    publicClient: this.config.publicClient,
-                    logger: this.logger
-                })
+            pendingBundles.map(async (bundle) => {
+                try {
+                    return await getBundleStatus({
+                        submittedBundle: bundle,
+                        publicClient: this.config.publicClient,
+                        logger: this.logger
+                    })
+                } catch (err) {
+                    const errorMessage =
+                        err instanceof Error ? err.message : String(err)
+                    sentry.captureException(err)
+                    this.logger.error(
+                        {
+                            transactionHash: bundle.transactionHash,
+                            userOpHashes: bundle.bundle.userOps.map(
+                                (op) => op.userOpHash
+                            ),
+                            err: errorMessage
+                        },
+                        "Fatal error processing bundle status"
+                    )
+                    return {
+                        status: "fatal_error" as const,
+                        error: errorMessage
+                    }
+                }
             })
         )
     }
@@ -240,6 +261,43 @@ export class BundleManager {
                 })()
             }
         })()
+    }
+
+    async processFatalErrorBundle({
+        submittedBundle,
+        error
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        error: string
+    }) {
+        const { bundle, transactionHash } = submittedBundle
+        const { userOps } = bundle
+
+        this.logger.error(
+            {
+                transactionHash,
+                userOpHashes: getUserOpHashes(userOps),
+                error
+            },
+            "Fatal error processing bundle - cleaning up and dropping"
+        )
+
+        // Clean up the bundle so it doesn't get stuck
+        await this.freeSubmittedBundle(submittedBundle)
+
+        // Mark all userOps as failed
+        await this.statusManager.set(
+            userOps.map((op) => op.userOpHash),
+            {
+                status: "failed",
+                transactionHash
+            }
+        )
+
+        // Increment metrics for failed userOps
+        this.metrics.userOpsOnChain
+            .labels({ status: "fatal_error" })
+            .inc(userOps.length)
     }
 
     public trackBundle(submittedBundle: SubmittedBundleInfo) {

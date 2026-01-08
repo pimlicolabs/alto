@@ -146,7 +146,11 @@ export class ExecutorManager {
             // Default behavior - watch blocks
             this.unWatch = this.config.publicClient.watchBlocks({
                 onBlock: async (block) => {
-                    await this.handleBlock(block)
+                    try {
+                        await this.handleBlock(block)
+                    } catch (err) {
+                        this.logger.error({ err }, "error while handling block")
+                    }
                 },
                 onError: (err) => {
                     this.logger.error({ err }, "error while watching blocks")
@@ -381,6 +385,14 @@ export class ExecutorManager {
                         submittedBundle: pendingBundles[index],
                         networkGasPrice,
                         networkBaseFee
+                    })
+                }
+
+                // Fatal error - clean up the bundle so it doesn't get stuck
+                if (bundleStatus.status === "fatal_error") {
+                    await this.bundleManager.processFatalErrorBundle({
+                        submittedBundle: pendingBundles[index],
+                        error: bundleStatus.error
                     })
                 }
             })
