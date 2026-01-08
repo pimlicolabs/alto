@@ -131,7 +131,11 @@ export class ExecutorManager {
         if (this.config.flashblocksPreconfirmationTime) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
-                await this.handleBlock()
+                try {
+                    await this.handleBlock()
+                } catch (err) {
+                    this.logger.error({ err }, "error while polling blocks")
+                }
             }, this.config.flashblocksPreconfirmationTime)
 
             // Store cleanup function

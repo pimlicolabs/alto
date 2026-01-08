@@ -100,22 +100,10 @@ export class BundleManager {
                         logger: this.logger
                     })
                 } catch (err) {
-                    const errorMessage =
-                        err instanceof Error ? err.message : String(err)
                     sentry.captureException(err)
-                    this.logger.error(
-                        {
-                            transactionHash: bundle.transactionHash,
-                            userOpHashes: bundle.bundle.userOps.map(
-                                (op) => op.userOpHash
-                            ),
-                            err: errorMessage
-                        },
-                        "Internal error whilst getting bundle status"
-                    )
                     return {
                         status: "internal_error" as const,
-                        error: errorMessage
+                        error: err instanceof Error ? err.message : String(err)
                     }
                 }
             })
