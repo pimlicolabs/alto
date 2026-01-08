@@ -131,11 +131,7 @@ export class ExecutorManager {
         if (this.config.flashblocksPreconfirmationTime) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
-                try {
-                    await this.handleBlock()
-                } catch (err) {
-                    this.logger.error({ err }, "error while polling blocks")
-                }
+                await this.handleBlock()
             }, this.config.flashblocksPreconfirmationTime)
 
             // Store cleanup function
@@ -342,11 +338,6 @@ export class ExecutorManager {
         const blockReceivedTimestamp = Date.now()
 
         const pendingBundles = this.bundleManager.getPendingBundles()
-
-        this.logger.info(
-            { pendingBundlesCount: pendingBundles.length },
-            "handleBlock called"
-        )
 
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()

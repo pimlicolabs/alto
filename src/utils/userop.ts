@@ -61,13 +61,7 @@ export function isVersion09(
     return entryPointAddress.startsWith("0x433709")
 }
 
-/**
- * Validates that EntryPoint 0.9 userOps don't have incomplete paymaster signatures.
- * If paymasterData ends with PAYMASTER_SIG_MAGIC, it means the signature placeholder
- * is present but the actual signature is missing.
- *
- * @returns null if valid, error message string if invalid
- */
+// Validates that EntryPoint 0.9 userOps don't include PAYMASTER_SIG_MAGIC (should be included in userOp.paymasterSignature rather than userOp.paymasterData)
 export function validatePaymasterSignature(
     userOp: UserOperation,
     entryPointAddress: Address
