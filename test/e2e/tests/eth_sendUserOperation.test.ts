@@ -12,7 +12,9 @@ import {
     concat,
     createPublicClient,
     createTestClient,
+    encodeAbiParameters,
     getContract,
+    getCreate2Address,
     pad,
     parseEther,
     parseGwei,
@@ -36,9 +38,11 @@ import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { ERC7769Errors } from "../src/errors.js"
 import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
+import { deployTestPaymasterWithSig } from "../src/testPaymasterWithSig.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
+    getAnvilWalletClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
@@ -1559,6 +1563,110 @@ describe.each([
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
                 expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
+        })
+
+        test("Should successfully send userOp with paymasterSignature (EntryPoint 0.9 only)", async () => {
+            if (entryPointVersion !== "0.9") {
+                return
+            }
+
+            const paymasterWithSig = await deployTestPaymasterWithSig({
+                anvilRpc
+            })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // paymasterData = abi.encode(uint256(0x11))
+            op.paymaster = paymasterWithSig
+            op.paymasterVerificationGasLimit = 100_000n
+            op.paymasterPostOpGasLimit = 50_000n
+            op.paymasterData = encodeAbiParameters(
+                [{ type: "uint256" }],
+                [0x11n]
+            )
+            // Valid signature: a + b == 100
+            op.paymasterSignature = encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }],
+                [50n, 50n]
+            )
+
+            op.signature = await client.account.signUserOperation(op)
+
+            const hash = await client.sendUserOperation(op)
+
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+            expect(receipt.success).toBe(true)
+        })
+
+        test("Should fail with invalid paymasterSignature (EntryPoint 0.9 only)", async () => {
+            if (entryPointVersion !== "0.9") {
+                return
+            }
+
+            const paymasterWithSig = await deployTestPaymasterWithSig({
+                anvilRpc
+            })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            op.paymaster = paymasterWithSig
+            op.paymasterVerificationGasLimit = 100_000n
+            op.paymasterPostOpGasLimit = 50_000n
+            op.paymasterData = encodeAbiParameters(
+                [{ type: "uint256" }],
+                [0x11n]
+            )
+            // Invalid signature: a + b != 100
+            op.paymasterSignature = encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }],
+                [10n, 10n]
+            )
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
             }
         })
     }
