@@ -1675,9 +1675,7 @@ describe.each([
                     (e) => e instanceof RpcRequestError
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(
-                    ERC7769Errors.SimulatePaymasterValidation
-                )
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidSignature)
             }
         })
     }
