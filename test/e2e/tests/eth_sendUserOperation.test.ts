@@ -17,7 +17,8 @@ import {
     pad,
     parseEther,
     parseGwei,
-    zeroAddress
+    zeroAddress,
+    hexToBigInt
 } from "viem"
 import {
     type EntryPointVersion,
@@ -1579,7 +1580,7 @@ describe.each([
                 altoRpc
             })
 
-            const op = (await client.prepareUserOperation({
+            let userOp = (await client.prepareUserOperation({
                 calls: [
                     {
                         to: TO_ADDRESS,
@@ -1589,23 +1590,32 @@ describe.each([
                 ]
             })) as UserOperation
 
-            // paymasterData = abi.encode(uint256(0x11))
-            op.paymaster = paymasterWithSig
-            op.paymasterVerificationGasLimit = 100_000n
-            op.paymasterPostOpGasLimit = 50_000n
-            op.paymasterData = encodeAbiParameters(
+            // PaymasterData signed over by the user (these bytes are included in userOpHash)
+            // TestPaymasterWithSig.sol wants the last bytes of a abi encoded uint256 to be 0x11
+            const signedPaymasterData = encodeAbiParameters(
                 [{ type: "uint256" }],
-                [0x11n]
+                [hexToBigInt("0xbadc0ffeecafe0000011")]
             )
-            // Valid signature: a + b == 100
-            op.paymasterSignature = encodeAbiParameters(
+
+            // Paymaster signature is not part of the userOpHash, this is seperate
+            // TestPaymasterWithSig.sol wants these bytes decode into (a, b) where a + b == 100
+            const paymasterSignature = encodeAbiParameters(
                 [{ type: "uint256" }, { type: "uint256" }],
-                [50n, 50n]
+                [25n, 75n]
             )
 
-            op.signature = await client.account.signUserOperation(op)
+            userOp = {
+                ...userOp,
+                paymaster: paymasterWithSig,
+                paymasterVerificationGasLimit: 100_000n,
+                paymasterPostOpGasLimit: 50_000n,
+                paymasterData: signedPaymasterData,
+                paymasterSignature: paymasterSignature
+            } as UserOperation
 
-            const hash = await client.sendUserOperation(op)
+            userOp.signature = await client.account.signUserOperation(userOp)
+
+            const hash = await client.sendUserOperation(userOp)
 
             const receipt = await client.waitForUserOperationReceipt({ hash })
             expect(receipt.success).toBe(true)
@@ -1626,7 +1636,7 @@ describe.each([
                 altoRpc
             })
 
-            const op = (await client.prepareUserOperation({
+            let userOp = (await client.prepareUserOperation({
                 calls: [
                     {
                         to: TO_ADDRESS,
@@ -1636,23 +1646,26 @@ describe.each([
                 ]
             })) as UserOperation
 
-            op.paymaster = paymasterWithSig
-            op.paymasterVerificationGasLimit = 100_000n
-            op.paymasterPostOpGasLimit = 50_000n
-            op.paymasterData = encodeAbiParameters(
-                [{ type: "uint256" }],
-                [0x11n]
-            )
-            // Invalid signature: a + b != 100
-            op.paymasterSignature = encodeAbiParameters(
-                [{ type: "uint256" }, { type: "uint256" }],
-                [10n, 10n]
-            )
+            userOp = {
+                ...userOp,
+                paymaster: paymasterWithSig,
+                paymasterVerificationGasLimit: 100_000n,
+                paymasterPostOpGasLimit: 50_000n,
+                paymasterData: encodeAbiParameters(
+                    [{ type: "uint256" }],
+                    [0x11n]
+                ),
+                // Invalid signature: a + b != 100
+                paymasterSignature: encodeAbiParameters(
+                    [{ type: "uint256" }, { type: "uint256" }],
+                    [10n, 10n]
+                )
+            } as UserOperation
 
-            op.signature = await client.account.signUserOperation(op)
+            userOp.signature = await client.account.signUserOperation(userOp)
 
             try {
-                await client.sendUserOperation(op)
+                await client.sendUserOperation(userOp)
                 expect.fail("Must throw")
             } catch (err) {
                 expect(err).toBeInstanceOf(BaseError)
