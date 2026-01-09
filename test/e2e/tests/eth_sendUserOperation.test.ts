@@ -12,7 +12,9 @@ import {
     concat,
     createPublicClient,
     createTestClient,
+    encodeAbiParameters,
     getContract,
+    hexToBigInt,
     pad,
     parseEther,
     parseGwei,
@@ -36,6 +38,7 @@ import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { ERC7769Errors } from "../src/errors.js"
 import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
+import { deployTestPaymasterWithSig } from "../src/testPaymasterWithSig.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
@@ -1559,6 +1562,122 @@ describe.each([
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
                 expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
+        })
+
+        test("Should successfully send userOp with paymasterSignature (EntryPoint 0.9 only)", async () => {
+            if (entryPointVersion !== "0.9") {
+                return
+            }
+
+            const paymasterWithSig = await deployTestPaymasterWithSig({
+                anvilRpc
+            })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            let userOp = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            // PaymasterData signed over by the user (these bytes are included in userOpHash)
+            // TestPaymasterWithSig.sol wants the last bytes of a abi encoded uint256 to be 0x11
+            const signedPaymasterData = encodeAbiParameters(
+                [{ type: "uint256" }],
+                [hexToBigInt("0xbadc0ffeecafe0000011")]
+            )
+
+            // Paymaster signature is not part of the userOpHash, this is seperate
+            // TestPaymasterWithSig.sol wants these bytes decode into (a, b) where a + b == 100
+            const paymasterSignature = encodeAbiParameters(
+                [{ type: "uint256" }, { type: "uint256" }],
+                [25n, 75n]
+            )
+
+            userOp = {
+                ...userOp,
+                paymaster: paymasterWithSig,
+                paymasterVerificationGasLimit: 100_000n,
+                paymasterPostOpGasLimit: 50_000n,
+                paymasterData: signedPaymasterData,
+                paymasterSignature: paymasterSignature
+            } as UserOperation
+
+            userOp.signature = await client.account.signUserOperation(userOp)
+
+            const hash = await client.sendUserOperation(userOp)
+
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+            expect(receipt.success).toBe(true)
+        })
+
+        test("Should fail with invalid paymasterSignature (EntryPoint 0.9 only)", async () => {
+            if (entryPointVersion !== "0.9") {
+                return
+            }
+
+            const paymasterWithSig = await deployTestPaymasterWithSig({
+                anvilRpc
+            })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            let userOp = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: VALUE,
+                        data: "0x"
+                    }
+                ]
+            })) as UserOperation
+
+            userOp = {
+                ...userOp,
+                paymaster: paymasterWithSig,
+                paymasterVerificationGasLimit: 100_000n,
+                paymasterPostOpGasLimit: 50_000n,
+                paymasterData: encodeAbiParameters(
+                    [{ type: "uint256" }],
+                    [0x11n]
+                ),
+                // Invalid signature: a + b != 100
+                paymasterSignature: encodeAbiParameters(
+                    [{ type: "uint256" }, { type: "uint256" }],
+                    [10n, 10n]
+                )
+            } as UserOperation
+
+            userOp.signature = await client.account.signUserOperation(userOp)
+
+            try {
+                await client.sendUserOperation(userOp)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(
+                    ERC7769Errors.SimulatePaymasterValidation
+                )
             }
         })
     }
