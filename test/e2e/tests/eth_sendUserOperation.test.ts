@@ -14,11 +14,11 @@ import {
     createTestClient,
     encodeAbiParameters,
     getContract,
+    hexToBigInt,
     pad,
     parseEther,
     parseGwei,
-    zeroAddress,
-    hexToBigInt
+    zeroAddress
 } from "viem"
 import {
     type EntryPointVersion,
