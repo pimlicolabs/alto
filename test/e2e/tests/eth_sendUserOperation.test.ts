@@ -14,7 +14,6 @@ import {
     createTestClient,
     encodeAbiParameters,
     getContract,
-    getCreate2Address,
     pad,
     parseEther,
     parseGwei,
@@ -42,7 +41,6 @@ import { deployTestPaymasterWithSig } from "../src/testPaymasterWithSig.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
-    getAnvilWalletClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
