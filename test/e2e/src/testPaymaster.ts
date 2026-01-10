@@ -8,10 +8,8 @@ import {
     concat,
     createPublicClient,
     encodeAbiParameters,
-    encodeFunctionData,
     getCreate2Address,
     pad,
-    parseAbi,
     parseEther
 } from "viem"
 import { entryPoint06Address } from "viem/account-abstraction"
@@ -73,10 +71,7 @@ export const deployPaymaster = async ({
             await walletClient.sendTransaction({
                 to: counterFactual,
                 value: parseEther("100"),
-                data: encodeFunctionData({
-                    abi: parseAbi(["function deposit()"]),
-                    functionName: "deposit"
-                })
+                data: "0xd0e30db0" /* sig for deposit() */
             })
         }
     }
