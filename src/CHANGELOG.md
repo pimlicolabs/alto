@@ -1,5 +1,11 @@
 # @pimlico/alto
 
+## 0.0.21
+
+### Patch Changes
+
+- 91796afc89671f75d5f307e7f0c025590f1c27d2: Updated Viem to include fix for toPackedUserOperation paymasterSignature
+
 ## 0.0.20
 
 ### Patch Changes
