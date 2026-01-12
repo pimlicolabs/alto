@@ -13,6 +13,7 @@ import {
     gasEstimationOptions,
     logOptions,
     mempoolOptions,
+    preVerificationGasOptions,
     redisOptions,
     rpcOptions,
     serverOptions
@@ -93,6 +94,11 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(debugOptions), "Debug Options:")
         .options(gasEstimationOptions)
         .group(Object.keys(gasEstimationOptions), "Gas Estimation Options:")
+        .options(preVerificationGasOptions)
+        .group(
+            Object.keys(preVerificationGasOptions),
+            "PreVerificationGas Options:"
+        )
         .options(mempoolOptions)
         .group(Object.keys(mempoolOptions), "Mempool Options:")
         .options(redisOptions)
