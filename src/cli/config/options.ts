@@ -368,7 +368,11 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: false,
             default: "50000"
-        },
+        }
+    }
+
+export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArgsInput> =
+    {
         "calldata-zero-byte-gas": {
             description: "Gas cost per zero byte of calldata",
             type: "string",
