@@ -131,6 +131,18 @@ const defaultOverHeads: GasOverheads = {
     floorPerTokenGasCost: 10n
 }
 
+function getGasOverheads(config: AltoConfig): GasOverheads {
+    return {
+        ...defaultOverHeads,
+        zeroByte: config.calldataZeroByteGas,
+        nonZeroByte: config.calldataNonZeroByteGas,
+        standardTokenGasCost: config.calldataZeroByteGas,
+        tokensPerNonzeroByte: config.tokensPerNonzeroByte,
+        transactionGasStipend: config.transactionGasStipend,
+        floorPerTokenGasCost: config.eip7623FloorPerTokenGas
+    }
+}
+
 function fillUserOpWithDummyData(userOp: UserOperation): UserOperation {
     if (isVersion06(userOp)) {
         return {
@@ -179,7 +191,7 @@ export function calcExecutionPvgComponent({
     supportsEip7623: boolean
     config: AltoConfig
 }): bigint {
-    const oh = { ...defaultOverHeads }
+    const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
 
     const tokenCount = BigInt(

@@ -266,6 +266,14 @@ export const gasEstimationArgsSchema = z.object({
     "call-gas-limit-floor": z.string().transform(BigInt).default("50000")
 })
 
+export const preVerificationGasArgsSchema = z.object({
+    "calldata-zero-byte-gas": z.string().transform(BigInt).default("4"),
+    "calldata-non-zero-byte-gas": z.string().transform(BigInt).default("16"),
+    "eip7623-floor-per-token-gas": z.string().transform(BigInt).default("10"),
+    "transaction-gas-stipend": z.string().transform(BigInt).default("21000"),
+    "tokens-per-nonzero-byte": z.string().transform(BigInt).default("4")
+})
+
 export const mempoolArgsSchema = z.object({
     "restoration-queue-timeout": z
         .number()
@@ -325,6 +333,13 @@ export type IGasEstimationArgsInput = z.input<typeof gasEstimationArgsSchema>
 export type IMempoolArgs = z.infer<typeof mempoolArgsSchema>
 export type IMempoolArgsInput = z.input<typeof mempoolArgsSchema>
 
+export type IPreVerificationGasArgs = z.infer<
+    typeof preVerificationGasArgsSchema
+>
+export type IPreVerificationGasArgsInput = z.input<
+    typeof preVerificationGasArgsSchema
+>
+
 export type IOptions = z.infer<typeof optionArgsSchema>
 export type IOptionsInput = z.input<typeof optionArgsSchema>
 
@@ -341,5 +356,6 @@ export const optionArgsSchema = z.object({
     ...gasEstimationArgsSchema.shape,
     ...executorArgsSchema.shape,
     ...mempoolArgsSchema.shape,
-    ...redisArgsSchema.shape
+    ...redisArgsSchema.shape,
+    ...preVerificationGasArgsSchema.shape
 })
