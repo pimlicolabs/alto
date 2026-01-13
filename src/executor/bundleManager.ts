@@ -373,6 +373,7 @@ export class BundleManager {
             // Track metrics
             this.metrics.userOpInclusionDuration.observe(inclusionTimeMs / 1000)
             this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
+            this.metrics.userOpSubmissionAttemptCount.remove({ userOpHash })
 
             // Update reputation
             const accountDeployed = this.checkAccountDeployment(

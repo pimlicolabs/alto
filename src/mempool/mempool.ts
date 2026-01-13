@@ -190,6 +190,7 @@ export class Mempool {
                     transactionHash: null
                 })
                 this.metrics.userOpsDropped.labels({ reason }).inc()
+                this.metrics.userOpSubmissionAttemptCount.remove({ userOpHash })
                 this.logger.warn(
                     {
                         userOperation: jsonStringifyWithBigint(userOp),

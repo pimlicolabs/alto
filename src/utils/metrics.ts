@@ -213,6 +213,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const userOpSubmissionAttemptCount = new Gauge({
+        name: "alto_user_operation_submission_attempt_count",
+        help: "Current submission attempt count per userOp",
+        labelNames: ["userOpHash"] as const,
+        registers
+    })
+
     return {
         httpRequests,
         httpRequestsDuration,
@@ -238,6 +245,7 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsMinBalance,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
-        altoSecondValidationFailed
+        altoSecondValidationFailed,
+        userOpSubmissionAttemptCount
     }
 }

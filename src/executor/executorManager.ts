@@ -292,6 +292,13 @@ export class ExecutorManager {
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
 
+        // Track submission attempts per userOp for alerting
+        for (const userOpInfo of userOpsBundled) {
+            this.metrics.userOpSubmissionAttemptCount
+                .labels({ userOpHash: userOpInfo.userOpHash })
+                .set(userOpInfo.submissionAttempts)
+        }
+
         const submittedBundle: SubmittedBundleInfo = {
             uid: transactionHash,
             executor: wallet,
@@ -640,6 +647,13 @@ export class ExecutorManager {
             ...userOpInfo,
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
+
+        // Track submission attempts per userOp for alerting
+        for (const userOpInfo of userOpsReplaced) {
+            this.metrics.userOpSubmissionAttemptCount
+                .labels({ userOpHash: userOpInfo.userOpHash })
+                .set(userOpInfo.submissionAttempts)
+        }
 
         const newTxInfo: SubmittedBundleInfo = {
             ...submittedBundle,
