@@ -134,12 +134,12 @@ const defaultOverHeads: GasOverheads = {
 function getGasOverheads(config: AltoConfig): GasOverheads {
     return {
         ...defaultOverHeads,
-        zeroByte: config.calldataZeroByteGas,
-        nonZeroByte: config.calldataNonZeroByteGas,
-        standardTokenGasCost: config.calldataZeroByteGas,
-        tokensPerNonzeroByte: config.eip7623TokensPerNonzeroByte,
         transactionGasStipend: config.transactionGasStipend,
-        floorPerTokenGasCost: config.eip7623FloorPerTokenGas
+        zeroByte: config.calldataZeroByteGas,
+        standardTokenGasCost: config.calldataZeroByteGas,
+        nonZeroByte: config.calldataNonZeroByteGas,
+        floorPerTokenGasCost: config.eip7623FloorPerTokenGas,
+        tokensPerNonzeroByte: config.eip7623TokensPerNonzeroByte
     }
 }
 

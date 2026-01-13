@@ -373,6 +373,12 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
 
 export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArgsInput> =
     {
+        "transaction-gas-stipend": {
+            description: "Intrinsic gas cost for a transaction",
+            type: "string",
+            require: false,
+            default: "21000"
+        },
         "calldata-zero-byte-gas": {
             description: "Gas cost per zero byte of calldata",
             type: "string",
@@ -390,12 +396,6 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
             type: "string",
             require: false,
             default: "10"
-        },
-        "transaction-gas-stipend": {
-            description: "Intrinsic gas cost for a transaction",
-            type: "string",
-            require: false,
-            default: "21000"
         },
         "eip7623-tokens-per-nonzero-byte": {
             description:
