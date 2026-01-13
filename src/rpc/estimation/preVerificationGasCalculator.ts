@@ -137,7 +137,7 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
         zeroByte: config.calldataZeroByteGas,
         nonZeroByte: config.calldataNonZeroByteGas,
         standardTokenGasCost: config.calldataZeroByteGas,
-        tokensPerNonzeroByte: config.tokensPerNonzeroByte,
+        tokensPerNonzeroByte: config.eip7623TokensPerNonzeroByte,
         transactionGasStipend: config.transactionGasStipend,
         floorPerTokenGasCost: config.eip7623FloorPerTokenGas
     }

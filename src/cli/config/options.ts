@@ -397,7 +397,7 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
             require: false,
             default: "21000"
         },
-        "tokens-per-nonzero-byte": {
+        "eip7623-tokens-per-nonzero-byte": {
             description:
                 "Number of tokens counted per non-zero byte for EIP-7623",
             type: "string",

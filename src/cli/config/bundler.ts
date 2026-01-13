@@ -271,7 +271,7 @@ export const preVerificationGasArgsSchema = z.object({
     "calldata-non-zero-byte-gas": z.string().transform(BigInt).default("16"),
     "eip7623-floor-per-token-gas": z.string().transform(BigInt).default("10"),
     "transaction-gas-stipend": z.string().transform(BigInt).default("21000"),
-    "tokens-per-nonzero-byte": z.string().transform(BigInt).default("4")
+    "eip7623-tokens-per-nonzero-byte": z.string().transform(BigInt).default("4")
 })
 
 export const mempoolArgsSchema = z.object({
