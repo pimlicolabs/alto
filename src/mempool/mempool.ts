@@ -126,6 +126,7 @@ export class Mempool {
                         },
                         "dropping userOp: max resubmits reached"
                     )
+                    this.metrics.userOpsMaxResubmitsReached.inc()
                     const rejectedUserOp = {
                         ...userOpInfo,
                         reason: "max resubmits reached"
@@ -190,7 +191,6 @@ export class Mempool {
                     transactionHash: null
                 })
                 this.metrics.userOpsDropped.labels({ reason }).inc()
-                this.metrics.userOpSubmissionAttemptCount.remove({ userOpHash })
                 this.logger.warn(
                     {
                         userOperation: jsonStringifyWithBigint(userOp),
