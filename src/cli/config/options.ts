@@ -9,6 +9,7 @@ import type {
     ILogArgsInput,
     IMempoolArgsInput,
     IOptionsInput,
+    IPreVerificationGasArgsInput,
     IRedisArgsInput,
     IRpcArgsInput,
     IServerArgsInput
@@ -367,6 +368,41 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: false,
             default: "50000"
+        }
+    }
+
+export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArgsInput> =
+    {
+        "transaction-gas-stipend": {
+            description: "Intrinsic gas cost for a transaction",
+            type: "string",
+            require: false,
+            default: "21000"
+        },
+        "calldata-zero-byte-gas": {
+            description: "Gas cost per zero byte of calldata",
+            type: "string",
+            require: false,
+            default: "4"
+        },
+        "calldata-non-zero-byte-gas": {
+            description: "Gas cost per non-zero byte of calldata",
+            type: "string",
+            require: false,
+            default: "16"
+        },
+        "eip7623-floor-per-token-gas": {
+            description: "EIP-7623 floor gas cost per token",
+            type: "string",
+            require: false,
+            default: "10"
+        },
+        "eip7623-tokens-per-nonzero-byte": {
+            description:
+                "Number of tokens counted per non-zero byte for EIP-7623",
+            type: "string",
+            require: false,
+            default: "4"
         }
     }
 
