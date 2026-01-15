@@ -354,7 +354,7 @@ export class GasPriceManager {
                 return await this.tryUpdateGasPrice()
             } catch (e) {
                 this.logger.error(e, "No gas price available")
-                throw new RpcError("No gas price available")
+                throw new Error("No gas price available")
             }
         }
 
@@ -364,7 +364,7 @@ export class GasPriceManager {
         ])
 
         if (!maxFeePerGas || !maxPriorityFeePerGas) {
-            throw new RpcError("No gas price available")
+            throw new Error("No gas price available")
         }
 
         return {
