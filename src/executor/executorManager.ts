@@ -257,7 +257,10 @@ export class ExecutorManager {
                 })
             } else {
                 this.logger.warn(
-                    { reason },
+                    {
+                        reason,
+                        userOps: getUserOpHashes(rejectedUserOps)
+                    },
                     "failed to send bundle transaction"
                 )
 
@@ -610,7 +613,11 @@ export class ExecutorManager {
                 })
             } else {
                 this.logger.warn(
-                    { oldTxHash, reason },
+                    {
+                        oldTxHash,
+                        reason,
+                        userOps: getUserOpHashes(rejectedUserOps)
+                    },
                     "failed to replace transaction"
                 )
 
@@ -668,7 +675,8 @@ export class ExecutorManager {
             {
                 oldTxHash,
                 newTxHash,
-                reason
+                reason,
+                userOps: getUserOpHashes(userOpsReplaced)
             },
             "replaced transaction"
         )
