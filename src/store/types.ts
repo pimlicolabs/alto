@@ -71,4 +71,5 @@ export type MempoolStore = {
         entryPoint: Address
     }) => Promise<UserOperation[]>
     clearOutstanding: (entryPoint: Address) => Promise<void>
+    clearProcessing: (entryPoint: Address) => Promise<void>
 }

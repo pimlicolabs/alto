@@ -283,6 +283,11 @@ export const createMempoolStore = ({
             const { outstanding } = getStoreHandlers(entryPoint)
             await outstanding.clear()
             logger.debug({ store: "outstanding" }, "cleared mempool")
+        },
+        clearProcessing: async (entryPoint: Address) => {
+            const { processing } = getStoreHandlers(entryPoint)
+            await processing.clear()
+            logger.debug({ store: "processing" }, "cleared processing store")
         }
     }
 }

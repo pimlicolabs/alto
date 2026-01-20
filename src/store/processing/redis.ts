@@ -131,4 +131,13 @@ export class RedisProcessingStore implements ProcessingStore {
 
         return undefined
     }
+
+    async clear(): Promise<void> {
+        const multi = this.redis.multi()
+        multi.del(this.processingUserOpsSet)
+        multi.del(this.processingSenderNonceSet)
+        multi.del(this.processingDeploymentSet)
+        multi.del(this.processingEip7702AuthSet)
+        await multi.exec()
+    }
 }
