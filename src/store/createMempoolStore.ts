@@ -214,17 +214,17 @@ export const createMempoolStore = ({
                 }
             }
 
-            if (wouldConflict === "conflicting_nonce") {
-                return {
-                    valid: false,
-                    reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
-                }
-            }
-
             if (wouldConflict === "conflicting_deployment") {
                 return {
                     valid: false,
                     reason: "AA10 invalid account deployment: Another deployment operation for this sender is already being processed"
+                }
+            }
+
+            if (wouldConflict === "conflicting_nonce") {
+                return {
+                    valid: false,
+                    reason: "AA25 invalid account nonce: Another UserOperation with same sender and nonce is already being processed"
                 }
             }
 
