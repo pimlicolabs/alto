@@ -214,7 +214,7 @@ export const createMempoolStore = ({
             if (wouldConflict === "conflicting_deployment") {
                 return {
                     valid: false,
-                    reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
+                    reason: "AA10 invalid account deployment: Another deployment operation for this sender is already being processed"
                 }
             }
 
