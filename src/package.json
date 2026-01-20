@@ -37,8 +37,8 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "@fastify/websocket": "^10.0.1",
         "@fastify/cors": "8.4.2",
+        "@fastify/websocket": "^10.0.1",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/core": "^1.25.1",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.52.1",
@@ -52,11 +52,11 @@
         "@opentelemetry/semantic-conventions": "^1.25.1",
         "@pimlico/opentelemetry-instrumentation-viem": "^0.0.4",
         "@sentry/node": "^9.15.0",
+        "@types/bull": "^4.10.4",
         "@types/node": "^18.16.3",
         "@types/ws": "^8.5.10",
         "abitype": "^0.8.0",
         "async-mutex": "^0.4.0",
-        "@types/bull": "^4.10.4",
         "bull": "^4.15.1",
         "dotenv": "^16.0.3",
         "fastify": "^4.25.2",
@@ -68,7 +68,7 @@
         "pino-pretty": "^10.0.0",
         "prom-client": "^14.2.0",
         "type-fest": "^4.35.0",
-        "viem": "^2.43.3",
+        "viem": "^2.44.4",
         "yargs": "^17.7.1",
         "zod": "^3.21.4",
         "zod-validation-error": "^1.3.0"
