@@ -266,23 +266,6 @@ export const setupServer = async ({
         eventManager
     })
 
-    // Clear processing store on startup when using horizontal scaling with Redis
-    // This removes any stuck entries from previous sessions that crashed
-    if (config.enableHorizontalScaling && config.redisEndpoint) {
-        const startupLogger = config.getLogger(
-            { module: "startup" },
-            { level: config.logLevel }
-        )
-        startupLogger.info("Clearing processing store on startup")
-        for (const entryPoint of config.entrypoints) {
-            await mempool.store.clearProcessing(entryPoint)
-            startupLogger.info(
-                { entryPoint },
-                "Cleared processing store for entry point"
-            )
-        }
-    }
-
     const executor = getExecutor({
         config,
         eventManager

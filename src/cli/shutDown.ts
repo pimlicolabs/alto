@@ -111,8 +111,16 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    // When horizontal scaling is enabled, state is already saved between shutdowns.
+    // When horizontal scaling is enabled, clear the processing store on shutdown
+    // to prevent stuck entries from blocking operations on restart
     if (config.enableHorizontalScaling) {
+        for (const entryPoint of config.entrypoints) {
+            await mempool.store.clearProcessing(entryPoint)
+            logger.info(
+                { entryPoint },
+                "[SHUTDOWN] Cleared processing store for entry point"
+            )
+        }
         return
     }
 
