@@ -1,3 +1,4 @@
+import { getUserOpHashes } from "@alto/executor"
 import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool, StatusManager } from "@alto/mempool"
 import type {
@@ -110,40 +111,36 @@ async function resubmitPendingBundlesToOutstanding({
     const pendingBundles = bundleManager.getPendingBundles()
 
     if (pendingBundles.length === 0) {
-        logger.info(
-            "[MEMPOOL-RESTORATION] No pending bundles to resubmit on shutdown"
-        )
+        logger.info("[SHUTDOWN] No pending bundles to resubmit")
         return
     }
 
-    const userOpHashes: string[] = []
+    // Process all bundles in parallel
+    await Promise.all(
+        pendingBundles.map(async (submittedBundle) => {
+            const { entryPoint, userOps } = submittedBundle.bundle
 
-    for (const submittedBundle of pendingBundles) {
-        const { entryPoint, userOps } = submittedBundle.bundle
+            // Remove all userOps from processing in parallel
+            await Promise.all(
+                userOps.map((userOpInfo) =>
+                    mempool.store.removeProcessing({
+                        entryPoint,
+                        userOpInfo
+                    })
+                )
+            )
 
-        for (const userOpInfo of userOps) {
-            userOpHashes.push(userOpInfo.userOpHash)
-
-            // Remove from processing store first
-            await mempool.store.removeProcessing({
+            // Add all userOps from this bundle back to outstanding
+            await mempool.store.addOutstanding({
                 entryPoint,
-                userOpInfo
+                userOpInfos: userOps
             })
-        }
 
-        // Add all userOps from this bundle back to outstanding
-        await mempool.store.addOutstanding({
-            entryPoint,
-            userOpInfos: userOps
+            logger.info(
+                { userOpHashes: getUserOpHashes(userOps) },
+                "[SHUTDOWN] Resubmitted pending bundle userOps to outstanding"
+            )
         })
-    }
-
-    logger.info(
-        {
-            pendingBundles: pendingBundles.length,
-            userOpHashes
-        },
-        "[MEMPOOL-RESTORATION] Resubmitted pending bundle userOps to outstanding on shutdown"
     )
 }
 

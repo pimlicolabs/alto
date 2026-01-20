@@ -1,3 +1,4 @@
+import { getUserOpHashes } from "@alto/executor"
 import {
     type EntryPointUserOpHashParam,
     type EntryPointUserOpInfoParam,
@@ -98,7 +99,16 @@ export const createMempoolStore = ({
         popOutstanding: async (entryPoint: Address, count: number) => {
             try {
                 const { outstanding } = getStoreHandlers(entryPoint)
-                return await outstanding.pop(count)
+                const poppedUserOps = await outstanding.pop(count)
+
+                if (poppedUserOps.length > 0) {
+                    logger.info(
+                        { userOpHashes: getUserOpHashes(poppedUserOps) },
+                        "popped userOps from outstanding"
+                    )
+                }
+
+                return poppedUserOps
             } catch (err) {
                 logger.error(
                     { err },
@@ -214,7 +224,7 @@ export const createMempoolStore = ({
             if (wouldConflict === "conflicting_deployment") {
                 return {
                     valid: false,
-                    reason: "AA25 invalid account deployment: Another deployment operation for this sender is already being processed"
+                    reason: "AA10 invalid account deployment: Another deployment operation for this sender is already being processed"
                 }
             }
 
