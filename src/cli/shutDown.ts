@@ -98,6 +98,55 @@ async function dropAllOperationsOnShutdown({
     )
 }
 
+async function resubmitPendingBundlesToOutstanding({
+    mempool,
+    bundleManager,
+    logger
+}: {
+    mempool: Mempool
+    bundleManager: BundleManager
+    logger: Logger
+}) {
+    const pendingBundles = bundleManager.getPendingBundles()
+
+    if (pendingBundles.length === 0) {
+        logger.info(
+            "[MEMPOOL-RESTORATION] No pending bundles to resubmit on shutdown"
+        )
+        return
+    }
+
+    const userOpHashes: string[] = []
+
+    for (const submittedBundle of pendingBundles) {
+        const { entryPoint, userOps } = submittedBundle.bundle
+
+        for (const userOpInfo of userOps) {
+            userOpHashes.push(userOpInfo.userOpHash)
+
+            // Remove from processing store first
+            await mempool.store.removeProcessing({
+                entryPoint,
+                userOpInfo
+            })
+        }
+
+        // Add all userOps from this bundle back to outstanding
+        await mempool.store.addOutstanding({
+            entryPoint,
+            userOpInfos: userOps
+        })
+    }
+
+    logger.info(
+        {
+            pendingBundles: pendingBundles.length,
+            userOpHashes
+        },
+        "[MEMPOOL-RESTORATION] Resubmitted pending bundle userOps to outstanding on shutdown"
+    )
+}
+
 export async function persistShutdownState({
     mempool,
     bundleManager,
@@ -111,8 +160,15 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    // When horizontal scaling is enabled, state is already saved between shutdowns.
+    // When horizontal scaling is enabled, outstanding and processing stores
+    // are already in Redis. We just need to move pending bundle userOps
+    // back to outstanding so they can be picked up by another instance.
     if (config.enableHorizontalScaling) {
+        await resubmitPendingBundlesToOutstanding({
+            mempool,
+            bundleManager,
+            logger
+        })
         return
     }
 
