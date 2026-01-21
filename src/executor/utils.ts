@@ -37,12 +37,12 @@ export const getBundleGasLimit = async ({
     entryPoint: Address
     executorAddress: Address
 }): Promise<bigint> => {
-    const { rpcGasEstimate, publicClient } = config
+    const { skipLocalGasCalculations, publicClient } = config
 
     let gasLimit: bigint
 
     // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
-    if (rpcGasEstimate) {
+    if (skipLocalGasCalculations) {
         const authorizationList = getAuthorizationListFromUserOps(userOps)
 
         gasLimit = await publicClient.estimateGas({

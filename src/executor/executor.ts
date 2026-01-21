@@ -108,8 +108,19 @@ export class Executor {
             resubmitMultiplierCeiling,
             legacyTransactions,
             chainType,
-            arbitrumBaseFeeMultiplier
+            arbitrumBaseFeeMultiplier,
+            skipLocalGasCalculations
         } = this.config
+
+        // If skipLocalGasCalculations is enabled, use network gas price directly.
+        // On chains where bundleGasUsed is underestimated, local calculations
+        // inflate the break-even gas price resulting in bundles at a loss.
+        if (skipLocalGasCalculations) {
+            return {
+                maxFeePerGas: networkGasPrice.maxFeePerGas,
+                maxPriorityFeePerGas: networkGasPrice.maxPriorityFeePerGas
+            }
+        }
 
         // Arbtirum's sequencer orders based on first come first serve.
         // Because of this, maxFee/maxPriorityFee is ignored and the bundler *always* pays the network's baseFee.
