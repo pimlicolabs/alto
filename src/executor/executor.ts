@@ -113,8 +113,8 @@ export class Executor {
         } = this.config
 
         // If skipLocalGasCalculations is enabled, use network gas price directly.
-        // On chains where bundleGasUsed is under estimated
-        // inflating the break-even gas price (bundles at a loss)
+        // On chains where bundleGasUsed is underestimated, local calculations
+        // inflate the break-even gas price resulting in bundles at a loss.
         if (skipLocalGasCalculations) {
             return {
                 maxFeePerGas: networkGasPrice.maxFeePerGas,
