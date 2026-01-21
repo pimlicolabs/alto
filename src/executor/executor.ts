@@ -109,14 +109,13 @@ export class Executor {
             legacyTransactions,
             chainType,
             arbitrumBaseFeeMultiplier,
-            rpcGasEstimate
+            skipLocalGasCalculations
         } = this.config
 
-        // If rpcGasEstimate is enabled, use network gas price directly.
-        // On chains where rpcGasEstimate is true, bundleGasUsed is inaccurate,
-        // making the break-even gas price calculation unreliable. We fall back
-        // to the network gas price instead.
-        if (rpcGasEstimate) {
+        // If skipLocalGasCalculations is enabled, use network gas price directly.
+        // On chains where bundleGasUsed is under estimated
+        // inflating the break-even gas price (bundles at a loss)
+        if (skipLocalGasCalculations) {
             return {
                 maxFeePerGas: networkGasPrice.maxFeePerGas,
                 maxPriorityFeePerGas: networkGasPrice.maxPriorityFeePerGas

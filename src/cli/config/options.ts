@@ -119,9 +119,9 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
-    "rpc-gas-estimate": {
+    "skip-local-gas-calculations": {
         description:
-            "Should the bundler make a eth_estimateGas call to estimate the handleOps gasLimit",
+            "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",
         type: "boolean",
         default: false
     },
