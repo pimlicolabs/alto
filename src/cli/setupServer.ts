@@ -306,7 +306,10 @@ export const setupServer = async ({
         eventManager
     })
 
-    if (config.flushStuckTransactionsDuringStartup) {
+    if (
+        config.flushStuckTransactionsDuringStartup &&
+        !config.enableHorizontalScaling
+    ) {
         flushOnStartUp({
             senderManager,
             gasPriceManager,
