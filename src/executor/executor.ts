@@ -108,8 +108,20 @@ export class Executor {
             resubmitMultiplierCeiling,
             legacyTransactions,
             chainType,
-            arbitrumBaseFeeMultiplier
+            arbitrumBaseFeeMultiplier,
+            rpcGasEstimate
         } = this.config
+
+        // If rpcGasEstimate is enabled, use network gas price directly.
+        // On chains where rpcGasEstimate is true, bundleGasUsed is inaccurate,
+        // making the break-even gas price calculation unreliable. We fall back
+        // to the network gas price instead.
+        if (rpcGasEstimate) {
+            return {
+                maxFeePerGas: networkGasPrice.maxFeePerGas,
+                maxPriorityFeePerGas: networkGasPrice.maxPriorityFeePerGas
+            }
+        }
 
         // Arbtirum's sequencer orders based on first come first serve.
         // Because of this, maxFee/maxPriorityFee is ignored and the bundler *always* pays the network's baseFee.
