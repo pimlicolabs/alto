@@ -34,7 +34,7 @@ import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
     encodeHandleOpsCalldata,
-    getAuthorizationList,
+    getAuthorizationListFromUserOps,
     getUserOpHashes,
     isTransactionUnderpricedError
 } from "./utils"
@@ -448,7 +448,9 @@ export class Executor {
         let transactionHash: HexData32
         try {
             const isLegacyTransaction = this.config.legacyTransactions
-            const authorizationList = getAuthorizationList(userOpsToBundle)
+            const authorizationList = getAuthorizationListFromUserOps(
+                userOpsToBundle.map(({ userOp }) => userOp)
+            )
 
             let gasOpts: HandleOpsGasParams
             if (isLegacyTransaction) {

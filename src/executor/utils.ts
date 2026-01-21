@@ -43,13 +43,16 @@ export const getBundleGasLimit = async ({
 
     // On some chains we can't rely on local calculations and have to estimate the gasLimit from RPC
     if (rpcGasEstimate) {
+        const authorizationList = getAuthorizationListFromUserOps(userOps)
+
         gasLimit = await publicClient.estimateGas({
             to: entryPoint,
             account: executorAddress,
             data: encodeHandleOpsCalldata({
                 userOps: userOps,
                 beneficiary: executorAddress
-            })
+            }),
+            authorizationList
         })
     } else {
         const aa95GasFloor = calculateAA95GasFloor({
@@ -176,13 +179,13 @@ export const encodeHandleOpsCalldata = ({
     })
 }
 
-export const getAuthorizationList = (
-    userOpInfos: UserOpInfo[]
+export const getAuthorizationListFromUserOps = (
+    userOps: UserOperation[]
 ): SignedAuthorizationList | undefined => {
     const authMap = new Map<Address, SignedAuthorizationList[number]>()
 
     // Deduplicate EIP-7702 auths if userOp.sender has multiple same eip7702Auth fields.
-    for (const { userOp } of userOpInfos) {
+    for (const userOp of userOps) {
         const { eip7702Auth, sender } = userOp
         if (eip7702Auth && !authMap.has(sender)) {
             authMap.set(sender, {
