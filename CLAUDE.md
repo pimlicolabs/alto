@@ -226,6 +226,10 @@ When working with BigInt calculations, use the utility functions from `@alto/uti
 - **roundUpBigInt**: Round up to nearest multiple
 - Never use manual percentage calculations like `(value * 150n) / 100n`
 
+When extracting userOp hashes from `UserOpInfo[]` arrays, use `getUserOpHashes` from `@alto/executor`:
+- **getUserOpHashes**: Extract hashes from userOp info array (e.g., `getUserOpHashes(userOps)` returns `string[]`)
+- Never manually map like `userOps.map(op => op.userOpHash)` - use the helper instead
+
 ### Performance Considerations
 - Batch operations when possible
 - Use efficient data structures

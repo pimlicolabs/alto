@@ -1,3 +1,4 @@
+import { getUserOpHashes } from "@alto/executor"
 import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool, StatusManager } from "@alto/mempool"
 import type {
@@ -98,6 +99,51 @@ async function dropAllOperationsOnShutdown({
     )
 }
 
+async function resubmitPendingBundlesToOutstanding({
+    mempool,
+    bundleManager,
+    logger
+}: {
+    mempool: Mempool
+    bundleManager: BundleManager
+    logger: Logger
+}) {
+    const pendingBundles = bundleManager.getPendingBundles()
+
+    if (pendingBundles.length === 0) {
+        logger.info("[SHUTDOWN] No pending bundles to resubmit")
+        return
+    }
+
+    // Process all bundles in parallel
+    await Promise.all(
+        pendingBundles.map(async (submittedBundle) => {
+            const { entryPoint, userOps } = submittedBundle.bundle
+
+            // Remove all userOps from processing in parallel
+            await Promise.all(
+                userOps.map((userOpInfo) =>
+                    mempool.store.removeProcessing({
+                        entryPoint,
+                        userOpInfo
+                    })
+                )
+            )
+
+            // Add all userOps from this bundle back to outstanding
+            await mempool.store.addOutstanding({
+                entryPoint,
+                userOpInfos: userOps
+            })
+
+            logger.info(
+                { userOpHashes: getUserOpHashes(userOps) },
+                "[SHUTDOWN] Resubmitted pending bundle userOps to outstanding"
+            )
+        })
+    )
+}
+
 export async function persistShutdownState({
     mempool,
     bundleManager,
@@ -111,8 +157,15 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    // When horizontal scaling is enabled, state is already saved between shutdowns.
+    // When horizontal scaling is enabled, outstanding and processing stores
+    // are already in Redis. We just need to move pending bundle userOps
+    // back to outstanding so they can be picked up by another instance.
     if (config.enableHorizontalScaling) {
+        await resubmitPendingBundlesToOutstanding({
+            mempool,
+            bundleManager,
+            logger
+        })
         return
     }
 
