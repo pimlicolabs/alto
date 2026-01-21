@@ -306,6 +306,8 @@ export const setupServer = async ({
         eventManager
     })
 
+    // we disable flushing for hs because it tries to flush transactions
+    // of wallets that are in use by other servers
     if (
         config.flushStuckTransactionsDuringStartup &&
         !config.enableHorizontalScaling
