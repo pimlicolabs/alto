@@ -1,7 +1,6 @@
 import { getUserOpHashes } from "@alto/executor"
 import {
     type EntryPointUserOpHashParam,
-    type EntryPointUserOpInfoParam,
     type EntryPointUserOpInfosParam,
     type MempoolStore,
     type OutstandingStore,
@@ -10,7 +9,7 @@ import {
     createOutstandingQueue,
     createProcessingStore
 } from "@alto/store"
-import type { HexData32, UserOperation } from "@alto/types"
+import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
@@ -164,25 +163,25 @@ export const createMempoolStore = ({
         // Methods to mark/unmark userOps that are being processed.
         addProcessing: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.addProcessing(userOpInfo)
+                await processing.addProcessing(userOpInfos)
             } catch (err) {
-                logger.error({ err }, "Failed to track active userOp")
+                logger.error({ err }, "Failed to track active userOps")
                 sentry.captureException(err)
             }
         },
         removeProcessing: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.removeProcessing(userOpInfo)
+                await processing.removeProcessing(userOpInfos)
             } catch (err) {
-                logger.error({ err }, "Failed to untrack active userOp")
+                logger.error({ err }, "Failed to untrack active userOps")
                 sentry.captureException(err)
             }
         },
@@ -293,6 +292,18 @@ export const createMempoolStore = ({
             const { outstanding } = getStoreHandlers(entryPoint)
             await outstanding.clear()
             logger.debug({ store: "outstanding" }, "cleared mempool")
+        },
+
+        // Get all processing userOps across all entrypoints (for shutdown recovery)
+        getAllProcessing: async () => {
+            const result = new Map<Address, UserOpInfo[]>()
+            for (const [entryPoint, handlers] of storeHandlers) {
+                const userOps = await handlers.processing.getAll()
+                if (userOps.length > 0) {
+                    result.set(entryPoint, userOps)
+                }
+            }
+            return result
         }
     }
 }

@@ -11,46 +11,63 @@ export class InMemoryProcessingStore implements ProcessingStore {
     private readonly processingDeploymentSet = new Set<Address>()
     private readonly processingEip7702AuthSet = new Set<Address>()
 
+    // Map for full UserOpInfo storage (for shutdown recovery)
+    private readonly processingUserOps = new Map<Hex, UserOpInfo>()
+
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`
     }
 
-    async addProcessing(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOpHash, userOp } = userOpInfo
-        const isDeploymentOp = isDeployment(userOp)
-        const senderNonceId = this.encodeSenderNonceId(
-            userOp.sender,
-            userOp.nonce
-        )
+    async addProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
+        for (const userOpInfo of userOpInfos) {
+            const { userOpHash, userOp } = userOpInfo
+            const isDeploymentOp = isDeployment(userOp)
+            const senderNonceId = this.encodeSenderNonceId(
+                userOp.sender,
+                userOp.nonce
+            )
 
-        // Add to processing sets
-        this.processingUserOpsSet.add(userOpHash)
-        this.processingSenderNonceSet.add(senderNonceId)
+            // Add to processing sets
+            this.processingUserOpsSet.add(userOpHash)
+            this.processingSenderNonceSet.add(senderNonceId)
 
-        if (isDeploymentOp) {
-            this.processingDeploymentSet.add(userOp.sender)
-        }
+            if (isDeploymentOp) {
+                this.processingDeploymentSet.add(userOp.sender)
+            }
 
-        if (userOp.eip7702Auth) {
-            this.processingEip7702AuthSet.add(userOp.sender)
+            if (userOp.eip7702Auth) {
+                this.processingEip7702AuthSet.add(userOp.sender)
+            }
+
+            // Store full UserOpInfo for shutdown recovery
+            this.processingUserOps.set(userOpHash, userOpInfo)
         }
     }
 
-    async removeProcessing(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOpHash, userOp } = userOpInfo
-        const senderNonceId = this.encodeSenderNonceId(
-            userOp.sender,
-            userOp.nonce
-        )
+    async removeProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
+        for (const userOpInfo of userOpInfos) {
+            const { userOpHash, userOp } = userOpInfo
+            const senderNonceId = this.encodeSenderNonceId(
+                userOp.sender,
+                userOp.nonce
+            )
 
-        // Remove from all sets
-        this.processingUserOpsSet.delete(userOpHash)
-        this.processingSenderNonceSet.delete(senderNonceId)
-        this.processingDeploymentSet.delete(userOp.sender)
+            // Remove from all sets
+            this.processingUserOpsSet.delete(userOpHash)
+            this.processingSenderNonceSet.delete(senderNonceId)
+            this.processingDeploymentSet.delete(userOp.sender)
 
-        if (userOp.eip7702Auth) {
-            this.processingEip7702AuthSet.delete(userOp.sender)
+            if (userOp.eip7702Auth) {
+                this.processingEip7702AuthSet.delete(userOp.sender)
+            }
+
+            // Remove from Map
+            this.processingUserOps.delete(userOpHash)
         }
+    }
+
+    async getAll(): Promise<UserOpInfo[]> {
+        return Array.from(this.processingUserOps.values())
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {

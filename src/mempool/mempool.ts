@@ -146,7 +146,7 @@ export class Mempool {
                 // Complete processing before re-adding to outstanding pool.
                 await this.store.removeProcessing({
                     entryPoint,
-                    userOpInfo
+                    userOpInfos: [userOpInfo]
                 })
 
                 const [success, failureReason] = await this.add({
@@ -178,7 +178,7 @@ export class Mempool {
                 // Complete processing since userOp is dropped.
                 await this.store.removeProcessing({
                     entryPoint,
-                    userOpInfo: rejectedUserOp
+                    userOpInfos: [rejectedUserOp]
                 })
                 this.eventManager.emitDropped(
                     userOpHash,
@@ -211,14 +211,10 @@ export class Mempool {
         userOps: UserOpInfo[]
         entryPoint: Address
     }) {
-        await Promise.all(
-            userOps.map(async (userOpInfo) => {
-                await this.store.removeProcessing({
-                    entryPoint,
-                    userOpInfo
-                })
-            })
-        )
+        await this.store.removeProcessing({
+            entryPoint,
+            userOpInfos: userOps
+        })
     }
 
     // === Methods for dropping mempool entries === //
@@ -766,6 +762,9 @@ export class Mempool {
             return []
         }
 
+        // Track popped userOps as processing immediately to prevent loss on shutdown
+        await this.store.addProcessing({ entryPoint, userOpInfos: poppedUserOps })
+
         // Keep track of unused ops from the batch
         const unusedUserOps = [...poppedUserOps]
 
@@ -773,6 +772,11 @@ export class Mempool {
             // If maxBundles is set and we reached the limit, put back all unused ops and break.
             if (maxBundleCount && bundles.length >= maxBundleCount) {
                 if (unusedUserOps.length > 0) {
+                    // Remove from processing before putting back to outstanding
+                    await this.store.removeProcessing({
+                        entryPoint,
+                        userOpInfos: unusedUserOps
+                    })
                     await this.store.addOutstanding({
                         entryPoint,
                         userOpInfos: unusedUserOps
@@ -824,6 +828,11 @@ export class Mempool {
                 })
 
                 if (skipResult.skip) {
+                    // Remove from processing since it's going back to outstanding or being dropped
+                    await this.store.removeProcessing({
+                        entryPoint,
+                        userOpInfos: [currentUserOp]
+                    })
                     // Re-add to outstanding
                     if (!skipResult.removeOutstanding) {
                         await this.store.addOutstanding({
@@ -856,11 +865,6 @@ export class Mempool {
                 touchedEip7702Auth = skipResult.touchedEip7702Auth
 
                 this.reputationManager.decreaseUserOpCount(userOp)
-                // Track the operation as active (being bundled).
-                await this.store.addProcessing({
-                    entryPoint,
-                    userOpInfo: currentUserOp
-                })
 
                 // Add userOp to current bundle.
                 currentBundle.userOps.push(currentUserOp)
@@ -871,6 +875,11 @@ export class Mempool {
                         entryPoint,
                         batchSize
                     )
+                    // Track newly popped userOps as processing immediately
+                    await this.store.addProcessing({
+                        entryPoint,
+                        userOpInfos: morePoppedOps
+                    })
                     unusedUserOps.push(...morePoppedOps)
                 }
             }

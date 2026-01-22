@@ -99,48 +99,42 @@ async function dropAllOperationsOnShutdown({
     )
 }
 
-async function resubmitPendingBundlesToOutstanding({
+async function resubmitProcessingToOutstanding({
     mempool,
-    bundleManager,
     logger
 }: {
     mempool: Mempool
-    bundleManager: BundleManager
     logger: Logger
 }) {
-    const pendingBundles = bundleManager.getPendingBundles()
+    // getAllProcessing returns Map<Address, UserOpInfo[]> grouped by entryPoint
+    const processingByEntryPoint = await mempool.store.getAllProcessing()
 
-    if (pendingBundles.length === 0) {
-        logger.info("[SHUTDOWN] No pending bundles to resubmit")
+    if (processingByEntryPoint.size === 0) {
+        logger.info("[SHUTDOWN] No processing userOps to resubmit")
         return
     }
 
-    // Process all bundles in parallel
     await Promise.all(
-        pendingBundles.map(async (submittedBundle) => {
-            const { entryPoint, userOps } = submittedBundle.bundle
+        Array.from(processingByEntryPoint.entries()).map(
+            async ([entryPoint, userOps]) => {
+                // Remove from processing
+                await mempool.store.removeProcessing({
+                    entryPoint,
+                    userOpInfos: userOps
+                })
 
-            // Remove all userOps from processing in parallel
-            await Promise.all(
-                userOps.map((userOpInfo) =>
-                    mempool.store.removeProcessing({
-                        entryPoint,
-                        userOpInfo
-                    })
+                // Add back to outstanding
+                await mempool.store.addOutstanding({
+                    entryPoint,
+                    userOpInfos: userOps
+                })
+
+                logger.info(
+                    { userOpHashes: getUserOpHashes(userOps) },
+                    "[SHUTDOWN] Resubmitted processing userOps to outstanding"
                 )
-            )
-
-            // Add all userOps from this bundle back to outstanding
-            await mempool.store.addOutstanding({
-                entryPoint,
-                userOpInfos: userOps
-            })
-
-            logger.info(
-                { userOpHashes: getUserOpHashes(userOps) },
-                "[SHUTDOWN] Resubmitted pending bundle userOps to outstanding"
-            )
-        })
+            }
+        )
     )
 }
 
@@ -158,12 +152,11 @@ export async function persistShutdownState({
     logger: Logger
 }) {
     // When horizontal scaling is enabled, outstanding and processing stores
-    // are already in Redis. We just need to move pending bundle userOps
+    // are already in Redis. We just need to move all processing userOps
     // back to outstanding so they can be picked up by another instance.
     if (config.enableHorizontalScaling) {
-        await resubmitPendingBundlesToOutstanding({
+        await resubmitProcessingToOutstanding({
             mempool,
-            bundleManager,
             logger
         })
         return

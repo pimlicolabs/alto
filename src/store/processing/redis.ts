@@ -9,10 +9,14 @@ import type { ProcessingStore } from "./types"
 export class RedisProcessingStore implements ProcessingStore {
     private readonly redis: Redis
 
+    // Redis Sets for conflict detection (shared across all instances)
     private readonly processingUserOpsSet: string // set of userOpHashes being processed
     private readonly processingSenderNonceSet: string // set of "sender:nonce" being processed
     private readonly processingDeploymentSet: string // set of senders with deployments being processed
     private readonly processingEip7702AuthSet: string // set of senders with eip7702Auth being processed
+
+    // Local Map for full UserOpInfo storage (only THIS instance's userOps for shutdown recovery)
+    private readonly localProcessingUserOps = new Map<Hex, UserOpInfo>()
 
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`
@@ -36,52 +40,70 @@ export class RedisProcessingStore implements ProcessingStore {
         this.processingEip7702AuthSet = `${redisPrefix}:eip7702Auth`
     }
 
-    async addProcessing(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOpHash, userOp } = userOpInfo
-        const isDeploymentOp = isDeployment(userOp)
-        const senderNonceId = this.encodeSenderNonceId(
-            userOp.sender,
-            userOp.nonce
-        )
+    async addProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
+        if (userOpInfos.length === 0) return
 
-        // Use MULTI for atomic operation in single round trip
         const multi = this.redis.multi()
-        multi.sadd(this.processingUserOpsSet, userOpHash)
-        multi.sadd(this.processingSenderNonceSet, senderNonceId)
 
-        if (isDeploymentOp) {
-            multi.sadd(this.processingDeploymentSet, userOp.sender)
-        }
+        for (const userOpInfo of userOpInfos) {
+            const { userOpHash, userOp } = userOpInfo
+            const isDeploymentOp = isDeployment(userOp)
+            const senderNonceId = this.encodeSenderNonceId(
+                userOp.sender,
+                userOp.nonce
+            )
 
-        if (userOp.eip7702Auth) {
-            multi.sadd(this.processingEip7702AuthSet, userOp.sender)
+            multi.sadd(this.processingUserOpsSet, userOpHash)
+            multi.sadd(this.processingSenderNonceSet, senderNonceId)
+
+            if (isDeploymentOp) {
+                multi.sadd(this.processingDeploymentSet, userOp.sender)
+            }
+
+            if (userOp.eip7702Auth) {
+                multi.sadd(this.processingEip7702AuthSet, userOp.sender)
+            }
         }
 
         await multi.exec()
+
+        // Store locally for THIS instance's shutdown recovery
+        for (const userOpInfo of userOpInfos) {
+            this.localProcessingUserOps.set(userOpInfo.userOpHash, userOpInfo)
+        }
     }
 
-    async removeProcessing(userOpInfo: UserOpInfo): Promise<void> {
-        const { userOpHash, userOp } = userOpInfo
-        const isDeploymentOp = isDeployment(userOp)
-        const senderNonceId = this.encodeSenderNonceId(
-            userOp.sender,
-            userOp.nonce
-        )
+    async removeProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
+        if (userOpInfos.length === 0) return
 
-        // Use MULTI for atomic removal in single round trip
         const multi = this.redis.multi()
-        multi.srem(this.processingUserOpsSet, userOpHash)
-        multi.srem(this.processingSenderNonceSet, senderNonceId)
 
-        if (isDeploymentOp) {
-            multi.srem(this.processingDeploymentSet, userOp.sender)
-        }
+        for (const userOpInfo of userOpInfos) {
+            const { userOpHash, userOp } = userOpInfo
+            const isDeploymentOp = isDeployment(userOp)
+            const senderNonceId = this.encodeSenderNonceId(
+                userOp.sender,
+                userOp.nonce
+            )
 
-        if (userOp.eip7702Auth) {
-            multi.srem(this.processingEip7702AuthSet, userOp.sender)
+            multi.srem(this.processingUserOpsSet, userOpHash)
+            multi.srem(this.processingSenderNonceSet, senderNonceId)
+
+            if (isDeploymentOp) {
+                multi.srem(this.processingDeploymentSet, userOp.sender)
+            }
+
+            if (userOp.eip7702Auth) {
+                multi.srem(this.processingEip7702AuthSet, userOp.sender)
+            }
         }
 
         await multi.exec()
+
+        // Remove from local Map
+        for (const userOpInfo of userOpInfos) {
+            this.localProcessingUserOps.delete(userOpInfo.userOpHash)
+        }
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {
@@ -130,5 +152,10 @@ export class RedisProcessingStore implements ProcessingStore {
         }
 
         return undefined
+    }
+
+    async getAll(): Promise<UserOpInfo[]> {
+        // Return only THIS instance's locally tracked userOps
+        return Array.from(this.localProcessingUserOps.values())
     }
 }
