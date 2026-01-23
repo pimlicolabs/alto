@@ -144,8 +144,8 @@ export async function persistShutdownState({
     logger: Logger
 }) {
     // When horizontal scaling is enabled, outstanding and processing stores
-    // are already in Redis. We just need to move all processing userOps
-    // back to outstanding so they can be picked up by another instance.
+    // are already in Redis. We just need to move all locally processing userOps
+    // back to outstanding redis to be picked up by the next alto instance.
     if (config.enableHorizontalScaling) {
         await resubmitProcessingToOutstanding({
             mempool,
