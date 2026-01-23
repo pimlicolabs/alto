@@ -223,8 +223,8 @@ export class Mempool {
         return await this.store.dumpOutstanding(entryPoint)
     }
 
-    async clearProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
-        return await this.store.clearProcessing(entryPoint)
+    async flushProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
+        return await this.store.flushProcessing(entryPoint)
     }
 
     // === Methods for entity management === //

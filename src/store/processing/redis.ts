@@ -155,7 +155,7 @@ export class RedisProcessingStore implements ProcessingStore {
         return this.localStore.getAll()
     }
 
-    async clear(): Promise<UserOpInfo[]> {
+    async flush(): Promise<UserOpInfo[]> {
         const userOpInfos = this.localStore.getAll()
 
         // remove the local processing userOps from redis

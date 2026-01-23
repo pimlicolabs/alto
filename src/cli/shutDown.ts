@@ -110,7 +110,7 @@ async function resubmitProcessingToOutstanding({
 }) {
     await Promise.all(
         config.entrypoints.map(async (entryPoint) => {
-            const processingUserOps = await mempool.clearProcessing(entryPoint)
+            const processingUserOps = await mempool.flushProcessing(entryPoint)
 
             if (processingUserOps.length === 0) {
                 return
@@ -143,9 +143,8 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    // When horizontal scaling is enabled, outstanding and processing stores
-    // are already in Redis. We just need to move all locally processing userOps
-    // back to outstanding redis to be picked up by the next alto instance.
+    // When horizontal scaling is enabled, we keep outstanding store in redis so that outstanding userOps can be picked up by other instances.
+    // We flush all locally processing userOps and push them to outstanding redis to be picked up by the next alto instance.
     if (config.enableHorizontalScaling) {
         await resubmitProcessingToOutstanding({
             mempool,

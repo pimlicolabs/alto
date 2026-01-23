@@ -294,10 +294,10 @@ export const createMempoolStore = ({
             logger.debug({ store: "outstanding" }, "cleared mempool")
         },
 
-        // Clear all processing userOps for an entrypoint and return them
-        clearProcessing: async (entryPoint: Address) => {
+        // Flush all processing userOps for an entrypoint and return them
+        flushProcessing: async (entryPoint: Address) => {
             const { processing } = getStoreHandlers(entryPoint)
-            return await processing.clear()
+            return await processing.flush()
         }
     }
 }
