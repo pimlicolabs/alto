@@ -72,6 +72,6 @@ export type MempoolStore = {
     }) => Promise<UserOperation[]>
     clearOutstanding: (entryPoint: Address) => Promise<void>
 
-    // Get all processing userOps across all entrypoints (for shutdown recovery)
-    getAllProcessing: () => Promise<Map<Address, UserOpInfo[]>>
+    // Clear all processing userOps for an entrypoint and return them
+    clearProcessing: (entryPoint: Address) => Promise<UserOpInfo[]>
 }

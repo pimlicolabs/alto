@@ -101,40 +101,32 @@ async function dropAllOperationsOnShutdown({
 
 async function resubmitProcessingToOutstanding({
     mempool,
+    config,
     logger
 }: {
     mempool: Mempool
+    config: AltoConfig
     logger: Logger
 }) {
-    // getAllProcessing returns Map<Address, UserOpInfo[]> grouped by entryPoint
-    const processingByEntryPoint = await mempool.store.getAllProcessing()
-
-    if (processingByEntryPoint.size === 0) {
-        logger.info("[SHUTDOWN] No processing userOps to resubmit")
-        return
-    }
-
     await Promise.all(
-        Array.from(processingByEntryPoint.entries()).map(
-            async ([entryPoint, userOps]) => {
-                // Remove from processing
-                await mempool.store.removeProcessing({
-                    entryPoint,
-                    userOpInfos: userOps
-                })
+        config.entrypoints.map(async (entryPoint) => {
+            const processingUserOps = await mempool.clearProcessing(entryPoint)
 
-                // Add back to outstanding
-                await mempool.store.addOutstanding({
-                    entryPoint,
-                    userOpInfos: userOps
-                })
-
-                logger.info(
-                    { userOpHashes: getUserOpHashes(userOps) },
-                    "[SHUTDOWN] Resubmitted processing userOps to outstanding"
-                )
+            if (processingUserOps.length === 0) {
+                return
             }
-        )
+
+            // Add back to outstanding
+            await mempool.store.addOutstanding({
+                entryPoint,
+                userOpInfos: processingUserOps
+            })
+
+            logger.info(
+                { userOpHashes: getUserOpHashes(processingUserOps) },
+                "[SHUTDOWN] Resubmitted processing userOps to outstanding"
+            )
+        })
     )
 }
 
@@ -157,6 +149,7 @@ export async function persistShutdownState({
     if (config.enableHorizontalScaling) {
         await resubmitProcessingToOutstanding({
             mempool,
+            config,
             logger
         })
         return

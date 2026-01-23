@@ -66,7 +66,7 @@ export class InMemoryProcessingStore implements ProcessingStore {
         }
     }
 
-    async getAll(): Promise<UserOpInfo[]> {
+    getAll(): UserOpInfo[] {
         return Array.from(this.processingUserOps.values())
     }
 
@@ -102,5 +102,11 @@ export class InMemoryProcessingStore implements ProcessingStore {
         }
 
         return undefined
+    }
+
+    async clear(): Promise<UserOpInfo[]> {
+        const userOpInfos = this.getAll()
+        await this.removeProcessing(userOpInfos)
+        return userOpInfos
     }
 }

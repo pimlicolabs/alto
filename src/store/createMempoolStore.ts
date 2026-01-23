@@ -9,7 +9,7 @@ import {
     createOutstandingQueue,
     createProcessingStore
 } from "@alto/store"
-import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
+import type { HexData32, UserOperation } from "@alto/types"
 import type { Logger, Metrics } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import type { Address } from "viem"
@@ -294,16 +294,10 @@ export const createMempoolStore = ({
             logger.debug({ store: "outstanding" }, "cleared mempool")
         },
 
-        // Get all processing userOps across all entrypoints (for shutdown recovery)
-        getAllProcessing: async () => {
-            const result = new Map<Address, UserOpInfo[]>()
-            for (const [entryPoint, handlers] of storeHandlers) {
-                const userOps = await handlers.processing.getAll()
-                if (userOps.length > 0) {
-                    result.set(entryPoint, userOps)
-                }
-            }
-            return result
+        // Clear all processing userOps for an entrypoint and return them
+        clearProcessing: async (entryPoint: Address) => {
+            const { processing } = getStoreHandlers(entryPoint)
+            return await processing.clear()
         }
     }
 }

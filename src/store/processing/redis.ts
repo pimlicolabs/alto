@@ -4,6 +4,7 @@ import { Redis } from "ioredis"
 import type { Address, Hex } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import type { ConflictType } from "../types"
+import { InMemoryProcessingStore } from "./memory"
 import type { ProcessingStore } from "./types"
 
 export class RedisProcessingStore implements ProcessingStore {
@@ -15,8 +16,8 @@ export class RedisProcessingStore implements ProcessingStore {
     private readonly processingDeploymentSet: string // set of senders with deployments being processed
     private readonly processingEip7702AuthSet: string // set of senders with eip7702Auth being processed
 
-    // Local Map for full UserOpInfo storage (only THIS instance's userOps for shutdown recovery)
-    private readonly localProcessingUserOps = new Map<Hex, UserOpInfo>()
+    // Local store for this instance's userOps (for shutdown recovery)
+    private readonly localStore = new InMemoryProcessingStore()
 
     private encodeSenderNonceId(sender: Address, nonce: bigint): string {
         return `${sender}:${nonce}`
@@ -67,10 +68,8 @@ export class RedisProcessingStore implements ProcessingStore {
 
         await multi.exec()
 
-        // Store locally for THIS instance's shutdown recovery
-        for (const userOpInfo of userOpInfos) {
-            this.localProcessingUserOps.set(userOpInfo.userOpHash, userOpInfo)
-        }
+        // Store locally for this instance's shutdown recovery
+        await this.localStore.addProcessing(userOpInfos)
     }
 
     async removeProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
@@ -100,10 +99,8 @@ export class RedisProcessingStore implements ProcessingStore {
 
         await multi.exec()
 
-        // Remove from local Map
-        for (const userOpInfo of userOpInfos) {
-            this.localProcessingUserOps.delete(userOpInfo.userOpHash)
-        }
+        // Remove from local store
+        await this.localStore.removeProcessing(userOpInfos)
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {
@@ -154,8 +151,16 @@ export class RedisProcessingStore implements ProcessingStore {
         return undefined
     }
 
-    async getAll(): Promise<UserOpInfo[]> {
-        // Return only THIS instance's locally tracked userOps
-        return Array.from(this.localProcessingUserOps.values())
+    getAll(): UserOpInfo[] {
+        return this.localStore.getAll()
+    }
+
+    async clear(): Promise<UserOpInfo[]> {
+        const userOpInfos = this.localStore.getAll()
+
+        // remove the local processing userOps from redis
+        await this.removeProcessing(userOpInfos)
+
+        return userOpInfos
     }
 }
