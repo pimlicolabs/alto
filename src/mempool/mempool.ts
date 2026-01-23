@@ -763,7 +763,10 @@ export class Mempool {
         }
 
         // Track popped userOps as processing immediately to prevent loss on shutdown
-        await this.store.addProcessing({ entryPoint, userOpInfos: poppedUserOps })
+        await this.store.addProcessing({
+            entryPoint,
+            userOpInfos: poppedUserOps
+        })
 
         // Keep track of unused ops from the batch
         const unusedUserOps = [...poppedUserOps]
