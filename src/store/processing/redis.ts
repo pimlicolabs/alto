@@ -7,14 +7,26 @@ import type { ConflictType } from "../types"
 import { InMemoryProcessingStore } from "./memory"
 import type { ProcessingStore } from "./types"
 
+// Hybrid Redis + In-Memory Processing Store
+//
+// This store uses a dual-storage approach:
+// 1. Redis Sets: Shared across all Alto instances for cross-instance conflict
+//    detection. When multiple instances run in horizontal scaling mode, each
+//    instance can check if a userOp would conflict with one being processed
+//    by another instance.
+// 2. Local In-Memory Store: Tracks only this instance's processing userOps.
+//    On shutdown, we flush this local store to recover userOps that were
+//    mid-processing and push them back to outstanding for another instance
+//    to pick up. We can't use Redis alone for this because we'd pull userOps
+//    being processed by other instances.
 export class RedisProcessingStore implements ProcessingStore {
     private readonly redis: Redis
 
     // Redis Sets for conflict detection (shared across all instances)
-    private readonly processingUserOpsSet: string // set of userOpHashes being processed
-    private readonly processingSenderNonceSet: string // set of "sender:nonce" being processed
-    private readonly processingDeploymentSet: string // set of senders with deployments being processed
-    private readonly processingEip7702AuthSet: string // set of senders with eip7702Auth being processed
+    private readonly processingUserOpsSet: string
+    private readonly processingSenderNonceSet: string
+    private readonly processingDeploymentSet: string
+    private readonly processingEip7702AuthSet: string
 
     // Local store for this instance's userOps (for shutdown recovery)
     private readonly localStore = new InMemoryProcessingStore()

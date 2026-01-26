@@ -45,6 +45,8 @@ export class InMemoryProcessingStore implements ProcessingStore {
     }
 
     async removeProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
+        if (userOpInfos.length === 0) return
+
         for (const userOpInfo of userOpInfos) {
             const { userOpHash, userOp } = userOpInfo
             const senderNonceId = this.encodeSenderNonceId(
