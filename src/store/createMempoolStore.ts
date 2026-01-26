@@ -1,7 +1,6 @@
 import { getUserOpHashes } from "@alto/executor"
 import {
     type EntryPointUserOpHashParam,
-    type EntryPointUserOpInfoParam,
     type EntryPointUserOpInfosParam,
     type MempoolStore,
     type OutstandingStore,
@@ -164,25 +163,25 @@ export const createMempoolStore = ({
         // Methods to mark/unmark userOps that are being processed.
         addProcessing: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.addProcessing(userOpInfo)
+                await processing.addProcessing(userOpInfos)
             } catch (err) {
-                logger.error({ err }, "Failed to track active userOp")
+                logger.error({ err }, "Failed to track active userOps")
                 sentry.captureException(err)
             }
         },
         removeProcessing: async ({
             entryPoint,
-            userOpInfo
-        }: EntryPointUserOpInfoParam) => {
+            userOpInfos
+        }: EntryPointUserOpInfosParam) => {
             try {
                 const { processing } = getStoreHandlers(entryPoint)
-                await processing.removeProcessing(userOpInfo)
+                await processing.removeProcessing(userOpInfos)
             } catch (err) {
-                logger.error({ err }, "Failed to untrack active userOp")
+                logger.error({ err }, "Failed to untrack active userOps")
                 sentry.captureException(err)
             }
         },
@@ -293,6 +292,12 @@ export const createMempoolStore = ({
             const { outstanding } = getStoreHandlers(entryPoint)
             await outstanding.clear()
             logger.debug({ store: "outstanding" }, "cleared mempool")
+        },
+
+        // Flush all processing userOps for an entrypoint and return them
+        flushProcessing: async (entryPoint: Address) => {
+            const { processing } = getStoreHandlers(entryPoint)
+            return await processing.flush()
         }
     }
 }

@@ -99,46 +99,32 @@ async function dropAllOperationsOnShutdown({
     )
 }
 
-async function resubmitPendingBundlesToOutstanding({
+async function resubmitProcessingToOutstanding({
     mempool,
-    bundleManager,
+    config,
     logger
 }: {
     mempool: Mempool
-    bundleManager: BundleManager
+    config: AltoConfig
     logger: Logger
 }) {
-    const pendingBundles = bundleManager.getPendingBundles()
-
-    if (pendingBundles.length === 0) {
-        logger.info("[SHUTDOWN] No pending bundles to resubmit")
-        return
-    }
-
-    // Process all bundles in parallel
     await Promise.all(
-        pendingBundles.map(async (submittedBundle) => {
-            const { entryPoint, userOps } = submittedBundle.bundle
+        config.entrypoints.map(async (entryPoint) => {
+            const processingUserOps = await mempool.flushProcessing(entryPoint)
 
-            // Remove all userOps from processing in parallel
-            await Promise.all(
-                userOps.map((userOpInfo) =>
-                    mempool.store.removeProcessing({
-                        entryPoint,
-                        userOpInfo
-                    })
-                )
-            )
+            if (processingUserOps.length === 0) {
+                return
+            }
 
-            // Add all userOps from this bundle back to outstanding
+            // Add back to outstanding
             await mempool.store.addOutstanding({
                 entryPoint,
-                userOpInfos: userOps
+                userOpInfos: processingUserOps
             })
 
             logger.info(
-                { userOpHashes: getUserOpHashes(userOps) },
-                "[SHUTDOWN] Resubmitted pending bundle userOps to outstanding"
+                { userOpHashes: getUserOpHashes(processingUserOps) },
+                "[SHUTDOWN] Resubmitted processing userOps to outstanding"
             )
         })
     )
@@ -157,13 +143,12 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
-    // When horizontal scaling is enabled, outstanding and processing stores
-    // are already in Redis. We just need to move pending bundle userOps
-    // back to outstanding so they can be picked up by another instance.
+    // When horizontal scaling is enabled, we keep outstanding store in redis so that outstanding userOps can be picked up by other instances.
+    // We flush all locally processing userOps and push them to outstanding redis to be picked up by the next alto instance.
     if (config.enableHorizontalScaling) {
-        await resubmitPendingBundlesToOutstanding({
+        await resubmitProcessingToOutstanding({
             mempool,
-            bundleManager,
+            config,
             logger
         })
         return

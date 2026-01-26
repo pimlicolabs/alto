@@ -67,7 +67,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
         rpcHandler.mempool.store.addProcessing({
             entryPoint,
-            userOpInfo
+            userOpInfos: [userOpInfo]
         })
         const result =
             await rpcHandler.executorManager.sendBundleToExecutor(bundle)
