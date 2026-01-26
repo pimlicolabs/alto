@@ -7,6 +7,5 @@ export interface ProcessingStore {
     removeProcessing(userOpInfos: UserOpInfo[]): Promise<void>
     isProcessing(userOpHash: Hex): Promise<boolean>
     wouldConflict(userOp: UserOperation): Promise<ConflictType | undefined>
-    getAll(): UserOpInfo[]
     flush(): Promise<UserOpInfo[]>
 }

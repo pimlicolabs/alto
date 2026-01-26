@@ -56,6 +56,10 @@ export class RedisProcessingStore implements ProcessingStore {
     async addProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
         if (userOpInfos.length === 0) return
 
+        // Store locally for this instance's shutdown recovery
+        await this.localStore.addProcessing(userOpInfos)
+
+        // Store in Redis for cross-instance conflict detection
         const multi = this.redis.multi()
 
         for (const userOpInfo of userOpInfos) {
@@ -79,9 +83,6 @@ export class RedisProcessingStore implements ProcessingStore {
         }
 
         await multi.exec()
-
-        // Store locally for this instance's shutdown recovery
-        await this.localStore.addProcessing(userOpInfos)
     }
 
     async removeProcessing(userOpInfos: UserOpInfo[]): Promise<void> {
@@ -89,6 +90,10 @@ export class RedisProcessingStore implements ProcessingStore {
 
         const multi = this.redis.multi()
 
+        // Remove from local store
+        await this.localStore.removeProcessing(userOpInfos)
+
+        // Remove from Redis
         for (const userOpInfo of userOpInfos) {
             const { userOpHash, userOp } = userOpInfo
             const isDeploymentOp = isDeployment(userOp)
@@ -110,9 +115,6 @@ export class RedisProcessingStore implements ProcessingStore {
         }
 
         await multi.exec()
-
-        // Remove from local store
-        await this.localStore.removeProcessing(userOpInfos)
     }
 
     async isProcessing(userOpHash: Hex): Promise<boolean> {
@@ -163,12 +165,8 @@ export class RedisProcessingStore implements ProcessingStore {
         return undefined
     }
 
-    getAll(): UserOpInfo[] {
-        return this.localStore.getAll()
-    }
-
     async flush(): Promise<UserOpInfo[]> {
-        const userOpInfos = this.localStore.getAll()
+        const userOpInfos = await this.localStore.flush()
 
         // remove the local processing userOps from redis
         await this.removeProcessing(userOpInfos)

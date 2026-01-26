@@ -68,10 +68,6 @@ export class InMemoryProcessingStore implements ProcessingStore {
         }
     }
 
-    getAll(): UserOpInfo[] {
-        return Array.from(this.processingUserOps.values())
-    }
-
     async isProcessing(userOpHash: Hex): Promise<boolean> {
         return this.processingUserOpsSet.has(userOpHash)
     }
@@ -107,7 +103,8 @@ export class InMemoryProcessingStore implements ProcessingStore {
     }
 
     async flush(): Promise<UserOpInfo[]> {
-        const userOpInfos = this.getAll()
+        // get all userOps before clearing sets
+        const userOpInfos = Array.from(this.processingUserOps.values())
         await this.removeProcessing(userOpInfos)
         return userOpInfos
     }
