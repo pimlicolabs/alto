@@ -159,6 +159,18 @@ function unpackPaymasterAndData(paymasterAndData: Hex) {
 export function toViemUserOp(
     userOp: UserOperation07 | UserOperation08 | UserOperation09
 ) {
+    const authorization = userOp.eip7702Auth
+        ? {
+              address: getEip7702AuthAddress(userOp.eip7702Auth),
+              chainId: userOp.eip7702Auth.chainId,
+              nonce: userOp.eip7702Auth.nonce,
+              r: userOp.eip7702Auth.r,
+              s: userOp.eip7702Auth.s,
+              yParity: userOp.eip7702Auth.yParity,
+              v: userOp.eip7702Auth.v
+          }
+        : undefined
+
     const base = {
         ...userOp,
         paymaster: userOp.paymaster ?? undefined,
@@ -167,7 +179,8 @@ export function toViemUserOp(
             userOp.paymasterVerificationGasLimit ?? undefined,
         paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit ?? undefined,
         factory: userOp.factory ?? undefined,
-        factoryData: userOp.factoryData ?? undefined
+        factoryData: userOp.factoryData ?? undefined,
+        authorization
     }
 
     // UserOperation09 has paymasterSignature field
@@ -238,50 +251,20 @@ export function getUserOpHash({
     chainId: number
 }): Hex {
     if (isVersion09(userOp, entryPointAddress)) {
-        const authorization = userOp.eip7702Auth
-            ? {
-                  address: getEip7702AuthAddress(userOp.eip7702Auth),
-                  chainId: userOp.eip7702Auth.chainId,
-                  nonce: userOp.eip7702Auth.nonce,
-                  r: userOp.eip7702Auth.r,
-                  s: userOp.eip7702Auth.s,
-                  yParity: userOp.eip7702Auth.yParity,
-                  v: userOp.eip7702Auth.v
-              }
-            : undefined
-
         return getUserOperationHash({
             chainId,
             entryPointAddress,
             entryPointVersion: "0.9",
-            userOperation: {
-                ...toViemUserOp(userOp),
-                authorization
-            }
+            userOperation: toViemUserOp(userOp)
         })
     }
 
     if (isVersion08(userOp, entryPointAddress)) {
-        const authorization = userOp.eip7702Auth
-            ? {
-                  address: getEip7702AuthAddress(userOp.eip7702Auth),
-                  chainId: userOp.eip7702Auth.chainId,
-                  nonce: userOp.eip7702Auth.nonce,
-                  r: userOp.eip7702Auth.r,
-                  s: userOp.eip7702Auth.s,
-                  yParity: userOp.eip7702Auth.yParity,
-                  v: userOp.eip7702Auth.v
-              }
-            : undefined
-
         return getUserOperationHash({
             chainId,
             entryPointAddress,
             entryPointVersion: "0.8",
-            userOperation: {
-                ...toViemUserOp(userOp),
-                authorization
-            }
+            userOperation: toViemUserOp(userOp)
         })
     }
 
