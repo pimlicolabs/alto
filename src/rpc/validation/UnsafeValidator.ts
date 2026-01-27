@@ -96,8 +96,12 @@ export class UnsafeValidator implements InterfaceValidator {
                     // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
                     const reason = (revertError?.cause as any)?.reason
                     if (reason === undefined) {
+                        logger.error(
+                            { err: errorResult },
+                            "UserOperation reverted during simulation with no reason"
+                        )
                         throw new Error(
-                            `UserOperation reverted during simulation with no reason: ${errorResult.message}`
+                            "UserOperation reverted during simulation with no reason"
                         )
                     }
                     throw new RpcError(
