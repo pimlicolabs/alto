@@ -178,6 +178,7 @@ async function functionName({
 - Create child loggers with context
 - Convert BigInts to hex strings in logs
 - Include relevant data in log objects
+- Pino expects errors to be logged with the `err` key (not `error`): `logger.error({ err: error }, "message")`
 
 ### Validation Patterns
 - Use Zod schemas for runtime validation
