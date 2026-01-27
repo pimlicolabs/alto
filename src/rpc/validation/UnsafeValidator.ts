@@ -93,11 +93,15 @@ export class UnsafeValidator implements InterfaceValidator {
                     const revertError = errorResult.walk(
                         (err) => err instanceof ContractFunctionExecutionError
                     )
+                    // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
+                    const reason = (revertError?.cause as any)?.reason
+                    if (reason === undefined) {
+                        throw new Error(
+                            `UserOperation reverted during simulation with no reason: ${errorResult.message}`
+                        )
+                    }
                     throw new RpcError(
-                        `UserOperation reverted during simulation with reason: ${
-                            // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
-                            (revertError?.cause as any)?.reason
-                        }`,
+                        `UserOperation reverted during simulation with reason: ${reason}`,
                         ERC7769Errors.SimulateValidation
                     )
                 }
