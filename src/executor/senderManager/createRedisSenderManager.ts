@@ -49,7 +49,7 @@ async function createRedisWalletPool({
     // Register all wallets atomically in a single call
     const addedWallets = (await redis.eval(
         ADD_WALLETS_SCRIPT,
-        2,
+        2, // number of keys (availableKey, registeredKey)
         availableKey,
         registeredKey,
         ...entries
