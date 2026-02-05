@@ -451,11 +451,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "100"
     },
-    "refill-helper-contract": {
-        description: "Address of the Executor refill helper contract",
-        type: "string",
-        require: false
-    },
     "executor-private-keys": {
         description: "Private keys of the executor accounts split by commas",
         type: "string",

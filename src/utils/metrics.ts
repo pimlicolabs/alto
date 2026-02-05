@@ -185,6 +185,15 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    // How much the utility wallet is missing to fully cover executor refills
+    // Expressed in ETH for readability, consistent with other balance gauges
+    const utilityWalletMissingBalance = new Gauge({
+        name: "alto_utility_wallet_missing_balance",
+        help: "ETH missing to fully refill executor wallets (0 if sufficient)",
+        labelNames: [] as const,
+        registers
+    })
+
     const executorWalletsBalances = new Gauge({
         name: "alto_executor_wallet_balance",
         help: "Balance of the executor wallet",
@@ -234,6 +243,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOpsDropped,
         utilityWalletBalance,
         utilityWalletInsufficientBalance,
+        utilityWalletMissingBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
         walletsProcessingTime,

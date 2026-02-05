@@ -91,7 +91,6 @@ export const executorArgsSchema = z.object({
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "max-resubmits": z.number().int().min(0).optional(),
     "refilling-wallets": z.boolean().default(true),
-    "refill-helper-contract": addressSchema.optional(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),

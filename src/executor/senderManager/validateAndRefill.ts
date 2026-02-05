@@ -1,6 +1,10 @@
-import { CallEngineAbi, type HexData } from "@alto/types"
 import type { Metrics } from "@alto/utils"
-import { type Address, formatEther, getContract } from "viem"
+import {
+    type Address,
+    formatEther,
+    BaseError,
+    InsufficientFundsError
+} from "viem"
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
@@ -27,10 +31,6 @@ export const validateAndRefillWallets = async ({
     if (!(minBalance && utilityAccount)) {
         return
     }
-
-    const utilityWalletBalance = await config.publicClient.getBalance({
-        address: utilityAccount.address
-    })
 
     const balancesMissing: Record<Address, bigint> = {}
 
@@ -59,28 +59,6 @@ export const validateAndRefillWallets = async ({
         (a, b) => a + b,
         0n
     )
-    if (utilityWalletBalance < (totalBalanceMissing * 11n) / 10n) {
-        logger.info(
-            { balancesMissing, totalBalanceMissing },
-            "balances missing"
-        )
-        metrics.utilityWalletInsufficientBalance.set(1)
-        logger.error(
-            {
-                minBalance: formatEther(minBalance),
-                utilityWalletBalance: formatEther(utilityWalletBalance),
-                totalBalanceMissing: formatEther(totalBalanceMissing),
-                minRefillAmount: formatEther(
-                    totalBalanceMissing - utilityWalletBalance
-                ),
-                utilityAccount: utilityAccount.address
-            },
-            "utility wallet has insufficient balance to refill wallets"
-        )
-        return
-    }
-
-    metrics.utilityWalletInsufficientBalance.set(0)
 
     if (Object.keys(balancesMissing).length > 0) {
         let maxFeePerGas: bigint
@@ -96,51 +74,12 @@ export const validateAndRefillWallets = async ({
             return
         }
 
-        if (config.refillHelperContract) {
-            const instructions: {
-                to: Address
-                value: bigint
-                data: HexData
-            }[] = []
-            for (const [address, missingBalance] of Object.entries(
-                balancesMissing
-            )) {
-                instructions.push({
-                    to: address as Address,
-                    value: missingBalance,
-                    data: "0x" as HexData
-                })
-            }
+        const entries = Object.entries(balancesMissing) as [Address, bigint][]
 
-            const callEngine = getContract({
-                abi: CallEngineAbi,
-                address: config.refillHelperContract,
-                client: {
-                    public: config.publicClient,
-                    wallet: config.walletClients.public
-                }
-            })
-            const tx = await callEngine.write.execute([instructions], {
-                account: utilityAccount,
-                value: totalBalanceMissing,
-                maxFeePerGas: maxFeePerGas * 2n,
-                maxPriorityFeePerGas: maxPriorityFeePerGas * 2n
-            })
-
-            await config.publicClient.waitForTransactionReceipt({ hash: tx })
-
-            for (const [address, missingBalance] of Object.entries(
-                balancesMissing
-            )) {
-                logger.info(
-                    { tx, executor: address, missingBalance },
-                    "refilled wallet"
-                )
-            }
-        } else {
-            for (const [address, missingBalance] of Object.entries(
-                balancesMissing
-            )) {
+        let funded = 0n
+        // Sequential direct sends; stop when funds run out
+        for (const [address, missingBalance] of entries) {
+            try {
                 const tx = await config.walletClients.public.sendTransaction({
                     account: utilityAccount,
                     // @ts-ignore
@@ -160,13 +99,36 @@ export const validateAndRefillWallets = async ({
                 await config.publicClient.waitForTransactionReceipt({
                     hash: tx
                 })
+
                 logger.info(
                     { tx, executor: address, missingBalance },
                     "refilled wallet"
                 )
+                funded += missingBalance
+            } catch (e) {
+                const err = e as BaseError
+                if (err instanceof InsufficientFundsError) {
+                    logger.warn(
+                        { executor: address, missingBalance },
+                        "stopping refills due to insufficient utility funds"
+                    )
+                    break
+                }
+                logger.error(e, "failed to refill wallet")
             }
         }
+
+        // Update visibility metrics after funding attempts
+        const remainingMissing = totalBalanceMissing - funded
+        metrics.utilityWalletInsufficientBalance.set(
+            remainingMissing > 0n ? 1 : 0
+        )
+        metrics.utilityWalletMissingBalance.set(
+            Number.parseFloat(formatEther(remainingMissing))
+        )
     } else {
         logger.info("no wallets need to be refilled")
+        metrics.utilityWalletInsufficientBalance.set(0)
+        metrics.utilityWalletMissingBalance.set(0)
     }
 }
