@@ -1,9 +1,9 @@
 import type { Metrics } from "@alto/utils"
 import {
     type Address,
-    formatEther,
-    BaseError,
-    InsufficientFundsError
+    type BaseError,
+    InsufficientFundsError,
+    formatEther
 } from "viem"
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
