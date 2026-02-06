@@ -50,6 +50,7 @@ export const validateAndRefillWallets = async ({
         )
 
         if (balance < minBalance) {
+            // Top up to 120% of minBalance
             const missingBalance = (minBalance * 6n) / 5n - balance
             balancesMissing.set(wallet.address, missingBalance)
         }
