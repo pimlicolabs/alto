@@ -1,4 +1,4 @@
-import type { Metrics } from "@alto/utils"
+import { type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import {
     type Address,
     type BaseError,
@@ -51,7 +51,8 @@ export const validateAndRefillWallets = async ({
 
         if (balance < minBalance) {
             // Top up to 120% of minBalance
-            const missingBalance = (minBalance * 6n) / 5n - balance
+            const missingBalance =
+                scaleBigIntByPercent(minBalance, 120n) - balance
             balancesMissing.set(wallet.address, missingBalance)
         }
     })
@@ -77,7 +78,7 @@ export const validateAndRefillWallets = async ({
         maxFeePerGas = gasPriceParameters.maxFeePerGas
         maxPriorityFeePerGas = gasPriceParameters.maxPriorityFeePerGas
     } catch (e) {
-        logger.error(e, "No gas price available")
+        logger.error({ err: e }, "No gas price available")
         return
     }
 
