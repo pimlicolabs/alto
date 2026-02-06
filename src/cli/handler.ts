@@ -95,18 +95,6 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
     //         )
     //     }
     // }
-
-    if (config.refillHelperContract) {
-        const refillHelper = config.refillHelperContract
-        const refillHelperCode = await config.publicClient.getCode({
-            address: refillHelper
-        })
-        if (refillHelperCode === undefined || refillHelperCode === "0x") {
-            throw new Error(
-                `RefillHelper contract ${refillHelper} does not exist`
-            )
-        }
-    }
 }
 
 const getViemChain = ({
