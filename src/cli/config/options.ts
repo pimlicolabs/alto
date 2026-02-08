@@ -5,6 +5,7 @@ import type {
     ICompatibilityArgsInput,
     IDebugArgsInput,
     IExecutorArgsInput,
+    IUtilityArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
     IMempoolArgsInput,
@@ -440,12 +441,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "4337"
     },
-    "refilling-wallets": {
-        description: "Enable refilling wallets",
-        type: "boolean",
-        require: false,
-        default: true
-    },
     "executor-gas-multiplier": {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",
@@ -457,22 +452,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         alias: "x",
         require: true
     },
-    "utility-private-key": {
-        description: "Private key of the utility account",
-        type: "string",
-        alias: "u",
-        require: false
-    },
-    "utility-wallet-monitor": {
-        description: "Either to enable utility wallet monitor or not",
-        type: "boolean",
-        default: true
-    },
-    "utility-wallet-monitor-interval": {
-        description: "Interval for checking utility wallet balance",
-        type: "number",
-        default: 15 * 1000 // 15 seconds
-    },
     "max-executors": {
         description:
             "Maximum number of executor accounts to use from the list of executor private keys",
@@ -483,12 +462,6 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         description:
             "Minimum balance required for each executor account (below which the utility account will refill)",
         type: "string"
-    },
-    "executor-refill-interval": {
-        description: "Interval to refill the signer balance (seconds)",
-        type: "number",
-        require: true,
-        default: 60 * 20
     },
     "transaction-underpriced-multiplier": {
         description:
@@ -524,6 +497,38 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    }
+}
+
+export const utilityOptions: CliCommandOptions<IUtilityArgsInput> = {
+    "utility-private-key": {
+        description: "Private key of the utility account",
+        type: "string",
+        alias: "u",
+        require: false
+    },
+    "utility-wallet-monitor": {
+        description: "Either to enable utility wallet monitor or not",
+        type: "boolean",
+        default: true
+    },
+    "utility-wallet-monitor-interval": {
+        description: "Interval for checking utility wallet balance",
+        type: "number",
+        default: 15 * 1000 // 15 seconds
+    },
+    "refilling-wallets": {
+        description:
+            "Enable refilling executor wallets using the utility wallet",
+        type: "boolean",
+        require: false,
+        default: true
+    },
+    "executor-refill-interval": {
+        description: "Interval to refill the signer balance (seconds)",
+        type: "number",
+        require: true,
+        default: 60 * 20
     }
 }
 

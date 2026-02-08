@@ -10,6 +10,7 @@ import {
     compatibilityOptions,
     debugOptions,
     executorOptions,
+    utilityOptions,
     gasEstimationOptions,
     logOptions,
     mempoolOptions,
@@ -86,6 +87,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(serverOptions), "Server Options:")
         .options(executorOptions)
         .group(Object.keys(executorOptions), "Executor Options:")
+        .options(utilityOptions)
+        .group(Object.keys(utilityOptions), "Utility Wallet Options:")
         .options(rpcOptions)
         .group(Object.keys(rpcOptions), "RPC Options:")
         .options(logOptions)

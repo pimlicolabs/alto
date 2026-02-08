@@ -90,12 +90,6 @@ export const executorArgsSchema = z.object({
     "max-bundle-count": z.number().int().min(1).optional(),
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "max-resubmits": z.number().int().min(0).optional(),
-    "refilling-wallets": z.boolean().default(true),
-    "utility-private-key": hexData32Schema
-        .transform((val) => privateKeyToAccount(val) satisfies Account)
-        .optional(),
-    "utility-wallet-monitor": z.boolean(),
-    "utility-wallet-monitor-interval": z.number(),
     "resubmit-multiplier-ceiling": z.string().transform(BigInt),
     "gas-limit-rounding-multiple": z
         .string()
@@ -126,13 +120,23 @@ export const executorArgsSchema = z.object({
     ]),
     "max-executors": z.number().int().min(0).optional(),
     "min-executor-balance": z.string().transform(BigInt).optional(),
-    "executor-refill-interval": z.number().int().min(0),
     "executor-gas-multiplier": z.string().transform(BigInt),
     "send-handle-ops-retry-count": z.number().int().default(3),
     "transaction-underpriced-multiplier": z.string().transform(BigInt),
     "bundler-initial-commission": z.string().transform(BigInt).default("10"),
     "binary-search-max-retries": z.number().int().min(1).default(3),
     "private-endpoint-submission-attempts": z.number().int().min(0).default(3)
+})
+
+// Utility wallet related flags (moved out of executor args)
+export const utilityArgsSchema = z.object({
+    "utility-private-key": hexData32Schema
+        .transform((val) => privateKeyToAccount(val) satisfies Account)
+        .optional(),
+    "utility-wallet-monitor": z.boolean(),
+    "utility-wallet-monitor-interval": z.number(),
+    "refilling-wallets": z.boolean().default(true),
+    "executor-refill-interval": z.number().int().min(0)
 })
 
 export const compatibilityArgsSchema = z.object({
@@ -314,6 +318,9 @@ export type ICompatibilityArgsInput = z.input<typeof compatibilityArgsSchema>
 export type IExecutorArgs = z.infer<typeof executorArgsSchema>
 export type IExecutorArgsInput = z.input<typeof executorArgsSchema>
 
+export type IUtilityArgs = z.infer<typeof utilityArgsSchema>
+export type IUtilityArgsInput = z.input<typeof utilityArgsSchema>
+
 export type IServerArgs = z.infer<typeof serverArgsSchema>
 export type IServerArgsInput = z.input<typeof serverArgsSchema>
 
@@ -353,6 +360,7 @@ export const optionArgsSchema = z.object({
     ...rpcArgsSchema.shape,
     ...debugArgsSchema.shape,
     ...gasEstimationArgsSchema.shape,
+    ...utilityArgsSchema.shape,
     ...executorArgsSchema.shape,
     ...mempoolArgsSchema.shape,
     ...redisArgsSchema.shape,
