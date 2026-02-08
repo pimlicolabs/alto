@@ -10,14 +10,14 @@ import {
     compatibilityOptions,
     debugOptions,
     executorOptions,
-    utilityOptions,
     gasEstimationOptions,
     logOptions,
     mempoolOptions,
     preVerificationGasOptions,
     redisOptions,
     rpcOptions,
-    serverOptions
+    serverOptions,
+    utilityOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
 

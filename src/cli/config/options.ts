@@ -5,7 +5,6 @@ import type {
     ICompatibilityArgsInput,
     IDebugArgsInput,
     IExecutorArgsInput,
-    IUtilityArgsInput,
     IGasEstimationArgsInput,
     ILogArgsInput,
     IMempoolArgsInput,
@@ -13,7 +12,8 @@ import type {
     IPreVerificationGasArgsInput,
     IRedisArgsInput,
     IRpcArgsInput,
-    IServerArgsInput
+    IServerArgsInput,
+    IUtilityArgsInput
 } from "./bundler"
 
 export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
