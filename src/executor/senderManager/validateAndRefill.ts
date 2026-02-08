@@ -11,6 +11,7 @@ import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
 
+// Checks executor balance and refills to 120% of minBalance if below threshold.
 const sendRefillTransaction = async ({
     config,
     utilityAccount,
@@ -89,50 +90,14 @@ export const validateAndRefillWallets = async ({
         return
     }
 
-    const balancesMissing = new Map<Address, bigint>()
-
     const allWallets = senderManager.getAllWallets()
 
-    // Get balances of all wallets
-    const balanceRequestPromises = allWallets.map(async (wallet) => {
-        const balance = await config.publicClient.getBalance({
-            address: wallet.address
-        })
-
-        metrics.executorWalletsBalances.set(
-            {
-                wallet: wallet.address
-            },
-            Number.parseFloat(formatEther(balance))
-        )
-
-        if (balance < minBalance) {
-            // Top up to 120% of minBalance
-            const missingBalance =
-                scaleBigIntByPercent(minBalance, 120n) - balance
-            balancesMissing.set(wallet.address, missingBalance)
-        }
-    })
-    await Promise.all(balanceRequestPromises)
-
-    if (balancesMissing.size === 0) {
-        logger.info("no wallets need to be refilled")
-        metrics.utilityWalletInsufficientBalance.set(0)
-        metrics.utilityWalletMissingBalance.set(0)
-        return
-    }
-
-    // Sort smallest to largest to refill as many wallets as possible
-    const sorted = [...balancesMissing.entries()].sort((a, b) =>
-        a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0
-    )
-
-    for (const [executorAddress] of sorted) {
+    for (const wallet of allWallets) {
         try {
             await sendRefillTransaction({
                 config,
                 utilityAccount,
-                executorAddress,
+                executorAddress: wallet.address,
                 minBalance,
                 gasPriceManager,
                 logger
@@ -144,7 +109,7 @@ export const validateAndRefillWallets = async ({
                 )
                 if (isInsufficientFunds) {
                     logger.warn(
-                        { executor: executorAddress },
+                        { executor: wallet.address },
                         "insufficient utility funds"
                     )
                     break
@@ -154,10 +119,17 @@ export const validateAndRefillWallets = async ({
         }
     }
 
-    // Check if any wallets are still missing funds, and update metrics.
     let remainingMissing = 0n
-    for (const [address] of sorted) {
-        const balance = await config.publicClient.getBalance({ address })
+    for (const wallet of allWallets) {
+        const balance = await config.publicClient.getBalance({
+            address: wallet.address
+        })
+
+        metrics.executorWalletsBalances.set(
+            { wallet: wallet.address },
+            Number.parseFloat(formatEther(balance))
+        )
+
         if (balance < minBalance) {
             remainingMissing += minBalance - balance
         }
