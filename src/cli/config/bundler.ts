@@ -128,7 +128,6 @@ export const executorArgsSchema = z.object({
     "private-endpoint-submission-attempts": z.number().int().min(0).default(3)
 })
 
-// Utility wallet related flags (moved out of executor args)
 export const utilityArgsSchema = z.object({
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
