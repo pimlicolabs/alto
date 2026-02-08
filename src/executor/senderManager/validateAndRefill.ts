@@ -17,14 +17,16 @@ const sendRefillTransaction = async ({
     utilityAccount,
     executorAddress,
     minBalance,
-    gasPriceManager,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
     logger
 }: {
     config: AltoConfig
     utilityAccount: Account
     executorAddress: Address
     minBalance: bigint
-    gasPriceManager: GasPriceManager
+    maxFeePerGas: bigint
+    maxPriorityFeePerGas: bigint
     logger: Logger
 }) => {
     const balance = await config.publicClient.getBalance({
@@ -37,14 +39,6 @@ const sendRefillTransaction = async ({
 
     // Top up to 120% of minBalance
     const refillAmount = scaleBigIntByPercent(minBalance, 120n) - balance
-
-    // Fetch gasPrice and bump by 150% to account for network fluctuations
-    const gasPrice = await gasPriceManager.tryGetNetworkGasPrice()
-    const maxFeePerGas = scaleBigIntByPercent(gasPrice.maxFeePerGas, 150n)
-    const maxPriorityFeePerGas = scaleBigIntByPercent(
-        gasPrice.maxPriorityFeePerGas,
-        150n
-    )
 
     const txHash = config.legacyTransactions
         ? await config.walletClients.public.sendTransaction({
@@ -92,6 +86,14 @@ export const validateAndRefillWallets = async ({
 
     const allWallets = senderManager.getAllWallets()
 
+    // Fetch gasPrice once and bump by 200% to account for fluctuations
+    const gasPrice = await gasPriceManager.tryGetNetworkGasPrice()
+    const maxFeePerGas = scaleBigIntByPercent(gasPrice.maxFeePerGas, 200n)
+    const maxPriorityFeePerGas = scaleBigIntByPercent(
+        gasPrice.maxPriorityFeePerGas,
+        200n
+    )
+
     for (const wallet of allWallets) {
         try {
             await sendRefillTransaction({
@@ -99,7 +101,8 @@ export const validateAndRefillWallets = async ({
                 utilityAccount,
                 executorAddress: wallet.address,
                 minBalance,
-                gasPriceManager,
+                maxFeePerGas,
+                maxPriorityFeePerGas,
                 logger
             })
         } catch (e) {
