@@ -281,7 +281,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     )
 
     const numExecutors = senderManager.getAllWallets().length
-    metrics.utilityWalletMinimumBalance.set(
+    metrics.executorWalletsRequiredBalance.set(
         Number.parseFloat(
             formatEther(
                 (config.minExecutorBalance || 0n) * BigInt(numExecutors)
