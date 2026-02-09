@@ -16,7 +16,8 @@ import {
     preVerificationGasOptions,
     redisOptions,
     rpcOptions,
-    serverOptions
+    serverOptions,
+    utilityOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
 
@@ -86,6 +87,8 @@ export function getAltoCli(): yargs.Argv {
         .group(Object.keys(serverOptions), "Server Options:")
         .options(executorOptions)
         .group(Object.keys(executorOptions), "Executor Options:")
+        .options(utilityOptions)
+        .group(Object.keys(utilityOptions), "Utility Wallet Options:")
         .options(rpcOptions)
         .group(Object.keys(rpcOptions), "RPC Options:")
         .options(logOptions)

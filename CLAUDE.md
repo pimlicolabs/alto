@@ -170,7 +170,17 @@ async function functionName({
 #### Error Handling
 - Use custom error classes (e.g., `RpcError`)
 - Include specific error codes from enums
-- Walk error chains for Viem errors
+- **Viem errors are wrapped**: Never use direct `instanceof` checks on caught viem errors. Viem wraps errors (e.g., `InsufficientFundsError` inside `TransactionExecutionError`). Always use `BaseError.walk()` to find the actual error in the cause chain:
+  ```typescript
+  if (e instanceof BaseError) {
+      const isInsufficientFunds = e.walk(
+          (err) => err instanceof InsufficientFundsError
+      )
+      if (isInsufficientFunds) {
+          // handle
+      }
+  }
+  ```
 - Return error tuples for non-throwing operations
 
 #### Logging

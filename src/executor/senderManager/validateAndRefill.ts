@@ -1,7 +1,9 @@
-import { type Metrics, scaleBigIntByPercent } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
+import { scaleBigIntByPercent } from "@alto/utils"
 import {
+    type Account,
     type Address,
-    type BaseError,
+    BaseError,
     InsufficientFundsError,
     formatEther
 } from "viem"
@@ -9,7 +11,57 @@ import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: <explanation>
+// Checks executor balance and refills to 120% of minBalance if below threshold.
+const sendRefillTransaction = async ({
+    config,
+    utilityAccount,
+    executorAddress,
+    minBalance,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+    logger
+}: {
+    config: AltoConfig
+    utilityAccount: Account
+    executorAddress: Address
+    minBalance: bigint
+    maxFeePerGas: bigint
+    maxPriorityFeePerGas: bigint
+    logger: Logger
+}) => {
+    const balance = await config.publicClient.getBalance({
+        address: executorAddress
+    })
+
+    if (balance >= minBalance) {
+        return
+    }
+
+    // Top up to 120% of minBalance
+    const refillAmount = scaleBigIntByPercent(minBalance, 120n) - balance
+
+    const txHash = config.legacyTransactions
+        ? await config.walletClients.public.sendTransaction({
+              account: utilityAccount,
+              to: executorAddress,
+              value: refillAmount,
+              gasPrice: maxFeePerGas
+          })
+        : await config.walletClients.public.sendTransaction({
+              account: utilityAccount,
+              to: executorAddress,
+              value: refillAmount,
+              maxFeePerGas,
+              maxPriorityFeePerGas
+          })
+
+    await config.publicClient.waitForTransactionReceipt({
+        hash: txHash
+    })
+
+    logger.info({ txHash, executorAddress, refillAmount }, "refilled wallet")
+}
+
 export const validateAndRefillWallets = async ({
     metrics,
     config,
@@ -32,106 +84,67 @@ export const validateAndRefillWallets = async ({
         return
     }
 
-    const balancesMissing = new Map<Address, bigint>()
-
     const allWallets = senderManager.getAllWallets()
 
-    // Get balances of all wallets
-    const balanceRequestPromises = allWallets.map(async (wallet) => {
+    // Fetch gasPrice once and bump by 200% to account for fluctuations
+    const gasPrice = await gasPriceManager.tryGetNetworkGasPrice()
+    const maxFeePerGas = scaleBigIntByPercent(gasPrice.maxFeePerGas, 200n)
+    const maxPriorityFeePerGas = scaleBigIntByPercent(
+        gasPrice.maxPriorityFeePerGas,
+        200n
+    )
+
+    for (const wallet of allWallets) {
+        try {
+            await sendRefillTransaction({
+                config,
+                utilityAccount,
+                executorAddress: wallet.address,
+                minBalance,
+                maxFeePerGas,
+                maxPriorityFeePerGas,
+                logger
+            })
+        } catch (e) {
+            if (e instanceof BaseError) {
+                const isInsufficientFunds = e.walk(
+                    (err) => err instanceof InsufficientFundsError
+                )
+                if (isInsufficientFunds) {
+                    logger.warn(
+                        { executor: wallet.address },
+                        "insufficient utility funds"
+                    )
+                    break
+                }
+            }
+            logger.error({ err: e }, "failed to refill wallet")
+        }
+    }
+
+    let remainingMissing = 0n
+    for (const wallet of allWallets) {
         const balance = await config.publicClient.getBalance({
             address: wallet.address
         })
 
         metrics.executorWalletsBalances.set(
-            {
-                wallet: wallet.address
-            },
+            { wallet: wallet.address },
             Number.parseFloat(formatEther(balance))
         )
 
         if (balance < minBalance) {
-            // Top up to 120% of minBalance
-            const missingBalance =
-                scaleBigIntByPercent(minBalance, 120n) - balance
-            balancesMissing.set(wallet.address, missingBalance)
+            remainingMissing += minBalance - balance
         }
-    })
-    await Promise.all(balanceRequestPromises)
+    }
 
-    const totalBalanceMissing = [...balancesMissing.values()].reduce(
-        (a, b) => a + b,
-        0n
-    )
-
-    if (balancesMissing.size === 0) {
-        logger.info("no wallets need to be refilled")
+    if (remainingMissing > 0n) {
+        metrics.utilityWalletInsufficientBalance.set(1)
+        metrics.utilityWalletMissingBalance.set(
+            Number.parseFloat(formatEther(remainingMissing))
+        )
+    } else {
         metrics.utilityWalletInsufficientBalance.set(0)
         metrics.utilityWalletMissingBalance.set(0)
-        return
     }
-
-    let maxFeePerGas: bigint
-    let maxPriorityFeePerGas: bigint
-    try {
-        const gasPriceParameters = await gasPriceManager.tryGetNetworkGasPrice()
-
-        maxFeePerGas = gasPriceParameters.maxFeePerGas
-        maxPriorityFeePerGas = gasPriceParameters.maxPriorityFeePerGas
-    } catch (e) {
-        logger.error({ err: e }, "No gas price available")
-        return
-    }
-
-    // Sort smallest to largest to refill as many wallets as possible
-    const sorted = [...balancesMissing.entries()].sort((a, b) =>
-        a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0
-    )
-
-    let funded = 0n
-    // Sequential direct sends; stop when funds run out
-    for (const [executorAddress, missingBalance] of sorted) {
-        try {
-            const txHash = config.legacyTransactions
-                ? await config.walletClients.public.sendTransaction({
-                      account: utilityAccount,
-                      to: executorAddress,
-                      value: missingBalance,
-                      gasPrice: maxFeePerGas
-                  })
-                : await config.walletClients.public.sendTransaction({
-                      account: utilityAccount,
-                      to: executorAddress,
-                      value: missingBalance,
-                      maxFeePerGas,
-                      maxPriorityFeePerGas
-                  })
-
-            await config.publicClient.waitForTransactionReceipt({
-                hash: txHash
-            })
-
-            logger.info(
-                { txHash, executorAddress, missingBalance },
-                "refilled wallet"
-            )
-            funded += missingBalance
-        } catch (e) {
-            const err = e as BaseError
-            if (err instanceof InsufficientFundsError) {
-                logger.warn(
-                    { executor: executorAddress, missingBalance },
-                    "stopping refills due to insufficient utility funds"
-                )
-                break
-            }
-            logger.error({ err }, "failed to refill wallet")
-        }
-    }
-
-    // Update metrics after funding attempts
-    const remainingMissing = totalBalanceMissing - funded
-    metrics.utilityWalletInsufficientBalance.set(remainingMissing > 0n ? 1 : 0)
-    metrics.utilityWalletMissingBalance.set(
-        Number.parseFloat(formatEther(remainingMissing))
-    )
 }
