@@ -122,6 +122,7 @@ export const validateAndRefillWallets = async ({
         }
     }
 
+    let remainingMissing = 0n
     for (const wallet of allWallets) {
         const balance = await config.publicClient.getBalance({
             address: wallet.address
@@ -131,7 +132,15 @@ export const validateAndRefillWallets = async ({
             { wallet: wallet.address },
             Number.parseFloat(formatEther(balance))
         )
+
+        if (balance < minBalance) {
+            remainingMissing += minBalance - balance
+        }
     }
+
+    metrics.utilityWalletMissingBalance.set(
+        Number.parseFloat(formatEther(remainingMissing))
+    )
 
     const utilityBalance = await config.publicClient.getBalance({
         address: utilityAccount.address
