@@ -280,6 +280,13 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         Number.parseFloat(formatEther(config.minExecutorBalance || 0n))
     )
 
+    const numExecutors = senderManager.getAllWallets().length
+    metrics.utilityWalletMinimumBalance.set(
+        Number.parseFloat(
+            formatEther((config.minExecutorBalance || 0n) * BigInt(numExecutors))
+        )
+    )
+
     await setupServer({
         config,
         registry,
