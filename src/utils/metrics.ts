@@ -208,6 +208,13 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const executorWalletsRequiredBalance = new Gauge({
+        name: "alto_executor_wallets_required_balance",
+        help: "Total minimum balance required across all executor wallets",
+        labelNames: [] as const,
+        registers
+    })
+
     const walletsProcessingTime = new Histogram({
         name: "alto_executor_wallets_processing_duration_seconds",
         help: "Time spent processing user operations by executor wallets",
@@ -246,6 +253,7 @@ export function createMetrics(registry: Registry, register = true) {
         utilityWalletMissingBalance,
         executorWalletsBalances,
         executorWalletsMinBalance,
+        executorWalletsRequiredBalance,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
         altoSecondValidationFailed
