@@ -17,7 +17,6 @@ import {
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
-import { UtilityWalletMonitor } from "../executor/utilityWalletMonitor"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
@@ -263,18 +262,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         config,
         metrics
     })
-
-    const utilityWalletAddress = config.utilityPrivateKey?.address
-
-    if (utilityWalletAddress && config.utilityWalletMonitor) {
-        const utilityWalletMonitor = new UtilityWalletMonitor({
-            config,
-            metrics,
-            utilityWalletAddress
-        })
-
-        await utilityWalletMonitor.start()
-    }
 
     metrics.executorWalletsMinBalance.set(
         Number.parseFloat(formatEther(config.minExecutorBalance || 0n))
