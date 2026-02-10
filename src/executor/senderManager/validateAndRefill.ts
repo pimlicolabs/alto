@@ -138,6 +138,7 @@ export const validateAndRefillWallets = async ({
         }
     }
 
+    metrics.utilityWalletInsufficientBalance.set(remainingMissing > 0n ? 1 : 0)
     metrics.utilityWalletMissingBalance.set(
         Number.parseFloat(formatEther(remainingMissing))
     )
