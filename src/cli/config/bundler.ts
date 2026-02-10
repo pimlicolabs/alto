@@ -132,8 +132,6 @@ export const utilityArgsSchema = z.object({
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
-    "utility-wallet-monitor": z.boolean(),
-    "utility-wallet-monitor-interval": z.number(),
     "refilling-wallets": z.boolean().default(true),
     "executor-refill-interval": z.number().int().min(0)
 })

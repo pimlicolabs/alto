@@ -138,13 +138,15 @@ export const validateAndRefillWallets = async ({
         }
     }
 
-    if (remainingMissing > 0n) {
-        metrics.utilityWalletInsufficientBalance.set(1)
-        metrics.utilityWalletMissingBalance.set(
-            Number.parseFloat(formatEther(remainingMissing))
-        )
-    } else {
-        metrics.utilityWalletInsufficientBalance.set(0)
-        metrics.utilityWalletMissingBalance.set(0)
-    }
+    metrics.utilityWalletInsufficientBalance.set(remainingMissing > 0n ? 1 : 0)
+    metrics.utilityWalletMissingBalance.set(
+        Number.parseFloat(formatEther(remainingMissing))
+    )
+
+    const utilityBalance = await config.publicClient.getBalance({
+        address: utilityAccount.address
+    })
+    metrics.utilityWalletBalance.set(
+        Number.parseFloat(formatEther(utilityBalance))
+    )
 }
