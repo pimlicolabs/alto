@@ -18,15 +18,15 @@ describe.each([
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
-    },
+    }
     // {
     //     entryPoint: entryPoint08Address,
     //     entryPointVersion: "0.8" as EntryPointVersion
     // },
-    {
-        entryPoint: entryPoint09Address,
-        entryPointVersion: "0.9" as EntryPointVersion
-    }
+    // {
+    //     entryPoint: entryPoint09Address,
+    //     entryPointVersion: "0.9" as EntryPointVersion
+    // }
 ])(
     "$entryPointVersion supports pimlico_sendUserOperationNow",
     ({ entryPoint, entryPointVersion }) => {

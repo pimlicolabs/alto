@@ -36,7 +36,7 @@ type AssetChange = {
 const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
 
 describe.each([
-    // { entryPointVersion: "0.6" as EntryPointVersion }
+    // { entryPointVersion: "0.6" as EntryPointVersion },
     { entryPointVersion: "0.7" as EntryPointVersion }
     // { entryPointVersion: "0.8" as EntryPointVersion }
 ])(
