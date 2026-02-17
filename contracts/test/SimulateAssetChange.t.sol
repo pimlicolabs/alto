@@ -51,6 +51,13 @@ contract SimulateAssetChangeTest is UserOpHelper {
         // Deploy mock ERC20 tokens
         token1 = new ERC20Mock();
         token2 = new ERC20Mock();
+
+        // Pre-deploy the v08 account to avoid SenderCreator mismatch during
+        // delegateAndRevert simulation. The v08 factory requires msg.sender to
+        // be the EntryPoint's SenderCreator, but the simulation path uses
+        // EntryPointSimulations08's SenderCreator (a different address).
+        vm.prank(address(entryPoint08.senderCreator()));
+        accountFactory08.createAccount(owner, 0);
     }
 
     // ============================================
