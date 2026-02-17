@@ -28,7 +28,7 @@ import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
 import {
     getSimulationArgs,
     mergeViemStateOverrides
-} from "../utils/localSimulation"
+} from "../utils/simulationHelper"
 import { getBundleGasLimit } from "./utils"
 
 export type FilterOpsResult =

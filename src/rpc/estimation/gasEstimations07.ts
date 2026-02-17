@@ -16,7 +16,7 @@ import { packUserOps } from "../../executor/utils"
 import {
     getSimulationArgs,
     mergeViemStateOverrides
-} from "../../utils/localSimulation"
+} from "../../utils/simulationHelper"
 import {
     BinarySearchResultType,
     type SimulateBinarySearchResult,
