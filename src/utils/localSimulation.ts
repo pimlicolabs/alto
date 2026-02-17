@@ -89,14 +89,14 @@ export function getLocalSimulationContracts({
 export function getSimulationArgs({
     version,
     useSimulationOverrides,
-    configuredPimlicoSimulationAddress,
-    configuredEntryPointSimulationAddress,
+    pimlicoSimulationAddress,
+    entryPointSimulationAddress,
     requireEntryPointSimulationAddress = false
 }: {
     version: EntryPointVersion
     useSimulationOverrides: boolean
-    configuredPimlicoSimulationAddress?: Address
-    configuredEntryPointSimulationAddress?: Address
+    pimlicoSimulationAddress?: Address
+    entryPointSimulationAddress?: Address
     requireEntryPointSimulationAddress?: boolean
 }): SimulationArgs {
     if (useSimulationOverrides) {
@@ -119,22 +119,19 @@ export function getSimulationArgs({
         }
     }
 
-    if (!configuredPimlicoSimulationAddress) {
+    if (!pimlicoSimulationAddress) {
         throw new Error("pimlicoSimulationContract not set")
     }
 
-    if (
-        requireEntryPointSimulationAddress &&
-        !configuredEntryPointSimulationAddress
-    ) {
+    if (requireEntryPointSimulationAddress && !entryPointSimulationAddress) {
         throw new Error(
             `Cannot find entryPointSimulations Address for version ${version}`
         )
     }
 
     return {
-        pimlicoSimulationAddress: configuredPimlicoSimulationAddress,
-        entryPointSimulationAddress: configuredEntryPointSimulationAddress
+        pimlicoSimulationAddress: pimlicoSimulationAddress,
+        entryPointSimulationAddress: entryPointSimulationAddress
     }
 }
 

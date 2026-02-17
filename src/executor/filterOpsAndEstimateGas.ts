@@ -105,7 +105,7 @@ export const getFilterOpsResult = async ({
     const simulationArgs = getSimulationArgs({
         version,
         useSimulationOverrides,
-        configuredPimlicoSimulationAddress: pimlicoSimulationContract
+        pimlicoSimulationAddress: pimlicoSimulationContract
     })
 
     // Get EIP-7702 stateOverrides.

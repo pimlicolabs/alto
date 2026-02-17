@@ -70,7 +70,7 @@ export class GasEstimator07 {
         stateOverride?: StateOverride
     }) {
         const version = getViemEntryPointVersion(userOp, entryPoint)
-        const configuredEntryPointSimulationAddress =
+        const entryPointSimulationAddress =
             getEntryPointSimulationsAddress({
                 version,
                 config: this.config
@@ -78,7 +78,7 @@ export class GasEstimator07 {
 
         if (
             !this.config.useSimulationOverrides &&
-            !configuredEntryPointSimulationAddress
+            !entryPointSimulationAddress
         ) {
             const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
             this.logger.warn(errorMsg)
@@ -99,9 +99,8 @@ export class GasEstimator07 {
         const simulationArgs = getSimulationArgs({
             version,
             useSimulationOverrides: this.config.useSimulationOverrides,
-            configuredPimlicoSimulationAddress:
-                this.config.pimlicoSimulationContract,
-            configuredEntryPointSimulationAddress,
+            pimlicoSimulationAddress: this.config.pimlicoSimulationContract,
+            entryPointSimulationAddress,
             requireEntryPointSimulationAddress: true
         })
 
