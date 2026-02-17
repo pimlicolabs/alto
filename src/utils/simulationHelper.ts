@@ -23,21 +23,9 @@ type LocalSimulationContracts = {
 
 type SimulationArgs = {
     pimlicoSimulationAddress: Address
+    entryPointSimulationAddress?: Address
     stateOverride?: StateOverride
 }
-
-type EntryPointSimulationArgs = SimulationArgs & {
-    entryPointSimulationAddress: Address
-}
-
-type SimulationConfig = Pick<
-    AltoConfig,
-    | "useSimulationOverrides"
-    | "pimlicoSimulationContract"
-    | "entrypointSimulationContractV7"
-    | "entrypointSimulationContractV8"
-    | "entrypointSimulationContractV9"
->
 
 type LocalSimulationOverride = {
     address: Address
@@ -103,30 +91,9 @@ export function getSimulationArgs({
     version,
     config
 }: {
-    version: "0.6"
-    config: SimulationConfig
-}): SimulationArgs
-export function getSimulationArgs({
-    version,
-    config
-}: {
-    version: Exclude<EntryPointVersion, "0.6">
-    config: SimulationConfig
-}): EntryPointSimulationArgs
-export function getSimulationArgs({
-    version,
-    config
-}: {
     version: EntryPointVersion
-    config: SimulationConfig
-}): SimulationArgs | EntryPointSimulationArgs
-export function getSimulationArgs({
-    version,
-    config
-}: {
-    version: EntryPointVersion
-    config: SimulationConfig
-}): SimulationArgs | EntryPointSimulationArgs {
+    config: AltoConfig
+}): SimulationArgs {
     if (config.useSimulationOverrides) {
         if (version === "0.6") {
             const pimlicoSimulationOverride =

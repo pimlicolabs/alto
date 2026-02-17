@@ -76,6 +76,11 @@ export class GasEstimator07 {
             version,
             config: this.config
         })
+        if (!simulationArgs.entryPointSimulationAddress) {
+            throw new Error(
+                `Cannot find entryPointSimulations Address for version ${version}`
+            )
+        }
 
         const pimlicoSimulation = getContract({
             abi: [...pimlicoSimulationsAbi, ...simulationErrors],
