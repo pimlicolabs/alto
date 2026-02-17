@@ -1,5 +1,6 @@
 import type { Address, Hex, StateOverride } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
+import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import entrypointSimulationsJsonV7 from "../contracts/EntryPointSimulations.sol/EntryPointSimulations07.json" with {
     type: "json"
 }
@@ -12,8 +13,7 @@ import entrypointSimulationsJsonV9 from "../contracts/EntryPointSimulations.sol/
 import pimlicoSimulationsJson from "../contracts/PimlicoSimulations.sol/PimlicoSimulations.json" with {
     type: "json"
 }
-import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
-import { AltoConfig } from "../createConfig"
+import type { AltoConfig } from "../createConfig"
 
 type SimulationArgs = {
     pimlicoSimulationAddress: Address
