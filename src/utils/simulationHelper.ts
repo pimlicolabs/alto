@@ -60,11 +60,11 @@ const getEntryPointSimulationCode = (
     }
 }
 
-const getConfiguredEntryPointSimulationAddress = ({
+const getEntryPointSimulation = ({
     version,
     config
 }: {
-    version: Exclude<EntryPointVersion, "0.6">
+    version: EntryPointVersion
     config: AltoConfig
 }): Address => {
     let entryPointSimulationAddress: Address | undefined
@@ -154,11 +154,10 @@ export function getSimulationArgs({
         }
     }
 
-    const entryPointSimulationAddress =
-        getConfiguredEntryPointSimulationAddress({
-            version,
-            config
-        })
+    const entryPointSimulationAddress = getEntryPointSimulation({
+        version,
+        config
+    })
 
     return {
         pimlicoSimulationAddress: config.pimlicoSimulationContract,
