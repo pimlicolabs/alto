@@ -53,6 +53,12 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         )
     }
 
+    if (config.useSimulationOverrides && config.deploySimulationsContract) {
+        throw new Error(
+            "deploy-simulations-contract must be disabled when use-simulation-overrides is enabled"
+        )
+    }
+
     if (config.pimlicoSimulationContract) {
         const address = config.pimlicoSimulationContract
         const code = await config.publicClient.getCode({
@@ -123,12 +129,6 @@ const getViemChain = ({
 
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const args = parseArgs(args_)
-
-    if (args.useSimulationOverrides && args.deploySimulationsContract) {
-        throw new Error(
-            "deploy-simulations-contract must be disabled when use-simulation-overrides is enabled"
-        )
-    }
 
     const enableCors = args.enableCors
     const logger = args.json
