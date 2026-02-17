@@ -1,6 +1,7 @@
 import type { Address, Hex, StateOverride } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
+import { getSenderCreatorOverride } from "./entryPointOverrides"
 import entrypointSimulationsJsonV7 from "../contracts/EntryPointSimulations.sol/EntryPointSimulations07.json" with {
     type: "json"
 }
@@ -86,10 +87,12 @@ const getEntryPointSimulation = ({
 
 export function getSimulationArgs({
     version,
-    config
+    config,
+    entryPoint
 }: {
     version: EntryPointVersion
     config: AltoConfig
+    entryPoint: Address
 }): SimulationArgs {
     if (config.useSimulationOverrides) {
         const pimlicoSimulationContractCodeOverride: ContractCodeOverride = {
@@ -110,7 +113,12 @@ export function getSimulationArgs({
 
         const stateOverride: StateOverride = [
             pimlicoSimulationContractCodeOverride,
-            entryPointSimulationContractCodeOverride
+            entryPoint
+                ? {
+                      ...entryPointSimulationContractCodeOverride,
+                      stateDiff: [getSenderCreatorOverride(entryPoint)]
+                  }
+                : entryPointSimulationContractCodeOverride
         ]
 
         return {

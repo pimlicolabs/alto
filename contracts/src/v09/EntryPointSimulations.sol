@@ -11,6 +11,7 @@ import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import "./overrides/UserOperationLib.sol";
 import "./EntryPoint.sol";
 import "../IEntryPointSimulations.sol";
+import "../SimulationOverrideHelper.sol";
 
 import {SIG_VALIDATION_SUCCESS, SIG_VALIDATION_FAILED} from "account-abstraction-v9/core/Helpers.sol";
 
@@ -31,6 +32,8 @@ contract EntryPointSimulations09 is EntryPoint, IEntryPointSimulations {
     IEntryPoint.AggregatorStakeInfo private NOT_AGGREGATED =
         IEntryPoint.AggregatorStakeInfo(address(0), IStakeManager.StakeInfo(0, 0));
 
+    SenderCreator private immutable _simSenderCreator = new SenderCreator();
+
     using UserOperationLib for PackedUserOperation;
 
     error innerCallResult(uint256 remainingGas);
@@ -40,6 +43,13 @@ contract EntryPointSimulations09 is EntryPoint, IEntryPointSimulations {
      * it as entrypoint, since the simulation functions don't check the signatures
      */
     constructor() {}
+
+    function senderCreator() public view virtual override returns (ISenderCreator) {
+        if (address(_simSenderCreator) == address(0)) {
+            return ISenderCreator(SimulationOverrideHelper.getSenderCreator09());
+        }
+        return _simSenderCreator;
+    }
 
     /// @notice simulate and validates a single userOperation (taken from EntryPoint simulation example)
     function simulateValidation(PackedUserOperation calldata userOp) public returns (ValidationResult memory) {

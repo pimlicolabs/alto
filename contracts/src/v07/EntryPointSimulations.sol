@@ -6,7 +6,9 @@ pragma solidity ^0.8.23;
 
 import {IEntryPointSimulations} from "../IEntryPointSimulations.sol";
 import {EntryPoint} from "./EntryPoint.sol";
+import {SimulationOverrideHelper} from "../SimulationOverrideHelper.sol";
 
+import {SenderCreator} from "account-abstraction-v7/core/SenderCreator.sol";
 import {SIG_VALIDATION_SUCCESS, SIG_VALIDATION_FAILED} from "account-abstraction-v7/core/Helpers.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {UserOperationLib} from "account-abstraction-v7/core/UserOperationLib.sol";
@@ -38,6 +40,13 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
      * it as entrypoint, since the simulation functions don't check the signatures
      */
     constructor() {}
+
+    function senderCreator() internal view virtual override returns (SenderCreator) {
+        if (address(_senderCreator) == address(0)) {
+            return SenderCreator(SimulationOverrideHelper.getSenderCreator07());
+        }
+        return _senderCreator;
+    }
 
     /// @notice simulate and validates a single userOperation (taken from EntryPoint simulation example)
     function simulateValidation(PackedUserOperation calldata userOp) public returns (ValidationResult memory) {

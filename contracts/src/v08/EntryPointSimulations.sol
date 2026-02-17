@@ -29,6 +29,8 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
     IEntryPoint.AggregatorStakeInfo private NOT_AGGREGATED =
         IEntryPoint.AggregatorStakeInfo(address(0), IStakeManager.StakeInfo(0, 0));
 
+    SenderCreator private immutable _simSenderCreator = new SenderCreator();
+
     using UserOperationLib for PackedUserOperation;
 
     error innerCallResult(uint256 remainingGas);
@@ -38,6 +40,13 @@ contract EntryPointSimulations08 is EntryPoint, IEntryPointSimulations {
      * it as entrypoint, since the simulation functions don't check the signatures
      */
     constructor() {}
+
+    function senderCreator() public view virtual override returns (ISenderCreator) {
+        if (address(_simSenderCreator) == address(0)) {
+            return ISenderCreator(SimulationOverrideHelper.getSenderCreator08());
+        }
+        return _simSenderCreator;
+    }
 
     /// @notice simulate and validates a single userOperation (taken from EntryPoint simulation example)
     function simulateValidation(PackedUserOperation calldata userOp) public returns (ValidationResult memory) {

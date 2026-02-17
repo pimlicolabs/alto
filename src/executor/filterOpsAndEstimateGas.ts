@@ -99,16 +99,17 @@ export const getFilterOpsResult = async ({
     const { userOps, version, entryPoint } = userOpBundle
     const simulationArgs = getSimulationArgs({
         version,
-        config
+        config,
+        entryPoint
     })
 
     // Get EIP-7702 stateOverrides.
     const eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
 
-    let simulationOverrides: StateOverride | undefined
+    let filterOpsOverrides: StateOverride | undefined
     if (codeOverrideSupport) {
-        simulationOverrides = getFilterOpsStateOverride({
+        filterOpsOverrides = getFilterOpsStateOverride({
             version,
             entryPoint,
             baseFeePerGas: networkBaseFee
@@ -175,7 +176,7 @@ export const getFilterOpsResult = async ({
 
     const stateOverride = mergeViemStateOverrides(
         eip7702Override,
-        simulationOverrides,
+        filterOpsOverrides,
         simulationArgs.stateOverride
     )
 

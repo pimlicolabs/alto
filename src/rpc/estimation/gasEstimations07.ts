@@ -71,7 +71,8 @@ export class GasEstimator07 {
 
         const simulationArgs = getSimulationArgs({
             version,
-            config: this.config
+            config: this.config,
+            entryPoint
         })
 
         if (!simulationArgs.entryPointSimulationAddress) {
@@ -459,30 +460,31 @@ export class GasEstimator07 {
         queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        const simulation = this.getSimulationCallContext({
-            entryPoint,
-            userOp,
-            stateOverride: await prepareSimulationOverrides07({
-                userOp,
-                queuedUserOps,
+        const { pimlicoSimulation, epSimulationsAddress, stateOverride } =
+            this.getSimulationCallContext({
                 entryPoint,
-                gasPriceManager: this.gasPriceManager,
-                userStateOverrides: stateOverrides,
-                config: this.config
+                userOp,
+                stateOverride: await prepareSimulationOverrides07({
+                    userOp,
+                    queuedUserOps,
+                    entryPoint,
+                    gasPriceManager: this.gasPriceManager,
+                    userStateOverrides: stateOverrides,
+                    config: this.config
+                })
             })
-        })
 
         try {
             const { result } =
-                await simulation.pimlicoSimulation.simulate.simulateHandleOp(
+                await pimlicoSimulation.simulate.simulateHandleOp(
                     [
-                        simulation.epSimulationsAddress,
+                        epSimulationsAddress,
                         entryPoint,
                         packUserOps(queuedUserOps),
                         toPackedUserOp(userOp)
                     ],
                     {
-                        stateOverride: simulation.stateOverride,
+                        stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
