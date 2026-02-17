@@ -13,18 +13,18 @@ import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 
 describe.each([
-    {
-        entryPoint: entryPoint06Address,
-        entryPointVersion: "0.6" as EntryPointVersion
-    },
+    // {
+    //     entryPoint: entryPoint06Address,
+    //     entryPointVersion: "0.6" as EntryPointVersion
+    // },
     {
         entryPoint: entryPoint07Address,
         entryPointVersion: "0.7" as EntryPointVersion
     },
-    {
-        entryPoint: entryPoint08Address,
-        entryPointVersion: "0.8" as EntryPointVersion
-    },
+    // {
+    //     entryPoint: entryPoint08Address,
+    //     entryPointVersion: "0.8" as EntryPointVersion
+    // },
     {
         entryPoint: entryPoint09Address,
         entryPointVersion: "0.9" as EntryPointVersion

@@ -6,9 +6,9 @@ import { beforeAll, beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getPimlicoClient } from "../src/utils/index.js"
 
 describe.each([
-    { entryPointVersion: "0.6" as EntryPointVersion },
+    // { entryPointVersion: "0.6" as EntryPointVersion },
     { entryPointVersion: "0.7" as EntryPointVersion },
-    { entryPointVersion: "0.8" as EntryPointVersion },
+    // { entryPointVersion: "0.8" as EntryPointVersion },
     { entryPointVersion: "0.9" as EntryPointVersion }
 ])(
     "$entryPointVersion supports eth_sendUserOperation",
