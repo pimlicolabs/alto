@@ -60,6 +60,36 @@ const getEntryPointSimulationCode = (
     }
 }
 
+const getConfiguredEntryPointSimulationAddress = ({
+    version,
+    config
+}: {
+    version: Exclude<EntryPointVersion, "0.6">
+    config: AltoConfig
+}): Address => {
+    let entryPointSimulationAddress: Address | undefined
+
+    switch (version) {
+        case "0.9":
+            entryPointSimulationAddress = config.entrypointSimulationContractV9
+            break
+        case "0.8":
+            entryPointSimulationAddress = config.entrypointSimulationContractV8
+            break
+        case "0.7":
+            entryPointSimulationAddress = config.entrypointSimulationContractV7
+            break
+    }
+
+    if (!entryPointSimulationAddress) {
+        throw new Error(
+            `Cannot find entryPointSimulations Address for version ${version}`
+        )
+    }
+
+    return entryPointSimulationAddress
+}
+
 export function getLocalPimlicoSimulationOverride(): LocalSimulationOverride {
     return {
         address: privateKeyToAddress(generatePrivateKey()),
@@ -125,17 +155,10 @@ export function getSimulationArgs({
     }
 
     const entryPointSimulationAddress =
-        version === "0.9"
-            ? config.entrypointSimulationContractV9
-            : version === "0.8"
-              ? config.entrypointSimulationContractV8
-              : config.entrypointSimulationContractV7
-
-    if (!entryPointSimulationAddress) {
-        throw new Error(
-            `Cannot find entryPointSimulations Address for version ${version}`
-        )
-    }
+        getConfiguredEntryPointSimulationAddress({
+            version,
+            config
+        })
 
     return {
         pimlicoSimulationAddress: config.pimlicoSimulationContract,
