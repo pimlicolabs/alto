@@ -802,7 +802,7 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
     },
     "use-simulation-overrides": {
         description:
-            "Run simulations using randomized code overrides instead of deploying simulation contracts",
+            "Simulations are made by using code overrides instead of relying on predeployed simulation contracts. Should be enabled on chains where the simulation contract can't be deployed",
         type: "boolean",
         require: true,
         default: false

@@ -123,6 +123,13 @@ const getViemChain = ({
 
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const args = parseArgs(args_)
+
+    if (args.useSimulationOverrides && args.deploySimulationsContract) {
+        throw new Error(
+            "deploy-simulations-contract must be disabled when use-simulation-overrides is enabled"
+        )
+    }
+
     const enableCors = args.enableCors
     const logger = args.json
         ? initProductionLogger(args.logLevel)
@@ -218,7 +225,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     // if flag is set, use utility wallet to deploy the simulations contract
-    if (args.deploySimulationsContract && !args.useSimulationOverrides) {
+    if (args.deploySimulationsContract) {
         const deployedContracts = await deploySimulationsContract({
             logger,
             args,
