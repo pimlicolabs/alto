@@ -800,7 +800,7 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         require: true,
         default: true
     },
-    "local-simulation": {
+    "use-simulation-overrides": {
         description:
             "Run simulations using randomized code overrides instead of deploying simulation contracts",
         type: "boolean",

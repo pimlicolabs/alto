@@ -219,7 +219,7 @@ export const debugArgsSchema = z.object({
     "expiration-check": z.boolean(),
     "dangerous-skip-user-operation-validation": z.boolean(),
     "deploy-simulations-contract": z.boolean(),
-    "local-simulation": z.boolean().default(false),
+    "use-simulation-overrides": z.boolean().default(false),
     "enable-cors": z.boolean()
 })
 

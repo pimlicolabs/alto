@@ -25,6 +25,10 @@ import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGasCa
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
+import {
+    getSimulationArgs,
+    mergeViemStateOverrides
+} from "../utils/localSimulation"
 import { getBundleGasLimit } from "./utils"
 
 export type FilterOpsResult =
@@ -93,14 +97,16 @@ export const getFilterOpsResult = async ({
         publicClient,
         pimlicoSimulationContract,
         codeOverrideSupport,
-        fixedGasLimitForEstimation
+        fixedGasLimitForEstimation,
+        useSimulationOverrides
     } = config
 
-    if (!pimlicoSimulationContract) {
-        throw new Error("pimlicoSimulationContract not set")
-    }
-
     const { userOps, version, entryPoint } = userOpBundle
+    const simulationArgs = getSimulationArgs({
+        version,
+        useSimulationOverrides,
+        configuredPimlicoSimulationAddress: pimlicoSimulationContract
+    })
 
     // Get EIP-7702 stateOverrides.
     const eip7702Override: StateOverride | undefined =
@@ -173,16 +179,17 @@ export const getFilterOpsResult = async ({
         }
     }
 
-    const stateOverride = [
-        ...(eip7702Override ?? []),
-        ...(simulationOverrides ?? [])
-    ]
+    const stateOverride = mergeViemStateOverrides(
+        eip7702Override,
+        simulationOverrides,
+        simulationArgs.stateOverride
+    )
 
     const callResult = await publicClient.call({
-        to: pimlicoSimulationContract,
+        to: simulationArgs.pimlicoSimulationAddress,
         gas: fixedGasLimitForEstimation,
         data,
-        ...(stateOverride.length > 0 ? { stateOverride } : {})
+        ...(stateOverride ? { stateOverride } : {})
     })
 
     if (!callResult.data) {

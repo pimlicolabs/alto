@@ -16,6 +16,10 @@ import { type Address, type Hex, type StateOverride, getContract } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {
+    getSimulationArgs,
+    mergeViemStateOverrides
+} from "../../utils/localSimulation"
+import {
     BinarySearchResultType,
     type SimulateBinarySearchResult,
     type SimulateHandleOpResult
@@ -56,23 +60,35 @@ export class GasEstimator07 {
         )
     }
 
-    private getSimulationContracts(
-        entryPoint: Address,
+    private getSimulationCallContext({
+        entryPoint,
+        userOp,
+        stateOverride
+    }: {
+        entryPoint: Address
         userOp: UserOperation07
-    ) {
+        stateOverride?: StateOverride
+    }) {
         const version = getViemEntryPointVersion(userOp, entryPoint)
-        const epSimulationsAddress = getEntryPointSimulationsAddress({
-            version,
-            config: this.config
-        })
+        const configuredEntryPointSimulationAddress =
+            getEntryPointSimulationsAddress({
+                version,
+                config: this.config
+            })
 
-        if (!epSimulationsAddress) {
+        if (
+            !this.config.useSimulationOverrides &&
+            !configuredEntryPointSimulationAddress
+        ) {
             const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
             this.logger.warn(errorMsg)
             throw new Error(errorMsg)
         }
 
-        if (!this.config.pimlicoSimulationContract) {
+        if (
+            !this.config.useSimulationOverrides &&
+            !this.config.pimlicoSimulationContract
+        ) {
             this.logger.warn("pimlicoSimulation must be provided")
             throw new RpcError(
                 "pimlicoSimulation must be provided",
@@ -80,13 +96,30 @@ export class GasEstimator07 {
             )
         }
 
+        const simulationArgs = getSimulationArgs({
+            version,
+            useSimulationOverrides: this.config.useSimulationOverrides,
+            configuredPimlicoSimulationAddress:
+                this.config.pimlicoSimulationContract,
+            configuredEntryPointSimulationAddress,
+            requireEntryPointSimulationAddress: true
+        })
+
+        const epSimulationsAddress =
+            simulationArgs.entryPointSimulationAddress as Address
+        const pimlicoSimulation = getContract({
+            abi: [...pimlicoSimulationsAbi, ...simulationErrors],
+            address: simulationArgs.pimlicoSimulationAddress,
+            client: this.config.publicClient
+        })
+
         return {
+            pimlicoSimulation,
             epSimulationsAddress,
-            pimlicoSimulation: getContract({
-                abi: [...pimlicoSimulationsAbi, ...simulationErrors],
-                address: this.config.pimlicoSimulationContract,
-                client: this.config.publicClient
-            })
+            stateOverride: mergeViemStateOverrides(
+                stateOverride,
+                simulationArgs.stateOverride
+            )
         }
     }
 
@@ -112,8 +145,11 @@ export class GasEstimator07 {
         initialMinGas?: bigint
         gasAllowance?: bigint
     }): Promise<SimulateBinarySearchResult> {
-        const { pimlicoSimulation, epSimulationsAddress } =
-            this.getSimulationContracts(entryPoint, targetUserOp)
+        const simulation = this.getSimulationCallContext({
+            entryPoint,
+            userOp: targetUserOp,
+            stateOverride
+        })
 
         // Check if we've hit the retry limit
         if (retryCount > this.config.binarySearchMaxRetries) {
@@ -128,9 +164,11 @@ export class GasEstimator07 {
         const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
-            const { result } = await pimlicoSimulation.simulate[methodName](
+            const { result } = await simulation.pimlicoSimulation.simulate[
+                methodName
+            ](
                 [
-                    epSimulationsAddress,
+                    simulation.epSimulationsAddress,
                     entryPoint,
                     packedQueuedOps,
                     packedTargetOp,
@@ -139,7 +177,7 @@ export class GasEstimator07 {
                     gasAllowance ?? this.config.binarySearchGasAllowance
                 ],
                 {
-                    stateOverride,
+                    stateOverride: simulation.stateOverride,
                     gas: this.config.fixedGasLimitForEstimation
                 }
             )
@@ -210,25 +248,29 @@ export class GasEstimator07 {
         targetUserOp: UserOperation07
         stateOverride?: StateOverride
     }): Promise<SimulateHandleOpResult> {
-        const { pimlicoSimulation, epSimulationsAddress } =
-            this.getSimulationContracts(entryPoint, targetUserOp)
+        const simulation = this.getSimulationCallContext({
+            entryPoint,
+            userOp: targetUserOp,
+            stateOverride
+        })
 
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
-            const result = await pimlicoSimulation.simulate.simulateHandleOp(
-                [
-                    epSimulationsAddress,
-                    entryPoint,
-                    packedQueuedOps,
-                    packedTargetOp
-                ],
-                {
-                    stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
-                }
-            )
+            const result =
+                await simulation.pimlicoSimulation.simulate.simulateHandleOp(
+                    [
+                        simulation.epSimulationsAddress,
+                        entryPoint,
+                        packedQueuedOps,
+                        packedTargetOp
+                    ],
+                    {
+                        stateOverride: simulation.stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
             return {
                 result: "execution",
                 data: {
@@ -265,17 +307,20 @@ export class GasEstimator07 {
               code: number
           }
     > {
-        const { pimlicoSimulation, epSimulationsAddress } =
-            this.getSimulationContracts(entryPoint, targetUserOp)
+        const simulation = this.getSimulationCallContext({
+            entryPoint,
+            userOp: targetUserOp,
+            stateOverride
+        })
 
         const packedQueuedOps = packUserOps(queuedUserOps)
         const packedTargetOp = toPackedUserOp(targetUserOp)
 
         try {
             const { result } =
-                await pimlicoSimulation.simulate.simulateAndEstimateGas(
+                await simulation.pimlicoSimulation.simulate.simulateAndEstimateGas(
                     [
-                        epSimulationsAddress,
+                        simulation.epSimulationsAddress,
                         entryPoint,
                         packedQueuedOps,
                         packedTargetOp,
@@ -284,7 +329,7 @@ export class GasEstimator07 {
                         this.config.binarySearchGasAllowance
                     ],
                     {
-                        stateOverride,
+                        stateOverride: simulation.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -396,26 +441,27 @@ export class GasEstimator07 {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
     }) {
-        const { epSimulationsAddress, pimlicoSimulation } =
-            this.getSimulationContracts(entryPoint, userOp)
-
-        const viemStateOverride = prepareStateOverride({
-            userOps: [userOp],
-            queuedUserOps,
-            config: this.config
+        const simulation = this.getSimulationCallContext({
+            entryPoint,
+            userOp,
+            stateOverride: prepareStateOverride({
+                userOps: [userOp],
+                queuedUserOps,
+                config: this.config
+            })
         })
 
         try {
             const { result } =
-                await pimlicoSimulation.simulate.simulateValidation(
+                await simulation.pimlicoSimulation.simulate.simulateValidation(
                     [
-                        epSimulationsAddress,
+                        simulation.epSimulationsAddress,
                         entryPoint,
                         packUserOps(queuedUserOps),
                         toPackedUserOp(userOp)
                     ],
                     {
-                        stateOverride: viemStateOverride,
+                        stateOverride: simulation.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -440,29 +486,30 @@ export class GasEstimator07 {
         queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        const { epSimulationsAddress, pimlicoSimulation } =
-            this.getSimulationContracts(entryPoint, userOp)
-
-        const viemStateOverride = await prepareSimulationOverrides07({
-            userOp,
-            queuedUserOps,
+        const simulation = this.getSimulationCallContext({
             entryPoint,
-            gasPriceManager: this.gasPriceManager,
-            userStateOverrides: stateOverrides,
-            config: this.config
+            userOp,
+            stateOverride: await prepareSimulationOverrides07({
+                userOp,
+                queuedUserOps,
+                entryPoint,
+                gasPriceManager: this.gasPriceManager,
+                userStateOverrides: stateOverrides,
+                config: this.config
+            })
         })
 
         try {
             const { result } =
-                await pimlicoSimulation.simulate.simulateHandleOp(
+                await simulation.pimlicoSimulation.simulate.simulateHandleOp(
                     [
-                        epSimulationsAddress,
+                        simulation.epSimulationsAddress,
                         entryPoint,
                         packUserOps(queuedUserOps),
                         toPackedUserOp(userOp)
                     ],
                     {
-                        stateOverride: viemStateOverride,
+                        stateOverride: simulation.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )

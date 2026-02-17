@@ -47,9 +47,9 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
-    if (config.localSimulation && !config.codeOverrideSupport) {
+    if (config.useSimulationOverrides && !config.codeOverrideSupport) {
         throw new Error(
-            "local-simulation requires code-override-support to be enabled"
+            "use-simulation-overrides requires code-override-support to be enabled"
         )
     }
 
@@ -218,7 +218,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     // if flag is set, use utility wallet to deploy the simulations contract
-    if (args.deploySimulationsContract && !args.localSimulation) {
+    if (args.deploySimulationsContract && !args.useSimulationOverrides) {
         const deployedContracts = await deploySimulationsContract({
             logger,
             args,
