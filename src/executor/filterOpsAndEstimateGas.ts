@@ -93,11 +93,8 @@ export const getFilterOpsResult = async ({
         revertReason: Hex
     }[]
 }> => {
-    const {
-        publicClient,
-        codeOverrideSupport,
-        fixedGasLimitForEstimation
-    } = config
+    const { publicClient, codeOverrideSupport, fixedGasLimitForEstimation } =
+        config
 
     const { userOps, version, entryPoint } = userOpBundle
     const simulationArgs = getSimulationArgs({

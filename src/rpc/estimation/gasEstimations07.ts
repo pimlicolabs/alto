@@ -69,7 +69,9 @@ export class GasEstimator07 {
     }) {
         const version = getViemEntryPointVersion(userOp, entryPoint)
         if (version === "0.6") {
-            throw new Error("Unsupported EntryPoint version 0.6 in GasEstimator07")
+            throw new Error(
+                "Unsupported EntryPoint version 0.6 in GasEstimator07"
+            )
         }
 
         const simulationArgs = getSimulationArgs({
