@@ -800,6 +800,13 @@ export const debugOptions: CliCommandOptions<IDebugArgsInput> = {
         require: true,
         default: true
     },
+    "local-simulation": {
+        description:
+            "Run simulations using randomized code overrides instead of deploying simulation contracts",
+        type: "boolean",
+        require: true,
+        default: false
+    },
     "enable-cors": {
         description: "Enable CORS for local bundler access",
         type: "boolean",

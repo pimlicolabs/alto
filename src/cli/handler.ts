@@ -47,6 +47,12 @@ const preFlightChecks = async (config: AltoConfig): Promise<void> => {
         }
     }
 
+    if (config.localSimulation && !config.codeOverrideSupport) {
+        throw new Error(
+            "local-simulation requires code-override-support to be enabled"
+        )
+    }
+
     if (config.pimlicoSimulationContract) {
         const address = config.pimlicoSimulationContract
         const code = await config.publicClient.getCode({
@@ -212,7 +218,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     }
 
     // if flag is set, use utility wallet to deploy the simulations contract
-    if (args.deploySimulationsContract) {
+    if (args.deploySimulationsContract && !args.localSimulation) {
         const deployedContracts = await deploySimulationsContract({
             logger,
             args,
