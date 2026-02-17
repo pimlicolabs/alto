@@ -10,10 +10,8 @@ import {
 import {
     type EntryPointVersion,
     type UserOperation,
-    entryPoint06Address,
     entryPoint07Abi,
     entryPoint07Address,
-    entryPoint08Address,
     entryPoint09Address,
     getUserOperationHash,
     toPackedUserOperation

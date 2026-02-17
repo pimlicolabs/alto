@@ -17,9 +17,7 @@ import {
     type EntryPointVersion,
     type UserOperation,
     createBundlerClient,
-    entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address,
     entryPoint09Address
 } from "viem/account-abstraction"
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"

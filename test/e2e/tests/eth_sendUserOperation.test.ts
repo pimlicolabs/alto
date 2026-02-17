@@ -22,9 +22,7 @@ import {
     type EntryPointVersion,
     type UserOperation,
     UserOperationReceiptNotFoundError,
-    entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address,
     entryPoint09Address
 } from "viem/account-abstraction"
 import {

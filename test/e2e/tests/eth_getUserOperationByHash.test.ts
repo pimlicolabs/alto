@@ -3,9 +3,7 @@ import {
     type EntryPointVersion,
     UserOperationNotFoundError,
     UserOperationReceiptNotFoundError,
-    entryPoint06Address,
     entryPoint07Address,
-    entryPoint08Address,
     entryPoint09Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
