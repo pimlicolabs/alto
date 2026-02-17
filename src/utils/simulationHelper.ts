@@ -172,10 +172,7 @@ export const mergeViemStateOverrides = (
     const flat = overrides.flatMap((override) => override ?? [])
     if (flat.length === 0) return undefined
 
-    const byAddress = new Map<
-        Address,
-        (typeof flat)[number]
-    >()
+    const byAddress = new Map<Address, (typeof flat)[number]>()
 
     for (const entry of flat) {
         const existing = byAddress.get(entry.address)
