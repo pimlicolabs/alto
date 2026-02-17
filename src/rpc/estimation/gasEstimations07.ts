@@ -68,16 +68,12 @@ export class GasEstimator07 {
         stateOverride?: StateOverride
     }) {
         const version = getViemEntryPointVersion(userOp, entryPoint)
-        if (version === "0.6") {
-            throw new Error(
-                "Unsupported EntryPoint version 0.6 in GasEstimator07"
-            )
-        }
 
         const simulationArgs = getSimulationArgs({
             version,
             config: this.config
         })
+
         if (!simulationArgs.entryPointSimulationAddress) {
             throw new Error(
                 `Cannot find entryPointSimulations Address for version ${version}`
