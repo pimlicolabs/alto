@@ -95,17 +95,14 @@ export const getFilterOpsResult = async ({
 }> => {
     const {
         publicClient,
-        pimlicoSimulationContract,
         codeOverrideSupport,
-        fixedGasLimitForEstimation,
-        useSimulationOverrides
+        fixedGasLimitForEstimation
     } = config
 
     const { userOps, version, entryPoint } = userOpBundle
     const simulationArgs = getSimulationArgs({
         version,
-        useSimulationOverrides,
-        pimlicoSimulationAddress: pimlicoSimulationContract
+        config
     })
 
     // Get EIP-7702 stateOverrides.

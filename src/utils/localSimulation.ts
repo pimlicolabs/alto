@@ -13,6 +13,7 @@ import pimlicoSimulationsJson from "../contracts/PimlicoSimulations.sol/PimlicoS
     type: "json"
 }
 import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import type { AltoConfig } from "../createConfig"
 
 type LocalSimulationContracts = {
     pimlicoSimulationAddress: Address
@@ -22,9 +23,21 @@ type LocalSimulationContracts = {
 
 type SimulationArgs = {
     pimlicoSimulationAddress: Address
-    entryPointSimulationAddress?: Address
     stateOverride?: StateOverride
 }
+
+type EntryPointSimulationArgs = SimulationArgs & {
+    entryPointSimulationAddress: Address
+}
+
+type SimulationConfig = Pick<
+    AltoConfig,
+    | "useSimulationOverrides"
+    | "pimlicoSimulationContract"
+    | "entrypointSimulationContractV7"
+    | "entrypointSimulationContractV8"
+    | "entrypointSimulationContractV9"
+>
 
 type LocalSimulationOverride = {
     address: Address
@@ -88,18 +101,33 @@ export function getLocalSimulationContracts({
 
 export function getSimulationArgs({
     version,
-    useSimulationOverrides,
-    pimlicoSimulationAddress,
-    entryPointSimulationAddress,
-    requireEntryPointSimulationAddress = false
+    config
+}: {
+    version: "0.6"
+    config: SimulationConfig
+}): SimulationArgs
+export function getSimulationArgs({
+    version,
+    config
+}: {
+    version: Exclude<EntryPointVersion, "0.6">
+    config: SimulationConfig
+}): EntryPointSimulationArgs
+export function getSimulationArgs({
+    version,
+    config
 }: {
     version: EntryPointVersion
-    useSimulationOverrides: boolean
-    pimlicoSimulationAddress?: Address
-    entryPointSimulationAddress?: Address
-    requireEntryPointSimulationAddress?: boolean
-}): SimulationArgs {
-    if (useSimulationOverrides) {
+    config: SimulationConfig
+}): SimulationArgs | EntryPointSimulationArgs
+export function getSimulationArgs({
+    version,
+    config
+}: {
+    version: EntryPointVersion
+    config: SimulationConfig
+}): SimulationArgs | EntryPointSimulationArgs {
+    if (config.useSimulationOverrides) {
         if (version === "0.6") {
             const pimlicoSimulationOverride =
                 getLocalPimlicoSimulationOverride()
@@ -119,19 +147,32 @@ export function getSimulationArgs({
         }
     }
 
-    if (!pimlicoSimulationAddress) {
+    if (!config.pimlicoSimulationContract) {
         throw new Error("pimlicoSimulationContract not set")
     }
 
-    if (requireEntryPointSimulationAddress && !entryPointSimulationAddress) {
+    if (version === "0.6") {
+        return {
+            pimlicoSimulationAddress: config.pimlicoSimulationContract
+        }
+    }
+
+    const entryPointSimulationAddress =
+        version === "0.9"
+            ? config.entrypointSimulationContractV9
+            : version === "0.8"
+              ? config.entrypointSimulationContractV8
+              : config.entrypointSimulationContractV7
+
+    if (!entryPointSimulationAddress) {
         throw new Error(
             `Cannot find entryPointSimulations Address for version ${version}`
         )
     }
 
     return {
-        pimlicoSimulationAddress: pimlicoSimulationAddress,
-        entryPointSimulationAddress: entryPointSimulationAddress
+        pimlicoSimulationAddress: config.pimlicoSimulationContract,
+        entryPointSimulationAddress
     }
 }
 

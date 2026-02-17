@@ -1,14 +1,12 @@
 import type { GasPriceManager } from "@alto/handlers"
 import {
     ERC7769Errors,
-    RpcError,
     type StateOverrides,
     type UserOperation07,
     pimlicoSimulationsAbi
 } from "@alto/types"
 import {
     type Logger,
-    getEntryPointSimulationsAddress,
     getViemEntryPointVersion,
     toPackedUserOp
 } from "@alto/utils"
@@ -70,42 +68,15 @@ export class GasEstimator07 {
         stateOverride?: StateOverride
     }) {
         const version = getViemEntryPointVersion(userOp, entryPoint)
-        const entryPointSimulationAddress =
-            getEntryPointSimulationsAddress({
-                version,
-                config: this.config
-            })
-
-        if (
-            !this.config.useSimulationOverrides &&
-            !entryPointSimulationAddress
-        ) {
-            const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
-            this.logger.warn(errorMsg)
-            throw new Error(errorMsg)
-        }
-
-        if (
-            !this.config.useSimulationOverrides &&
-            !this.config.pimlicoSimulationContract
-        ) {
-            this.logger.warn("pimlicoSimulation must be provided")
-            throw new RpcError(
-                "pimlicoSimulation must be provided",
-                ERC7769Errors.InvalidFields
-            )
+        if (version === "0.6") {
+            throw new Error("Unsupported EntryPoint version 0.6 in GasEstimator07")
         }
 
         const simulationArgs = getSimulationArgs({
             version,
-            useSimulationOverrides: this.config.useSimulationOverrides,
-            pimlicoSimulationAddress: this.config.pimlicoSimulationContract,
-            entryPointSimulationAddress,
-            requireEntryPointSimulationAddress: true
+            config: this.config
         })
 
-        const epSimulationsAddress =
-            simulationArgs.entryPointSimulationAddress as Address
         const pimlicoSimulation = getContract({
             abi: [...pimlicoSimulationsAbi, ...simulationErrors],
             address: simulationArgs.pimlicoSimulationAddress,
@@ -114,7 +85,7 @@ export class GasEstimator07 {
 
         return {
             pimlicoSimulation,
-            epSimulationsAddress,
+            epSimulationsAddress: simulationArgs.entryPointSimulationAddress,
             stateOverride: mergeViemStateOverrides(
                 stateOverride,
                 simulationArgs.stateOverride
