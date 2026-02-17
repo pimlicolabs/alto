@@ -22,8 +22,7 @@ import {
     type EntryPointVersion,
     type UserOperation,
     UserOperationReceiptNotFoundError,
-    entryPoint07Address,
-    entryPoint09Address
+    entryPoint07Address
 } from "viem/account-abstraction"
 import {
     generatePrivateKey,

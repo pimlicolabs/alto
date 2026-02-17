@@ -4,8 +4,7 @@ import {
     type EntryPointVersion,
     type UserOperation,
     type UserOperationReceipt,
-    entryPoint07Address,
-    entryPoint09Address
+    entryPoint07Address
 } from "viem/account-abstraction"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"

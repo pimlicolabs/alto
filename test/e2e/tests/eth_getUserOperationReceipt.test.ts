@@ -12,7 +12,6 @@ import {
     type UserOperation,
     entryPoint07Abi,
     entryPoint07Address,
-    entryPoint09Address,
     getUserOperationHash,
     toPackedUserOperation
 } from "viem/account-abstraction"

@@ -11,8 +11,7 @@ import {
 import {
     type EntryPointVersion,
     type UserOperation,
-    entryPoint07Address,
-    entryPoint09Address
+    entryPoint07Address
 } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
