@@ -41,6 +41,13 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
      */
     constructor() {}
 
+    function _thisContract() internal view returns (EntryPointSimulations07) {
+        if (address(thisContract) == address(0)) {
+            return EntryPointSimulations07(payable(SimulationOverrideHelper.getEntryPointSimulations()));
+        }
+        return thisContract;
+    }
+
     function senderCreator() internal view virtual override returns (SenderCreator) {
         if (address(_senderCreator) == address(0)) {
             return SenderCreator(SimulationOverrideHelper.getSenderCreator07());
@@ -175,7 +182,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
         external
         returns (bool success, bytes memory result)
     {
-        try IEntryPoint(payable(entryPoint)).delegateAndRevert{gas: gas}(address(thisContract), payload) {}
+        try IEntryPoint(payable(entryPoint)).delegateAndRevert{gas: gas}(address(_thisContract()), payload) {}
         catch (bytes memory reason) {
             if (reason.length < 4) {
                 // Calls that revert due to out of gas revert with empty bytes.
@@ -227,7 +234,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
             minGas = initialMinGas;
 
             bytes memory payload = encodeBinarySearchCalldata(mode, targetUserOp, gasleft());
-            (targetSuccess, targetResult) = thisContract.simulateCall(entryPoint, payload, gasleft());
+            (targetSuccess, targetResult) = _thisContract().simulateCall(entryPoint, payload, gasleft());
 
             // If the call reverts then don't binary search.
             if (!targetSuccess) {
@@ -241,7 +248,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
             // Find the minGas (reduces number of iterations + checks if the call reverts).
             uint256 remainingGas = gasleft();
             bytes memory payload = encodeBinarySearchCalldata(mode, targetUserOp, gasleft());
-            (targetSuccess, targetResult) = thisContract.simulateCall(entryPoint, payload, gasleft());
+            (targetSuccess, targetResult) = _thisContract().simulateCall(entryPoint, payload, gasleft());
             minGas = remainingGas - gasleft();
 
             // If the call reverts then don't binary search.
@@ -270,7 +277,7 @@ contract EntryPointSimulations07 is EntryPoint, IEntryPointSimulations {
             uint256 midGas = (minGas + maxGas) / 2;
 
             bytes memory payload = encodeBinarySearchCalldata(mode, targetUserOp, midGas);
-            (bool success, bytes memory result) = thisContract.simulateCall(entryPoint, payload, gasleft());
+            (bool success, bytes memory result) = _thisContract().simulateCall(entryPoint, payload, gasleft());
 
             if (success) {
                 // If the call is successful, reduce the maxGas and store this as the candidate

@@ -7,6 +7,7 @@ import "@openzeppelin-v4.8.3/contracts/utils/StorageSlot.sol";
 library SimulationOverrideHelper {
     // Storage slot keys
     bytes32 private constant SENDER_CREATOR_SLOT = keccak256("SENDER_CREATOR");
+    bytes32 private constant ENTRY_POINT_SIMULATIONS_SLOT = keccak256("ENTRY_POINT_SIMULATIONS");
     bytes32 private constant BLOCK_BASE_FEE_PER_GAS_SLOT = keccak256("BLOCK_BASE_FEE_PER_GAS");
     bytes32 private constant BLOCK_TIMESTAMP_SLOT = keccak256("BLOCK_TIMESTAMP");
 
@@ -38,6 +39,11 @@ library SimulationOverrideHelper {
     function getSenderCreator09() internal view returns (address) {
         address creator = StorageSlot.getAddressSlot(SENDER_CREATOR_SLOT).value;
         return creator == address(0) ? DEFAULT_SENDER_CREATOR_09 : creator;
+    }
+
+    // Get the EntryPointSimulations address (used when code overrides zero out the thisContract immutable)
+    function getEntryPointSimulations() internal view returns (address) {
+        return StorageSlot.getAddressSlot(ENTRY_POINT_SIMULATIONS_SLOT).value;
     }
 
     // Get the effective block base fee per gas

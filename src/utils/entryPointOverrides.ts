@@ -38,6 +38,18 @@ export const getSenderCreatorOverride = (entryPoint: Address) => {
     }
 }
 
+export const getEntryPointSimulationsOverride = (
+    entryPointSimulationsAddress: Address
+) => {
+    const slot = keccak256(toHex("ENTRY_POINT_SIMULATIONS"))
+    const value = pad(entryPointSimulationsAddress, { size: 32 })
+
+    return {
+        slot,
+        value
+    }
+}
+
 export const getFilterOpsStateOverride = ({
     version,
     entryPoint,
