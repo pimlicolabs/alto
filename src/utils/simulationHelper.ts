@@ -1,6 +1,5 @@
 import type { Address, Hex, StateOverride } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
-import { generatePrivateKey, privateKeyToAddress } from "viem/accounts"
 import entrypointSimulationsJsonV7 from "../contracts/EntryPointSimulations.sol/EntryPointSimulations07.json" with {
     type: "json"
 }
@@ -13,9 +12,10 @@ import entrypointSimulationsJsonV9 from "../contracts/EntryPointSimulations.sol/
 import pimlicoSimulationsJson from "../contracts/PimlicoSimulations.sol/PimlicoSimulations.json" with {
     type: "json"
 }
-import type { AltoConfig } from "../createConfig"
+import { privateKeyToAddress, generatePrivateKey } from "viem/accounts"
+import { AltoConfig } from "../createConfig"
 
-type LocalSimulationContracts = {
+type SimulationContractCodeOverride = {
     pimlicoSimulationAddress: Address
     entryPointSimulationAddress: Address
     stateOverride: StateOverride
@@ -27,14 +27,14 @@ type SimulationArgs = {
     stateOverride?: StateOverride
 }
 
-type LocalSimulationOverride = {
+type ContractCodeOverride = {
     address: Address
     code: Hex
 }
 
-const getEntryPointSimulationCode = (
+const getEntryPointSimulationContractCodeOverride = (
     version: EntryPointVersion
-): LocalSimulationOverride => {
+): ContractCodeOverride => {
     const address = privateKeyToAddress(generatePrivateKey())
 
     switch (version) {
@@ -90,29 +90,32 @@ const getEntryPointSimulation = ({
     return entryPointSimulationAddress
 }
 
-export function getLocalPimlicoSimulationOverride(): LocalSimulationOverride {
+export function getPimlicoSimulationContractCodeOverride(): ContractCodeOverride {
     return {
         address: privateKeyToAddress(generatePrivateKey()),
         code: pimlicoSimulationsJson.deployedBytecode.object as Hex
     }
 }
 
-export function getLocalSimulationContracts({
+export function getSimulationContractCodeOverride({
     version
 }: {
     version: EntryPointVersion
-}): LocalSimulationContracts {
-    const pimlicoSimulationOverride = getLocalPimlicoSimulationOverride()
-    const entryPointSimulationOverride = getEntryPointSimulationCode(version)
+}): SimulationContractCodeOverride {
+    const pimlicoSimulationContractCodeOverride =
+        getPimlicoSimulationContractCodeOverride()
+    const entryPointSimulationContractCodeOverride =
+        getEntryPointSimulationContractCodeOverride(version)
 
     const stateOverride: StateOverride = [
-        pimlicoSimulationOverride,
-        entryPointSimulationOverride
+        pimlicoSimulationContractCodeOverride,
+        entryPointSimulationContractCodeOverride
     ]
 
     return {
-        pimlicoSimulationAddress: pimlicoSimulationOverride.address,
-        entryPointSimulationAddress: entryPointSimulationOverride.address,
+        pimlicoSimulationAddress: pimlicoSimulationContractCodeOverride.address,
+        entryPointSimulationAddress:
+            entryPointSimulationContractCodeOverride.address,
         stateOverride
     }
 }
@@ -126,21 +129,23 @@ export function getSimulationArgs({
 }): SimulationArgs {
     if (config.useSimulationOverrides) {
         if (version === "0.6") {
-            const pimlicoSimulationOverride =
-                getLocalPimlicoSimulationOverride()
+            const pimlicoSimulationContractCodeOverride =
+                getPimlicoSimulationContractCodeOverride()
             return {
-                pimlicoSimulationAddress: pimlicoSimulationOverride.address,
-                stateOverride: [pimlicoSimulationOverride]
+                pimlicoSimulationAddress:
+                    pimlicoSimulationContractCodeOverride.address,
+                stateOverride: [pimlicoSimulationContractCodeOverride]
             }
         }
 
-        const simulationOverrides = getLocalSimulationContracts({ version })
+        const simulationContractCodeOverride =
+            getSimulationContractCodeOverride({ version })
         return {
             pimlicoSimulationAddress:
-                simulationOverrides.pimlicoSimulationAddress,
+                simulationContractCodeOverride.pimlicoSimulationAddress,
             entryPointSimulationAddress:
-                simulationOverrides.entryPointSimulationAddress,
-            stateOverride: simulationOverrides.stateOverride
+                simulationContractCodeOverride.entryPointSimulationAddress,
+            stateOverride: simulationContractCodeOverride.stateOverride
         }
     }
 
