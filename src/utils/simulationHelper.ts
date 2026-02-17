@@ -114,16 +114,25 @@ export function getSimulationArgs({
         const entryPointSimulationContractCodeOverride =
             getEntryPointSimulationOverride(version)
 
+        const epSimStateDiff = [
+            getSenderCreatorOverride(entryPoint),
+            getEntryPointSimulationsOverride(
+                entryPointSimulationContractCodeOverride.address
+            )
+        ]
+
         const stateOverride: StateOverride = [
             pimlicoSimulationContractCodeOverride,
             {
                 ...entryPointSimulationContractCodeOverride,
-                stateDiff: [
-                    getSenderCreatorOverride(entryPoint),
-                    getEntryPointSimulationsOverride(
-                        entryPointSimulationContractCodeOverride.address
-                    )
-                ]
+                stateDiff: epSimStateDiff
+            },
+            {
+                // Set overrides on the real EntryPoint storage too,
+                // since EntryPointSimulations code runs via delegateAndRevert
+                // in the EntryPoint's storage context.
+                address: entryPoint,
+                stateDiff: epSimStateDiff
             }
         ]
 
@@ -160,6 +169,37 @@ export function getSimulationArgs({
 export const mergeViemStateOverrides = (
     ...overrides: (StateOverride | undefined)[]
 ): StateOverride | undefined => {
-    const merged = overrides.flatMap((override) => override ?? [])
-    return merged.length > 0 ? merged : undefined
+    const flat = overrides.flatMap((override) => override ?? [])
+    if (flat.length === 0) return undefined
+
+    const byAddress = new Map<
+        Address,
+        (typeof flat)[number]
+    >()
+
+    for (const entry of flat) {
+        const existing = byAddress.get(entry.address)
+        if (!existing) {
+            byAddress.set(entry.address, { ...entry })
+            continue
+        }
+
+        // Merge: last defined value wins for code/balance/nonce
+        if (entry.code !== undefined) existing.code = entry.code
+        if (entry.balance !== undefined) existing.balance = entry.balance
+        if (entry.nonce !== undefined) existing.nonce = entry.nonce
+
+        // Concatenate stateDiff arrays
+        if (entry.stateDiff) {
+            existing.stateDiff = [
+                ...(existing.stateDiff ?? []),
+                ...entry.stateDiff
+            ]
+        }
+
+        // state (full override) — last one wins
+        if (entry.state) existing.state = entry.state
+    }
+
+    return [...byAddress.values()]
 }

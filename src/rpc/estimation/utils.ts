@@ -183,7 +183,7 @@ export function decodeSimulateHandleOpError(
         })
 
         if (!rawRevertBytes) {
-            logger.warn("Failed to find raw revert bytes")
+            logger.error({ err: error }, "Failed to find raw revert bytes")
             throw new Error(
                 "Unknown error, could not parse simulate validation result."
             )
