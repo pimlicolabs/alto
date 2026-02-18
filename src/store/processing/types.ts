@@ -8,5 +8,4 @@ export interface ProcessingStore {
     isProcessing(userOpHash: Hex): Promise<boolean>
     wouldConflict(userOp: UserOperation): Promise<ConflictType | undefined>
     flush(): Promise<UserOpInfo[]>
-    clearAllProcessing(): Promise<void>
 }

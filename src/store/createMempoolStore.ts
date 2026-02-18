@@ -298,17 +298,6 @@ export const createMempoolStore = ({
         flushProcessing: async (entryPoint: Address) => {
             const { processing } = getStoreHandlers(entryPoint)
             return await processing.flush()
-        },
-
-        // Clear all processing state for an entrypoint (used on startup)
-        clearAllProcessing: async (entryPoint: Address) => {
-            try {
-                const { processing } = getStoreHandlers(entryPoint)
-                await processing.clearAllProcessing()
-            } catch (err) {
-                logger.error({ err }, "Failed to clear all processing entries")
-                sentry.captureException(err)
-            }
         }
     }
 }
