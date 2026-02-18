@@ -108,5 +108,4 @@ export class InMemoryProcessingStore implements ProcessingStore {
         await this.removeProcessing(userOpInfos)
         return userOpInfos
     }
-
 }

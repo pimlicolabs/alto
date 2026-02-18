@@ -173,5 +173,4 @@ export class RedisProcessingStore implements ProcessingStore {
 
         return userOpInfos
     }
-
 }
