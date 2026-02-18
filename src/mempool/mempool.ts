@@ -26,7 +26,7 @@ import {
 } from "@alto/utils"
 import { type Hex, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { calculateAA95GasFloor } from "../executor/utils"
+import { calculateAA95GasFloor, getUserOpHashes } from "../executor/utils"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 import {
     type InterfaceReputationManager,
@@ -792,6 +792,10 @@ export class Mempool {
                         entryPoint,
                         userOpInfos: unusedUserOps
                     })
+                    this.logger.info(
+                        { userOpHashes: getUserOpHashes(unusedUserOps) },
+                        "Resubmitted processing userOps to outstanding (max bundle count reached)"
+                    )
                 }
                 break
             }
@@ -850,6 +854,10 @@ export class Mempool {
                             entryPoint,
                             userOpInfos: [currentUserOp]
                         })
+                        this.logger.info(
+                            { userOpHashes: getUserOpHashes([currentUserOp]) },
+                            "Resubmitted processing userOp to outstanding (skipped)"
+                        )
                     }
                     // Continue with next op from batch
                     continue

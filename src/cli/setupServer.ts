@@ -266,19 +266,6 @@ export const setupServer = async ({
         eventManager
     })
 
-    if (config.enableHorizontalScaling) {
-        const hsLogger = config.getLogger(
-            { module: "root" },
-            { level: config.logLevel }
-        )
-        await Promise.all(
-            config.entrypoints.map(async (entryPoint) => {
-                await mempool.clearAllProcessing(entryPoint)
-            })
-        )
-        hsLogger.info("Flushed processing stores for startup")
-    }
-
     const executor = getExecutor({
         config,
         eventManager
@@ -372,8 +359,10 @@ export const setupServer = async ({
     const gracefulShutdown = async (signal: string) => {
         rootLogger.info(`${signal} received, shutting down`)
 
-        await server.stop()
-        rootLogger.info("server stopped")
+        server.stop().catch((err) => {
+            rootLogger.error({ err }, "error stopping server")
+        })
+        rootLogger.info("server stopping")
 
         await persistShutdownState({
             mempool,

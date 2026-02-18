@@ -113,6 +113,10 @@ async function resubmitProcessingToOutstanding({
             const processingUserOps = await mempool.flushProcessing(entryPoint)
 
             if (processingUserOps.length === 0) {
+                logger.info(
+                    { entryPoint },
+                    "[SHUTDOWN] No processing userOps to resubmit"
+                )
                 return
             }
 
