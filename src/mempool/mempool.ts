@@ -227,6 +227,10 @@ export class Mempool {
         return await this.store.flushProcessing(entryPoint)
     }
 
+    async clearAllProcessing(entryPoint: Address): Promise<void> {
+        await this.store.clearAllProcessing(entryPoint)
+    }
+
     // === Methods for entity management === //
 
     async checkEntityMultipleRoleViolation(

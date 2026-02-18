@@ -108,4 +108,12 @@ export class InMemoryProcessingStore implements ProcessingStore {
         await this.removeProcessing(userOpInfos)
         return userOpInfos
     }
+
+    async clearAllProcessing(): Promise<void> {
+        this.processingUserOpsSet.clear()
+        this.processingSenderNonceSet.clear()
+        this.processingDeploymentSet.clear()
+        this.processingEip7702AuthSet.clear()
+        this.processingUserOps.clear()
+    }
 }
