@@ -306,10 +306,7 @@ export const createMempoolStore = ({
                 const { processing } = getStoreHandlers(entryPoint)
                 await processing.clearAllProcessing()
             } catch (err) {
-                logger.error(
-                    { err },
-                    "Failed to clear all processing entries"
-                )
+                logger.error({ err }, "Failed to clear all processing entries")
                 sentry.captureException(err)
             }
         }
