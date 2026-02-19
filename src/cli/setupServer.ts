@@ -324,6 +324,10 @@ export const setupServer = async ({
         { level: config.logLevel }
     )
 
+    if (config.enableHorizontalScaling) {
+        await mempool.clearProcessing()
+    }
+
     const walletsLength = senderManager.getAllWallets().length
     rootLogger.info(`Initialized ${walletsLength} executor wallets`)
 
@@ -356,26 +360,38 @@ export const setupServer = async ({
     server.start()
     executorManager.start()
 
+    let shutdownPromise: Promise<void> | null = null
     const gracefulShutdown = async (signal: string) => {
-        rootLogger.info(`${signal} received, shutting down`)
-
-        await server.stop()
-        rootLogger.info("server stopped")
-
-        await persistShutdownState({
-            mempool,
-            config,
-            bundleManager,
-            statusManager,
-            logger: shutdownLogger
-        })
-
-        // mark all executors as processed
-        for (const account of senderManager.getActiveWallets()) {
-            await senderManager.markWalletProcessed(account)
+        if (shutdownPromise) {
+            return shutdownPromise
         }
 
-        process.exit(0)
+        shutdownPromise = (async () => {
+            rootLogger.info(`${signal} received, shutting down`)
+            mempool.startShutdown()
+
+            await persistShutdownState({
+                mempool,
+                config,
+                bundleManager,
+                statusManager,
+                logger: shutdownLogger
+            })
+            rootLogger.info("shutdown state persisted")
+
+            // mark all executors as processed
+            for (const account of senderManager.getActiveWallets()) {
+                await senderManager.markWalletProcessed(account)
+            }
+            rootLogger.info("marked all executor wallets as processed")
+
+            await server.stop()
+            rootLogger.info("server stopped")
+
+            process.exit(0)
+        })()
+
+        return shutdownPromise
     }
 
     const signals = ["SIGINT", "SIGTERM"]

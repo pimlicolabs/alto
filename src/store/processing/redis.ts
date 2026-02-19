@@ -173,4 +173,15 @@ export class RedisProcessingStore implements ProcessingStore {
 
         return userOpInfos
     }
+
+    async clearAllProcessing(): Promise<void> {
+        await this.localStore.flush()
+
+        await this.redis.del(
+            this.processingUserOpsSet,
+            this.processingSenderNonceSet,
+            this.processingDeploymentSet,
+            this.processingEip7702AuthSet
+        )
+    }
 }

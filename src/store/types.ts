@@ -74,4 +74,7 @@ export type MempoolStore = {
 
     // Flush all processing userOps for an entrypoint and return them
     flushProcessing: (entryPoint: Address) => Promise<UserOpInfo[]>
+
+    // Clear all processing tracking state for an entrypoint
+    clearAllProcessing: (entryPoint: Address) => Promise<void>
 }
