@@ -363,7 +363,7 @@ export const setupServer = async ({
     let shutdownPromise: Promise<void> | null = null
     const gracefulShutdown = async (signal: string) => {
         if (shutdownPromise) {
-            // Ensure cleanup runs once even if called multiple times.
+            // Ensure gracefulShutdown runs once even if called multiple times.
             return shutdownPromise
         }
 
