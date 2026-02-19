@@ -373,7 +373,7 @@ export const setupServer = async ({
 
             // Stop server now and await after bundler cleanup.
             const stopPromise = server.stop()
-            let cleanupError: unknown = undefined
+            let cleanupError: unknown
 
             try {
                 await persistShutdownState({
