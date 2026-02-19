@@ -229,10 +229,6 @@ export class Mempool {
     }
 
     public startShutdown(): void {
-        if (this.isShuttingDown) {
-            return
-        }
-
         this.isShuttingDown = true
         this.logger.info(
             "[SHUTDOWN] Mempool entered shutdown mode. No new bundles will be created"
