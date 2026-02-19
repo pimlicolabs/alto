@@ -75,6 +75,20 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 0
     },
+    "dynamic-gas-price": {
+        description:
+            "Enable congestion-aware dynamic gas pricing using eth_feeHistory",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "dynamic-gas-price-blocks": {
+        description:
+            "Number of recent blocks to inspect when --dynamic-gas-price is enabled",
+        type: "number",
+        require: false,
+        default: 10
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",

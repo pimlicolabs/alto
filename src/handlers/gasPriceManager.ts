@@ -197,11 +197,90 @@ export class GasPriceManager {
         }
     }
 
+    private getCongestionAwarePriorityFee({
+        reward,
+        congestion
+    }: { reward: bigint[]; congestion: number }): bigint {
+        const lowCongestionPriorityFee = reward[0]
+        const mediumCongestionPriorityFee =
+            reward[1] ?? lowCongestionPriorityFee
+        const highCongestionPriorityFee =
+            reward[2] ?? mediumCongestionPriorityFee
+
+        if (highCongestionPriorityFee === undefined) {
+            return 0n
+        }
+
+        if (congestion >= 0.9) {
+            return highCongestionPriorityFee
+        }
+
+        if (congestion >= 0.5) {
+            return mediumCongestionPriorityFee
+        }
+
+        return lowCongestionPriorityFee
+    }
+
+    private async getDynamicGasPriceFromFeeHistory(): Promise<GasPriceParameters> {
+        const feeHistory = await this.config.publicClient.getFeeHistory({
+            blockCount: this.config.dynamicGasPriceBlocks,
+            rewardPercentiles: [20, 50, 90],
+            blockTag: "latest"
+        })
+
+        if (feeHistory.reward === undefined || feeHistory.reward === null) {
+            throw new RpcError("feeHistory response is missing reward data")
+        }
+
+        const congestionAwarePriorityFees = feeHistory.reward
+            .map((reward, index) =>
+                this.getCongestionAwarePriorityFee({
+                    reward,
+                    congestion: feeHistory.gasUsedRatio[index] ?? 0
+                })
+            )
+            .filter((priorityFee) => priorityFee > 0n)
+
+        if (congestionAwarePriorityFees.length === 0) {
+            throw new RpcError("feeHistory response has no usable reward data")
+        }
+
+        const historicalMaxPriorityFeePerGas =
+            congestionAwarePriorityFees.reduce(
+                (acc, priorityFee) => acc + priorityFee,
+                0n
+            ) / BigInt(congestionAwarePriorityFees.length)
+
+        const nextBaseFeePerGas = feeHistory.baseFeePerGas.at(-1)
+        if (nextBaseFeePerGas === undefined || nextBaseFeePerGas === null) {
+            throw new RpcError("feeHistory response is missing baseFeePerGas")
+        }
+        const scaledBaseFeePerGas = scaleBigIntByPercent(nextBaseFeePerGas, 120n)
+
+        return {
+            maxFeePerGas: scaledBaseFeePerGas + historicalMaxPriorityFeePerGas,
+            maxPriorityFeePerGas: historicalMaxPriorityFeePerGas
+        }
+    }
+
     private async estimateGasPrice(): Promise<GasPriceParameters> {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
         const { publicClient, staticMaxPriorityFeePerGas } = this.config
+
+        if (this.config.dynamicGasPrice) {
+            try {
+                return await this.getDynamicGasPriceFromFeeHistory()
+            } catch (e) {
+                sentry.captureException(e)
+                this.logger.error(
+                    { error: e },
+                    "failed to fetch dynamic gas prices from feeHistory, falling back to estimateFeesPerGas"
+                )
+            }
+        }
 
         try {
             let chain: Chain | undefined
