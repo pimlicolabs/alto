@@ -256,7 +256,10 @@ export class GasPriceManager {
         if (nextBaseFeePerGas === undefined || nextBaseFeePerGas === null) {
             throw new RpcError("feeHistory response is missing baseFeePerGas")
         }
-        const scaledBaseFeePerGas = scaleBigIntByPercent(nextBaseFeePerGas, 120n)
+        const scaledBaseFeePerGas = scaleBigIntByPercent(
+            nextBaseFeePerGas,
+            120n
+        )
 
         return {
             maxFeePerGas: scaledBaseFeePerGas + historicalMaxPriorityFeePerGas,
