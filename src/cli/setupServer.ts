@@ -371,23 +371,35 @@ export const setupServer = async ({
             rootLogger.info(`${signal} received, shutting down`)
             mempool.startShutdown()
 
-            await persistShutdownState({
-                mempool,
-                config,
-                bundleManager,
-                statusManager,
-                logger: shutdownLogger
-            })
-            rootLogger.info("shutdown state persisted")
+            // Stop server now and await after bundler cleanup.
+            const stopPromise = server.stop()
+            let cleanupError: unknown = undefined
 
-            // mark all executors as processed
-            for (const account of senderManager.getActiveWallets()) {
-                await senderManager.markWalletProcessed(account)
+            try {
+                await persistShutdownState({
+                    mempool,
+                    config,
+                    bundleManager,
+                    statusManager,
+                    logger: shutdownLogger
+                })
+                rootLogger.info("shutdown state persisted")
+
+                // mark all executors as processed
+                for (const account of senderManager.getActiveWallets()) {
+                    await senderManager.markWalletProcessed(account)
+                }
+                rootLogger.info("marked all executor wallets as processed")
+            } catch (error) {
+                cleanupError = error
             }
-            rootLogger.info("marked all executor wallets as processed")
 
-            await server.stop()
+            await stopPromise
             rootLogger.info("server stopped")
+
+            if (cleanupError) {
+                throw cleanupError
+            }
 
             process.exit(0)
         })()
