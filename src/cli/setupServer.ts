@@ -234,7 +234,12 @@ export const setupServer = async ({
             })
         } catch (error) {
             rootLogger.error(
-                { err: error instanceof Error ? error : new Error(String(error)) },
+                {
+                    err:
+                        error instanceof Error
+                            ? error
+                            : new Error(String(error))
+                },
                 "Error during initial wallet validation and refill"
             )
         }
@@ -249,7 +254,12 @@ export const setupServer = async ({
                 })
             } catch (error) {
                 rootLogger.error(
-                    { err: error instanceof Error ? error : new Error(String(error)) },
+                    {
+                        err:
+                            error instanceof Error
+                                ? error
+                                : new Error(String(error))
+                    },
                     "Error during scheduled wallet validation and refill"
                 )
             }
@@ -416,7 +426,12 @@ export const setupServer = async ({
                 await gracefulShutdown(signal)
             } catch (error) {
                 rootLogger.error(
-                    { err: error instanceof Error ? error : new Error(String(error)) },
+                    {
+                        err:
+                            error instanceof Error
+                                ? error
+                                : new Error(String(error))
+                    },
                     `Error during ${signal} shutdown`
                 )
                 process.exit(1)
