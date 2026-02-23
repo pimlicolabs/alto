@@ -298,6 +298,12 @@ export const createMempoolStore = ({
         flushProcessing: async (entryPoint: Address) => {
             const { processing } = getStoreHandlers(entryPoint)
             return await processing.flush()
+        },
+
+        // Clear all processing tracking state for an entrypoint
+        clearAllProcessing: async (entryPoint: Address) => {
+            const { processing } = getStoreHandlers(entryPoint)
+            await processing.clearAllProcessing()
         }
     }
 }

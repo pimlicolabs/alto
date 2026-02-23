@@ -234,7 +234,7 @@ export const setupServer = async ({
             })
         } catch (error) {
             rootLogger.error(
-                { error: error instanceof Error ? error.stack : error },
+                { err: error },
                 "Error during initial wallet validation and refill"
             )
         }
@@ -249,7 +249,7 @@ export const setupServer = async ({
                 })
             } catch (error) {
                 rootLogger.error(
-                    { error: error instanceof Error ? error.stack : error },
+                    { err: error },
                     "Error during scheduled wallet validation and refill"
                 )
             }
@@ -324,6 +324,10 @@ export const setupServer = async ({
         { level: config.logLevel }
     )
 
+    if (config.enableHorizontalScaling) {
+        await mempool.clearProcessing()
+    }
+
     const walletsLength = senderManager.getAllWallets().length
     rootLogger.info(`Initialized ${walletsLength} executor wallets`)
 
@@ -356,26 +360,51 @@ export const setupServer = async ({
     server.start()
     executorManager.start()
 
+    let shutdownPromise: Promise<void> | null = null
     const gracefulShutdown = async (signal: string) => {
-        rootLogger.info(`${signal} received, shutting down`)
-
-        await server.stop()
-        rootLogger.info("server stopped")
-
-        await persistShutdownState({
-            mempool,
-            config,
-            bundleManager,
-            statusManager,
-            logger: shutdownLogger
-        })
-
-        // mark all executors as processed
-        for (const account of senderManager.getActiveWallets()) {
-            await senderManager.markWalletProcessed(account)
+        if (shutdownPromise) {
+            // Ensure gracefulShutdown runs once even if called multiple times.
+            return shutdownPromise
         }
 
-        process.exit(0)
+        shutdownPromise = (async () => {
+            rootLogger.info(`${signal} received, shutting down`)
+            mempool.startShutdown()
+
+            // Stop server now and await after bundler cleanup.
+            const stopPromise = server.stop()
+            let cleanupError: unknown
+
+            try {
+                await persistShutdownState({
+                    mempool,
+                    config,
+                    bundleManager,
+                    statusManager,
+                    logger: shutdownLogger
+                })
+                rootLogger.info("shutdown state persisted")
+
+                // mark all executors as processed
+                for (const account of senderManager.getActiveWallets()) {
+                    await senderManager.markWalletProcessed(account)
+                }
+                rootLogger.info("marked all executor wallets as processed")
+            } catch (error) {
+                cleanupError = error
+            }
+
+            await stopPromise
+            rootLogger.info("server stopped")
+
+            if (cleanupError) {
+                throw cleanupError
+            }
+
+            process.exit(0)
+        })()
+
+        return shutdownPromise
     }
 
     const signals = ["SIGINT", "SIGTERM"]
@@ -387,7 +416,7 @@ export const setupServer = async ({
                 await gracefulShutdown(signal)
             } catch (error) {
                 rootLogger.error(
-                    { error: error instanceof Error ? error.stack : error },
+                    { err: error },
                     `Error during ${signal} shutdown`
                 )
                 process.exit(1)

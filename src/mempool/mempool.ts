@@ -43,6 +43,7 @@ export class Mempool {
     private readonly logger: Logger
     private readonly validator: InterfaceValidator
     private readonly eventManager: EventManager
+    private isShuttingDown = false
     public store: MempoolStore
 
     constructor({
@@ -225,6 +226,13 @@ export class Mempool {
 
     async flushProcessing(entryPoint: Address): Promise<UserOpInfo[]> {
         return await this.store.flushProcessing(entryPoint)
+    }
+
+    public startShutdown(): void {
+        this.isShuttingDown = true
+        this.logger.info(
+            "[SHUTDOWN] Mempool entered shutdown mode. No new bundles will be created"
+        )
     }
 
     // === Methods for entity management === //
@@ -728,6 +736,10 @@ export class Mempool {
     public async getBundles(
         maxBundleCount?: number
     ): Promise<UserOperationBundle[]> {
+        if (this.isShuttingDown) {
+            return []
+        }
+
         const bundlePromises = this.config.entrypoints.map(
             async (entryPoint) => {
                 return await this.process({
@@ -754,6 +766,10 @@ export class Mempool {
         entryPoint: Address
         maxBundleCount?: number
     }): Promise<UserOperationBundle[]> {
+        if (this.isShuttingDown) {
+            return []
+        }
+
         const bundles: UserOperationBundle[] = []
         const batchSize = this.config.mempoolPopBatchSize
 
@@ -788,6 +804,7 @@ export class Mempool {
                         entryPoint,
                         userOpInfos: unusedUserOps
                     })
+                    unusedUserOps.length = 0
                 }
                 break
             }
@@ -820,6 +837,7 @@ export class Mempool {
             while (unusedUserOps.length > 0) {
                 const currentUserOp = unusedUserOps.shift()
                 if (!currentUserOp) break
+
                 const { userOp } = currentUserOp
 
                 // Check if we should skip this operation
@@ -897,6 +915,17 @@ export class Mempool {
         }
 
         return bundles
+    }
+
+    public async clearProcessing(): Promise<void> {
+        for (const entryPoint of this.config.entrypoints) {
+            await this.store.clearAllProcessing(entryPoint)
+
+            this.logger.info(
+                { entryPoint },
+                "[SHUTDOWN] Cleared processing state during startup"
+            )
+        }
     }
 
     clear(): void {
