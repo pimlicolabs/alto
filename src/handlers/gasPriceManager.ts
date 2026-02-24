@@ -269,6 +269,94 @@ export class GasPriceManager {
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
+    // Estimates gas price using fee history and block congestion analysis.
+    // Selects a priority fee percentile based on average block fullness,
+    // and computes a worst-case maxFeePerGas for N-block inclusion guarantee.
+    // Reference: EIP-1559 base fee can increase by at most 12.5% per block
+    // when blocks are 100% full (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md)
+    private async estimateDynamicGasPrice(): Promise<GasPriceParameters> {
+        const {
+            publicClient,
+            dynamicGasPriceLookbackBlocks,
+            dynamicGasPriceTargetInclusionBlocks
+        } = this.config
+
+        const blockCount = dynamicGasPriceLookbackBlocks
+        const targetInclusionBlocks = dynamicGasPriceTargetInclusionBlocks
+
+        const rewardPercentiles = [40, 50, 60, 70]
+
+        const feeHistory = await publicClient.getFeeHistory({
+            blockCount,
+            rewardPercentiles,
+            blockTag: "latest"
+        })
+
+        // Compute average block fullness from gasUsedRatio
+        const avgFullness =
+            feeHistory.gasUsedRatio.reduce((acc, ratio) => acc + ratio, 0) /
+            feeHistory.gasUsedRatio.length
+
+        // Select percentile index based on congestion level
+        let percentileIndex: number
+        if (avgFullness > 0.9) {
+            percentileIndex = 3 // 70th percentile — high congestion
+        } else if (avgFullness > 0.7) {
+            percentileIndex = 2 // 60th percentile
+        } else if (avgFullness > 0.5) {
+            percentileIndex = 1 // 50th percentile
+        } else {
+            percentileIndex = 0 // 40th percentile — low congestion
+        }
+
+        // Compute maxPriorityFeePerGas from rewards at selected percentile
+        let maxPriorityFeePerGas: bigint
+        if (
+            feeHistory.reward &&
+            feeHistory.reward.length > 0 &&
+            feeHistory.reward[0].length > percentileIndex
+        ) {
+            const rewards = feeHistory.reward
+            const sum = rewards.reduce(
+                (acc, blockRewards) => acc + blockRewards[percentileIndex],
+                0n
+            )
+            maxPriorityFeePerGas = sum / BigInt(rewards.length)
+        } else {
+            this.logger.warn(
+                "dynamic gas price: reward data missing, using fallback"
+            )
+            maxPriorityFeePerGas = await this.getFallBackMaxPriorityFeePerGas(
+                publicClient,
+                0n
+            )
+        }
+
+        // Compute worst-case base fee for N-block inclusion guarantee.
+        // EIP-1559: base fee increases by at most 12.5% per full block.
+        // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
+        const baseFees = feeHistory.baseFeePerGas
+        let worstCaseBaseFee = baseFees[baseFees.length - 1]
+
+        for (let i = 0; i < targetInclusionBlocks; i++) {
+            worstCaseBaseFee = (worstCaseBaseFee * 1125n) / 1000n
+        }
+
+        const maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
+
+        this.logger.debug(
+            {
+                maxPriorityFeePerGas: `0x${maxPriorityFeePerGas.toString(16)}`,
+                worstCaseBaseFee: `0x${worstCaseBaseFee.toString(16)}`,
+                maxFeePerGas: `0x${maxFeePerGas.toString(16)}`,
+                targetInclusionBlocks
+            },
+            "dynamic gas price: computed gas parameters"
+        )
+
+        return { maxFeePerGas, maxPriorityFeePerGas }
+    }
+
     // This method throws if it can't get a valid RPC response.
     private async innerGetGasPrice(): Promise<GasPriceParameters> {
         if (this.config.chainId === polygon.id) {
@@ -283,7 +371,9 @@ export class GasPriceManager {
             return this.bumpTheGasPrice(legacyGasPrice)
         }
 
-        const estimatedGasPrice = await this.estimateGasPrice()
+        const estimatedGasPrice = this.config.dynamicGasPrice
+            ? await this.estimateDynamicGasPrice()
+            : await this.estimateGasPrice()
         return this.bumpTheGasPrice(estimatedGasPrice)
     }
 
