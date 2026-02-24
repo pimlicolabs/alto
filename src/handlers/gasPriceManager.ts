@@ -79,8 +79,7 @@ export class GasPriceManager {
         if (this.config.dynamicGasPrice) {
             this.logger.info(
                 {
-                    lookbackBlocks:
-                        this.config.dynamicGasPriceLookbackBlocks,
+                    lookbackBlocks: this.config.dynamicGasPriceLookbackBlocks,
                     targetInclusionBlocks:
                         this.config.dynamicGasPriceTargetInclusionBlocks
                 },
