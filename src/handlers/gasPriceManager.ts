@@ -34,7 +34,7 @@ export class GasPriceManager {
         this.logger = config.getLogger(
             { module: "gas_price_manager" },
             {
-                level: config.publicClientLogLevel || config.logLevel
+                level: config.logLevel
             }
         )
 
