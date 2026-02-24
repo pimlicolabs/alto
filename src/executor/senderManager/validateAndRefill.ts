@@ -87,7 +87,9 @@ export const validateAndRefillWallets = async ({
     const allWallets = senderManager.getAllWallets()
 
     // Fetch gasPrice once and bump by 200% to account for fluctuations
-    const gasPrice = await gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true })
+    const gasPrice = await gasPriceManager.tryGetNetworkGasPrice({
+        forExecutor: true
+    })
     const maxFeePerGas = scaleBigIntByPercent(gasPrice.maxFeePerGas, 200n)
     const maxPriorityFeePerGas = scaleBigIntByPercent(
         gasPrice.maxPriorityFeePerGas,

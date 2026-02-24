@@ -351,10 +351,12 @@ export class ExecutorManager {
         const [bundleStatuses, networkGasPrice, networkBaseFee] =
             await Promise.all([
                 this.bundleManager.getBundleStatuses(pendingBundles),
-                this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }).catch(() => ({
-                    maxFeePerGas: 0n,
-                    maxPriorityFeePerGas: 0n
-                })),
+                this.gasPriceManager
+                    .tryGetNetworkGasPrice({ forExecutor: true })
+                    .catch(() => ({
+                        maxFeePerGas: 0n,
+                        maxPriorityFeePerGas: 0n
+                    })),
                 this.getBaseFee().catch(() => 0n)
             ])
 

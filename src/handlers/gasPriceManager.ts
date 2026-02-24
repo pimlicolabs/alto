@@ -360,8 +360,7 @@ export class GasPriceManager {
             maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
         } else {
             // For userOp estimation, use baseFee * 1.2 (same as viem default)
-            const scaledBaseFee =
-                (latestBaseFee * 12n) / 10n
+            const scaledBaseFee = (latestBaseFee * 12n) / 10n
             maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
         }
 
