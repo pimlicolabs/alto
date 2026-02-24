@@ -269,11 +269,10 @@ export class GasPriceManager {
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
-    // Estimates gas price using fee history and block congestion analysis.
-    // Selects a priority fee percentile based on average block fullness,
-    // and computes a worst-case maxFeePerGas for N-block inclusion guarantee.
-    // Reference: EIP-1559 base fee can increase by at most 12.5% per block
-    // when blocks are 100% full (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md)
+    // Estimates gas price using eth_feeHistory to get previous baseFee/gasUsedRatio/maxPriorityFeePerGas.
+    // Selects a priority fee percentile based on average block fullness.
+    // When forExecutor is true, computes a worst-case maxFeePerGas for N-block inclusion guarantee.
+    // When forExecutor is false, uses baseFee * 1.2 (same as viem default) and avoids setting a too high maxFeePerGas.
     private async estimateDynamicGasPrice({
         forExecutor
     }: {
