@@ -289,96 +289,108 @@ export class GasPriceManager {
     }: {
         forExecutor: boolean
     }): Promise<GasPriceParameters> {
-        const {
-            publicClient,
-            dynamicGasPriceLookbackBlocks,
-            dynamicGasPriceTargetInclusionBlocks
-        } = this.config
-
-        const blockCount = dynamicGasPriceLookbackBlocks
-        const targetInclusionBlocks = dynamicGasPriceTargetInclusionBlocks
-
-        const rewardPercentiles = [40, 50, 60, 70]
-
-        const feeHistory = await publicClient.getFeeHistory({
-            blockCount,
-            rewardPercentiles,
-            blockTag: "latest"
-        })
-
-        // Compute average block fullness from gasUsedRatio
-        const avgFullness =
-            feeHistory.gasUsedRatio.reduce((acc, ratio) => acc + ratio, 0) /
-            feeHistory.gasUsedRatio.length
-
-        // Select percentile index based on congestion level
-        let percentileIndex: number
-        if (avgFullness > 0.9) {
-            percentileIndex = 3 // 70th percentile — high congestion
-        } else if (avgFullness > 0.7) {
-            percentileIndex = 2 // 60th percentile
-        } else if (avgFullness > 0.5) {
-            percentileIndex = 1 // 50th percentile
-        } else {
-            percentileIndex = 0 // 40th percentile — low congestion
-        }
-
-        // Compute maxPriorityFeePerGas from rewards at selected percentile
-        let maxPriorityFeePerGas: bigint
-        if (
-            feeHistory.reward &&
-            feeHistory.reward.length > 0 &&
-            feeHistory.reward[0].length > percentileIndex
-        ) {
-            const rewards = feeHistory.reward
-            const sum = rewards.reduce(
-                (acc, blockRewards) => acc + blockRewards[percentileIndex],
-                0n
-            )
-            maxPriorityFeePerGas = sum / BigInt(rewards.length)
-        } else {
-            this.logger.warn(
-                "dynamic gas price: reward data missing, using fallback"
-            )
-            sentry.captureMessage(
-                "dynamic gas price: reward data missing, using fallback"
-            )
-            maxPriorityFeePerGas = await this.getFallBackMaxPriorityFeePerGas(
+        try {
+            const {
                 publicClient,
-                0n
-            )
-        }
+                dynamicGasPriceLookbackBlocks,
+                dynamicGasPriceTargetInclusionBlocks
+            } = this.config
 
-        const baseFees = feeHistory.baseFeePerGas
-        const latestBaseFee = baseFees[baseFees.length - 1]
+            const blockCount = dynamicGasPriceLookbackBlocks
+            const targetInclusionBlocks =
+                dynamicGasPriceTargetInclusionBlocks
 
-        let maxFeePerGas: bigint
+            const rewardPercentiles = [40, 50, 60, 70]
 
-        if (forExecutor) {
-            // Compute worst-case baseFee for N-block inclusion guarantee.
-            // EIP-1559 formula:
-            // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
-            // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
-            // a 100% full block increases base fee by 1/8 = 12.5%.
-            // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
-            //
-            // Reference: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md?plain=1#L189
-            let worstCaseBaseFee = latestBaseFee
+            const feeHistory = await publicClient.getFeeHistory({
+                blockCount,
+                rewardPercentiles,
+                blockTag: "latest"
+            })
 
-            for (let i = 0; i < targetInclusionBlocks; i++) {
-                const delta = maxBigInt(worstCaseBaseFee / 8n, 1n)
-                worstCaseBaseFee = worstCaseBaseFee + delta
+            // Compute average block fullness from gasUsedRatio
+            const avgFullness =
+                feeHistory.gasUsedRatio.reduce(
+                    (acc, ratio) => acc + ratio,
+                    0
+                ) / feeHistory.gasUsedRatio.length
+
+            // Select percentile index based on congestion level
+            let percentileIndex: number
+            if (avgFullness > 0.9) {
+                percentileIndex = 3 // 70th percentile — high congestion
+            } else if (avgFullness > 0.7) {
+                percentileIndex = 2 // 60th percentile
+            } else if (avgFullness > 0.5) {
+                percentileIndex = 1 // 50th percentile
+            } else {
+                percentileIndex = 0 // 40th percentile — low congestion
             }
 
-            maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
-        } else {
-            // For userOp estimation, use baseFee * 1.2 (same as viem default).
-            // This avoids returning a overly inflated maxFeePerGas.
-            const scaledBaseFee = scaleBigIntByPercent(latestBaseFee, 120n)
-            maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
-        }
+            // Compute maxPriorityFeePerGas from rewards at selected percentile
+            let maxPriorityFeePerGas: bigint
+            if (
+                feeHistory.reward &&
+                feeHistory.reward.length > 0 &&
+                feeHistory.reward[0].length > percentileIndex
+            ) {
+                const rewards = feeHistory.reward
+                const sum = rewards.reduce(
+                    (acc, blockRewards) =>
+                        acc + blockRewards[percentileIndex],
+                    0n
+                )
+                maxPriorityFeePerGas = sum / BigInt(rewards.length)
+            } else {
+                throw new Error(
+                    "dynamic gas price: reward data missing from feeHistory"
+                )
+            }
 
-        return { maxFeePerGas, maxPriorityFeePerGas }
+            const baseFees = feeHistory.baseFeePerGas
+            const latestBaseFee = baseFees[baseFees.length - 1]
+
+            let maxFeePerGas: bigint
+
+            if (forExecutor) {
+                // Compute worst-case baseFee for N-block inclusion guarantee.
+                // EIP-1559 formula:
+                // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
+                // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
+                // a 100% full block increases base fee by 1/8 = 12.5%.
+                // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
+                //
+                // Reference: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md?plain=1#L189
+                let worstCaseBaseFee = latestBaseFee
+
+                for (let i = 0; i < targetInclusionBlocks; i++) {
+                    const delta = maxBigInt(
+                        worstCaseBaseFee / 8n,
+                        1n
+                    )
+                    worstCaseBaseFee = worstCaseBaseFee + delta
+                }
+
+                maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
+            } else {
+                // For userOp estimation, use baseFee * 1.2 (same as viem default).
+                // This avoids returning a overly inflated maxFeePerGas.
+                const scaledBaseFee = scaleBigIntByPercent(
+                    latestBaseFee,
+                    120n
+                )
+                maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
+            }
+
+            return { maxFeePerGas, maxPriorityFeePerGas }
+        } catch (err) {
+            this.logger.error(
+                { err },
+                "dynamic gas price estimation failed, falling back to estimateGasPrice"
+            )
+            sentry.captureException(err)
+            return await this.estimateGasPrice()
+        }
     }
 
     // This method throws if it can't get a valid RPC response.
