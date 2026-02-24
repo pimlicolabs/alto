@@ -177,7 +177,7 @@ export class ExecutorManager {
         const wallet = await this.senderManager.getWallet()
 
         const [gasPriceParams, baseFee, nonce] = await Promise.all([
-            this.gasPriceManager.tryGetNetworkGasPrice(),
+            this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }),
             this.getBaseFee(),
             this.config.publicClient.getTransactionCount({
                 address: wallet.address,
@@ -351,7 +351,7 @@ export class ExecutorManager {
         const [bundleStatuses, networkGasPrice, networkBaseFee] =
             await Promise.all([
                 this.bundleManager.getBundleStatuses(pendingBundles),
-                this.gasPriceManager.tryGetNetworkGasPrice().catch(() => ({
+                this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }).catch(() => ({
                     maxFeePerGas: 0n,
                     maxPriorityFeePerGas: 0n
                 })),

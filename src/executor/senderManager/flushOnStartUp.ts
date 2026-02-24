@@ -32,7 +32,7 @@ export const flushOnStartUp = async ({
     }
 
     try {
-        gasPrice = await gasPriceManager.tryGetNetworkGasPrice()
+        gasPrice = await gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true })
     } catch (err) {
         logger.error({ err }, "error flushing stuck transaction")
         return

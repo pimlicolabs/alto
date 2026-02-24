@@ -49,7 +49,7 @@ export const bundlerArgsSchema = z.object({
         .number()
         .int()
         .min(1)
-        .default(2),
+        .default(3),
 
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),

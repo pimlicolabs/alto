@@ -274,7 +274,11 @@ export class GasPriceManager {
     // and computes a worst-case maxFeePerGas for N-block inclusion guarantee.
     // Reference: EIP-1559 base fee can increase by at most 12.5% per block
     // when blocks are 100% full (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md)
-    private async estimateDynamicGasPrice(): Promise<GasPriceParameters> {
+    private async estimateDynamicGasPrice({
+        forExecutor
+    }: {
+        forExecutor: boolean
+    }): Promise<GasPriceParameters> {
         const {
             publicClient,
             dynamicGasPriceLookbackBlocks,
@@ -332,29 +336,44 @@ export class GasPriceManager {
             )
         }
 
-        // Compute worst-case base fee for N-block inclusion guarantee.
-        // EIP-1559 formula:
-        // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
-        // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
-        // a 100% full block increases base fee by 1/8 = 12.5%.
-        // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
-        //
-        // Reference: https://github.com/ethereum/EIPs/blob/2175b810f3fd7aa07f356e5e9799985ad47d04a5/EIPS/eip-1559.md?plain=1#L189
         const baseFees = feeHistory.baseFeePerGas
-        let worstCaseBaseFee = baseFees[baseFees.length - 1]
+        const latestBaseFee = baseFees[baseFees.length - 1]
 
-        for (let i = 0; i < targetInclusionBlocks; i++) {
-            const delta = maxBigInt(worstCaseBaseFee / 8n, 1n)
-            worstCaseBaseFee = worstCaseBaseFee + delta
+        let maxFeePerGas: bigint
+
+        if (forExecutor) {
+            // Compute worst-case base fee for N-block inclusion guarantee.
+            // EIP-1559 formula:
+            // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
+            // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
+            // a 100% full block increases base fee by 1/8 = 12.5%.
+            // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
+            //
+            // Reference: https://github.com/ethereum/EIPs/blob/2175b810f3fd7aa07f356e5e9799985ad47d04a5/EIPS/eip-1559.md?plain=1#L189
+            let worstCaseBaseFee = latestBaseFee
+
+            for (let i = 0; i < targetInclusionBlocks; i++) {
+                const delta = maxBigInt(worstCaseBaseFee / 8n, 1n)
+                worstCaseBaseFee = worstCaseBaseFee + delta
+            }
+
+            maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
+        } else {
+            // For userOp estimation, use baseFee * 1.2 (same as viem default)
+            const scaledBaseFee =
+                (latestBaseFee * 12n) / 10n
+            maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
         }
-
-        const maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
 
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
 
     // This method throws if it can't get a valid RPC response.
-    private async innerGetGasPrice(): Promise<GasPriceParameters> {
+    private async innerGetGasPrice({
+        forExecutor
+    }: {
+        forExecutor: boolean
+    }): Promise<GasPriceParameters> {
         if (this.config.chainId === polygon.id) {
             const polygonEstimate = await this.getPolygonGasPriceParameters()
             if (polygonEstimate) {
@@ -368,7 +387,7 @@ export class GasPriceManager {
         }
 
         const estimatedGasPrice = this.config.dynamicGasPrice
-            ? await this.estimateDynamicGasPrice()
+            ? await this.estimateDynamicGasPrice({ forExecutor })
             : await this.estimateGasPrice()
         return this.bumpTheGasPrice(estimatedGasPrice)
     }
@@ -419,7 +438,9 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response.
     private async tryUpdateGasPrice(): Promise<GasPriceParameters> {
-        const gasPrice = await this.innerGetGasPrice()
+        const gasPrice = await this.innerGetGasPrice({
+            forExecutor: false
+        })
 
         this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
         this.maxPriorityFeePerGasQueue.saveValue(gasPrice.maxPriorityFeePerGas)
@@ -460,8 +481,12 @@ export class GasPriceManager {
     }
 
     // This method throws if it can't get a valid RPC response.
-    public async tryGetNetworkGasPrice(): Promise<GasPriceParameters> {
-        return await this.innerGetGasPrice()
+    public async tryGetNetworkGasPrice({
+        forExecutor
+    }: {
+        forExecutor: boolean
+    }): Promise<GasPriceParameters> {
+        return await this.innerGetGasPrice({ forExecutor })
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {

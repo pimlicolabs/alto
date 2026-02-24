@@ -94,7 +94,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Number of future blocks to guarantee inclusion for using worst-case base fee calculation",
         type: "number",
         require: false,
-        default: 2
+        default: 3
     },
     "mempool-max-parallel-ops": {
         description:
