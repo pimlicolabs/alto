@@ -60,12 +60,12 @@ export class GasPriceManager {
                     }
 
                     await this.tryUpdateGasPrice()
-                } catch (error) {
+                } catch (err) {
                     this.logger.error(
-                        { error },
+                        { err },
                         "Error updating gas prices in interval"
                     )
-                    sentry.captureException(error)
+                    sentry.captureException(err)
                 }
             }, this.config.gasPriceRefreshInterval * 1000)
         }
@@ -98,7 +98,7 @@ export class GasPriceManager {
             return parsedData.fast
         } catch (e) {
             this.logger.error(
-                { error: e },
+                { err: e },
                 "failed to get gas price from gas station, using default"
             )
             return null
