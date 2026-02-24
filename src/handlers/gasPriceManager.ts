@@ -329,6 +329,9 @@ export class GasPriceManager {
             this.logger.warn(
                 "dynamic gas price: reward data missing, using fallback"
             )
+            sentry.captureMessage(
+                "dynamic gas price: reward data missing, using fallback"
+            )
             maxPriorityFeePerGas = await this.getFallBackMaxPriorityFeePerGas(
                 publicClient,
                 0n
