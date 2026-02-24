@@ -75,6 +75,27 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 0
     },
+    "dynamic-gas-price": {
+        description:
+            "Use dynamic gas pricing based on block fullness instead of viem's estimateFeesPerGas",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "dynamic-gas-price-lookback-blocks": {
+        description:
+            "Number of recent blocks to look back for dynamic gas price calculation",
+        type: "number",
+        require: false,
+        default: 10
+    },
+    "dynamic-gas-price-target-inclusion-blocks": {
+        description:
+            "Number of future blocks to guarantee inclusion for using worst-case base fee calculation",
+        type: "number",
+        require: false,
+        default: 3
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",

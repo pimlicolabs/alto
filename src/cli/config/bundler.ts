@@ -43,6 +43,13 @@ export const bundlerArgsSchema = z.object({
         )
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
     "gas-price-refresh-interval": z.number().int().min(0),
+    "dynamic-gas-price": z.boolean().default(false),
+    "dynamic-gas-price-lookback-blocks": z.number().int().min(1).default(10),
+    "dynamic-gas-price-target-inclusion-blocks": z
+        .number()
+        .int()
+        .min(1)
+        .default(3),
 
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
