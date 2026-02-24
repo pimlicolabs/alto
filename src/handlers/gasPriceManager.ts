@@ -341,14 +341,14 @@ export class GasPriceManager {
         let maxFeePerGas: bigint
 
         if (forExecutor) {
-            // Compute worst-case base fee for N-block inclusion guarantee.
+            // Compute worst-case baseFee for N-block inclusion guarantee.
             // EIP-1559 formula:
             // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
             // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
             // a 100% full block increases base fee by 1/8 = 12.5%.
             // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
             //
-            // Reference: https://github.com/ethereum/EIPs/blob/2175b810f3fd7aa07f356e5e9799985ad47d04a5/EIPS/eip-1559.md?plain=1#L189
+            // Reference: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md?plain=1#L189
             let worstCaseBaseFee = latestBaseFee
 
             for (let i = 0; i < targetInclusionBlocks; i++) {
@@ -358,7 +358,8 @@ export class GasPriceManager {
 
             maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
         } else {
-            // For userOp estimation, use baseFee * 1.2 (same as viem default)
+            // For userOp estimation, use baseFee * 1.2 (same as viem default).
+            // This avoids returning a overly inflated maxFeePerGas.
             const scaledBaseFee = (latestBaseFee * 12n) / 10n
             maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
         }
