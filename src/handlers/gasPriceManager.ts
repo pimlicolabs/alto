@@ -174,7 +174,7 @@ export class GasPriceManager {
         } catch (e) {
             sentry.captureException(e)
             this.logger.error(
-                { error: e },
+                { err: e },
                 "failed to fetch legacy gasPrices from estimateFeesPerGas"
             )
             gasPrice = undefined
@@ -226,7 +226,7 @@ export class GasPriceManager {
         } catch (e) {
             sentry.captureException(e)
             this.logger.error(
-                { error: e },
+                { err: e },
                 "failed to fetch eip-1559 gasPrices from estimateFeesPerGas"
             )
             maxFeePerGas = undefined
