@@ -297,8 +297,7 @@ export class GasPriceManager {
             } = this.config
 
             const blockCount = dynamicGasPriceLookbackBlocks
-            const targetInclusionBlocks =
-                dynamicGasPriceTargetInclusionBlocks
+            const targetInclusionBlocks = dynamicGasPriceTargetInclusionBlocks
 
             const rewardPercentiles = [40, 50, 60, 70]
 
@@ -310,10 +309,8 @@ export class GasPriceManager {
 
             // Compute average block fullness from gasUsedRatio
             const avgFullness =
-                feeHistory.gasUsedRatio.reduce(
-                    (acc, ratio) => acc + ratio,
-                    0
-                ) / feeHistory.gasUsedRatio.length
+                feeHistory.gasUsedRatio.reduce((acc, ratio) => acc + ratio, 0) /
+                feeHistory.gasUsedRatio.length
 
             // Select percentile index based on congestion level
             let percentileIndex: number
@@ -336,8 +333,7 @@ export class GasPriceManager {
             ) {
                 const rewards = feeHistory.reward
                 const sum = rewards.reduce(
-                    (acc, blockRewards) =>
-                        acc + blockRewards[percentileIndex],
+                    (acc, blockRewards) => acc + blockRewards[percentileIndex],
                     0n
                 )
                 maxPriorityFeePerGas = sum / BigInt(rewards.length)
@@ -364,10 +360,7 @@ export class GasPriceManager {
                 let worstCaseBaseFee = latestBaseFee
 
                 for (let i = 0; i < targetInclusionBlocks; i++) {
-                    const delta = maxBigInt(
-                        worstCaseBaseFee / 8n,
-                        1n
-                    )
+                    const delta = maxBigInt(worstCaseBaseFee / 8n, 1n)
                     worstCaseBaseFee = worstCaseBaseFee + delta
                 }
 
@@ -375,10 +368,7 @@ export class GasPriceManager {
             } else {
                 // For userOp estimation, use baseFee * 1.2 (same as viem default).
                 // This avoids returning a overly inflated maxFeePerGas.
-                const scaledBaseFee = scaleBigIntByPercent(
-                    latestBaseFee,
-                    120n
-                )
+                const scaledBaseFee = scaleBigIntByPercent(latestBaseFee, 120n)
                 maxFeePerGas = scaledBaseFee + maxPriorityFeePerGas
             }
 
