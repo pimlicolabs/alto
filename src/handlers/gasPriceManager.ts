@@ -76,6 +76,18 @@ export class GasPriceManager {
     }
 
     public async init() {
+        if (this.config.dynamicGasPrice) {
+            this.logger.info(
+                {
+                    lookbackBlocks:
+                        this.config.dynamicGasPriceLookbackBlocks,
+                    targetInclusionBlocks:
+                        this.config.dynamicGasPriceTargetInclusionBlocks
+                },
+                "using dynamic gas pricing"
+            )
+        }
+
         try {
             await Promise.all([
                 this.tryUpdateGasPrice(),
