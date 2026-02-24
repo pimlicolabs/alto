@@ -333,26 +333,22 @@ export class GasPriceManager {
         }
 
         // Compute worst-case base fee for N-block inclusion guarantee.
-        // EIP-1559: base fee increases by at most 12.5% per full block.
+        // EIP-1559 formula:
+        // base_fee_per_gas_delta = parent_base_fee_per_gas * gas_used_delta // parent_gas_target // BASE_FEE_MAX_CHANGE_DENOMINATOR
+        // With BASE_FEE_MAX_CHANGE_DENOMINATOR=8 and ELASTICITY_MULTIPLIER=2,
+        // a 100% full block increases base fee by 1/8 = 12.5%.
         // worstCaseBaseFee = currentBaseFee * (1125/1000)^targetInclusionBlocks
+        //
+        // Reference: https://github.com/ethereum/EIPs/blob/2175b810f3fd7aa07f356e5e9799985ad47d04a5/EIPS/eip-1559.md?plain=1#L189
         const baseFees = feeHistory.baseFeePerGas
         let worstCaseBaseFee = baseFees[baseFees.length - 1]
 
         for (let i = 0; i < targetInclusionBlocks; i++) {
-            worstCaseBaseFee = (worstCaseBaseFee * 1125n) / 1000n
+            const delta = maxBigInt(worstCaseBaseFee / 8n, 1n)
+            worstCaseBaseFee = worstCaseBaseFee + delta
         }
 
         const maxFeePerGas = worstCaseBaseFee + maxPriorityFeePerGas
-
-        this.logger.debug(
-            {
-                maxPriorityFeePerGas: `0x${maxPriorityFeePerGas.toString(16)}`,
-                worstCaseBaseFee: `0x${worstCaseBaseFee.toString(16)}`,
-                maxFeePerGas: `0x${maxFeePerGas.toString(16)}`,
-                targetInclusionBlocks
-            },
-            "dynamic gas price: computed gas parameters"
-        )
 
         return { maxFeePerGas, maxPriorityFeePerGas }
     }
