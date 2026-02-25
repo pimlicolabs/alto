@@ -276,6 +276,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const [userOp, entryPoint, stateOverrides] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+        // Reject EIP-7702 userOps if support is disabled
+        if (!rpcHandler.config.eip7702Support && userOp.eip7702Auth) {
+            throw new RpcError(
+                "EIP-7702 user operations are not supported",
+                ERC7769Errors.InvalidFields
+            )
+        }
+
         // Extract all config values at the beginning
         const {
             supportsEip7623,

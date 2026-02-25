@@ -217,6 +217,14 @@ export async function addToMempoolIfValid({
         throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
     }
 
+    // Reject EIP-7702 userOps if support is disabled
+    if (!rpcHandler.config.eip7702Support && userOp.eip7702Auth) {
+        throw new RpcError(
+            "EIP-7702 user operations are not supported",
+            ERC7769Errors.InvalidFields
+        )
+    }
+
     const userOpHash = getUserOpHash({
         userOp,
         entryPointAddress: entryPoint,

@@ -26,6 +26,14 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+        // Reject EIP-7702 userOps if support is disabled
+        if (!rpcHandler.config.eip7702Support && userOp.eip7702Auth) {
+            throw new RpcError(
+                "EIP-7702 user operations are not supported",
+                ERC7769Errors.InvalidFields
+            )
+        }
+
         // Validate userOp fields (sync - fail fast before expensive async checks)
         const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
             userOp,

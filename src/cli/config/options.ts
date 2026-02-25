@@ -636,6 +636,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "string",
             require: false,
             default: "150"
+        },
+        "eip-7702-support": {
+            description:
+                "Whether the bundler supports EIP-7702 user operations",
+            type: "boolean",
+            require: false,
+            default: true
         }
     }
 
