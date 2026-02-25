@@ -249,8 +249,11 @@ export class RpcHandler {
             return [true, ""]
         }
 
-        if (!this.config.codeOverrideSupport) {
-            return [false, "eip7702Auth is not supported on this chain"]
+        if (!this.config.codeOverrideSupport || !this.config.eip7702Support) {
+            return [
+                false,
+                "EIP-7702 user operations are not supported on this chain"
+            ]
         }
 
         // Check that auth is valid.
