@@ -581,8 +581,7 @@ async function calcCitreaPvg(
     let l1FeeRate: bigint
 
     if (validate) {
-        l1FeeRate =
-            await gasPriceManager.citreaManager.getMinL1FeeRate()
+        l1FeeRate = await gasPriceManager.citreaManager.getMinL1FeeRate()
     } else {
         // ledger_getHeadL2Block returns the latest L2 block header which includes l1_fee_rate
         const headL2Block = (await publicClient.request({
