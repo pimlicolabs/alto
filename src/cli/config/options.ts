@@ -556,7 +556,8 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "hedera",
                 "mantle",
                 "etherlink",
-                "monad"
+                "monad",
+                "citrea"
             ],
             default: "default"
         },

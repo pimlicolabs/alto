@@ -15,6 +15,7 @@ import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 import { ArbitrumManager } from "./arbitrumGasPriceManager"
+import { CitreaManager } from "./citreaManager"
 import { MantleManager } from "./mantleGasPriceManager"
 import { OptimismManager } from "./optimismManager"
 
@@ -26,6 +27,7 @@ export class GasPriceManager {
     private readonly logger: Logger
 
     public readonly arbitrumManager: ArbitrumManager
+    public readonly citreaManager: CitreaManager
     public readonly mantleManager: MantleManager
     public readonly optimismManager: OptimismManager
 
@@ -71,6 +73,7 @@ export class GasPriceManager {
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
+        this.citreaManager = new CitreaManager({ config })
         this.mantleManager = new MantleManager({ config })
         this.optimismManager = new OptimismManager({ config })
     }
