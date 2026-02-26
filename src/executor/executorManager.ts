@@ -282,18 +282,12 @@ export class ExecutorManager {
         }
 
         // Success case
-        let {
+        const {
             userOpsBundled,
             rejectedUserOps,
             transactionRequest,
             transactionHash
         } = bundleResult
-
-        // Increment submission attempts for all userOps submitted.
-        userOpsBundled = userOpsBundled.map((userOpInfo) => ({
-            ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
-        }))
 
         const submittedBundle: SubmittedBundleInfo = {
             uid: transactionHash,
@@ -428,7 +422,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.resubmitBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -437,7 +431,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.resubmitBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -520,7 +514,7 @@ export class ExecutorManager {
         )
     }
 
-    async replaceTransaction({
+    async resubmitBundle({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -620,7 +614,7 @@ export class ExecutorManager {
                         reason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
-                    "failed to replace transaction"
+                    "failed to resubmit bundle"
                 )
 
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -639,16 +633,10 @@ export class ExecutorManager {
         // Success case
         const {
             rejectedUserOps,
-            userOpsBundled,
+            userOpsBundled: userOpsResubmitted,
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash
         } = bundleResult
-
-        // Increment submission attempts for all replaced userOps
-        const userOpsReplaced = userOpsBundled.map((userOpInfo) => ({
-            ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
-        }))
 
         const newTxInfo: SubmittedBundleInfo = {
             ...submittedBundle,
@@ -661,7 +649,7 @@ export class ExecutorManager {
             lastReplaced: Date.now(),
             bundle: {
                 ...bundle,
-                userOps: userOpsReplaced,
+                userOps: userOpsResubmitted,
                 submissionAttempts: bundle.submissionAttempts + 1
             }
         }
@@ -678,9 +666,9 @@ export class ExecutorManager {
                 oldTxHash,
                 newTxHash,
                 reason,
-                userOps: getUserOpHashes(userOpsReplaced)
+                userOps: getUserOpHashes(userOpsResubmitted)
             },
-            "replaced transaction"
+            "resubmitted bundle"
         )
         this.metrics.replacedTransactions
             .labels({ reason, status: "success" })
