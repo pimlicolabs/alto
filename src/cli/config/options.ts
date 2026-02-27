@@ -638,6 +638,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: false,
             default: "150"
         },
+        "citrea-l1-diff-size": {
+            description:
+                "Static L1 diff size used for Citrea pre-verification gas calculation",
+            type: "string",
+            require: false,
+            default: "150"
+        },
         "eip-7702-support": {
             description:
                 "Whether the bundler supports EIP-7702 user operations",
