@@ -518,6 +518,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 3
+    },
+    "gas-price-replacement-threshold": {
+        description:
+            "Percentage threshold for gas price increase before replacing a pending transaction (e.g. 10 means replace only if gas price increased by more than 10%)",
+        type: "string",
+        require: false,
+        default: "10"
     }
 }
 

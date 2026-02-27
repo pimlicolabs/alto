@@ -132,7 +132,11 @@ export const executorArgsSchema = z.object({
     "transaction-underpriced-multiplier": z.string().transform(BigInt),
     "bundler-initial-commission": z.string().transform(BigInt).default("10"),
     "binary-search-max-retries": z.number().int().min(1).default(3),
-    "private-endpoint-submission-attempts": z.number().int().min(0).default(3)
+    "private-endpoint-submission-attempts": z.number().int().min(0).default(3),
+    "gas-price-replacement-threshold": z
+        .string()
+        .transform(BigInt)
+        .default("10")
 })
 
 export const utilityArgsSchema = z.object({
