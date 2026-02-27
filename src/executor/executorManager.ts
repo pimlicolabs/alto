@@ -433,8 +433,7 @@ export class ExecutorManager {
 
         const isGasPriceTooLow =
             networkGasPrice.maxFeePerGas > maxFeeThreshold ||
-            networkGasPrice.maxPriorityFeePerGas >
-                maxPriorityFeeThreshold
+            networkGasPrice.maxPriorityFeePerGas > maxPriorityFeeThreshold
 
         const isStuck =
             Date.now() - lastReplaced > this.config.resubmitStuckTimeout
