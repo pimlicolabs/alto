@@ -420,7 +420,7 @@ export class ExecutorManager {
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
 
         const replacementPercent =
-            100n + BigInt(this.config.gasPriceReplacementThreshold)
+            100n + this.config.gasPriceReplacementThreshold
 
         const maxFeeThreshold = scaleBigIntByPercent(
             maxFeePerGas,
