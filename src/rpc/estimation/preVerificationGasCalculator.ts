@@ -20,6 +20,7 @@ import {
 } from "@alto/utils"
 import {
     type Chain,
+    type Hex,
     type PublicClient,
     type Transport,
     bytesToHex,
@@ -34,8 +35,7 @@ import {
     size,
     slice,
     toBytes,
-    toHex,
-    Hex
+    toHex
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
 
