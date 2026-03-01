@@ -402,6 +402,14 @@ export async function calcL2PvgComponent({
                 gasPriceManager,
                 validate
             )
+        case "citrea":
+            return await calcCitreaPvg(
+                config.publicClient,
+                simulationUserOp,
+                entryPoint,
+                gasPriceManager,
+                validate
+            )
         default:
             return 0n
     }
@@ -547,6 +555,53 @@ async function calcEtherlinkPvg(
     const inclusionFeeInGas = inclusionFee / maxFeePerGas
 
     return inclusionFeeInGas
+}
+
+async function calcCitreaPvg(
+    publicClient: PublicClient<Transport, Chain>,
+    userOp: UserOperation,
+    entryPoint: Address,
+    gasPriceManager: GasPriceManager,
+    validate: boolean
+) {
+    const handleOpsCalldata = encodeHandleOpsCalldata({
+        userOps: [fillUserOpWithDummyData(userOp)],
+        beneficiary: entryPoint
+    })
+
+    // eth_estimateDiffSize returns the estimated state diff size for the transaction
+    const estimateDiffSizeResult = (await publicClient.request({
+        // @ts-ignore - custom Citrea RPC method
+        method: "eth_estimateDiffSize",
+        params: [{ to: entryPoint, data: handleOpsCalldata }]
+    })) as unknown as { l1DiffSize: `0x${string}` }
+
+    const l1DiffSize = BigInt(estimateDiffSizeResult.l1DiffSize)
+
+    let l1FeeRate: bigint
+
+    if (validate) {
+        l1FeeRate = await gasPriceManager.citreaManager.getMinL1FeeRate()
+    } else {
+        // ledger_getHeadL2Block returns the latest L2 block header which includes l1_fee_rate
+        const headL2Block = (await publicClient.request({
+            // @ts-ignore - custom Citrea RPC method
+            method: "ledger_getHeadL2Block"
+        })) as unknown as { header: { l1_fee_rate: `0x${string}` } }
+
+        l1FeeRate = BigInt(headL2Block.header.l1_fee_rate)
+
+        gasPriceManager.citreaManager.saveL1FeeRate(l1FeeRate)
+    }
+
+    const l1Fee = l1FeeRate * l1DiffSize
+
+    const maxFeePerGas = validate
+        ? await gasPriceManager.getHighestMaxFeePerGas()
+        : (await gasPriceManager.getGasPrice()).maxFeePerGas
+
+    // ceil(l1Fee / maxFeePerGas)
+    return (l1Fee + maxFeePerGas - 1n) / maxFeePerGas
 }
 
 async function calcMantlePvg(
