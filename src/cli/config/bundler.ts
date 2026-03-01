@@ -187,6 +187,7 @@ export const compatibilityArgsSchema = z.object({
         .optional(),
     "supports-eip7623": z.boolean().default(false),
     "arbitrum-base-fee-multiplier": z.string().transform(BigInt).default("150"),
+    "citrea-l1-diff-size": z.string().transform(BigInt).default("150"),
     "eip-7702-support": z.boolean().default(true)
 })
 

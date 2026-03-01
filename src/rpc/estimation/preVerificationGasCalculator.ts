@@ -20,6 +20,7 @@ import {
 } from "@alto/utils"
 import {
     type Chain,
+    type Hex,
     type PublicClient,
     type Transport,
     bytesToHex,
@@ -403,13 +404,7 @@ export async function calcL2PvgComponent({
                 validate
             )
         case "citrea":
-            return await calcCitreaPvg(
-                config.publicClient,
-                simulationUserOp,
-                entryPoint,
-                gasPriceManager,
-                validate
-            )
+            return await calcCitreaPvg(config, gasPriceManager, validate)
         default:
             return 0n
     }
@@ -557,26 +552,15 @@ async function calcEtherlinkPvg(
     return inclusionFeeInGas
 }
 
+// Based on: https://docs.citrea.xyz/advanced/fee-model#how-l1-fee-is-calculated
+// l1_fee = l1_fee_rate × diff_size
 async function calcCitreaPvg(
-    publicClient: PublicClient<Transport, Chain>,
-    userOp: UserOperation,
-    entryPoint: Address,
+    config: AltoConfig,
     gasPriceManager: GasPriceManager,
     validate: boolean
 ) {
-    const handleOpsCalldata = encodeHandleOpsCalldata({
-        userOps: [fillUserOpWithDummyData(userOp)],
-        beneficiary: entryPoint
-    })
-
-    // eth_estimateDiffSize returns the estimated state diff size for the transaction
-    const estimateDiffSizeResult = (await publicClient.request({
-        // @ts-ignore - custom Citrea RPC method
-        method: "eth_estimateDiffSize",
-        params: [{ to: entryPoint, data: handleOpsCalldata }]
-    })) as unknown as { l1DiffSize: `0x${string}` }
-
-    const l1DiffSize = BigInt(estimateDiffSizeResult.l1DiffSize)
+    const publicClient = config.publicClient
+    const l1DiffSize = config.citreaL1DiffSize
 
     let l1FeeRate: bigint
 
@@ -587,9 +571,11 @@ async function calcCitreaPvg(
         const headL2Block = (await publicClient.request({
             // @ts-ignore - custom Citrea RPC method
             method: "ledger_getHeadL2Block"
-        })) as unknown as { header: { l1_fee_rate: `0x${string}` } }
+        })) as unknown as { header: { l1_fee_rate: Hex } }
 
         l1FeeRate = BigInt(headL2Block.header.l1_fee_rate)
+
+        console.log("l1FeeRate", l1FeeRate)
 
         gasPriceManager.citreaManager.saveL1FeeRate(l1FeeRate)
     }
