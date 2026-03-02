@@ -575,8 +575,6 @@ async function calcCitreaPvg(
 
         l1FeeRate = BigInt(headL2Block.header.l1_fee_rate)
 
-        console.log("l1FeeRate", l1FeeRate)
-
         gasPriceManager.citreaManager.saveL1FeeRate(l1FeeRate)
     }
 
