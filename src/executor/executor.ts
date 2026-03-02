@@ -434,12 +434,19 @@ export class Executor {
         }
 
         const {
-            userOpsToBundle,
             rejectedUserOps,
             bundleGasUsed,
             bundleGasLimit,
             totalBeneficiaryFees
         } = filterOpsResult
+
+        // Increment per userOp submission attempts after filterOps succeeds.
+        const userOpsToBundle = filterOpsResult.userOpsToBundle.map(
+            (userOpInfo) => ({
+                ...userOpInfo,
+                submissionAttempts: userOpInfo.submissionAttempts + 1
+            })
+        )
 
         // Update child logger with userOperations being sent for bundling.
         childLogger = this.logger.child({
@@ -502,8 +509,6 @@ export class Executor {
                 transactionHash
             })
         } catch (err: unknown) {
-            const { rejectedUserOps, userOpsToBundle } = filterOpsResult
-
             const isViemExecutionError =
                 err instanceof ContractFunctionExecutionError ||
                 err instanceof TransactionExecutionError
