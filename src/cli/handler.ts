@@ -166,7 +166,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                 }
             )
         }),
-        pollingInterval: args.blockTime / 4,
+        pollingInterval: args.blockTime / 2,
         chain
     })
 
