@@ -69,8 +69,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         default: "100,100,100"
     },
     "gas-price-refresh-interval": {
-        description:
-            "How often to refresh the gas prices (seconds)",
+        description: "How often to refresh the gas prices (seconds)",
         type: "number",
         require: false,
         default: 5
