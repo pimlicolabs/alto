@@ -10,6 +10,7 @@ import {
     scaleBigIntByPercent
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
+import Redis from "ioredis"
 import type { Chain, PublicClient } from "viem"
 import { polygon } from "viem/chains"
 import type { AltoConfig } from "../createConfig"
@@ -25,6 +26,7 @@ export class GasPriceManager {
     private readonly maxFeePerGasQueue: MinMaxQueue
     private readonly maxPriorityFeePerGasQueue: MinMaxQueue
     private readonly logger: Logger
+    private readonly redisRefreshGuard: { redis: Redis; key: string } | null
 
     public readonly arbitrumManager: ArbitrumManager
     public readonly citreaManager: CitreaManager
@@ -39,6 +41,15 @@ export class GasPriceManager {
                 level: config.logLevel
             }
         )
+
+        if (config.enableHorizontalScaling && config.redisEndpoint) {
+            this.redisRefreshGuard = {
+                redis: new Redis(config.redisEndpoint),
+                key: `${config.redisKeyPrefix}:${config.chainId}:gas-price-update-lock`
+            }
+        } else {
+            this.redisRefreshGuard = null
+        }
 
         this.baseFeePerGasQueue = createMinMaxQueue({
             config,
@@ -55,21 +66,10 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(async () => {
-                try {
-                    if (this.config.legacyTransactions === false) {
-                        await this.tryUpdateBaseFee()
-                    }
-
-                    await this.tryUpdateGasPrice()
-                } catch (err) {
-                    this.logger.error(
-                        { err },
-                        "Error updating gas prices in interval"
-                    )
-                    sentry.captureException(err)
-                }
-            }, this.config.gasPriceRefreshInterval * 1000)
+            setInterval(
+                () => this.refreshGasPrices(),
+                this.config.gasPriceRefreshInterval * 1000
+            )
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
@@ -408,6 +408,44 @@ export class GasPriceManager {
             ? await this.estimateDynamicGasPrice({ forExecutor })
             : await this.estimateGasPrice()
         return this.bumpTheGasPrice(estimatedGasPrice)
+    }
+
+    private async refreshGasPrices(): Promise<void> {
+        try {
+            // With horizontal scaling, use a Redis SET NX lock so only one instance
+            // makes RPC calls per refresh interval. Fail-open on Redis errors.
+            if (this.redisRefreshGuard) {
+                const acquired = await this.redisRefreshGuard.redis
+                    .set(
+                        this.redisRefreshGuard.key,
+                        "1",
+                        "EX",
+                        this.config.gasPriceRefreshInterval,
+                        "NX"
+                    )
+                    .catch((err: unknown) => {
+                        this.logger.warn(
+                            { err },
+                            "Redis lock check failed, proceeding with update"
+                        )
+                        return "OK"
+                    })
+
+                if (acquired !== "OK") {
+                    return
+                }
+            }
+
+            await Promise.all([
+                this.tryUpdateGasPrice(),
+                this.config.legacyTransactions === false
+                    ? this.tryUpdateBaseFee()
+                    : Promise.resolve()
+            ])
+        } catch (err) {
+            this.logger.error({ err }, "Error updating gas prices in interval")
+            sentry.captureException(err)
+        }
     }
 
     // This method throws if it can't get a valid RPC response.
