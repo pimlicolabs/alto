@@ -436,11 +436,12 @@ export class GasPriceManager {
                 }
             }
 
-            if (this.config.legacyTransactions === false) {
-                await this.tryUpdateBaseFee()
-            }
-
-            await this.tryUpdateGasPrice()
+            await Promise.all([
+                this.tryUpdateGasPrice(),
+                this.config.legacyTransactions === false
+                    ? this.tryUpdateBaseFee()
+                    : Promise.resolve()
+            ])
         } catch (err) {
             this.logger.error({ err }, "Error updating gas prices in interval")
             sentry.captureException(err)
