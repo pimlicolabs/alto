@@ -53,24 +53,22 @@ export class GasPriceManager {
             queueName: "max-priority-fee-per-gas-queue"
         })
 
-        // Periodically update gas prices if specified
-        if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(async () => {
-                try {
-                    if (this.config.legacyTransactions === false) {
-                        await this.tryUpdateBaseFee()
-                    }
-
-                    await this.tryUpdateGasPrice()
-                } catch (err) {
-                    this.logger.error(
-                        { err },
-                        "Error updating gas prices in interval"
-                    )
-                    sentry.captureException(err)
+        // Periodically update gas prices
+        setInterval(async () => {
+            try {
+                if (this.config.legacyTransactions === false) {
+                    await this.tryUpdateBaseFee()
                 }
-            }, this.config.gasPriceRefreshInterval * 1000)
-        }
+
+                await this.tryUpdateGasPrice()
+            } catch (err) {
+                this.logger.error(
+                    { err },
+                    "Error updating gas prices in interval"
+                )
+                sentry.captureException(err)
+            }
+        }, this.config.gasPriceRefreshInterval * 1000)
 
         this.arbitrumManager = new ArbitrumManager({ config })
         this.citreaManager = new CitreaManager({ config })
@@ -435,10 +433,6 @@ export class GasPriceManager {
                 return 0n
             }
 
-            if (this.config.gasPriceRefreshInterval === 0) {
-                return await this.tryUpdateBaseFee()
-            }
-
             let baseFee = await this.baseFeePerGasQueue.getLatestValue()
             if (!baseFee) {
                 baseFee = await this.tryUpdateBaseFee()
@@ -471,15 +465,6 @@ export class GasPriceManager {
             return {
                 maxFeePerGas: 0n,
                 maxPriorityFeePerGas: 0n
-            }
-        }
-
-        if (this.config.gasPriceRefreshInterval === 0) {
-            try {
-                return await this.tryUpdateGasPrice()
-            } catch (e) {
-                this.logger.error(e, "No gas price available")
-                throw new Error("No gas price available")
             }
         }
 

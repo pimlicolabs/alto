@@ -42,7 +42,7 @@ export const bundlerArgsSchema = z.object({
             "Must contain 3 comma seperated items in format: slow,standard,fast"
         )
         .transform(([slow, standard, fast]) => ({ slow, standard, fast })),
-    "gas-price-refresh-interval": z.number().int().min(0),
+    "gas-price-refresh-interval": z.number().int().min(1),
     "dynamic-gas-price": z.boolean().default(false),
     "dynamic-gas-price-lookback-blocks": z.number().int().min(1).default(10),
     "dynamic-gas-price-target-inclusion-blocks": z
