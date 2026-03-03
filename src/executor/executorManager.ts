@@ -7,7 +7,8 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
-import type { Block, Hex, WatchBlocksReturnType } from "viem"
+import Redis from "ioredis"
+import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -29,6 +30,11 @@ export class ExecutorManager {
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private unWatch: WatchBlocksReturnType | undefined
+    private readonly redisBlockCache: {
+        redis: Redis
+        key: string
+        lastBlockNum: bigint
+    } | null
 
     private currentlyHandlingBlock = false
 
@@ -63,6 +69,16 @@ export class ExecutorManager {
         this.senderManager = senderManager
         this.bundlingMode = this.config.bundleMode
         this.bundleManager = bundleManager
+
+        if (config.enableHorizontalScaling && config.redisEndpoint) {
+            this.redisBlockCache = {
+                redis: new Redis(config.redisEndpoint),
+                key: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number`,
+                lastBlockNum: 0n
+            }
+        } else {
+            this.redisBlockCache = null
+        }
     }
 
     start(): void {
@@ -122,6 +138,47 @@ export class ExecutorManager {
         }
     }
 
+    private async pollBlockWithRedis(
+        cache: NonNullable<typeof this.redisBlockCache>
+    ): Promise<void> {
+        try {
+            let blockNumber: bigint | null = null
+
+            try {
+                const cached = await cache.redis.get(cache.key)
+                blockNumber = cached ? BigInt(cached) : null
+            } catch (err) {
+                this.logger.warn(
+                    { err },
+                    "Redis block cache read failed, falling through to RPC"
+                )
+            }
+
+            if (!blockNumber) {
+                blockNumber = await this.config.publicClient.getBlockNumber()
+
+                try {
+                    await cache.redis.set(
+                        cache.key,
+                        blockNumber.toString(),
+                        "PX",
+                        this.config.blockTime
+                    )
+                } catch (err) {
+                    this.logger.warn({ err }, "Redis block cache write failed")
+                }
+            }
+
+            // If there is a block number change, run handleBlock()
+            if (blockNumber !== cache.lastBlockNum) {
+                cache.lastBlockNum = blockNumber
+                await this.handleBlock()
+            }
+        } catch (err) {
+            this.logger.warn({ err }, "error polling block with Redis cache")
+        }
+    }
+
     startWatchingBlocks(): void {
         if (this.unWatch) {
             return
@@ -142,11 +199,20 @@ export class ExecutorManager {
             this.unWatch = () => {
                 clearInterval(intervalId)
             }
+        } else if (this.redisBlockCache) {
+            const cache = this.redisBlockCache
+            const pollingInterval = this.config.blockTime / 2
+            const intervalId = setInterval(async () => {
+                await this.pollBlockWithRedis(cache)
+            }, pollingInterval)
+            this.unWatch = () => {
+                clearInterval(intervalId)
+            }
         } else {
             // Default behavior - watch blocks
             this.unWatch = this.config.publicClient.watchBlocks({
-                onBlock: async (block) => {
-                    await this.handleBlock(block)
+                onBlock: async () => {
+                    await this.handleBlock()
                 },
                 onError: (err) => {
                     this.logger.error({ err }, "error while watching blocks")
@@ -332,7 +398,7 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock(block?: Block) {
+    private async handleBlock() {
         if (this.currentlyHandlingBlock) {
             return
         }
@@ -374,8 +440,7 @@ export class ExecutorManager {
                     await this.bundleManager.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus,
-                        block
+                        bundleReceipt: bundleStatus
                     })
                 }
 
