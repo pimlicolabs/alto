@@ -150,47 +150,28 @@ export class ExecutorManager {
         try {
             let blockNumber: bigint | null = null
 
-            // Try get blockNumber from Redis cache.
-            try {
-                const cached = await this.redisBlockCache.redis.get(
-                    this.redisBlockCache.blockNumberKey
+            // Try to acquire lock, if free then make getBlock RPC call.
+            const shouldFetchBlock = await this.redisBlockCache.redis
+                .set(
+                    this.redisBlockCache.refreshGuardKey,
+                    "1",
+                    "PX",
+                    this.config.blockTime / 2,
+                    "NX"
                 )
-                blockNumber = cached ? BigInt(cached) : null
-            } catch (err) {
-                this.logger.warn(
-                    { err },
-                    "Redis block cache read failed, falling through to RPC"
-                )
-                sentry.captureException(err)
-            }
-
-            // Cache miss. Try to acquire lock. Only one instance can lock and fetch from RPC.
-            if (!blockNumber) {
-                const canFetchBlock = await this.redisBlockCache.redis
-                    .set(
-                        this.redisBlockCache.refreshGuardKey,
-                        "1",
-                        "PX",
-                        this.config.blockTime / 2,
-                        "NX"
+                .catch((err: unknown) => {
+                    this.logger.warn(
+                        { err },
+                        "Redis lock check failed, falling back to RPC"
                     )
-                    .catch((err: unknown) => {
-                        this.logger.warn(
-                            { err },
-                            "Redis lock check failed, falling back to RPC"
-                        )
-                        sentry.captureException(err)
-                        return "OK"
-                    })
+                    sentry.captureException(err)
+                    return "OK"
+                })
 
-                // Another instance has lock and is fetching, return early and skip this poll.
-                if (canFetchBlock !== "OK") {
-                    return
-                }
-
+            if (shouldFetchBlock === "OK") {
+                // Lock acquired — fetch block number from RPC and write to cache.
                 blockNumber = await this.config.publicClient.getBlockNumber()
 
-                // Write the new block number into cache.
                 try {
                     await this.redisBlockCache.redis.set(
                         this.redisBlockCache.blockNumberKey,
@@ -200,13 +181,28 @@ export class ExecutorManager {
                     )
                 } catch (err) {
                     this.logger.warn({ err }, "Redis block cache write failed")
+                    sentry.captureException(err)
+                }
+            } else {
+                // Another instance is already fetching, read from cached block number.
+                try {
+                    const cached = await this.redisBlockCache.redis.get(
+                        this.redisBlockCache.blockNumberKey
+                    )
+                    blockNumber = cached ? BigInt(cached) : null
+                } catch (err) {
+                    this.logger.warn({ err }, "Redis block cache read failed")
+                    sentry.captureException(err)
+                }
+
+                // Cache empty, check again next poll.
+                if (!blockNumber) {
+                    return
                 }
             }
 
-            const localBlockNumber = this.redisBlockCache.localBlockNumber
-
             // If block number changed, run handleBlock().
-            if (blockNumber !== localBlockNumber) {
+            if (blockNumber !== this.redisBlockCache.localBlockNumber) {
                 this.redisBlockCache.localBlockNumber = blockNumber
                 await this.handleBlock()
             }
