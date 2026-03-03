@@ -150,7 +150,7 @@ export class ExecutorManager {
         try {
             let blockNumber: bigint | null = null
 
-            // Try to acquire lock, if free then make getBlock RPC call.
+            // Try to acquire lock.
             const shouldFetchBlock = await this.redisBlockCache.redis
                 .set(
                     this.redisBlockCache.refreshGuardKey,
@@ -169,7 +169,7 @@ export class ExecutorManager {
                 })
 
             if (shouldFetchBlock === "OK") {
-                // Lock acquired — fetch block number from RPC and write to cache.
+                // Lock acquired, make getBlockNumber RPC call and write to cache.
                 blockNumber = await this.config.publicClient.getBlockNumber()
 
                 try {
