@@ -138,15 +138,20 @@ export class ExecutorManager {
         }
     }
 
-    private async pollBlockWithRedis(
-        cache: NonNullable<typeof this.redisBlockCache>
-    ): Promise<void> {
+    private async pollBlockWithRedis(): Promise<void> {
+        // Should never happen.
+        if (!this.redisBlockCache) {
+            throw new Error("Redis block cache not configured")
+        }
+
         try {
             let blockNumber: bigint | null = null
 
             // Try get blockNumber from Redis cache.
             try {
-                const cached = await cache.redis.get(cache.key)
+                const cached = await this.redisBlockCache.redis.get(
+                    this.redisBlockCache.key
+                )
                 blockNumber = cached ? BigInt(cached) : null
             } catch (err) {
                 this.logger.warn(
@@ -160,8 +165,8 @@ export class ExecutorManager {
                 blockNumber = await this.config.publicClient.getBlockNumber()
 
                 try {
-                    await cache.redis.set(
-                        cache.key,
+                    await this.redisBlockCache.redis.set(
+                        this.redisBlockCache.key,
                         blockNumber.toString(),
                         "PX",
                         this.config.blockTime / 2
@@ -172,8 +177,8 @@ export class ExecutorManager {
             }
 
             // If block number changed, run handleBlock().
-            if (blockNumber !== cache.lastBlockNum) {
-                cache.lastBlockNum = blockNumber
+            if (blockNumber !== this.redisBlockCache.lastBlockNum) {
+                this.redisBlockCache.lastBlockNum = blockNumber
                 await this.handleBlock()
             }
         } catch (err) {
@@ -202,10 +207,9 @@ export class ExecutorManager {
                 clearInterval(intervalId)
             }
         } else if (this.redisBlockCache) {
-            const cache = this.redisBlockCache
             const pollingInterval = this.config.blockTime / 2
             const intervalId = setInterval(async () => {
-                await this.pollBlockWithRedis(cache)
+                await this.pollBlockWithRedis()
             }, pollingInterval)
             this.unWatch = () => {
                 clearInterval(intervalId)
