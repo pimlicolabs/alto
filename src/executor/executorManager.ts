@@ -161,6 +161,7 @@ export class ExecutorManager {
                     { err },
                     "Redis block cache read failed, falling through to RPC"
                 )
+                sentry.captureException(err)
             }
 
             // Cache miss. Try to acquire lock. Only one instance can lock and fetch from RPC.
@@ -176,7 +177,7 @@ export class ExecutorManager {
                     .catch((err: unknown) => {
                         this.logger.warn(
                             { err },
-                            "Redis lock check failed, proceeding with RPC"
+                            "Redis lock check failed, falling back to RPC"
                         )
                         sentry.captureException(err)
                         return "OK"
@@ -202,8 +203,10 @@ export class ExecutorManager {
                 }
             }
 
+            const localBlockNumber = this.redisBlockCache.localBlockNumber
+
             // If block number changed, run handleBlock().
-            if (blockNumber !== this.redisBlockCache.localBlockNumber) {
+            if (blockNumber !== localBlockNumber) {
                 this.redisBlockCache.localBlockNumber = blockNumber
                 await this.handleBlock()
             }
