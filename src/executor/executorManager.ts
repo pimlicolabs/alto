@@ -144,6 +144,7 @@ export class ExecutorManager {
         try {
             let blockNumber: bigint | null = null
 
+            // Try get blockNumber from Redis cache.
             try {
                 const cached = await cache.redis.get(cache.key)
                 blockNumber = cached ? BigInt(cached) : null
@@ -154,6 +155,7 @@ export class ExecutorManager {
                 )
             }
 
+            // If not cached, get blockNumber from RPC.
             if (!blockNumber) {
                 blockNumber = await this.config.publicClient.getBlockNumber()
 
@@ -169,7 +171,7 @@ export class ExecutorManager {
                 }
             }
 
-            // If there is a block number change, run handleBlock()
+            // If block number changed, run handleBlock().
             if (blockNumber !== cache.lastBlockNum) {
                 cache.lastBlockNum = blockNumber
                 await this.handleBlock()
