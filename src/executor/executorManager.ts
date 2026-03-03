@@ -166,7 +166,7 @@ export class ExecutorManager {
 
             // Cache miss. Try to acquire lock. Only one instance can lock and fetch from RPC.
             if (!blockNumber) {
-                const canRefresh = await this.redisBlockCache.redis
+                const canFetchBlock = await this.redisBlockCache.redis
                     .set(
                         this.redisBlockCache.refreshGuardKey,
                         "1",
@@ -184,7 +184,7 @@ export class ExecutorManager {
                     })
 
                 // Another instance has lock and is fetching, return early and skip this poll.
-                if (canRefresh !== "OK") {
+                if (canFetchBlock !== "OK") {
                     return
                 }
 
