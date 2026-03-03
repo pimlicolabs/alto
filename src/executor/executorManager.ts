@@ -164,7 +164,7 @@ export class ExecutorManager {
                         cache.key,
                         blockNumber.toString(),
                         "PX",
-                        this.config.blockTime
+                        this.config.blockTime / 2
                     )
                 } catch (err) {
                     this.logger.warn({ err }, "Redis block cache write failed")
