@@ -7,7 +7,9 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
-import type { Block, Hex, WatchBlocksReturnType } from "viem"
+import * as sentry from "@sentry/node"
+import Redis from "ioredis"
+import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -29,6 +31,12 @@ export class ExecutorManager {
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private unWatch: WatchBlocksReturnType | undefined
+    private redisBlockCache: {
+        redis: Redis
+        blockNumberKey: string
+        refreshGuardKey: string
+        localBlockNumber: bigint
+    } | null
 
     private currentlyHandlingBlock = false
 
@@ -63,6 +71,17 @@ export class ExecutorManager {
         this.senderManager = senderManager
         this.bundlingMode = this.config.bundleMode
         this.bundleManager = bundleManager
+
+        if (config.enableHorizontalScaling && config.redisEndpoint) {
+            this.redisBlockCache = {
+                redis: new Redis(config.redisEndpoint),
+                blockNumberKey: `${config.redisKeyPrefix}:${config.chainId}:watch-blocks:value`,
+                refreshGuardKey: `${config.redisKeyPrefix}:${config.chainId}:watch-blocks:lock`,
+                localBlockNumber: 0n
+            }
+        } else {
+            this.redisBlockCache = null
+        }
     }
 
     start(): void {
@@ -122,6 +141,79 @@ export class ExecutorManager {
         }
     }
 
+    private async pollBlockWithRedis(): Promise<void> {
+        // Should never happen.
+        if (!this.redisBlockCache) {
+            throw new Error("Redis block cache not configured")
+        }
+
+        // Ensure ttl is an integer.
+        const halfBlockTime = Math.floor(this.config.blockTime / 2)
+
+        try {
+            let blockNumber: bigint | null = null
+
+            // Try to acquire lock.
+            const shouldFetchBlock = await this.redisBlockCache.redis
+                .set(
+                    this.redisBlockCache.refreshGuardKey,
+                    "1",
+                    "PX",
+                    halfBlockTime,
+                    "NX"
+                )
+                .catch((err: unknown) => {
+                    this.logger.warn(
+                        { err },
+                        "Redis lock check failed, falling back to RPC"
+                    )
+                    sentry.captureException(err)
+                    return "OK"
+                })
+
+            if (shouldFetchBlock === "OK") {
+                // Lock acquired, make getBlockNumber RPC call and write to cache.
+                blockNumber = await this.config.publicClient.getBlockNumber()
+
+                try {
+                    await this.redisBlockCache.redis.set(
+                        this.redisBlockCache.blockNumberKey,
+                        blockNumber.toString(),
+                        "PX",
+                        halfBlockTime
+                    )
+                } catch (err) {
+                    this.logger.warn({ err }, "Redis block cache write failed")
+                    sentry.captureException(err)
+                }
+            } else {
+                // Another instance is already fetching or recently fetched, read from cached block number.
+                try {
+                    const cached = await this.redisBlockCache.redis.get(
+                        this.redisBlockCache.blockNumberKey
+                    )
+                    blockNumber = cached ? BigInt(cached) : null
+                } catch (err) {
+                    this.logger.warn({ err }, "Redis block cache read failed")
+                    sentry.captureException(err)
+                }
+
+                // Cache empty, check again next poll.
+                if (!blockNumber) {
+                    return
+                }
+            }
+
+            // If block number changed, run handleBlock().
+            if (blockNumber !== this.redisBlockCache.localBlockNumber) {
+                this.redisBlockCache.localBlockNumber = blockNumber
+                await this.handleBlock()
+            }
+        } catch (err) {
+            this.logger.warn({ err }, "error polling block with Redis cache")
+        }
+    }
+
     startWatchingBlocks(): void {
         if (this.unWatch) {
             return
@@ -142,11 +234,19 @@ export class ExecutorManager {
             this.unWatch = () => {
                 clearInterval(intervalId)
             }
+        } else if (this.redisBlockCache) {
+            const pollingInterval = this.config.blockTime / 2
+            const intervalId = setInterval(async () => {
+                await this.pollBlockWithRedis()
+            }, pollingInterval)
+            this.unWatch = () => {
+                clearInterval(intervalId)
+            }
         } else {
             // Default behavior - watch blocks
             this.unWatch = this.config.publicClient.watchBlocks({
-                onBlock: async (block) => {
-                    await this.handleBlock(block)
+                onBlock: async () => {
+                    await this.handleBlock()
                 },
                 onError: (err) => {
                     this.logger.error({ err }, "error while watching blocks")
@@ -332,7 +432,7 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock(block?: Block) {
+    private async handleBlock() {
         if (this.currentlyHandlingBlock) {
             return
         }
@@ -374,8 +474,7 @@ export class ExecutorManager {
                     await this.bundleManager.processRevertedBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus,
-                        block
+                        bundleReceipt: bundleStatus
                     })
                 }
 

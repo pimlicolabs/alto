@@ -16,7 +16,6 @@ import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Address,
-    type Block,
     type Hash,
     type Hex,
     type TransactionReceipt,
@@ -159,13 +158,11 @@ export class BundleManager {
     async processRevertedBundle({
         submittedBundle,
         blockReceivedTimestamp,
-        bundleReceipt,
-        block
+        bundleReceipt
     }: {
         submittedBundle: SubmittedBundleInfo
         blockReceivedTimestamp: number
         bundleReceipt: BundleStatus<"reverted">
-        block?: Block
     }) {
         const { bundle } = submittedBundle
         const { blockNumber, transactionHash } = bundleReceipt
@@ -179,8 +176,7 @@ export class BundleManager {
 
         const networkBaseFee = this.config.legacyTransactions
             ? 0n
-            : (block?.baseFeePerGas ??
-              (await this.gasPriceManager.getBaseFee()))
+            : await this.gasPriceManager.getBaseFee()
 
         // make rest of the code non-blocking
         return (async () => {
