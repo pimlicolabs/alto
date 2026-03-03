@@ -31,7 +31,7 @@ export class ExecutorManager {
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private unWatch: WatchBlocksReturnType | undefined
-    private readonly redisBlockCache: {
+    private redisBlockCache: {
         redis: Redis
         blockNumberKey: string
         refreshGuardKey: string
