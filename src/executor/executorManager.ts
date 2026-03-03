@@ -147,6 +147,9 @@ export class ExecutorManager {
             throw new Error("Redis block cache not configured")
         }
 
+        // Ensure ttl is an integer.
+        const halfBlockTime = Math.floor(this.config.blockTime / 2)
+
         try {
             let blockNumber: bigint | null = null
 
@@ -156,7 +159,7 @@ export class ExecutorManager {
                     this.redisBlockCache.refreshGuardKey,
                     "1",
                     "PX",
-                    this.config.blockTime / 2,
+                    halfBlockTime,
                     "NX"
                 )
                 .catch((err: unknown) => {
@@ -177,7 +180,7 @@ export class ExecutorManager {
                         this.redisBlockCache.blockNumberKey,
                         blockNumber.toString(),
                         "PX",
-                        this.config.blockTime / 2
+                        halfBlockTime
                     )
                 } catch (err) {
                     this.logger.warn({ err }, "Redis block cache write failed")
