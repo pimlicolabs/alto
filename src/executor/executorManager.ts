@@ -184,7 +184,7 @@ export class ExecutorManager {
                     sentry.captureException(err)
                 }
             } else {
-                // Another instance is already fetching, read from cached block number.
+                // Another instance is already fetching or recently fetched, read from cached block number.
                 try {
                     const cached = await this.redisBlockCache.redis.get(
                         this.redisBlockCache.blockNumberKey
