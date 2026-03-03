@@ -75,8 +75,8 @@ export class ExecutorManager {
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.redisBlockCache = {
                 redis: new Redis(config.redisEndpoint),
-                blockNumberKey: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number`,
-                refreshGuardKey: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number-lock`,
+                blockNumberKey: `${config.redisKeyPrefix}:${config.chainId}:watch-blocks:value`,
+                refreshGuardKey: `${config.redisKeyPrefix}:${config.chainId}:watch-blocks:lock`,
                 localBlockNumber: 0n
             }
         } else {
