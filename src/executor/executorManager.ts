@@ -7,6 +7,7 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -32,8 +33,9 @@ export class ExecutorManager {
     private unWatch: WatchBlocksReturnType | undefined
     private readonly redisBlockCache: {
         redis: Redis
-        key: string
-        lastBlockNum: bigint
+        blockNumberKey: string
+        refreshGuardKey: string
+        localBlockNumber: bigint
     } | null
 
     private currentlyHandlingBlock = false
@@ -73,8 +75,9 @@ export class ExecutorManager {
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.redisBlockCache = {
                 redis: new Redis(config.redisEndpoint),
-                key: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number`,
-                lastBlockNum: 0n
+                blockNumberKey: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number`,
+                refreshGuardKey: `${config.redisKeyPrefix}:${config.chainId}:latest-block-number-lock`,
+                localBlockNumber: 0n
             }
         } else {
             this.redisBlockCache = null
@@ -150,7 +153,7 @@ export class ExecutorManager {
             // Try get blockNumber from Redis cache.
             try {
                 const cached = await this.redisBlockCache.redis.get(
-                    this.redisBlockCache.key
+                    this.redisBlockCache.blockNumberKey
                 )
                 blockNumber = cached ? BigInt(cached) : null
             } catch (err) {
@@ -160,13 +163,36 @@ export class ExecutorManager {
                 )
             }
 
-            // If not cached, get blockNumber from RPC.
+            // Cache miss. Try to acquire lock. Only one instance can lock and fetch from RPC.
             if (!blockNumber) {
+                const acquired = await this.redisBlockCache.redis
+                    .set(
+                        this.redisBlockCache.refreshGuardKey,
+                        "1",
+                        "PX",
+                        this.config.blockTime / 2,
+                        "NX"
+                    )
+                    .catch((err: unknown) => {
+                        this.logger.warn(
+                            { err },
+                            "Redis lock check failed, proceeding with RPC"
+                        )
+                        sentry.captureException(err)
+                        return "OK"
+                    })
+
+                // Another instance has lock and is fetching, return early and skip this poll.
+                if (acquired !== "OK") {
+                    return
+                }
+
                 blockNumber = await this.config.publicClient.getBlockNumber()
 
+                // Write the new block number into cache.
                 try {
                     await this.redisBlockCache.redis.set(
-                        this.redisBlockCache.key,
+                        this.redisBlockCache.blockNumberKey,
                         blockNumber.toString(),
                         "PX",
                         this.config.blockTime / 2
@@ -177,8 +203,8 @@ export class ExecutorManager {
             }
 
             // If block number changed, run handleBlock().
-            if (blockNumber !== this.redisBlockCache.lastBlockNum) {
-                this.redisBlockCache.lastBlockNum = blockNumber
+            if (blockNumber !== this.redisBlockCache.localBlockNumber) {
+                this.redisBlockCache.localBlockNumber = blockNumber
                 await this.handleBlock()
             }
         } catch (err) {
