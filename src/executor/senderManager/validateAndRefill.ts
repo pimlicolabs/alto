@@ -99,7 +99,7 @@ export const validateAndRefillWallets = async ({
                 `${config.redisKeyPrefix}:${config.chainId}:wallet-refill-lock`,
                 "1",
                 "EX",
-                config.executorRefillInterval,
+                Math.floor(config.executorRefillInterval / 2),
                 "NX"
             )
             .catch((err: unknown) => {
