@@ -1,5 +1,6 @@
 import type { Logger, Metrics } from "@alto/utils"
 import { scaleBigIntByPercent } from "@alto/utils"
+import Redis from "ioredis"
 import {
     type Account,
     type Address,
@@ -10,6 +11,8 @@ import {
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
+
+let redisClient: Redis | null = null
 
 // Checks executor balance and refills to 120% of minBalance if below threshold.
 const sendRefillTransaction = async ({
@@ -82,6 +85,34 @@ export const validateAndRefillWallets = async ({
 
     if (!(minBalance && utilityAccount)) {
         return
+    }
+
+    // With horizontal scaling, use a Redis SET NX lock so only one instance
+    // performs the balance check/refill per interval. Fail-open on Redis errors.
+    if (config.enableHorizontalScaling && config.redisEndpoint) {
+        if (!redisClient) {
+            redisClient = new Redis(config.redisEndpoint)
+        }
+
+        const acquired = await redisClient
+            .set(
+                `${config.redisKeyPrefix}:${config.chainId}:wallet-refill-lock`,
+                "1",
+                "EX",
+                config.executorRefillInterval,
+                "NX"
+            )
+            .catch((err: unknown) => {
+                logger.warn(
+                    { err },
+                    "Redis lock check failed, proceeding with update"
+                )
+                return "OK"
+            })
+
+        if (acquired !== "OK") {
+            return
+        }
     }
 
     const allWallets = senderManager.getAllWallets()
