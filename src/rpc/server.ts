@@ -209,7 +209,7 @@ export class Server {
     }
 
     private async rpc(request: FastifyRequest, reply: RpcReply): Promise<void> {
-        let requestId: number | null = null
+        let requestId: number | string | null = null
 
         const versionParsingResult = altoVersions.safeParse(
             (request.params as any)?.version ?? this.config.defaultApiVersion
