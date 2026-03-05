@@ -439,10 +439,12 @@ export type UserOperation09 = z.infer<typeof userOperation09Schema>
 export type PackedUserOperation = z.infer<typeof packerUserOperationSchema>
 export type UserOperation = z.infer<typeof userOperationSchema>
 
+export const rpcIdSchema = z.union([z.number(), z.string(), z.null()])
+
 export const jsonRpcSchema = z
     .object({
         jsonrpc: z.literal("2.0"),
-        id: z.number(),
+        id: rpcIdSchema,
         method: z.string(),
         params: z
             .array(z.unknown())
@@ -454,7 +456,7 @@ export const jsonRpcSchema = z
 const jsonRpcResultSchema = z
     .object({
         jsonrpc: z.literal("2.0"),
-        id: z.number(),
+        id: rpcIdSchema,
         result: z.unknown()
     })
     .strict()
