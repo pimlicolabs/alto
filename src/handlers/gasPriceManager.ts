@@ -327,19 +327,23 @@ export class GasPriceManager {
                 percentileIndex = 0 // 40th percentile — low congestion
             }
 
-            // Compute maxPriorityFeePerGas from rewards at selected percentile
+            // Compute maxPriorityFeePerGas as median of rewards at selected percentile
             let maxPriorityFeePerGas: bigint
             if (
                 feeHistory.reward &&
                 feeHistory.reward.length > 0 &&
                 feeHistory.reward[0].length > percentileIndex
             ) {
-                const rewards = feeHistory.reward
-                const sum = rewards.reduce(
-                    (acc, blockRewards) => acc + blockRewards[percentileIndex],
-                    0n
-                )
-                maxPriorityFeePerGas = sum / BigInt(rewards.length)
+                const sorted = feeHistory.reward
+                    .map(
+                        (blockRewards) => blockRewards[percentileIndex]
+                    )
+                    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+                const mid = Math.floor(sorted.length / 2)
+                maxPriorityFeePerGas =
+                    sorted.length % 2 === 0
+                        ? (sorted[mid - 1] + sorted[mid]) / 2n
+                        : sorted[mid]
             } else {
                 throw new Error(
                     "dynamic gas price: reward data missing from feeHistory"
