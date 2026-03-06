@@ -335,9 +335,7 @@ export class GasPriceManager {
                 feeHistory.reward[0].length > percentileIndex
             ) {
                 const sorted = feeHistory.reward
-                    .map(
-                        (blockRewards) => blockRewards[percentileIndex]
-                    )
+                    .map((blockRewards) => blockRewards[percentileIndex])
                     .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
                 const mid = Math.floor(sorted.length / 2)
                 maxPriorityFeePerGas =
