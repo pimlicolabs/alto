@@ -123,7 +123,9 @@ export function calculateAA95GasFloor({
                 userOp.callGasLimit + userOp.verificationGasLimit + 5000n
 
             // AA95 check happens after verification + paymaster verification
-            gasFloor += userOp.verificationGasLimit
+            if (userOp.paymasterAndData !== "0x") {
+                gasFloor += userOp.verificationGasLimit
+            }
 
             // There is a ~27,179 gas overhead for EntryPoint's re-entrency check
             gasFloor += 30_000n
