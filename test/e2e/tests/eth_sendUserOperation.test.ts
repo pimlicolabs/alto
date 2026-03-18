@@ -584,8 +584,7 @@ describe.each([
                         )
                 })
 
-                authorization[field] = value
-
+                // Prepare with valid authorization first, then invalidate
                 const op = (await client.prepareUserOperation({
                     calls: [
                         {
@@ -596,6 +595,10 @@ describe.each([
                     ],
                     authorization
                 })) as UserOperation
+
+                if (op.authorization) {
+                    op.authorization[field] = value
+                }
 
                 op.signature = await client.account.signUserOperation(op)
 
