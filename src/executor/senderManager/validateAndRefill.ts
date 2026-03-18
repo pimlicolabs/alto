@@ -4,8 +4,8 @@ import Redis from "ioredis"
 import {
     type Account,
     type Address,
-    type Hex,
     BaseError,
+    type Hex,
     InsufficientFundsError,
     encodeFunctionData,
     erc20Abi,
