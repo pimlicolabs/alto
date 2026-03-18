@@ -536,40 +536,32 @@ describe.each([
         test.each([
             {
                 testName: "r is zero",
-                mutate: (op: UserOperation) => {
-                    op.authorization!.r = "0x0"
-                }
+                field: "r" as const,
+                value: "0x0" as Hex
             },
             {
                 testName: "s is zero",
-                mutate: (op: UserOperation) => {
-                    op.authorization!.s = "0x0"
-                }
+                field: "s" as const,
+                value: "0x0" as Hex
             },
             {
                 testName: "r exceeds secp256k1 curve order",
-                mutate: (op: UserOperation) => {
-                    op.authorization!.r =
-                        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-                }
+                field: "r" as const,
+                value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" as Hex
             },
             {
                 testName: "s exceeds secp256k1 curve order",
-                mutate: (op: UserOperation) => {
-                    op.authorization!.s =
-                        "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-                }
+                field: "s" as const,
+                value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" as Hex
             },
             {
                 testName: "r equals secp256k1 curve order (boundary)",
-                mutate: (op: UserOperation) => {
-                    op.authorization!.r =
-                        "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141"
-                }
+                field: "r" as const,
+                value: "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141" as Hex
             }
         ])(
             "Should reject 7702Auth with invalid ECDSA signature: $testName",
-            async ({ mutate }) => {
+            async ({ field, value }) => {
                 const privateKey = generatePrivateKey()
                 const client = await getSmartAccountClient({
                     entryPointVersion,
@@ -592,6 +584,8 @@ describe.each([
                         )
                 })
 
+                authorization[field] = value
+
                 const op = (await client.prepareUserOperation({
                     calls: [
                         {
@@ -602,8 +596,6 @@ describe.each([
                     ],
                     authorization
                 })) as UserOperation
-
-                mutate(op)
 
                 op.signature = await client.account.signUserOperation(op)
 
