@@ -156,7 +156,8 @@ export const compatibilityArgsSchema = z.object({
         "mantle",
         "etherlink",
         "monad",
-        "citrea"
+        "citrea",
+        "tempo"
     ]),
     "legacy-transactions": z.boolean(),
     "api-version": z

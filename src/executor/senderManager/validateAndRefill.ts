@@ -4,15 +4,88 @@ import Redis from "ioredis"
 import {
     type Account,
     type Address,
+    type Hex,
     BaseError,
     InsufficientFundsError,
+    encodeFunctionData,
+    erc20Abi,
     formatEther
 } from "viem"
+import { Addresses as TempoAddresses } from "viem/tempo"
 import type { SenderManager } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { GasPriceManager } from "../../handlers/gasPriceManager"
 
 let redisClient: Redis | null = null
+
+// Returns the wallet balance using ERC20 balanceOf for Tempo,
+// native getBalance otherwise.
+const getWalletBalance = async ({
+    config,
+    address
+}: {
+    config: AltoConfig
+    address: Address
+}): Promise<bigint> => {
+    if (config.chainType === "tempo") {
+        return await config.publicClient.readContract({
+            address: TempoAddresses.pathUsd,
+            abi: erc20Abi,
+            functionName: "balanceOf",
+            args: [address]
+        })
+    }
+    return await config.publicClient.getBalance({ address })
+}
+
+// Transfers funds to a wallet. Uses ERC20 transfer for Tempo,
+// native value transfer otherwise.
+const transferBalance = async ({
+    config,
+    from,
+    to,
+    amount,
+    maxFeePerGas,
+    maxPriorityFeePerGas
+}: {
+    config: AltoConfig
+    from: Account
+    to: Address
+    amount: bigint
+    maxFeePerGas: bigint
+    maxPriorityFeePerGas: bigint
+}): Promise<Hex> => {
+    if (config.chainType === "tempo") {
+        const data = encodeFunctionData({
+            abi: erc20Abi,
+            functionName: "transfer",
+            args: [to, amount]
+        })
+
+        return await config.walletClients.public.sendTransaction({
+            account: from,
+            to: TempoAddresses.pathUsd,
+            data,
+            maxFeePerGas,
+            maxPriorityFeePerGas
+        })
+    }
+
+    return config.legacyTransactions
+        ? await config.walletClients.public.sendTransaction({
+              account: from,
+              to,
+              value: amount,
+              gasPrice: maxFeePerGas
+          })
+        : await config.walletClients.public.sendTransaction({
+              account: from,
+              to,
+              value: amount,
+              maxFeePerGas,
+              maxPriorityFeePerGas
+          })
+}
 
 // Checks executor balance and refills to 120% of minBalance if below threshold.
 const sendRefillTransaction = async ({
@@ -32,9 +105,7 @@ const sendRefillTransaction = async ({
     maxPriorityFeePerGas: bigint
     logger: Logger
 }) => {
-    const balance = await config.publicClient.getBalance({
-        address: executorAddress
-    })
+    const balance = await getWalletBalance({ config, address: executorAddress })
 
     if (balance >= minBalance) {
         return
@@ -43,20 +114,14 @@ const sendRefillTransaction = async ({
     // Top up to 120% of minBalance
     const refillAmount = scaleBigIntByPercent(minBalance, 120n) - balance
 
-    const txHash = config.legacyTransactions
-        ? await config.walletClients.public.sendTransaction({
-              account: utilityAccount,
-              to: executorAddress,
-              value: refillAmount,
-              gasPrice: maxFeePerGas
-          })
-        : await config.walletClients.public.sendTransaction({
-              account: utilityAccount,
-              to: executorAddress,
-              value: refillAmount,
-              maxFeePerGas,
-              maxPriorityFeePerGas
-          })
+    const txHash = await transferBalance({
+        config,
+        from: utilityAccount,
+        to: executorAddress,
+        amount: refillAmount,
+        maxFeePerGas,
+        maxPriorityFeePerGas
+    })
 
     await config.publicClient.waitForTransactionReceipt({
         hash: txHash
@@ -157,7 +222,8 @@ export const validateAndRefillWallets = async ({
 
     let remainingMissing = 0n
     for (const wallet of allWallets) {
-        const balance = await config.publicClient.getBalance({
+        const balance = await getWalletBalance({
+            config,
             address: wallet.address
         })
 
@@ -182,7 +248,8 @@ export const validateAndRefillWallets = async ({
         )
     }
 
-    const utilityBalance = await config.publicClient.getBalance({
+    const utilityBalance = await getWalletBalance({
+        config,
         address: utilityAccount.address
     })
     metrics.utilityWalletBalance.set(
