@@ -535,6 +535,94 @@ describe.each([
 
         test.each([
             {
+                testName: "r is zero",
+                field: "r" as const,
+                value: "0x0" as Hex
+            },
+            {
+                testName: "s is zero",
+                field: "s" as const,
+                value: "0x0" as Hex
+            },
+            {
+                testName: "r exceeds secp256k1 curve order",
+                field: "r" as const,
+                value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" as Hex
+            },
+            {
+                testName: "s exceeds secp256k1 curve order",
+                field: "s" as const,
+                value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" as Hex
+            },
+            {
+                testName: "r equals secp256k1 curve order (boundary)",
+                field: "r" as const,
+                value: "0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141" as Hex
+            }
+        ])(
+            "Should reject 7702Auth with invalid ECDSA signature: $testName",
+            async ({ field, value }) => {
+                const privateKey = generatePrivateKey()
+                const client = await getSmartAccountClient({
+                    entryPointVersion,
+                    privateKey,
+                    anvilRpc,
+                    altoRpc,
+                    use7702: true
+                })
+
+                const owner = privateKeyToAccount(privateKey)
+
+                const authorization = await owner.signAuthorization({
+                    chainId: foundry.id,
+                    nonce: await publicClient.getTransactionCount({
+                        address: owner.address
+                    }),
+                    contractAddress:
+                        getSimple7702AccountImplementationAddress(
+                            entryPointVersion
+                        )
+                })
+
+                // Prepare with valid authorization first, then invalidate
+                const op = (await client.prepareUserOperation({
+                    calls: [
+                        {
+                            to: zeroAddress,
+                            data: "0x",
+                            value: 0n
+                        }
+                    ],
+                    authorization
+                })) as UserOperation
+
+                if (op.authorization) {
+                    op.authorization[field] = value
+                }
+
+                op.signature = await client.account.signUserOperation(op)
+
+                try {
+                    await client.sendUserOperation(op)
+                    expect.fail("Must throw")
+                } catch (err) {
+                    expect(err).toBeInstanceOf(BaseError)
+                    const error = err as BaseError
+
+                    expect(error.name).toBe("UserOperationExecutionError")
+                    expect(error.details).toMatch(/Invalid ECDSA signature/)
+
+                    const rpcError = error.walk(
+                        (e) => e instanceof RpcRequestError
+                    ) as RpcRequestError
+                    expect(rpcError).toBeDefined()
+                    expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+                }
+            }
+        )
+
+        test.each([
+            {
                 sponsored: false,
                 testName: "Should bundle 10 userOps sent sequentially"
             },

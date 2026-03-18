@@ -291,7 +291,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             l2GasComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
-                userOp
+                userOp,
+                validateSignature: false
             }),
             getGasEstimates({
                 rpcHandler,
