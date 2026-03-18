@@ -605,8 +605,7 @@ describe.each([
 
                 mutate(op)
 
-                op.signature =
-                    await client.account.signUserOperation(op)
+                op.signature = await client.account.signUserOperation(op)
 
                 try {
                     await client.sendUserOperation(op)
@@ -616,17 +615,13 @@ describe.each([
                     const error = err as BaseError
 
                     expect(error.name).toBe("UserOperationExecutionError")
-                    expect(error.details).toMatch(
-                        /Invalid ECDSA signature/
-                    )
+                    expect(error.details).toMatch(/Invalid ECDSA signature/)
 
                     const rpcError = error.walk(
                         (e) => e instanceof RpcRequestError
                     ) as RpcRequestError
                     expect(rpcError).toBeDefined()
-                    expect(rpcError.code).toBe(
-                        ERC7769Errors.InvalidFields
-                    )
+                    expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
                 }
             }
         )
