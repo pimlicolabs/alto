@@ -241,8 +241,8 @@ export class RpcHandler {
 
     async validateEip7702Auth({
         userOp,
-        validateSender = false
-    }: { userOp: UserOperation; validateSender?: boolean }): Promise<
+        validateSignature
+    }: { userOp: UserOperation; validateSignature: boolean }): Promise<
         [boolean, string]
     > {
         if (!userOp.eip7702Auth) {
@@ -259,22 +259,25 @@ export class RpcHandler {
         // Check that auth is valid.
         const delegationDesignator = getEip7702AuthAddress(userOp.eip7702Auth)
 
-        // Validate ECDSA signature components (r, s must be in [1, n-1])
-        const SECP256K1_N =
-            0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
-        const r = BigInt(userOp.eip7702Auth.r)
-        const s = BigInt(userOp.eip7702Auth.s)
+        // Validate ECDSA signature components during submission only
+        // (during estimation, users send stub authorizations with dummy r/s)
+        if (validateSignature) {
+            const SECP256K1_N =
+                0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+            const r = BigInt(userOp.eip7702Auth.r)
+            const s = BigInt(userOp.eip7702Auth.s)
 
-        if (r < 1n || r >= SECP256K1_N || s < 1n || s >= SECP256K1_N) {
-            return [
-                false,
-                "Invalid EIP-7702 authorization: Invalid ECDSA signature (r and s must be in [1, secp256k1.n))"
-            ]
+            if (r < 1n || r >= SECP256K1_N || s < 1n || s >= SECP256K1_N) {
+                return [
+                    false,
+                    "Invalid EIP-7702 authorization: Invalid ECDSA signature (r and s must be in [1, secp256k1.n))"
+                ]
+            }
         }
 
         // Fetch onchain data in parallel
         const [sender, nonceOnChain, delegateCode] = await Promise.all([
-            validateSender
+            validateSignature
                 ? recoverAuthorizationAddress({
                       authorization: {
                           address: delegationDesignator,
