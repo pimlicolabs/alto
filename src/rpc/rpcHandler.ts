@@ -259,6 +259,19 @@ export class RpcHandler {
         // Check that auth is valid.
         const delegationDesignator = getEip7702AuthAddress(userOp.eip7702Auth)
 
+        // Validate ECDSA signature components (r, s must be in [1, n-1])
+        const SECP256K1_N =
+            0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+        const r = BigInt(userOp.eip7702Auth.r)
+        const s = BigInt(userOp.eip7702Auth.s)
+
+        if (r < 1n || r >= SECP256K1_N || s < 1n || s >= SECP256K1_N) {
+            return [
+                false,
+                "Invalid EIP-7702 authorization: Invalid ECDSA signature (r and s must be in [1, secp256k1.n))"
+            ]
+        }
+
         // Fetch onchain data in parallel
         const [sender, nonceOnChain, delegateCode] = await Promise.all([
             validateSender
