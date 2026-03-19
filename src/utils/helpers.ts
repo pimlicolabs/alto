@@ -1,7 +1,7 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
 import { type SignedAuthorization, concat, formatUnits, getAddress } from "viem"
+import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "./eip7702"
-import { AltoConfig } from "../createConfig"
 
 /// Format a native balance value using the chain's decimal precision.
 /// Use this instead of formatEther when recording balance metrics to
