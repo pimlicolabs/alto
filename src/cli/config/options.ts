@@ -564,7 +564,8 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "mantle",
                 "etherlink",
                 "monad",
-                "citrea"
+                "citrea",
+                "tempo"
             ],
             default: "default"
         },
@@ -658,6 +659,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "boolean",
             require: false,
             default: true
+        },
+        "chain-native-decimals": {
+            description: "Number of decimals for the chain's native currency",
+            type: "number",
+            require: false,
+            default: 18
         }
     }
 

@@ -1,6 +1,7 @@
 import { GasPriceManager } from "@alto/handlers"
 import {
     createMetrics,
+    formatNativeBalance,
     initDebugLogger,
     initProductionLogger
 } from "@alto/utils"
@@ -11,7 +12,6 @@ import {
     createPublicClient,
     createWalletClient,
     fallback,
-    formatEther,
     publicActions
 } from "viem"
 import * as chains from "viem/chains"
@@ -264,16 +264,18 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     })
 
     metrics.executorWalletsMinBalance.set(
-        Number.parseFloat(formatEther(config.minExecutorBalance || 0n))
+        formatNativeBalance({
+            value: config.minExecutorBalance || 0n,
+            config
+        })
     )
 
     const numExecutors = senderManager.getAllWallets().length
     metrics.executorWalletsRequiredBalance.set(
-        Number.parseFloat(
-            formatEther(
-                (config.minExecutorBalance || 0n) * BigInt(numExecutors)
-            )
-        )
+        formatNativeBalance({
+            value: (config.minExecutorBalance || 0n) * BigInt(numExecutors),
+            config
+        })
     )
 
     await setupServer({

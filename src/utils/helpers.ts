@@ -1,6 +1,20 @@
 import type { StateOverrides, UserOperation } from "@alto/types"
-import { type SignedAuthorization, concat, getAddress } from "viem"
+import { type SignedAuthorization, concat, formatUnits, getAddress } from "viem"
+import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "./eip7702"
+
+/// Format a native balance value using the chain's decimal precision.
+/// Use this instead of formatEther when recording balance metrics to
+/// support chains with non-18-decimal native currencies (e.g. Tempo = 6).
+export const formatNativeBalance = ({
+    value,
+    config
+}: {
+    value: bigint
+    config: AltoConfig
+}): number => {
+    return Number.parseFloat(formatUnits(value, config.chainNativeDecimals))
+}
 
 /// Convert an object to JSON string, handling bigint values
 export const jsonStringifyWithBigint = (obj: unknown): string => {
