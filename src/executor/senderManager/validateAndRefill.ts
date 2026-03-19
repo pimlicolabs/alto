@@ -1,5 +1,5 @@
 import type { Logger, Metrics } from "@alto/utils"
-import { scaleBigIntByPercent } from "@alto/utils"
+import { formatNativeBalance, scaleBigIntByPercent } from "@alto/utils"
 import Redis from "ioredis"
 import {
     type Account,
@@ -8,8 +8,7 @@ import {
     type Hex,
     InsufficientFundsError,
     encodeFunctionData,
-    erc20Abi,
-    formatEther
+    erc20Abi
 } from "viem"
 import { Addresses as TempoAddresses } from "viem/tempo"
 import type { SenderManager } from "."
@@ -229,7 +228,7 @@ export const validateAndRefillWallets = async ({
 
         metrics.executorWalletsBalances.set(
             { wallet: wallet.address },
-            Number.parseFloat(formatEther(balance))
+            formatNativeBalance({ value: balance, config })
         )
 
         if (balance < minBalance) {
@@ -244,7 +243,7 @@ export const validateAndRefillWallets = async ({
     } else {
         metrics.utilityWalletInsufficientBalance.set(1)
         metrics.utilityWalletMissingBalance.set(
-            Number.parseFloat(formatEther(remainingMissing))
+            formatNativeBalance({ value: remainingMissing, config })
         )
     }
 
@@ -253,6 +252,6 @@ export const validateAndRefillWallets = async ({
         address: utilityAccount.address
     })
     metrics.utilityWalletBalance.set(
-        Number.parseFloat(formatEther(utilityBalance))
+        formatNativeBalance({ value: utilityBalance, config })
     )
 }
