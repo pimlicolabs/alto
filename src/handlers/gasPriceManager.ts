@@ -69,7 +69,11 @@ export class GasPriceManager {
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
             const pollingInterval = (this.config.gasPriceRefreshInterval * 1000) / 2
-            setInterval(() => this.refreshGasPrices(), pollingInterval)
+            const poll = async () => {
+                await this.refreshGasPrices()
+                setTimeout(poll, pollingInterval)
+            }
+            setTimeout(poll, 0)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
