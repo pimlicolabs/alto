@@ -66,10 +66,13 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(
-                () => this.refreshGasPrices(),
-                this.config.gasPriceRefreshInterval * 1000
-            )
+            // Poll at half the refresh interval. The Redis lock
+            // (TTL = gasPriceRefreshInterval) ensures only one instance
+            // succeeds per refresh window. Polling at the same rate as the
+            // lock TTL causes missed cycles due to millisecond drift
+            // between setInterval firing and lock expiry.
+            const pollingInterval = (this.config.gasPriceRefreshInterval * 1000) / 2
+            setInterval(() => this.refreshGasPrices(), pollingInterval)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
