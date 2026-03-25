@@ -71,7 +71,8 @@ export class GasPriceManager {
             // succeeds per refresh window. Polling at the same rate as the
             // lock TTL causes missed cycles due to millisecond drift
             // between setInterval firing and lock expiry.
-            const pollingInterval = (this.config.gasPriceRefreshInterval * 1000) / 2
+            const pollingInterval =
+                (this.config.gasPriceRefreshInterval * 1000) / 2
             setInterval(() => this.refreshGasPrices(), pollingInterval)
         }
 
