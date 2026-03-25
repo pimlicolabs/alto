@@ -436,7 +436,6 @@ export class GasPriceManager {
             // With horizontal scaling, use a Redis SET NX lock so only one instance
             // makes RPC calls per refresh interval. Fail-open on Redis errors.
             if (this.redisRefreshGuard) {
-                const lockStart = Date.now()
                 const acquired = await this.redisRefreshGuard.redis
                     .set(
                         this.redisRefreshGuard.key,
@@ -461,15 +460,17 @@ export class GasPriceManager {
                         .catch(() => refreshIntervalMs / 2)
 
                     this.logger.info(
-                        { instanceId: this.instanceId, retryInMs: Math.max(pttl, 100) },
+                        {
+                            instanceId: this.instanceId,
+                            retryInMs: Math.max(pttl, 100)
+                        },
                         "gas price refresh: lock not acquired"
                     )
                     return Math.max(pttl, 100)
                 }
 
-                const lockCheckMs = Date.now() - lockStart
                 this.logger.info(
-                    { lockCheckMs, instanceId: this.instanceId },
+                    { instanceId: this.instanceId },
                     "gas price refresh: lock acquired"
                 )
             }
