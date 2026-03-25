@@ -446,8 +446,8 @@ export class GasPriceManager {
                     })
 
                 if (acquired !== "OK") {
-                    // Another instance holds the lock — check remaining TTL
-                    // and retry after it expires.
+                    // Another instance holds the lock — return remaining TTL
+                    // so the caller can retry after it expires.
                     const pttl = await this.redisRefreshGuard.redis
                         .pttl(this.redisRefreshGuard.key)
                         .catch(() => refreshIntervalMs / 2)
