@@ -417,15 +417,10 @@ export class GasPriceManager {
     }
 
     private scheduleRefresh(delayMs: number): void {
-        const timeout = setTimeout(async () => {
+        setTimeout(async () => {
             const nextDelayMs = await this.refreshGasPrices()
             this.scheduleRefresh(Math.max(nextDelayMs, 100))
-        }, delayMs)
-
-        // Allow process to exit even if timeout is pending
-        if (timeout.unref) {
-            timeout.unref()
-        }
+        }, delayMs).unref()
     }
 
     // Returns the number of milliseconds to sleep before the next poll.
