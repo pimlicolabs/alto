@@ -417,7 +417,7 @@ export class GasPriceManager {
     private scheduleRefresh(delayMs: number): void {
         setTimeout(async () => {
             const nextDelayMs = await this.refreshGasPrices()
-            this.scheduleRefresh(Math.max(nextDelayMs, 100))
+            this.scheduleRefresh(nextDelayMs)
         }, delayMs).unref()
     }
 
@@ -452,7 +452,13 @@ export class GasPriceManager {
                         .pttl(this.redisRefreshGuard.key)
                         .catch(() => refreshIntervalMs / 2)
 
-                    return Math.max(pttl, 100)
+                    // PTTL returns -2 when the key already expired —
+                    // retry immediately with a 100ms floor to avoid tight-looping.
+                    if (pttl < 0) {
+                        return 100
+                    }
+
+                    return pttl
                 }
             }
 
