@@ -68,12 +68,7 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            const pollingInterval = (this.config.gasPriceRefreshInterval * 1000) / 2
-            const poll = async () => {
-                await this.refreshGasPrices()
-                setTimeout(poll, pollingInterval)
-            }
-            setTimeout(poll, 0)
+            this.scheduleRefresh(0)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
@@ -421,7 +416,22 @@ export class GasPriceManager {
         return this.bumpTheGasPrice(estimatedGasPrice)
     }
 
-    private async refreshGasPrices(): Promise<void> {
+    private scheduleRefresh(delayMs: number): void {
+        const timeout = setTimeout(async () => {
+            const nextDelayMs = await this.refreshGasPrices()
+            this.scheduleRefresh(Math.max(nextDelayMs, 100))
+        }, delayMs)
+
+        // Allow process to exit even if timeout is pending
+        if (timeout.unref) {
+            timeout.unref()
+        }
+    }
+
+    // Returns the number of milliseconds to sleep before the next poll.
+    private async refreshGasPrices(): Promise<number> {
+        const refreshIntervalMs = this.config.gasPriceRefreshInterval * 1000
+
         try {
             // With horizontal scaling, use a Redis SET NX lock so only one instance
             // makes RPC calls per refresh interval. Fail-open on Redis errors.
@@ -431,8 +441,8 @@ export class GasPriceManager {
                     .set(
                         this.redisRefreshGuard.key,
                         "1",
-                        "EX",
-                        this.config.gasPriceRefreshInterval,
+                        "PX",
+                        refreshIntervalMs,
                         "NX"
                     )
                     .catch((err: unknown) => {
@@ -443,16 +453,21 @@ export class GasPriceManager {
                         return "OK"
                     })
 
-                const lockCheckMs = Date.now() - lockStart
-
                 if (acquired !== "OK") {
+                    // Another instance holds the lock — check remaining TTL
+                    // and retry after it expires.
+                    const pttl = await this.redisRefreshGuard.redis
+                        .pttl(this.redisRefreshGuard.key)
+                        .catch(() => refreshIntervalMs / 2)
+
                     this.logger.info(
-                        { lockCheckMs, instanceId: this.instanceId },
+                        { instanceId: this.instanceId, retryInMs: Math.max(pttl, 100) },
                         "gas price refresh: lock not acquired"
                     )
-                    return
+                    return Math.max(pttl, 100)
                 }
 
+                const lockCheckMs = Date.now() - lockStart
                 this.logger.info(
                     { lockCheckMs, instanceId: this.instanceId },
                     "gas price refresh: lock acquired"
@@ -469,6 +484,8 @@ export class GasPriceManager {
             this.logger.error({ err }, "Error updating gas prices in interval")
             sentry.captureException(err)
         }
+
+        return refreshIntervalMs
     }
 
     // This method throws if it can't get a valid RPC response.
