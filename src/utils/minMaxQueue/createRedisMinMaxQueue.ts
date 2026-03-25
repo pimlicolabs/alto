@@ -31,7 +31,6 @@ class SortedTtlSet {
     redis: Redis
     redisKey: string // Single sorted set: score = timestamp, member = value
     queueValidity: number
-    refreshInterval: number
     private cleanupInterval: NodeJS.Timeout | null = null
 
     constructor({
@@ -49,7 +48,6 @@ class SortedTtlSet {
         this.redis = redis
         this.redisKey = `${config.redisKeyPrefix}:${config.chainId}:${queueName}`
         this.queueValidity = queueValidity
-        this.refreshInterval = config.gasPriceRefreshInterval
 
         // Start background cleanup every minute
         this.startBackgroundCleanup()
@@ -96,10 +94,7 @@ class SortedTtlSet {
     }
 
     private getValidCutoffTime(): number {
-        // A value served to a user could have been written up to one
-        // refresh interval earlier. Extend the window to guarantee
-        // users get the full gasPriceExpiry from when they read the value.
-        return Date.now() / 1_000 - this.queueValidity - this.refreshInterval
+        return Date.now() / 1_000 - this.queueValidity
     }
 
     async getMin(logger: Logger): Promise<bigint | null> {
