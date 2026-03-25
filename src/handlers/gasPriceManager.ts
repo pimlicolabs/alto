@@ -442,6 +442,10 @@ export class GasPriceManager {
                 const lockCheckMs = Date.now() - lockStart
 
                 if (acquired !== "OK") {
+                    this.logger.info(
+                        { lockCheckMs },
+                        "gas price refresh: lock not acquired"
+                    )
                     return
                 }
 
