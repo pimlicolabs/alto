@@ -27,6 +27,7 @@ export class GasPriceManager {
     private readonly maxPriorityFeePerGasQueue: MinMaxQueue
     private readonly logger: Logger
     private readonly redisRefreshGuard: { redis: Redis; key: string } | null
+    private readonly instanceId: string
 
     public readonly arbitrumManager: ArbitrumManager
     public readonly citreaManager: CitreaManager
@@ -35,6 +36,7 @@ export class GasPriceManager {
 
     constructor(config: AltoConfig) {
         this.config = config
+        this.instanceId = Math.random().toString(36).slice(2, 8)
         this.logger = config.getLogger(
             { module: "gas_price_manager" },
             {
@@ -66,10 +68,8 @@ export class GasPriceManager {
 
         // Periodically update gas prices if specified
         if (this.config.gasPriceRefreshInterval > 0) {
-            setInterval(
-                () => this.refreshGasPrices(),
-                this.config.gasPriceRefreshInterval * 1000
-            )
+            const pollingInterval = (this.config.gasPriceRefreshInterval * 1000) / 2
+            setInterval(() => this.refreshGasPrices(), pollingInterval)
         }
 
         this.arbitrumManager = new ArbitrumManager({ config })
@@ -443,14 +443,14 @@ export class GasPriceManager {
 
                 if (acquired !== "OK") {
                     this.logger.info(
-                        { lockCheckMs },
+                        { lockCheckMs, instanceId: this.instanceId },
                         "gas price refresh: lock not acquired"
                     )
                     return
                 }
 
                 this.logger.info(
-                    { lockCheckMs },
+                    { lockCheckMs, instanceId: this.instanceId },
                     "gas price refresh: lock acquired"
                 )
             }
