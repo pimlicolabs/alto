@@ -418,11 +418,11 @@ export class GasPriceManager {
     }
 
     private async refreshGasPrices(): Promise<void> {
-        const refreshStartTime = Date.now()
         try {
             // With horizontal scaling, use a Redis SET NX lock so only one instance
             // makes RPC calls per refresh interval. Fail-open on Redis errors.
             if (this.redisRefreshGuard) {
+                const lockStart = Date.now()
                 const acquired = await this.redisRefreshGuard.redis
                     .set(
                         this.redisRefreshGuard.key,
@@ -439,16 +439,14 @@ export class GasPriceManager {
                         return "OK"
                     })
 
+                const lockCheckMs = Date.now() - lockStart
+
                 if (acquired !== "OK") {
-                    this.logger.debug(
-                        { timeSinceStart: Date.now() - refreshStartTime },
-                        "gas price refresh: lock not acquired, skipping"
-                    )
                     return
                 }
 
                 this.logger.info(
-                    { timeSinceStart: Date.now() - refreshStartTime },
+                    { lockCheckMs },
                     "gas price refresh: lock acquired"
                 )
             }
@@ -459,16 +457,8 @@ export class GasPriceManager {
                     ? this.tryUpdateBaseFee()
                     : Promise.resolve()
             ])
-
-            this.logger.info(
-                { durationMs: Date.now() - refreshStartTime },
-                "gas price refresh: completed"
-            )
         } catch (err) {
-            this.logger.error(
-                { err, durationMs: Date.now() - refreshStartTime },
-                "Error updating gas prices in interval"
-            )
+            this.logger.error({ err }, "Error updating gas prices in interval")
             sentry.captureException(err)
         }
     }
