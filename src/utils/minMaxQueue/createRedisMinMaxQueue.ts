@@ -87,6 +87,11 @@ class SortedTtlSet {
 
             // Add or update (if exists) with current timestamp
             await this.redis.zadd(this.redisKey, now, valueStr)
+
+            logger.info(
+                { queue: this.redisKey, value: valueStr, score: now },
+                "minMaxQueue: saved value"
+            )
         } catch (err) {
             logger.error({ err }, "Failed to save value to minMaxQueue")
             sentry.captureException(err)
