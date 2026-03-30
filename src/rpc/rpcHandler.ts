@@ -246,6 +246,17 @@ export class RpcHandler {
         [boolean, string]
     > {
         if (!userOp.eip7702Auth) {
+            if (
+                isVersion07(userOp) &&
+                (userOp.factory === "0x7702" ||
+                    userOp.factory ===
+                        "0x7702000000000000000000000000000000000000")
+            ) {
+                return [
+                    false,
+                    "Invalid EIP-7702 userOperation: factory is 0x7702 but eip7702Auth is missing."
+                ]
+            }
             return [true, ""]
         }
 
@@ -341,11 +352,12 @@ export class RpcHandler {
         if (
             isVersion07(userOp) &&
             userOp.factory !== "0x7702" &&
+            userOp.factory !== "0x7702000000000000000000000000000000000000" &&
             userOp.factory !== null
         ) {
             return [
                 false,
-                "Invalid EIP-7702 authorization: UserOperation cannot contain factory that is neither null or 0x7702."
+                "Invalid EIP-7702 authorization: factory must be null or 0x7702."
             ]
         }
 
