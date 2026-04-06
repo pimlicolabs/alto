@@ -165,8 +165,7 @@ export class RpcHandler {
             isVersion07(userOp) &&
             !userOp.eip7702Auth &&
             (userOp.factory === "0x7702" ||
-                userOp.factory ===
-                    "0x7702000000000000000000000000000000000000")
+                userOp.factory === "0x7702000000000000000000000000000000000000")
         ) {
             return [
                 false,
