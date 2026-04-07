@@ -379,6 +379,63 @@ describe.each([
             )
         })
 
+        test.each([
+            {
+                testName: "short form (0x7702)",
+                factory: "0x7702"
+            },
+            {
+                testName:
+                    "zero-padded form (0x7702000000000000000000000000000000000000)",
+                factory: "0x7702000000000000000000000000000000000000"
+            }
+        ])(
+            "Should reject estimation with factory $testName but no eip7702Auth",
+            async ({ factory }) => {
+                // Skip for v0.6 - doesn't have factory field
+                if (entryPointVersion === "0.6") {
+                    return
+                }
+
+                const client = await getSmartAccountClient({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc
+                })
+
+                const op = (await client.prepareUserOperation({
+                    calls: [
+                        {
+                            to: zeroAddress,
+                            data: "0x"
+                        }
+                    ]
+                })) as UserOperation
+
+                // Set factory to 0x7702 without providing eip7702Auth
+                op.factory = factory
+                op.factoryData = undefined
+
+                try {
+                    await client.estimateUserOperationGas(op)
+                    expect.fail("Must throw")
+                } catch (err) {
+                    expect(err).toBeInstanceOf(BaseError)
+                    const error = err as BaseError
+
+                    expect(error.details).toMatch(
+                        /factory is 0x7702 but eip7702Auth is not provided/i
+                    )
+
+                    const rpcError = error.walk(
+                        (e) => e instanceof RpcRequestError
+                    ) as RpcRequestError
+                    expect(rpcError).toBeDefined()
+                    expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+                }
+            }
+        )
+
         test("Should throw AA25 when estimating userOp with nonce + 1", async () => {
             const smartAccountClient = await getSmartAccountClient({
                 entryPointVersion,
