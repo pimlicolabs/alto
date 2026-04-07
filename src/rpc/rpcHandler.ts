@@ -160,19 +160,6 @@ export class RpcHandler {
             return [false, paymasterSignatureError]
         }
 
-        // Reject userOps with factory 0x7702 but no eip7702Auth
-        if (
-            isVersion07(userOp) &&
-            !userOp.eip7702Auth &&
-            (userOp.factory === "0x7702" ||
-                userOp.factory === "0x7702000000000000000000000000000000000000")
-        ) {
-            return [
-                false,
-                "Invalid EIP-7702 userOperation: factory is 0x7702 but eip7702Auth is not provided."
-            ]
-        }
-
         if (
             this.config.legacyTransactions &&
             userOp.maxFeePerGas !== userOp.maxPriorityFeePerGas
