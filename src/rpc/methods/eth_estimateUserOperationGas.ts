@@ -284,6 +284,16 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             chainType
         } = rpcHandler.config
 
+        // Validate userOp fields (sync - fail fast before async checks)
+        const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+            userOp,
+            entryPoint,
+            isEstimation: true
+        })
+        if (!fieldsValid) {
+            throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+        }
+
         // Execute multiple async operations in parallel
         const [
             [validEip7702Auth, validEip7702AuthError],

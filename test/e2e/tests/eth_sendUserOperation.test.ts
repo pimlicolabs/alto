@@ -535,6 +535,66 @@ describe.each([
 
         test.each([
             {
+                testName: "short form (0x7702)",
+                factory: "0x7702"
+            },
+            {
+                testName:
+                    "zero-padded form (0x7702000000000000000000000000000000000000)",
+                factory: "0x7702000000000000000000000000000000000000"
+            }
+        ])(
+            "Should reject userOp with factory $testName but no eip7702Auth",
+            async ({ factory }) => {
+                // Skip for v0.6 - doesn't have factory field
+                if (entryPointVersion === "0.6") {
+                    return
+                }
+
+                const client = await getSmartAccountClient({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc
+                })
+
+                const op = (await client.prepareUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: VALUE,
+                            data: "0x"
+                        }
+                    ]
+                })) as UserOperation
+
+                // Set factory to 0x7702 without providing eip7702Auth
+                op.factory = factory
+                op.factoryData = undefined
+
+                op.signature = await client.account.signUserOperation(op)
+
+                try {
+                    await client.sendUserOperation(op)
+                    expect.fail("Must throw")
+                } catch (err) {
+                    expect(err).toBeInstanceOf(BaseError)
+                    const error = err as BaseError
+
+                    expect(error.details).toMatch(
+                        /factory is 0x7702 but eip7702Auth is not provided/i
+                    )
+
+                    const rpcError = error.walk(
+                        (e) => e instanceof RpcRequestError
+                    ) as RpcRequestError
+                    expect(rpcError).toBeDefined()
+                    expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+                }
+            }
+        )
+
+        test.each([
+            {
                 testName: "r is zero",
                 field: "r" as const,
                 value: "0x0" as Hex
