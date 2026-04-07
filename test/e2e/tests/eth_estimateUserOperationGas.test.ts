@@ -397,13 +397,18 @@ describe.each([
                     return
                 }
 
-                const client = await getSmartAccountClient({
+                const bundlerClient = createBundlerClient({
+                    chain: foundry,
+                    transport: http(altoRpc)
+                })
+
+                const smartAccountClient = await getSmartAccountClient({
                     entryPointVersion,
                     anvilRpc,
                     altoRpc
                 })
 
-                const op = (await client.prepareUserOperation({
+                const op = (await smartAccountClient.prepareUserOperation({
                     calls: [
                         {
                             to: zeroAddress,
@@ -417,7 +422,10 @@ describe.each([
                 op.factoryData = undefined
 
                 try {
-                    await client.estimateUserOperationGas(op)
+                    await bundlerClient.estimateUserOperationGas({
+                        ...op,
+                        entryPointAddress: entryPoint
+                    })
                     expect.fail("Must throw")
                 } catch (err) {
                     expect(err).toBeInstanceOf(BaseError)
