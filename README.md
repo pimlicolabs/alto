@@ -40,6 +40,22 @@ pnpm test # note: foundry must be installed on the machine for this to work
 
 - pnpm run test
 
+## Conflux eSpace testnet demo
+
+A dedicated remote smoke test for Conflux eSpace Testnet is available under
+`test/e2e`. It bootstraps the deterministic ERC-4337 v0.8 stack, starts Alto
+against the remote RPC, and verifies that a `SimpleAccount` can be deployed and
+used through `eth_sendUserOperation`.
+
+Run it with:
+
+```bash
+pnpm run test:conflux-espace
+```
+
+Environment setup is documented in
+[test/e2e/README.md](test/e2e/README.md).
+
 ## How to test bundler specs
 
 - Run Geth node or any other node that support debug_traceCall

@@ -1,0 +1,21 @@
+import type { Address } from "viem"
+import {
+    ENTRY_POINT_V08_CREATECALL,
+    SIMPLE_ACCOUNT_FACTORY_V08_CREATECALL
+} from "../../deploy-contracts/constants.js"
+
+export const CONFLUX_ESPACE_TESTNET_NAME = "Conflux eSpace Testnet"
+
+export const DETERMINISTIC_DEPLOYER_ADDRESS =
+    "0x4e59b44847b379578588920ca78fbf26c0b4956c" satisfies Address
+
+export const ENTRY_POINT_V08_ADDRESS =
+    "0x4337084d9e255ff0702461cf8895ce9e3b5ff108" satisfies Address
+
+export const SIMPLE_ACCOUNT_FACTORY_V08_ADDRESS =
+    "0x13E9ed32155810FDbd067D4522C492D6f68E5944" satisfies Address
+
+export const ENTRY_POINT_V08_CREATE_CALL = ENTRY_POINT_V08_CREATECALL
+
+export const SIMPLE_ACCOUNT_FACTORY_V08_CREATE_CALL =
+    SIMPLE_ACCOUNT_FACTORY_V08_CREATECALL

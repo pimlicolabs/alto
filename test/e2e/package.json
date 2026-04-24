@@ -5,7 +5,8 @@
     "private": true,
     "scripts": {
         "test": "vitest dev -c ./vitest.config.ts",
-        "test:ci": "CI=true && vitest -c ./vitest.config.ts"
+        "test:ci": "CI=true && vitest -c ./vitest.config.ts",
+        "test:conflux-espace": "vitest run -c ./vitest.conflux-espace.config.ts"
     },
     "dependencies": {
         "@pimlico/alto": "workspace:./src/",
