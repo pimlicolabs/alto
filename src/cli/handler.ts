@@ -174,14 +174,19 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
     if (args.ethCallSenderAddress) {
         const whitelistedSender = args.ethCallSenderAddress
+        const withEthCallSender = (client: typeof publicClient) => ({
+            async call(args: CallParameters) {
+                return await client.call({
+                    ...args,
+                    account: whitelistedSender
+                })
+            }
+        })
+
         publicClient = publicClient
-            .extend((client) => ({
-                async call(args: CallParameters) {
-                    args.account = whitelistedSender
-                    return await client.call(args)
-                }
-            }))
+            .extend(withEthCallSender)
             .extend(publicActions)
+            .extend(withEthCallSender)
     }
 
     const createWalletTransport = (url: string) =>
