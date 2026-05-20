@@ -50,6 +50,24 @@ export const bundlerArgsSchema = z.object({
         .int()
         .min(1)
         .default(3),
+    "dynamic-gas-price-reward-percentiles": z
+        .string()
+        .transform((value) =>
+            value.split(",").map((item) => Number(item.trim()))
+        )
+        .refine(
+            (values) => values.length === 4,
+            "Must contain 4 comma separated items"
+        )
+        .refine(
+            (values) => values.every((value) => Number.isInteger(value)),
+            "All reward percentiles must be integers"
+        )
+        .refine(
+            (values) => values.every((value) => value >= 0 && value <= 100),
+            "All reward percentiles must be between 0 and 100"
+        )
+        .default("40,50,60,70"),
 
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),

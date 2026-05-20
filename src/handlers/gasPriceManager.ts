@@ -81,7 +81,9 @@ export class GasPriceManager {
                 {
                     lookbackBlocks: this.config.dynamicGasPriceLookbackBlocks,
                     targetInclusionBlocks:
-                        this.config.dynamicGasPriceTargetInclusionBlocks
+                        this.config.dynamicGasPriceTargetInclusionBlocks,
+                    rewardPercentiles:
+                        this.config.dynamicGasPriceRewardPercentiles
                 },
                 "using dynamic gas pricing"
             )
@@ -293,13 +295,14 @@ export class GasPriceManager {
             const {
                 publicClient,
                 dynamicGasPriceLookbackBlocks,
-                dynamicGasPriceTargetInclusionBlocks
+                dynamicGasPriceTargetInclusionBlocks,
+                dynamicGasPriceRewardPercentiles
             } = this.config
 
             const blockCount = dynamicGasPriceLookbackBlocks
             const targetInclusionBlocks = dynamicGasPriceTargetInclusionBlocks
 
-            const rewardPercentiles = [40, 50, 60, 70]
+            const rewardPercentiles = dynamicGasPriceRewardPercentiles
 
             const feeHistory = await publicClient.getFeeHistory({
                 blockCount,
