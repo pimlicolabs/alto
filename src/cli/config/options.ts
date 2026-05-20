@@ -96,6 +96,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: 3
     },
+    "dynamic-gas-price-reward-percentiles": {
+        description:
+            "Four comma-separated reward percentiles to use for dynamic gas price calculation",
+        type: "string",
+        require: false,
+        default: "40,50,60,70"
+    },
     "mempool-max-parallel-ops": {
         description:
             "Maximum amount of parallel user ops to keep in the meempool (same sender, different nonce keys)",
