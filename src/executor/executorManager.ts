@@ -105,39 +105,50 @@ export class ExecutorManager {
     }
 
     async autoScalingBundling() {
-        const now = Date.now()
-        this.opsCount = this.opsCount.filter(
-            (timestamp) => now - timestamp < RPM_WINDOW
-        )
+        let nextInterval = this.config.minBundleInterval
 
-        const bundles = await this.mempool.getBundles(
-            this.config.maxBundleCount
-        )
-
-        if (bundles.length > 0) {
-            // Count total ops and add timestamps
-            const totalOps = bundles.reduce(
-                (sum, bundle) => sum + bundle.userOps.length,
-                0
+        try {
+            const now = Date.now()
+            this.opsCount = this.opsCount.filter(
+                (timestamp) => now - timestamp < RPM_WINDOW
             )
-            this.opsCount.push(...new Array(totalOps).fill(Date.now()))
-        }
 
-        // Send bundles to executor
-        for (const bundle of bundles) {
-            this.sendBundleToExecutor(bundle)
-        }
+            const bundles = await this.mempool.getBundles(
+                this.config.maxBundleCount
+            )
 
-        const rpm = this.opsCount.length
+            if (bundles.length > 0) {
+                // Count total ops and add timestamps
+                const totalOps = bundles.reduce(
+                    (sum, bundle) => sum + bundle.userOps.length,
+                    0
+                )
+                this.opsCount.push(...new Array(totalOps).fill(Date.now()))
+            }
 
-        // Calculate next interval with linear scaling
-        const nextInterval: number = Math.min(
-            this.config.minBundleInterval + rpm * SCALE_FACTOR, // Linear scaling
-            this.config.maxBundleInterval // Cap at configured max interval
-        )
+            // Send bundles to executor
+            for (const bundle of bundles) {
+                this.sendBundleToExecutor(bundle).catch((err) => {
+                    this.logger.error(
+                        { err },
+                        "error sending bundle to executor"
+                    )
+                })
+            }
 
-        if (this.bundlingMode === "auto") {
-            setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+            const rpm = this.opsCount.length
+
+            // Calculate next interval with linear scaling
+            nextInterval = Math.min(
+                this.config.minBundleInterval + rpm * SCALE_FACTOR,
+                this.config.maxBundleInterval
+            )
+        } catch (err) {
+            this.logger.error({ err }, "error during auto bundling")
+        } finally {
+            if (this.bundlingMode === "auto") {
+                setTimeout(this.autoScalingBundling.bind(this), nextInterval)
+            }
         }
     }
 
