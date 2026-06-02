@@ -134,7 +134,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Maximum amount of gas per bundle",
         type: "string",
         require: false,
-        default: "20000000"
+        default: "16000000"
     },
     "rpc-methods": {
         description: "Supported RPC methods split by commas",
