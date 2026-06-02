@@ -128,7 +128,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Maximum amount of gas per user operation",
         type: "string",
         require: false,
-        default: "20000000"
+        default: "10000000"
     },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
