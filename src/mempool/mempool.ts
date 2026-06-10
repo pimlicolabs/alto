@@ -150,8 +150,15 @@ export class Mempool {
                     userOpInfos: [userOpInfo]
                 })
 
+                // Count this resubmit cycle, otherwise userOps that keep
+                // failing before being broadcast never hit maxResubmits.
+                const resubmittedUserOp = {
+                    ...userOpInfo,
+                    submissionAttempts: submissionAttempts + 1
+                }
+
                 const [success, failureReason] = await this.add({
-                    userOpInfo,
+                    userOpInfo: resubmittedUserOp,
                     entryPoint
                 })
 
@@ -161,7 +168,7 @@ export class Mempool {
                         "Failed to resubmit user operation"
                     )
                     const rejectedUserOp = {
-                        ...userOpInfo,
+                        ...resubmittedUserOp,
                         reason: failureReason
                     }
                     this.dropUserOps(entryPoint, [rejectedUserOp])
