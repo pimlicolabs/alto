@@ -26,6 +26,7 @@ import {
     getNonceKeyAndSequence,
     isVersion06,
     isVersion07,
+    scaleBigIntByPercent,
     validatePaymasterSignature
 } from "@alto/utils"
 import { getContract, zeroAddress } from "viem"
@@ -208,15 +209,23 @@ export class RpcHandler {
             ]
         }
 
-        const gasLimits = calculateAA95GasFloor({
+        const gasFloor = calculateAA95GasFloor({
             userOps: [userOp],
             beneficiary: this.config.utilityWalletAddress
         })
 
-        if (gasLimits > this.config.maxGasPerUserOp) {
+        // The executor scales the bundle's tx.gasLimit by executorGasMultiplier,
+        // compare against the scaled value to reject userOps that would
+        // produce a transaction that can't fit in a block.
+        const txGasLimit = scaleBigIntByPercent(
+            gasFloor,
+            this.config.executorGasMultiplier
+        )
+
+        if (txGasLimit > this.config.maxGasPerUserOp) {
             return [
                 false,
-                `User operation gas limits exceed the max gas per userOp: ${gasLimits} > ${this.config.maxGasPerUserOp}`
+                `User operation gas limits exceed the max gas per userOp: ${txGasLimit} > ${this.config.maxGasPerUserOp}`
             ]
         }
 

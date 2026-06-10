@@ -128,7 +128,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         description: "Maximum amount of gas per user operation",
         type: "string",
         require: false,
-        default: "10000000"
+        default: "16000000"
     },
     "max-gas-per-bundle": {
         description: "Maximum amount of gas per bundle",
@@ -472,7 +472,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     "executor-gas-multiplier": {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",
-        default: "100"
+        default: "105"
     },
     "executor-private-keys": {
         description: "Private keys of the executor accounts split by commas",

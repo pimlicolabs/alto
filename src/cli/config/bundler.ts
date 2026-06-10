@@ -72,7 +72,7 @@ export const bundlerArgsSchema = z.object({
     "mempool-max-parallel-ops": z.number().int().min(0).default(10),
     "mempool-max-queued-ops": z.number().int().min(0).default(0),
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
-    "max-gas-per-user-op": z.string().transform(BigInt).default("10000000"),
+    "max-gas-per-user-op": z.string().transform(BigInt).default("16000000"),
     "max-gas-per-bundle": z.string().transform(BigInt).default("16000000"),
     "rpc-methods": z
         .string()
@@ -145,7 +145,7 @@ export const executorArgsSchema = z.object({
     ]),
     "max-executors": z.number().int().min(0).optional(),
     "min-executor-balance": z.string().transform(BigInt).optional(),
-    "executor-gas-multiplier": z.string().transform(BigInt),
+    "executor-gas-multiplier": z.string().transform(BigInt).default("105"),
     "send-handle-ops-retry-count": z.number().int().default(3),
     "transaction-underpriced-multiplier": z.string().transform(BigInt),
     "bundler-initial-commission": z.string().transform(BigInt).default("10"),
