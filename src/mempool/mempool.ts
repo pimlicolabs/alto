@@ -881,8 +881,17 @@ export class Mempool {
                     beneficiary: this.config.utilityWalletAddress
                 })
 
-                // Check bundle gasLimit if bundle is not empty
-                if (currentBundle.userOps.length > 0 && gasUsed > maxGasLimit) {
+                // Check bundle gasLimit if bundle is not empty.
+                // The executor scales the bundle's tx.gasLimit by
+                // executorGasMultiplier, compare against the scaled value
+                // so the final transaction stays within maxGasLimit.
+                if (
+                    currentBundle.userOps.length > 0 &&
+                    scaleBigIntByPercent(
+                        gasUsed,
+                        this.config.executorGasMultiplier
+                    ) > maxGasLimit
+                ) {
                     // Put current op back to front of unused for next bundle
                     unusedUserOps.unshift(currentUserOp)
                     break
