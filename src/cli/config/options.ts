@@ -472,7 +472,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     "executor-gas-multiplier": {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",
-        default: "100"
+        default: "105"
     },
     "executor-private-keys": {
         description: "Private keys of the executor accounts split by commas",

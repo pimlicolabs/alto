@@ -145,7 +145,7 @@ export const executorArgsSchema = z.object({
     ]),
     "max-executors": z.number().int().min(0).optional(),
     "min-executor-balance": z.string().transform(BigInt).optional(),
-    "executor-gas-multiplier": z.string().transform(BigInt),
+    "executor-gas-multiplier": z.string().transform(BigInt).default("105"),
     "send-handle-ops-retry-count": z.number().int().default(3),
     "transaction-underpriced-multiplier": z.string().transform(BigInt),
     "bundler-initial-commission": z.string().transform(BigInt).default("10"),

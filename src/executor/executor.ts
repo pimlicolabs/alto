@@ -215,7 +215,6 @@ export class Executor {
         submissionAttempts: number
     }) {
         const {
-            executorGasMultiplier,
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
             walletClients,
@@ -248,8 +247,6 @@ export class Executor {
             nonce,
             ...gasOpts
         }
-
-        request.gas = scaleBigIntByPercent(request.gas, executorGasMultiplier)
 
         let attempts = 0
         let transactionHash: Hex | undefined

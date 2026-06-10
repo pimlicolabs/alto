@@ -65,11 +65,10 @@ export const getBundleGasLimit = async ({
         ).length
         const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
 
-        // Add 5% safety margin to local estimates.
-        gasLimit = scaleBigIntByPercent(aa95GasFloor + eip7702Overhead, 105n)
+        gasLimit = aa95GasFloor + eip7702Overhead
     }
 
-    return gasLimit
+    return scaleBigIntByPercent(gasLimit, config.executorGasMultiplier)
 }
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
