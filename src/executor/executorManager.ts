@@ -539,7 +539,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -548,7 +548,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -631,7 +631,7 @@ export class ExecutorManager {
         )
     }
 
-    async replaceTransaction({
+    async replaceBundle({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -731,7 +731,7 @@ export class ExecutorManager {
                         reason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
-                    "failed to replace transaction"
+                    "failed to replace bundle"
                 )
 
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -791,7 +791,7 @@ export class ExecutorManager {
                 reason,
                 userOps: getUserOpHashes(userOpsReplaced)
             },
-            "replaced transaction"
+            "replaced bundle"
         )
         this.metrics.replacedTransactions
             .labels({ reason, status: "success" })
