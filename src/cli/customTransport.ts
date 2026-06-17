@@ -173,25 +173,22 @@ export function broadcastTransport(
             name: "Broadcast JSON-RPC",
             // biome-ignore lint/suspicious/noExplicitAny: request return type is the EIP1193 boundary, same as customTransport
             async request(args): Promise<any> {
-                const { method } = args
-                const requests = instances.map((instance) =>
-                    instance.request(args)
-                )
-
                 try {
-                    return await Promise.any(requests)
+                    // Resolves with the first success, rejects only if all fail.
+                    return await Promise.any(
+                        instances.map((instance) => instance.request(args))
+                    )
                 } catch (err) {
-                    // Promise.any throws an AggregateError only when every
-                    // request rejected. Rethrow one of the underlying errors so
-                    // a wrapping fallback transport can react and move on.
-                    if (err instanceof AggregateError) {
-                        logger.warn(
-                            { method, urls },
-                            "all broadcast rpc urls failed"
-                        )
-                        throw err.errors[0] ?? err
-                    }
-                    throw err
+                    // Rethrow an underlying error (Promise.any wraps them in an
+                    // AggregateError) so a wrapping fallback transport can move
+                    // on to the next transport (e.g. the normal RPC url).
+                    const errors =
+                        err instanceof AggregateError ? err.errors : [err]
+                    logger.warn(
+                        { urls, errors },
+                        "all broadcast rpc urls failed"
+                    )
+                    throw errors[0] ?? err
                 }
             },
             retryCount: 0,
