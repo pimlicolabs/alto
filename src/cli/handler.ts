@@ -18,7 +18,7 @@ import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
 import type { IOptionsInput } from "./config"
-import { customTransport } from "./customTransport"
+import { broadcastTransport, customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
@@ -197,12 +197,20 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
+    const createBroadcastTransport = (urls: string[]) =>
+        broadcastTransport(urls, {
+            logger: logger.child(
+                { module: "wallet_client" },
+                { level: args.walletClientLogLevel || args.logLevel }
+            )
+        })
+
     const walletClients = {
         private: args.sendTransactionRpcUrl
             ? createWalletClient({
                   transport: fallback(
                       [
-                          createWalletTransport(args.sendTransactionRpcUrl),
+                          createBroadcastTransport(args.sendTransactionRpcUrl),
                           createWalletTransport(args.rpcUrl)
                       ],
                       { rank: false }

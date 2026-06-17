@@ -708,7 +708,8 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         require: true
     },
     "send-transaction-rpc-url": {
-        description: "RPC url to send transactions to (e.g. flashbots relay)",
+        description:
+            "Comma separated list of RPC urls to send transactions to (e.g. flashbots relay). Transactions are broadcast to all urls in parallel and only fall back to the normal rpc url if every url fails",
         type: "string",
         require: false
     },

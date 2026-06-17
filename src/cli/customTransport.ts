@@ -4,6 +4,7 @@ import {
     type HttpTransport,
     type HttpTransportConfig,
     RpcRequestError,
+    type Transport,
     UrlRequiredError,
     createTransport,
     getAbiItem,
@@ -150,5 +151,51 @@ export function customTransport(
                 url
             }
         )
+    }
+}
+
+// Broadcasts each request to multiple RPC urls in parallel, resolving with the
+// first successful response. Only rejects if every url fails, which lets a
+// wrapping `fallback` transport move on to the next transport (e.g. the normal
+// RPC url) once all broadcast targets have failed.
+export function broadcastTransport(
+    urls: string[],
+    config: HttpTransportConfig & { logger: Logger }
+): Transport {
+    const { logger } = config
+    const transports = urls.map((url) => customTransport(url, config))
+
+    return (params) => {
+        const instances = transports.map((transport) => transport(params))
+
+        return createTransport({
+            key: "broadcast",
+            name: "Broadcast JSON-RPC",
+            // biome-ignore lint/suspicious/noExplicitAny: request return type is the EIP1193 boundary, same as customTransport
+            async request(args): Promise<any> {
+                const { method } = args
+                const requests = instances.map((instance) =>
+                    instance.request(args)
+                )
+
+                try {
+                    return await Promise.any(requests)
+                } catch (err) {
+                    // Promise.any throws an AggregateError only when every
+                    // request rejected. Rethrow one of the underlying errors so
+                    // a wrapping fallback transport can react and move on.
+                    if (err instanceof AggregateError) {
+                        logger.warn(
+                            { method, urls },
+                            "all broadcast rpc urls failed"
+                        )
+                        throw err.errors[0] ?? err
+                    }
+                    throw err
+                }
+            },
+            retryCount: 0,
+            type: "broadcast"
+        })
     }
 }
