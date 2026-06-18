@@ -155,9 +155,8 @@ export function customTransport(
 }
 
 // Broadcasts each request to multiple RPC urls in parallel, resolving with the
-// first successful response. Only rejects if every url fails, which lets a
-// wrapping `fallback` transport move on to the next transport (e.g. the normal
-// RPC url) once all broadcast targets have failed.
+// first successful response. Slow broadcast targets continue in the background
+// after a success, and the request only rejects if every url fails.
 export function broadcastTransport(
     urls: string[],
     config: HttpTransportConfig & { logger: Logger }
@@ -174,14 +173,10 @@ export function broadcastTransport(
             // biome-ignore lint/suspicious/noExplicitAny: request return type is the EIP1193 boundary, same as customTransport
             async request(args): Promise<any> {
                 try {
-                    // Resolves with the first success, rejects only if all fail.
                     return await Promise.any(
                         instances.map((instance) => instance.request(args))
                     )
                 } catch (err) {
-                    // Rethrow an underlying error (Promise.any wraps them in an
-                    // AggregateError) so a wrapping fallback transport can move
-                    // on to the next transport (e.g. the normal RPC url).
                     const errors =
                         err instanceof AggregateError ? err.errors : [err]
                     logger.warn(

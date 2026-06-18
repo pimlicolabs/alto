@@ -709,7 +709,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "send-transaction-rpc-url": {
         description:
-            "Comma separated list of RPC urls to send transactions to (e.g. flashbots relay). Transactions are broadcast to all urls in parallel and only fall back to the normal rpc url if every url fails",
+            "Comma separated list of RPC urls to send transactions to (e.g. flashbots relay). Transactions are broadcast to all urls in parallel and return as soon as one url succeeds",
         type: "string",
         require: false
     },
