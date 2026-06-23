@@ -165,6 +165,8 @@ export function broadcastTransport(
     const transports = urls.map((url) => customTransport(url, config))
 
     return (params) => {
+        // Instantiate each url's transport factory with the client's params so
+        // every instance shares the same chain/timeout config and is built once.
         const instances = transports.map((transport) => transport(params))
 
         return createTransport({
