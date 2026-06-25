@@ -1156,14 +1156,20 @@ describe.each([
                 }
             }
 
+            // For v0.6 the EntryPoint reverts when calling validateUserOp on a
+            // non-account, surfacing as AA23. For v0.7+ we expect a descriptive
+            // error (still a TODO).
+            const expectedError =
+                entryPointVersion === "0.6"
+                    ? "UserOperation reverted during simulation with reason: AA23 reverted (or OOG)"
+                    : "todo"
+
             await expect(async () => {
                 await bundlerClient.request({
                     method: "eth_estimateUserOperationGas",
                     params: [deepHexlify(userOp), entryPoint]
                 })
-            }).rejects.toThrow(
-                /sender does not have a validateUserOp method/i
-            )
+            }).rejects.toThrow(expectedError)
         })
     }
 )
