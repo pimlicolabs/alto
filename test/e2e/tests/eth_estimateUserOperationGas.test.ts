@@ -1108,9 +1108,8 @@ describe.each([
 
         // Should throw AA36: over paymasterVerificationGasLimit (NOT APPLICABLE FOR ESTIMATION)
 
-        // NOTE: throwing a descriptive error when the sender is not an
-        // ERC-4337 account is still a TODO, so this test is expected to fail
-        // until that check is implemented.
+        // When the sender is not an ERC-4337 account (no validateUserOp
+        // method), the EntryPoint's validation call reverts and we surface AA23.
         test("Should throw if sender is not an ERC-4337 account (missing validateUserOp method)", async () => {
             const bundlerClient = createBundlerClient({
                 chain: foundry,
@@ -1156,13 +1155,13 @@ describe.each([
                 }
             }
 
-            // For v0.6 the EntryPoint reverts when calling validateUserOp on a
-            // non-account, surfacing as AA23. For v0.7+ we expect a descriptive
-            // error (still a TODO).
+            // Calling validateUserOp on a non-account reverts with no data,
+            // surfacing as AA23. v0.6 reports "(or OOG)", v0.7+ reports the
+            // empty inner revert data as "AA23 reverted 0x".
             const expectedError =
                 entryPointVersion === "0.6"
                     ? "UserOperation reverted during simulation with reason: AA23 reverted (or OOG)"
-                    : "todo"
+                    : "UserOperation reverted during simulation with reason: AA23 reverted 0x"
 
             await expect(async () => {
                 await bundlerClient.request({
