@@ -1107,5 +1107,63 @@ describe.each([
         // Should throw AA34 if paymaster signature is invalid (NOT APPLICABLE FOR ESTIMATION)
 
         // Should throw AA36: over paymasterVerificationGasLimit (NOT APPLICABLE FOR ESTIMATION)
+
+        // NOTE: throwing a descriptive error when the sender is not an
+        // ERC-4337 account is still a TODO, so this test is expected to fail
+        // until that check is implemented.
+        test("Should throw if sender is not an ERC-4337 account (missing validateUserOp method)", async () => {
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
+
+            // revertingContract is a deployed contract that does NOT implement
+            // the validateUserOp method, i.e. it is not an ERC-4337 account.
+            const nonAccountSender = revertingContract
+
+            // Fund the sender so estimation doesn't fail on prefund checks first.
+            await anvilClient.setBalance({
+                address: nonAccountSender,
+                value: parseEther("10")
+            })
+
+            let userOp: UserOperation
+            if (entryPointVersion === "0.6") {
+                userOp = {
+                    sender: nonAccountSender,
+                    nonce: 0n,
+                    initCode: "0x",
+                    callData: "0x",
+                    callGasLimit: 0n,
+                    verificationGasLimit: 0n,
+                    preVerificationGas: 0n,
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n,
+                    paymasterAndData: "0x",
+                    signature: "0x"
+                }
+            } else {
+                userOp = {
+                    sender: nonAccountSender,
+                    nonce: 0n,
+                    callData: "0x",
+                    callGasLimit: 0n,
+                    verificationGasLimit: 0n,
+                    preVerificationGas: 0n,
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n,
+                    signature: "0x"
+                }
+            }
+
+            await expect(async () => {
+                await bundlerClient.request({
+                    method: "eth_estimateUserOperationGas",
+                    params: [deepHexlify(userOp), entryPoint]
+                })
+            }).rejects.toThrow(
+                /sender does not have a validateUserOp method/i
+            )
+        })
     }
 )
