@@ -159,10 +159,15 @@ export function decodeSimulateHandleOpError(
         }
 
         if (!error.data?.args) {
-            logger.warn("Missing args")
-            throw new Error(
-                "Unknown error, could not parse simulate validation result."
+            logger.warn(
+                { raw: error.raw, data: error.data },
+                "simulateValidation reverted with empty bytes"
             )
+            return {
+                result: "failed",
+                data: "reverted with empty bytes",
+                code: ERC7769Errors.SimulateValidation
+            }
         }
 
         errorName = error.data.errorName
