@@ -157,7 +157,7 @@ export function decodeSimulateHandleOpError(
             )
             return {
                 result: "failed",
-                data: "Sender is missing a validateUserOp function or factory not deployed",
+                data: "Sender does not implement validateUserOp or factory is not deployed",
                 code: ERC7769Errors.SimulateValidation
             }
         }

@@ -172,7 +172,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "UserOperation reverted during simulation with reason: Sender is missing a validateUserOp function or factory not deployed"
+                    "UserOperation reverted during simulation with reason: AA20 account not deployed"
                 )
             }
         })
@@ -194,7 +194,12 @@ describe.each([
                 ]
             })) as UserOperation
 
-            op.sender = revertingContract
+            const non4337Sender = privateKeyToAddress(generatePrivateKey())
+            await anvilClient.setCode({
+                address: non4337Sender,
+                bytecode: "0x60006000fd"
+            })
+            op.sender = non4337Sender
 
             if (entryPointVersion === "0.6") {
                 op.initCode = "0x"
@@ -211,7 +216,7 @@ describe.each([
                 const error = err as BaseError
 
                 expect(error.details).toBe(
-                    "UserOperation reverted during simulation with reason: Sender is missing a validateUserOp function or factory not deployed"
+                    "UserOperation reverted during simulation with reason: Sender does not implement validateUserOp or factory is not deployed"
                 )
 
                 const rpcError = error.walk(
