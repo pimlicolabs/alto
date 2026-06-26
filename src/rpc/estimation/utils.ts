@@ -150,22 +150,14 @@ export function decodeSimulateHandleOpError(
     if (contractFunctionRevertedError) {
         const error = contractFunctionRevertedError
 
-        if (!error.data?.args && error.raw === "0x") {
-            return {
-                result: "failed",
-                data: "Sender has no code or factory not deployed",
-                code: ERC7769Errors.SimulateValidation
-            }
-        }
-
-        if (!error.data?.args) {
+        if (!error.data?.args || (!error.data?.args && error.raw === "0x")) {
             logger.warn(
                 { raw: error.raw, data: error.data },
-                "simulateValidation reverted with empty bytes"
+                "simulateValidation reverted without decodable args"
             )
             return {
                 result: "failed",
-                data: "reverted with empty bytes",
+                data: "Sender is missing a validateUserOp function or factory not deployed",
                 code: ERC7769Errors.SimulateValidation
             }
         }

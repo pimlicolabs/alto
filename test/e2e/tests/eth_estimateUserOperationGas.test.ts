@@ -172,7 +172,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "UserOperation reverted during simulation with reason: Sender has no code or factory not deployed"
+                    "UserOperation reverted during simulation with reason: Sender is missing a validateUserOp function or factory not deployed"
                 )
             }
         })
