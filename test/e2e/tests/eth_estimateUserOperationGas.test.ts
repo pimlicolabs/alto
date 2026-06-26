@@ -177,6 +177,51 @@ describe.each([
             }
         })
 
+        test("Should throw client error when sender is not a 4337 account", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        data: "0x",
+                        value: 0n
+                    }
+                ]
+            })) as UserOperation
+
+            op.sender = revertingContract
+
+            if (entryPointVersion === "0.6") {
+                op.initCode = "0x"
+            } else {
+                op.factory = null
+                op.factoryData = null
+            }
+
+            try {
+                await client.estimateUserOperationGas(op)
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toBe(
+                    "UserOperation reverted during simulation with reason: Sender is missing a validateUserOp function or factory not deployed"
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
+            }
+        })
+
         test("Empty paymaster data results in zero paymaster limits", async () => {
             if (entryPointVersion === "0.6") {
                 return
