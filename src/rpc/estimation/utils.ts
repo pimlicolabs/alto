@@ -150,19 +150,16 @@ export function decodeSimulateHandleOpError(
     if (contractFunctionRevertedError) {
         const error = contractFunctionRevertedError
 
-        if (!error.data?.args && error.raw === "0x") {
+        if (!error.data?.args || (!error.data?.args && error.raw === "0x")) {
+            logger.warn(
+                { raw: error.raw, data: error.data },
+                "simulateValidation reverted without decodable args"
+            )
             return {
                 result: "failed",
-                data: "Sender has no code or factory not deployed",
+                data: "Sender does not implement validateUserOp or factory is not deployed",
                 code: ERC7769Errors.SimulateValidation
             }
-        }
-
-        if (!error.data?.args) {
-            logger.warn("Missing args")
-            throw new Error(
-                "Unknown error, could not parse simulate validation result."
-            )
         }
 
         errorName = error.data.errorName

@@ -172,7 +172,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "UserOperation reverted during simulation with reason: Sender has no code or factory not deployed"
+                    "UserOperation reverted during simulation with reason: Sender does not implement validateUserOp or factory is not deployed"
                 )
             }
         })
@@ -382,12 +382,12 @@ describe.each([
         test.each([
             {
                 testName: "short form (0x7702)",
-                factory: "0x7702"
+                factory: "0x7702" as Hex
             },
             {
                 testName:
                     "zero-padded form (0x7702000000000000000000000000000000000000)",
-                factory: "0x7702000000000000000000000000000000000000"
+                factory: "0x7702000000000000000000000000000000000000" as Hex
             }
         ])(
             "Should reject estimation with factory $testName but no eip7702Auth",
