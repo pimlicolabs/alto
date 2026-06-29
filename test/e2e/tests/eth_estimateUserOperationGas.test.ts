@@ -172,7 +172,7 @@ describe.each([
                 })
             } catch (e: any) {
                 expect(e.details).toBe(
-                    "UserOperation reverted during simulation with reason: AA20 account not deployed"
+                    "UserOperation reverted during simulation with reason: Sender does not implement validateUserOp or factory is not deployed"
                 )
             }
         })
