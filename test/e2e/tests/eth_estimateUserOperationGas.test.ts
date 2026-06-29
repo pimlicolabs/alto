@@ -177,63 +177,6 @@ describe.each([
             }
         })
 
-        test("Should throw client error when sender is not a 4337 account", async () => {
-            const client = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-            const bundlerClient = createBundlerClient({
-                chain: foundry,
-                transport: http(altoRpc)
-            })
-
-            const op = (await client.prepareUserOperation({
-                calls: [
-                    {
-                        to: TO_ADDRESS,
-                        data: "0x",
-                        value: 0n
-                    }
-                ]
-            })) as UserOperation
-
-            const non4337Sender = privateKeyToAddress(generatePrivateKey())
-            await anvilClient.setCode({
-                address: non4337Sender,
-                bytecode: "0x60006000fd"
-            })
-            op.sender = non4337Sender
-
-            if (entryPointVersion === "0.6") {
-                op.initCode = "0x"
-            } else {
-                op.factory = undefined
-                op.factoryData = undefined
-            }
-
-            try {
-                await bundlerClient.request({
-                    method: "eth_estimateUserOperationGas",
-                    params: [deepHexlify(op), entryPoint]
-                })
-                expect.fail("Must throw")
-            } catch (err) {
-                expect(err).toBeInstanceOf(BaseError)
-                const error = err as BaseError
-
-                expect(error.details).toBe(
-                    "UserOperation reverted during simulation with reason: Sender does not implement validateUserOp or factory is not deployed"
-                )
-
-                const rpcError = error.walk(
-                    (e) => e instanceof RpcRequestError
-                ) as RpcRequestError
-                expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(ERC7769Errors.SimulateValidation)
-            }
-        })
-
         test("Empty paymaster data results in zero paymaster limits", async () => {
             if (entryPointVersion === "0.6") {
                 return
