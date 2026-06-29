@@ -183,6 +183,10 @@ describe.each([
                 anvilRpc,
                 altoRpc
             })
+            const bundlerClient = createBundlerClient({
+                chain: foundry,
+                transport: http(altoRpc)
+            })
 
             const op = (await client.prepareUserOperation({
                 calls: [
@@ -204,12 +208,15 @@ describe.each([
             if (entryPointVersion === "0.6") {
                 op.initCode = "0x"
             } else {
-                op.factory = null
-                op.factoryData = null
+                op.factory = undefined
+                op.factoryData = undefined
             }
 
             try {
-                await client.estimateUserOperationGas(op)
+                await bundlerClient.request({
+                    method: "eth_estimateUserOperationGas",
+                    params: [deepHexlify(op), entryPoint]
+                })
                 expect.fail("Must throw")
             } catch (err) {
                 expect(err).toBeInstanceOf(BaseError)
@@ -432,12 +439,12 @@ describe.each([
         test.each([
             {
                 testName: "short form (0x7702)",
-                factory: "0x7702"
+                factory: "0x7702" as Hex
             },
             {
                 testName:
                     "zero-padded form (0x7702000000000000000000000000000000000000)",
-                factory: "0x7702000000000000000000000000000000000000"
+                factory: "0x7702000000000000000000000000000000000000" as Hex
             }
         ])(
             "Should reject estimation with factory $testName but no eip7702Auth",
