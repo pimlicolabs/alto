@@ -235,7 +235,8 @@ export class ExecutorManager {
                 clearInterval(intervalId)
             }
         } else if (this.redisBlockCache) {
-            const pollingInterval = this.config.blockTime / 2
+            const pollingInterval =
+                this.config.blockPollingInterval ?? this.config.blockTime / 2
             const intervalId = setInterval(async () => {
                 await this.pollBlockWithRedis()
             }, pollingInterval)
