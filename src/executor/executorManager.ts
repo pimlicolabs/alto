@@ -559,7 +559,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -568,7 +568,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -651,7 +651,7 @@ export class ExecutorManager {
         )
     }
 
-    async replaceTransaction({
+    async replaceBundle({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -751,7 +751,7 @@ export class ExecutorManager {
                         reason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
-                    "failed to replace transaction"
+                    "failed to replace bundle"
                 )
 
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -781,7 +781,7 @@ export class ExecutorManager {
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
 
-        const newTxInfo: SubmittedBundleInfo = {
+        const newSubmittedBundle: SubmittedBundleInfo = {
             ...submittedBundle,
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash,
@@ -798,7 +798,7 @@ export class ExecutorManager {
         }
 
         // Track bundle and start loop to watch blocks
-        this.bundleManager.trackBundle(newTxInfo)
+        this.bundleManager.trackBundle(newSubmittedBundle)
         this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.
@@ -811,7 +811,7 @@ export class ExecutorManager {
                 reason,
                 userOps: getUserOpHashes(userOpsReplaced)
             },
-            "replaced transaction"
+            "replaced bundle"
         )
         this.metrics.replacedTransactions
             .labels({ reason, status: "success" })
