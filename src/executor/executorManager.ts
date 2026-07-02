@@ -39,6 +39,7 @@ export class ExecutorManager {
     } | null
 
     private currentlyHandlingBlock = false
+    private currentlyHandlingBlockNumber: bigint | undefined
 
     constructor({
         config,
@@ -148,7 +149,9 @@ export class ExecutorManager {
         }
 
         // Ensure ttl is an integer.
-        const halfBlockTime = Math.floor(this.config.blockTime / 2)
+        const pollingInterval = Math.floor(
+            this.config.blockPollingInterval ?? this.config.blockTime / 2
+        )
 
         try {
             let blockNumber: bigint | null = null
@@ -159,7 +162,7 @@ export class ExecutorManager {
                     this.redisBlockCache.refreshGuardKey,
                     "1",
                     "PX",
-                    halfBlockTime,
+                    pollingInterval,
                     "NX"
                 )
                 .catch((err: unknown) => {
@@ -180,7 +183,7 @@ export class ExecutorManager {
                         this.redisBlockCache.blockNumberKey,
                         blockNumber.toString(),
                         "PX",
-                        halfBlockTime
+                        pollingInterval
                     )
                 } catch (err) {
                     this.logger.warn({ err }, "Redis block cache write failed")
@@ -207,7 +210,7 @@ export class ExecutorManager {
             // If block number changed, run handleBlock().
             if (blockNumber !== this.redisBlockCache.localBlockNumber) {
                 this.redisBlockCache.localBlockNumber = blockNumber
-                await this.handleBlock()
+                await this.handleBlock(blockNumber)
             }
         } catch (err) {
             this.logger.warn({ err }, "error polling block with Redis cache")
@@ -235,7 +238,8 @@ export class ExecutorManager {
                 clearInterval(intervalId)
             }
         } else if (this.redisBlockCache) {
-            const pollingInterval = this.config.blockTime / 2
+            const pollingInterval =
+                this.config.blockPollingInterval ?? this.config.blockTime / 2
             const intervalId = setInterval(async () => {
                 await this.pollBlockWithRedis()
             }, pollingInterval)
@@ -245,8 +249,8 @@ export class ExecutorManager {
         } else {
             // Default behavior - watch blocks
             this.unWatch = this.config.publicClient.watchBlocks({
-                onBlock: async () => {
-                    await this.handleBlock()
+                onBlock: async (block) => {
+                    await this.handleBlock(block.number)
                 },
                 onError: (err) => {
                     this.logger.error({ err }, "error while watching blocks")
@@ -432,12 +436,26 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock() {
+    private async handleBlock(blockNumber?: bigint) {
         if (this.currentlyHandlingBlock) {
+            if (
+                blockNumber !== undefined &&
+                this.currentlyHandlingBlockNumber !== undefined
+            ) {
+                this.logger.warn(
+                    {
+                        currentBlock:
+                            this.currentlyHandlingBlockNumber.toString(),
+                        skippedBlock: blockNumber.toString()
+                    },
+                    "skipping block event, previous block still being handled"
+                )
+            }
             return
         }
 
         this.currentlyHandlingBlock = true
+        this.currentlyHandlingBlockNumber = blockNumber
         const blockReceivedTimestamp = Date.now()
 
         const pendingBundles = this.bundleManager.getPendingBundles()
@@ -445,6 +463,7 @@ export class ExecutorManager {
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
+            this.currentlyHandlingBlockNumber = undefined
             return
         }
 
@@ -499,6 +518,7 @@ export class ExecutorManager {
         )
 
         this.currentlyHandlingBlock = false
+        this.currentlyHandlingBlockNumber = undefined
     }
 
     potentiallyResubmitBundle({
@@ -539,7 +559,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -548,7 +568,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceTransaction({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -631,7 +651,7 @@ export class ExecutorManager {
         )
     }
 
-    async replaceTransaction({
+    async replaceBundle({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -731,7 +751,7 @@ export class ExecutorManager {
                         reason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
-                    "failed to replace transaction"
+                    "failed to replace bundle"
                 )
 
                 await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
@@ -761,7 +781,7 @@ export class ExecutorManager {
             submissionAttempts: userOpInfo.submissionAttempts + 1
         }))
 
-        const newTxInfo: SubmittedBundleInfo = {
+        const newSubmittedBundle: SubmittedBundleInfo = {
             ...submittedBundle,
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash,
@@ -778,7 +798,7 @@ export class ExecutorManager {
         }
 
         // Track bundle and start loop to watch blocks
-        this.bundleManager.trackBundle(newTxInfo)
+        this.bundleManager.trackBundle(newSubmittedBundle)
         this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.
@@ -791,7 +811,7 @@ export class ExecutorManager {
                 reason,
                 userOps: getUserOpHashes(userOpsReplaced)
             },
-            "replaced transaction"
+            "replaced bundle"
         )
         this.metrics.replacedTransactions
             .labels({ reason, status: "success" })

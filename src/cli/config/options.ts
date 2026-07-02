@@ -718,6 +718,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         require: true,
         default: 1000
     },
+    "block-polling-interval": {
+        description:
+            "Polling interval for watching new blocks (ms). Defaults to block-time / 2",
+        type: "number",
+        require: false
+    },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",
         type: "number",
