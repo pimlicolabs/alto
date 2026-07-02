@@ -39,6 +39,7 @@ export class ExecutorManager {
     } | null
 
     private currentlyHandlingBlock = false
+    private currentlyHandlingBlockNumber: bigint | undefined
 
     constructor({
         config,
@@ -209,7 +210,7 @@ export class ExecutorManager {
             // If block number changed, run handleBlock().
             if (blockNumber !== this.redisBlockCache.localBlockNumber) {
                 this.redisBlockCache.localBlockNumber = blockNumber
-                await this.handleBlock()
+                await this.handleBlock(blockNumber)
             }
         } catch (err) {
             this.logger.warn({ err }, "error polling block with Redis cache")
@@ -248,8 +249,8 @@ export class ExecutorManager {
         } else {
             // Default behavior - watch blocks
             this.unWatch = this.config.publicClient.watchBlocks({
-                onBlock: async () => {
-                    await this.handleBlock()
+                onBlock: async (block) => {
+                    await this.handleBlock(block.number)
                 },
                 onError: (err) => {
                     this.logger.error({ err }, "error while watching blocks")
@@ -435,12 +436,26 @@ export class ExecutorManager {
         }
     }
 
-    private async handleBlock() {
+    private async handleBlock(blockNumber?: bigint) {
         if (this.currentlyHandlingBlock) {
+            if (
+                blockNumber !== undefined &&
+                this.currentlyHandlingBlockNumber !== undefined
+            ) {
+                this.logger.warn(
+                    {
+                        currentBlock:
+                            this.currentlyHandlingBlockNumber.toString(),
+                        skippedBlock: blockNumber.toString()
+                    },
+                    "skipping block event, previous block still being handled"
+                )
+            }
             return
         }
 
         this.currentlyHandlingBlock = true
+        this.currentlyHandlingBlockNumber = blockNumber
         const blockReceivedTimestamp = Date.now()
 
         const pendingBundles = this.bundleManager.getPendingBundles()
@@ -448,6 +463,7 @@ export class ExecutorManager {
         if (pendingBundles.length === 0) {
             this.stopWatchingBlocks()
             this.currentlyHandlingBlock = false
+            this.currentlyHandlingBlockNumber = undefined
             return
         }
 
@@ -502,6 +518,7 @@ export class ExecutorManager {
         )
 
         this.currentlyHandlingBlock = false
+        this.currentlyHandlingBlockNumber = undefined
     }
 
     potentiallyResubmitBundle({
