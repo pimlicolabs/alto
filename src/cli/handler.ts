@@ -17,6 +17,7 @@ import {
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
+import { broadcastTransport } from "./broadcastTransport"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
@@ -189,12 +190,14 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             .extend(withEthCallSender)
     }
 
+    const walletClientLogger = logger.child(
+        { module: "wallet_client" },
+        { level: args.walletClientLogLevel || args.logLevel }
+    )
+
     const createWalletTransport = (url: string) =>
         customTransport(url, {
-            logger: logger.child(
-                { module: "wallet_client" },
-                { level: args.walletClientLogLevel || args.logLevel }
-            )
+            logger: walletClientLogger
         })
 
     const walletClients = {
@@ -202,7 +205,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             ? createWalletClient({
                   transport: fallback(
                       [
-                          createWalletTransport(args.sendTransactionRpcUrl),
+                          broadcastTransport(args.sendTransactionRpcUrl, {
+                              logger: walletClientLogger
+                          }),
                           createWalletTransport(args.rpcUrl)
                       ],
                       { rank: false }
