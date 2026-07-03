@@ -59,8 +59,7 @@ export function broadcastTransport(
                     const rpcError = errors.find(
                         (e) =>
                             e instanceof BaseError &&
-                            e.walk((c) => c instanceof RpcRequestError) !==
-                                null
+                            e.walk((c) => c instanceof RpcRequestError) !== null
                     )
                     throw rpcError ?? errors[0]
                 }
