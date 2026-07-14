@@ -90,7 +90,7 @@ jobs:
 
     permissions:
       id-token: write  # Required for OIDC
-      contents: read
+      contents: write  # Required for pushing git tags
 
     steps:
       - name: Clone repository
