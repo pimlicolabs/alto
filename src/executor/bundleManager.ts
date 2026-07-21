@@ -150,10 +150,20 @@ export class BundleManager {
 
     /**
      * The reasons for reverted bundles are:
-     * 1. complete bundle was frontrun -> cancel bundle -> need to wait for one more block to see if the userOp was frontrun
-     * 2. partial bundle was frontrun -> filter out non-frontrun userOps and resubmit -> need to wait for one more block to see if the userOp was frontrun
-     * 3. partial bundle was reverted -> filter out reverted userOps and resubmit
-     * 4. full bundle was reverted -> cancel bundle -> need to wait for one more block to see if the userOp was frontrun
+     * 1. complete bundle was frontrun
+     *    - cancel bundle
+     *    - need to wait for one more block to see if the userOp was frontrun
+     *
+     * 2. partial bundle was frontrun
+     *    - filter out non-frontrun userOps and resubmit
+     *    - need to wait for one more block to see if the userOp was frontrun
+     *
+     * 3. partial bundle was reverted
+     *    - filter out reverted userOps and resubmit
+     *
+     * 4. full bundle was reverted
+     *    - cancel bundle
+     *    - need to wait for one more block to see if the userOp was frontrun
      */
     async processRevertedBundle({
         submittedBundle,
@@ -468,7 +478,7 @@ export class BundleManager {
                             blockWaitCount: blockWaitCount + 1
                         })
                     )
-                }, this.config.publicClient.chain.blockTime ?? 1_000)
+                }, this.config.blockTime)
             })
         } catch (err) {
             this.logger.error(
