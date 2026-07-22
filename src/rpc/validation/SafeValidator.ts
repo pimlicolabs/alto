@@ -38,6 +38,11 @@ import {
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import {
+    parseFailedOpWithRevert,
+    simulationErrors,
+    toErc7769Code
+} from "../estimation/utils"
+import {
     type BundlerTracerResult,
     type ExitInfo,
     bundlerCollectorTracer
@@ -45,6 +50,7 @@ import {
 import { tracerResultParserV06 } from "./TracerResultParserV06"
 import { tracerResultParserV07 } from "./TracerResultParserV07"
 import { UnsafeValidator } from "./UnsafeValidator"
+import { decodeValidationTraceResult } from "./decodeValidationTraceResult"
 import { debug_traceCall } from "./tracer"
 
 export class SafeValidator
@@ -475,34 +481,31 @@ export class SafeValidator
             `tracerResult: ${jsonStringifyWithBigint(tracerResult)}`
         )
 
-        const lastResult = tracerResult.calls.slice(-1)[0]
-        if (lastResult.type !== "REVERT") {
-            throw new Error("Invalid response. simulateCall must revert")
-        }
-        const resultData = lastResult.data as Hex
+        if (tracerResult.error) {
+            let errorMessage = tracerResult.error
 
-        // Decode the validation result from the revert data
-        const { errorName, args } = decodeErrorResult({
-            abi: pimlicoSimulationsAbi,
-            data: resultData
-        })
+            try {
+                const { errorName, args } = decodeErrorResult({
+                    abi: simulationErrors,
+                    data: tracerResult.output
+                })
 
-        if (errorName !== "ValidationResult") {
-            let errorCode = ERC7769Errors.SimulateValidation
-            const errorMessage = errorName || "Unknown validation error"
-
-            if (errorMessage.includes("AA24")) {
-                errorCode = ERC7769Errors.InvalidSignature
+                if (errorName === "FailedOp") {
+                    errorMessage = args[1]
+                } else if (errorName === "FailedOpWithRevert") {
+                    const revertReason = parseFailedOpWithRevert(args[2])
+                    errorMessage = `${args[1]} ${revertReason}`
+                } else if (errorName === "Error") {
+                    errorMessage = args[0]
+                }
+            } catch {
+                // Use the top-level trace error when the revert data is unknown.
             }
 
-            if (errorMessage.includes("AA31")) {
-                errorCode = ERC7769Errors.PaymasterDepositTooLow
-            }
-
-            throw new RpcError(errorMessage, errorCode)
+            throw new RpcError(errorMessage, toErc7769Code(errorMessage))
         }
 
-        const validationResult = args[0] as ValidationResult07
+        const validationResult = decodeValidationTraceResult(tracerResult)
 
         const mergedValidation = this.mergeValidationDataValues(
             validationResult.returnInfo.accountValidationData,

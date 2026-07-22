@@ -34,6 +34,12 @@ declare function toAddress(a: any): string
  */
 export interface BundlerTracerResult {
     /**
+     * output and error from the top-level trace call
+     */
+    output: Hex
+    error: string
+
+    /**
      * storage and opcode info, collected on top-level calls from EntryPoint
      */
     callsFromEntryPoint: TopLevelCallInfo[]
@@ -104,7 +110,9 @@ interface RelevantStepData {
  * type-safe local storage of our collector. contains all return-value properties.
  * (also defines all "trace-local" variables and functions)
  */
-interface BundlerCollectorTracer extends LogTracer, BundlerTracerResult {
+interface BundlerCollectorTracer
+    extends LogTracer,
+        Omit<BundlerTracerResult, "output" | "error"> {
     lastOp: string
     lastThreeOpcodes: RelevantStepData[]
     stopCollectingTopic: string
@@ -154,8 +162,10 @@ export function bundlerCollectorTracer(): BundlerCollectorTracer {
             )
         },
 
-        result(_ctx: LogContext, _db: LogDb): BundlerTracerResult {
+        result(ctx: LogContext, _db: LogDb): BundlerTracerResult {
             return {
+                output: toHex(ctx.output),
+                error: ctx.error || "",
                 callsFromEntryPoint: this.callsFromEntryPoint,
                 keccak: this.keccak,
                 logs: this.logs,

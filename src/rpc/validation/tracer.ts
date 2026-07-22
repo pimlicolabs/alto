@@ -160,6 +160,7 @@ export interface LogContext {
     value: bigint // big.Int, amount to be transferred in wei
     block: number // Number, block number
     output: Buffer // Buffer, value returned from EVM
+    error?: string // String, top-level EVM error (empty or undefined on success)
     time: string // String, execution runtime
 
     // And these fields are only available for tracing mined transactions (i.e. not available when doing debug_traceCall):
