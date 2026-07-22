@@ -1,0 +1,23 @@
+services:
+  alto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alto:latest
+    container_name: alto-bundler
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${ALTO_PORT:-3000}:${ALTO_PORT:-3000}"
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:$${ALTO_PORT}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

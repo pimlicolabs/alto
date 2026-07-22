@@ -1,3 +1,4 @@
+# Local deployment configuration may contain private keys.
 .env
 package.lock
 node_modules
