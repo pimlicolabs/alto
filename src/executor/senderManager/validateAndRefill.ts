@@ -151,8 +151,9 @@ export const validateAndRefillWallets = async ({
         return
     }
 
-    // With horizontal scaling, use a Redis SET NX lock so only one instance
-    // performs the balance check/refill per interval. Fail-open on Redis errors.
+    // With horizontal scaling, a Redis SET NX lock ensures only one instance
+    // refills per interval. Non-winners remove their wallet gauge samples so
+    // only the latest winner exposes values.
     if (config.enableHorizontalScaling && config.redisEndpoint) {
         if (!redisClient) {
             redisClient = new Redis(config.redisEndpoint)
@@ -175,6 +176,10 @@ export const validateAndRefillWallets = async ({
             })
 
         if (acquired !== "OK") {
+            metrics.utilityWalletBalance.remove()
+            metrics.utilityWalletInsufficientBalance.remove()
+            metrics.utilityWalletMissingBalance.remove()
+            metrics.executorWalletsBalances.reset()
             return
         }
     }

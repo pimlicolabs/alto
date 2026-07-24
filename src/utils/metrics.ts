@@ -194,6 +194,11 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    // Gauges default to 0, we remove the default value here.
+    utilityWalletBalance.remove()
+    utilityWalletInsufficientBalance.remove()
+    utilityWalletMissingBalance.remove()
+
     const executorWalletsBalances = new Gauge({
         name: "alto_executor_wallet_balance",
         help: "Balance of the executor wallet",
