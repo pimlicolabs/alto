@@ -162,7 +162,10 @@ export const utilityArgsSchema = z.object({
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
     "refilling-wallets": z.boolean().default(true),
-    "executor-refill-interval": z.number().int().min(0)
+    "executor-refill-interval": z.number().int().min(0),
+    "multicall3-address": addressSchema.default(
+        "0xcA11bde05977b3631167028862bE2a173976CA11"
+    )
 })
 
 export const compatibilityArgsSchema = z.object({

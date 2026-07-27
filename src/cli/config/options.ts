@@ -554,6 +554,13 @@ export const utilityOptions: CliCommandOptions<IUtilityArgsInput> = {
         type: "number",
         require: true,
         default: 60 * 20
+    },
+    "multicall3-address": {
+        description:
+            "Address of the Multicall3 contract used to batch executor refills (falls back to one-by-one refills if not deployed)",
+        type: "string",
+        require: false,
+        default: "0xcA11bde05977b3631167028862bE2a173976CA11"
     }
 }
 
