@@ -313,7 +313,7 @@ export const validateAndRefillWallets = async ({
             refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
         }))
 
-    if (await canBatchRefills(config)) {
+    if (refills.length > 0 && (await canBatchRefills(config))) {
         try {
             await sendBatchRefillTransaction({
                 config,
