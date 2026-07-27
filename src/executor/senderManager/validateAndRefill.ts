@@ -23,7 +23,7 @@ type Refill = {
     refillAmount: bigint
 }
 
-let isMulticall3Deployed = false
+let isMulticall3Deployed: boolean | null = null
 
 // Batching is only possible for native transfers (Multicall3 would be
 // msg.sender for ERC20 transfers) and when Multicall3 is deployed.
@@ -32,11 +32,16 @@ const canBatchRefills = async (config: AltoConfig): Promise<boolean> => {
         return false
     }
 
-    if (!isMulticall3Deployed) {
-        const code = await config.publicClient
-            .getCode({ address: config.multicall3Address })
-            .catch(() => undefined)
-        isMulticall3Deployed = !!code && code !== "0x"
+    if (isMulticall3Deployed === null) {
+        try {
+            const code = await config.publicClient.getCode({
+                address: config.multicall3Address
+            })
+            isMulticall3Deployed = !!code && code !== "0x"
+        } catch {
+            // Leave as null so the check is retried next time.
+            return false
+        }
     }
 
     return isMulticall3Deployed
