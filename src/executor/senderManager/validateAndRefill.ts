@@ -23,6 +23,47 @@ type Refill = {
     refillAmount: bigint
 }
 
+type RefillPlan = {
+    refills: Refill[]
+    insufficientBalance: boolean
+}
+
+// Selects which wallets to refill given the utility balance. Wallets with
+// the largest deficit are prioritized and refills that no longer fit are
+// skipped so the utility wallet funds as many wallets as it can afford.
+const planRefills = ({
+    balances,
+    minBalance,
+    utilityBalance
+}: {
+    balances: { address: Address; balance: bigint }[]
+    minBalance: bigint
+    utilityBalance: bigint
+}): RefillPlan => {
+    // Top up wallets below minBalance to 120% of minBalance
+    const candidates: Refill[] = balances
+        .filter(({ balance }) => balance < minBalance)
+        .sort((a, b) => (a.balance < b.balance ? -1 : 1))
+        .map(({ address, balance }) => ({
+            address,
+            refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
+        }))
+
+    const refills: Refill[] = []
+    let total = 0n
+    for (const candidate of candidates) {
+        if (total + candidate.refillAmount <= utilityBalance) {
+            refills.push(candidate)
+            total += candidate.refillAmount
+        }
+    }
+
+    return {
+        refills,
+        insufficientBalance: refills.length < candidates.length
+    }
+}
+
 let isMulticall3Deployed: boolean | null = null
 
 // Batching is only possible for native transfers (Multicall3 would be
@@ -295,7 +336,6 @@ export const validateAndRefillWallets = async ({
         200n
     )
 
-    // Top up wallets below minBalance to 120% of minBalance
     const balances = await Promise.all(
         allWallets.map(async (wallet) => ({
             address: wallet.address,
@@ -306,12 +346,33 @@ export const validateAndRefillWallets = async ({
         }))
     )
 
-    const refills: Refill[] = balances
-        .filter(({ balance }) => balance < minBalance)
-        .map(({ address, balance }) => ({
-            address,
-            refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
-        }))
+    // Only send refills that fit within the utility wallet balance so a
+    // shortfall degrades to a partial refill instead of a failed batch.
+    const utilityBalance = await getWalletBalance({
+        config,
+        address: utilityAccount.address
+    })
+
+    const { refills, insufficientBalance } = planRefills({
+        balances,
+        minBalance,
+        utilityBalance
+    })
+
+    if (insufficientBalance) {
+        logger.warn(
+            {
+                utilityBalance,
+                shortfallCount: balances.filter(
+                    ({ balance }) => balance < minBalance
+                ).length,
+                fundedCount: refills.length
+            },
+            "utility balance insufficient for full refill, sending partial refill"
+        )
+    }
+
+    let hitInsufficientFundsError = false
 
     if (refills.length > 0 && (await canBatchRefills(config))) {
         try {
@@ -325,6 +386,7 @@ export const validateAndRefillWallets = async ({
             })
         } catch (e) {
             if (isInsufficientFundsError(e)) {
+                hitInsufficientFundsError = true
                 logger.warn(
                     { executors: refills.map(({ address }) => address) },
                     "insufficient utility funds"
@@ -346,6 +408,7 @@ export const validateAndRefillWallets = async ({
                 })
             } catch (e) {
                 if (isInsufficientFundsError(e)) {
+                    hitInsufficientFundsError = true
                     logger.warn(
                         { executor: refill.address },
                         "insufficient utility funds"
@@ -376,20 +439,24 @@ export const validateAndRefillWallets = async ({
 
     if (remainingMissing === 0n) {
         logger.info("no wallets need to be refilled")
-        metrics.utilityWalletInsufficientBalance.set(0)
         metrics.utilityWalletMissingBalance.set(0)
     } else {
-        metrics.utilityWalletInsufficientBalance.set(1)
         metrics.utilityWalletMissingBalance.set(
             formatNativeBalance({ value: remainingMissing, config })
         )
     }
 
-    const utilityBalance = await getWalletBalance({
+    // Set when the utility wallet could not cover this refill pass, either
+    // detected upfront during planning or by the transaction failing.
+    metrics.utilityWalletInsufficientBalance.set(
+        insufficientBalance || hitInsufficientFundsError ? 1 : 0
+    )
+
+    const remainingUtilityBalance = await getWalletBalance({
         config,
         address: utilityAccount.address
     })
     metrics.utilityWalletBalance.set(
-        formatNativeBalance({ value: utilityBalance, config })
+        formatNativeBalance({ value: remainingUtilityBalance, config })
     )
 }

@@ -180,7 +180,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const utilityWalletInsufficientBalance = new Gauge({
         name: "alto_utility_wallet_insufficient_balance",
-        help: "Indicates if utility wallet has insufficient balance (0=OK, 1=insufficient)",
+        help: "Indicates if the utility wallet could not cover the last refill pass (0=OK, 1=insufficient)",
         labelNames: [] as const,
         registers
     })
