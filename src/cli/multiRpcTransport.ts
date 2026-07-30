@@ -3,18 +3,27 @@ import {
     type EIP1193RequestFn,
     type HttpTransportConfig,
     type Transport,
-    createTransport
+    createTransport,
+    numberToHex
 } from "viem"
 import { customTransport } from "./customTransport"
 
-// Fans out eth_sendRawTransaction to all urls in parallel, resolving with the
-// first successful response and rejecting only if every endpoint fails. All
-// other methods are routed to the first url.
+// Fans out every request to all urls in parallel, resolving with the first
+// successful response and rejecting only if every endpoint fails. Fanning out
+// non-send methods too keeps a lagging or method-restricted endpoint (e.g. a
+// sequencer that only accepts eth_sendRawTransaction) from stalling requests.
+// eth_chainId is answered locally: viem calls it before every sendTransaction
+// and some endpoints don't allow it.
 export function multiRpcTransport(
     urls: string[],
-    config: HttpTransportConfig & { logger: Logger }
+    config: HttpTransportConfig & { logger: Logger; chainId: number }
 ): Transport {
-    const { key = "multiRpc", name = "Multi RPC JSON-RPC", logger } = config
+    const {
+        key = "multiRpc",
+        name = "Multi RPC JSON-RPC",
+        logger,
+        chainId
+    } = config
 
     return ({ chain, retryCount, timeout }) => {
         const transports = urls.map((url) =>
@@ -34,8 +43,8 @@ export function multiRpcTransport(
                 method: string
                 params?: unknown
             }) => {
-                if (method !== "eth_sendRawTransaction") {
-                    return await transports[0].request({ method, params })
+                if (method === "eth_chainId") {
+                    return numberToHex(chainId)
                 }
 
                 const sends = transports.map((transport, index) => {
@@ -45,8 +54,8 @@ export function multiRpcTransport(
                     // unhandled rejection.
                     send.catch((err: unknown) => {
                         logger.warn(
-                            { err, url: urls[index] },
-                            "send transaction endpoint failed"
+                            { err, url: urls[index], method },
+                            "multi rpc endpoint request failed"
                         )
                     })
                     return send

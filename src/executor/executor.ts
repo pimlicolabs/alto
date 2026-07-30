@@ -242,6 +242,9 @@ export class Executor {
             data: handleOpsCalldata,
             from: account.address,
             chain: publicClient.chain,
+            // Providing chainId lets viem skip its eth_fillTransaction and
+            // eth_chainId round-trips before eth_sendRawTransaction.
+            chainId: this.config.chainId,
             gas,
             account,
             nonce,

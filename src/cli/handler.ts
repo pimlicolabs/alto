@@ -204,6 +204,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                   transport: fallback(
                       [
                           multiRpcTransport(args.sendTransactionRpcUrl, {
+                              chainId,
                               logger: logger.child(
                                   { module: "wallet_client" },
                                   {
