@@ -227,7 +227,11 @@ export const serverArgsSchema = z.object({
 
 export const rpcArgsSchema = z.object({
     "rpc-url": z.string().url(),
-    "send-transaction-rpc-url": z.string().url().optional(),
+    "send-transaction-rpc-url": z
+        .string()
+        .optional()
+        .transform((val) => val?.split(","))
+        .pipe(z.array(z.string().url()).optional()),
     "block-time": z.number().int().min(0),
     "block-polling-interval": z.number().int().min(0).optional(),
     "max-block-wait-count": z.number().int().min(0).optional().default(2),
