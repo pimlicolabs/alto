@@ -303,10 +303,7 @@ export class RpcHandler {
                 ]
             }
 
-            // Enforce EIP-2 low-S. recoverAuthorizationAddress accepts the
-            // high-S twin (r, n-s, yParity^1) and recovers the same authority,
-            // but chains apply s <= secp256k1n/2 and skip the tuple, so the
-            // sender never receives delegated code and the bundle reverts.
+            // Enforce EIP-2 low-S: signatures with s > secp256k1n/2 are invalid.
             // https://github.com/ethereum/EIPs/blob/bbc3f958/EIPS/eip-7702.md#L111
             if (s > SECP256K1_N / 2n) {
                 return [
