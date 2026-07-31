@@ -703,9 +703,7 @@ describe.each([
                     address: owner.address
                 }),
                 contractAddress:
-                    getSimple7702AccountImplementationAddress(
-                        entryPointVersion
-                    )
+                    getSimple7702AccountImplementationAddress(entryPointVersion)
             })
 
             const op = (await client.prepareUserOperation({
@@ -747,9 +745,7 @@ describe.each([
                 const error = err as BaseError
 
                 expect(error.name).toBe("UserOperationExecutionError")
-                expect(error.details).toMatch(
-                    /s must be <= secp256k1\.n\/2/i
-                )
+                expect(error.details).toMatch(/s must be <= secp256k1\.n\/2/i)
 
                 const rpcError = error.walk(
                     (e) => e instanceof RpcRequestError
