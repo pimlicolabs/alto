@@ -755,6 +755,53 @@ describe.each([
             }
         })
 
+        test("Should accept 7702Auth with low-S signature", async () => {
+            // secp256k1 group order.
+            const SECP256K1_N =
+                0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey,
+                anvilRpc,
+                altoRpc,
+                use7702: true
+            })
+
+            const owner = privateKeyToAccount(privateKey)
+
+            const authorization = await owner.signAuthorization({
+                chainId: foundry.id,
+                nonce: await publicClient.getTransactionCount({
+                    address: owner.address
+                }),
+                contractAddress:
+                    getSimple7702AccountImplementationAddress(entryPointVersion)
+            })
+
+            // viem produces a canonical low-S signature (s <= secp256k1n/2),
+            // which is the valid case that must be accepted end-to-end.
+            expect(BigInt(authorization.s)).toBeLessThanOrEqual(
+                SECP256K1_N / 2n
+            )
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: zeroAddress,
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                authorization
+            })
+
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+
+            expect(receipt.success).toBe(true)
+        })
+
         test.each([
             {
                 sponsored: false,
