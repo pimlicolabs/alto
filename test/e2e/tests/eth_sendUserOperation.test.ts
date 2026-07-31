@@ -681,6 +681,84 @@ describe.each([
             }
         )
 
+        test("Should reject 7702Auth with high-S (malleated) signature", async () => {
+            // secp256k1 group order.
+            const SECP256K1_N =
+                0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n
+
+            const privateKey = generatePrivateKey()
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey,
+                anvilRpc,
+                altoRpc,
+                use7702: true
+            })
+
+            const owner = privateKeyToAccount(privateKey)
+
+            const authorization = await owner.signAuthorization({
+                chainId: foundry.id,
+                nonce: await publicClient.getTransactionCount({
+                    address: owner.address
+                }),
+                contractAddress:
+                    getSimple7702AccountImplementationAddress(
+                        entryPointVersion
+                    )
+            })
+
+            const op = (await client.prepareUserOperation({
+                calls: [
+                    {
+                        to: zeroAddress,
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                authorization
+            })) as UserOperation
+
+            // viem always produces a canonical low-S signature.
+            expect(BigInt(op.authorization!.s)).toBeLessThanOrEqual(
+                SECP256K1_N / 2n
+            )
+
+            // Malleate into the high-S twin (r, n-s, yParity^1). ECDSA
+            // malleability means this recovers the same authority, so the
+            // recovered-signer check still passes, but s > n/2 violates EIP-2.
+            const originalS = BigInt(op.authorization!.s)
+            op.authorization!.s = `0x${(SECP256K1_N - originalS)
+                .toString(16)
+                .padStart(64, "0")}` as Hex
+            op.authorization!.yParity = op.authorization!.yParity! ^ 1
+
+            expect(BigInt(op.authorization!.s)).toBeGreaterThan(
+                SECP256K1_N / 2n
+            )
+
+            op.signature = await client.account.signUserOperation(op)
+
+            try {
+                await client.sendUserOperation(op)
+                expect.fail("Must reject high-S EIP-7702 authorization")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.name).toBe("UserOperationExecutionError")
+                expect(error.details).toMatch(
+                    /s must be <= secp256k1\.n\/2/i
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
+        })
+
         test.each([
             {
                 sponsored: false,

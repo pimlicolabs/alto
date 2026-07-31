@@ -302,6 +302,18 @@ export class RpcHandler {
                     "Invalid EIP-7702 authorization: Invalid ECDSA signature (r and s must be in [1, secp256k1.n))"
                 ]
             }
+
+            // Enforce EIP-2 low-S. recoverAuthorizationAddress accepts the
+            // high-S twin (r, n-s, yParity^1) and recovers the same authority,
+            // but chains apply s <= secp256k1n/2 and skip the tuple, so the
+            // sender never receives delegated code and the bundle reverts.
+            // https://github.com/ethereum/EIPs/blob/bbc3f958/EIPS/eip-7702.md#L111
+            if (s > SECP256K1_N / 2n) {
+                return [
+                    false,
+                    "Invalid EIP-7702 authorization: Invalid ECDSA signature (s must be <= secp256k1.n/2)"
+                ]
+            }
         }
 
         // Fetch onchain data in parallel
