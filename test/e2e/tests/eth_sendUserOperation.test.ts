@@ -717,23 +717,24 @@ describe.each([
                 authorization
             })) as UserOperation
 
+            const auth = op.authorization
+            if (!auth) {
+                throw new Error("prepared userOp is missing its authorization")
+            }
+
             // viem always produces a canonical low-S signature.
-            expect(BigInt(op.authorization!.s)).toBeLessThanOrEqual(
-                SECP256K1_N / 2n
-            )
+            expect(BigInt(auth.s)).toBeLessThanOrEqual(SECP256K1_N / 2n)
 
             // Malleate into the high-S twin (r, n-s, yParity^1). ECDSA
             // malleability means this recovers the same authority, so the
             // recovered-signer check still passes, but s > n/2 violates EIP-2.
-            const originalS = BigInt(op.authorization!.s)
-            op.authorization!.s = `0x${(SECP256K1_N - originalS)
+            const originalS = BigInt(auth.s)
+            auth.s = `0x${(SECP256K1_N - originalS)
                 .toString(16)
                 .padStart(64, "0")}` as Hex
-            op.authorization!.yParity = op.authorization!.yParity! ^ 1
+            auth.yParity = (auth.yParity ?? 0) ^ 1
 
-            expect(BigInt(op.authorization!.s)).toBeGreaterThan(
-                SECP256K1_N / 2n
-            )
+            expect(BigInt(auth.s)).toBeGreaterThan(SECP256K1_N / 2n)
 
             op.signature = await client.account.signUserOperation(op)
 
