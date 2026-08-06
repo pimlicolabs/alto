@@ -171,6 +171,18 @@ export function toViemUserOp(
           }
         : undefined
 
+    // EntryPoint v0.8+ treats initCode as EIP-7702 only when its first
+    // 20 bytes are 0x7702 zero-padded to 20 bytes. Pad the short "0x7702"
+    // form when factoryData is present, otherwise factoryData shifts into
+    // the marker check and simulation fails with "AA10 sender already
+    // constructed". Short-form ops without factoryData already pass the
+    // check via calldata zero-padding, so their packed bytes are left
+    // unchanged.
+    const shouldPadEip7702Factory =
+        userOp.factory === "0x7702" &&
+        userOp.factoryData != null &&
+        size(userOp.factoryData) > 0
+
     const base = {
         ...userOp,
         paymaster: userOp.paymaster ?? undefined,
@@ -178,7 +190,9 @@ export function toViemUserOp(
         paymasterVerificationGasLimit:
             userOp.paymasterVerificationGasLimit ?? undefined,
         paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit ?? undefined,
-        factory: userOp.factory ?? undefined,
+        factory: shouldPadEip7702Factory
+            ? "0x7702000000000000000000000000000000000000"
+            : (userOp.factory ?? undefined),
         factoryData: userOp.factoryData ?? undefined,
         authorization
     }
