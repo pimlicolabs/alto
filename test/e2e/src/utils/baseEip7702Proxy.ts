@@ -13,7 +13,7 @@ import type { EntryPointVersion } from "viem/account-abstraction"
 // constants.ts).
 export const BASE_EIP7702_PROXY: Address =
     "0x5b10769570856Ee76EE54A463e97fCB7D20314fa"
-export const NONCE_TRACKER: Address =
+export const BASE_EIP7702_PROXY_NONCE_TRACKER: Address =
     "0x5ABb791E1C8EE1D023079a65874Dd4EB87b206e9"
 
 // Minimal IAccountStateValidator for the BaseEIP7702Proxy that accepts the
@@ -39,7 +39,7 @@ export const baseEip7702ProxyAbi = parseAbi([
     "function setImplementation(address newImplementation, bytes callData, address validator, uint256 expiry, bytes signature, bool allowCrossChainReplay)"
 ])
 
-export const nonceTrackerAbi = parseAbi([
+export const baseEip7702ProxyNonceTrackerAbi = parseAbi([
     "function nonces(address account) view returns (uint256)"
 ])
 

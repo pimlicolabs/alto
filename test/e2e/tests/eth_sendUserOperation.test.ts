@@ -42,12 +42,12 @@ import { ERC7769Errors } from "../src/errors.js"
 import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
 import {
     BASE_EIP7702_PROXY,
+    BASE_EIP7702_PROXY_NONCE_TRACKER,
     ERC1967_IMPLEMENTATION_SLOT,
-    NONCE_TRACKER,
     baseEip7702ProxyAbi,
+    baseEip7702ProxyNonceTrackerAbi,
     getSetImplementationHash,
-    getSimple7702AccountValidatorAddress,
-    nonceTrackerAbi
+    getSimple7702AccountValidatorAddress
 } from "../src/utils/baseEip7702Proxy.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
@@ -870,8 +870,8 @@ describe.each([
             // Signature 2: the proxy's setImplementation payload, a bare
             // ECDSA signature by the EOA key over the proxy's typehash.
             const trackerNonce = await publicClient.readContract({
-                address: NONCE_TRACKER,
-                abi: nonceTrackerAbi,
+                address: BASE_EIP7702_PROXY_NONCE_TRACKER,
+                abi: baseEip7702ProxyNonceTrackerAbi,
                 functionName: "nonces",
                 args: [owner.address]
             })
@@ -945,8 +945,8 @@ describe.each([
             // setImplementation consumed the EOA's NonceTracker nonce.
             expect(
                 await publicClient.readContract({
-                    address: NONCE_TRACKER,
-                    abi: nonceTrackerAbi,
+                    address: BASE_EIP7702_PROXY_NONCE_TRACKER,
+                    abi: baseEip7702ProxyNonceTrackerAbi,
                     functionName: "nonces",
                     args: [owner.address]
                 })
