@@ -12,10 +12,13 @@ import {
     concat,
     createPublicClient,
     createTestClient,
+    encodeFunctionData,
+    getAddress,
     getContract,
     pad,
     parseEther,
     parseGwei,
+    slice,
     zeroAddress
 } from "viem"
 import {
@@ -30,12 +33,22 @@ import {
 import {
     generatePrivateKey,
     privateKeyToAccount,
-    privateKeyToAddress
+    privateKeyToAddress,
+    sign
 } from "viem/accounts"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { ERC7769Errors } from "../src/errors.js"
 import { deployPaymaster, encodePaymasterData } from "../src/testPaymaster.js"
+import {
+    BASE_EIP7702_PROXY,
+    BASE_EIP7702_PROXY_NONCE_TRACKER,
+    ERC1967_IMPLEMENTATION_SLOT,
+    baseEip7702ProxyAbi,
+    baseEip7702ProxyNonceTrackerAbi,
+    getSetImplementationHash,
+    getSimple7702AccountValidatorAddress
+} from "../src/utils/baseEip7702Proxy.js"
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
@@ -801,6 +814,143 @@ describe.each([
             const receipt = await client.waitForUserOperationReceipt({ hash })
 
             expect(receipt.success).toBe(true)
+        })
+
+        // Upgrades a fresh EOA to a smart account through the
+        // BaseEIP7702Proxy (https://github.com/base/eip-7702-proxy) in a
+        // single userOperation:
+        //
+        //   1. The EOA signs a 7702 authorization delegating to the
+        //      BaseEIP7702Proxy.
+        //   2. The userOp carries the SHORT-form factory "0x7702" plus
+        //      factoryData = setImplementation(...): the EntryPoint executes
+        //      the factoryData on the sender itself during the creation
+        //      phase, which sets the ERC-1967 implementation slot to
+        //      Simple7702Account before validateUserOp runs.
+        //
+        // The short form only works if the bundler pads the factory to the
+        // full 20-byte 0x7702 marker when packing initCode; otherwise the
+        // EntryPoint's Eip7702Support marker check fails and simulation
+        // reverts (AA10 "sender already constructed" on v0.8).
+        test("Should send userOp with short-form 0x7702 factory and factoryData", async (ctx) => {
+            // Requires Eip7702Support (initCode executed on the sender
+            // during the creation phase), introduced in EntryPoint 0.8.
+            if (entryPointVersion === "0.6" || entryPointVersion === "0.7") {
+                ctx.skip()
+            }
+
+            const validator =
+                getSimple7702AccountValidatorAddress(entryPointVersion)
+            const implementation = getSimple7702AccountImplementationAddress(
+                entryPointVersion
+            ) as Address
+
+            const privateKey = generatePrivateKey()
+            const owner = privateKeyToAccount(privateKey)
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                privateKey,
+                anvilRpc,
+                altoRpc,
+                use7702: true
+            })
+
+            // Signature 1: the EIP-7702 authorization, delegating the EOA to
+            // the proxy (not directly to the Simple7702Account
+            // implementation).
+            const authorization = await owner.signAuthorization({
+                chainId: foundry.id,
+                nonce: await publicClient.getTransactionCount({
+                    address: owner.address
+                }),
+                contractAddress: BASE_EIP7702_PROXY
+            })
+
+            // Signature 2: the proxy's setImplementation payload, a bare
+            // ECDSA signature by the EOA key over the proxy's typehash.
+            const trackerNonce = await publicClient.readContract({
+                address: BASE_EIP7702_PROXY_NONCE_TRACKER,
+                abi: baseEip7702ProxyNonceTrackerAbi,
+                functionName: "nonces",
+                args: [owner.address]
+            })
+            // Simple7702Account has nothing to initialize.
+            const initializeCallData: Hex = "0x"
+            const expiry = (await publicClient.getBlock()).timestamp + 3600n
+
+            const setImplementationSignature = await sign({
+                hash: getSetImplementationHash({
+                    chainId: foundry.id,
+                    nonce: trackerNonce,
+                    currentImplementation: zeroAddress,
+                    newImplementation: implementation,
+                    callData: initializeCallData,
+                    validator,
+                    expiry
+                }),
+                privateKey,
+                to: "hex"
+            })
+
+            const factoryData = encodeFunctionData({
+                abi: baseEip7702ProxyAbi,
+                functionName: "setImplementation",
+                args: [
+                    implementation,
+                    initializeCallData,
+                    validator,
+                    expiry,
+                    setImplementationSignature,
+                    false
+                ]
+            })
+
+            // Signature 3: the userOp itself (Simple7702Account validates
+            // ECDSA against address(this), so the EOA key signs it). The
+            // SHORT form of the factory marker is the point of this test.
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: zeroAddress,
+                        data: "0x",
+                        value: 0n
+                    }
+                ],
+                factory: "0x7702",
+                factoryData,
+                authorization
+            })
+
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+            expect(receipt.success).toEqual(true)
+
+            // The EOA's code must be the 7702 delegation designator to the
+            // proxy.
+            const code = await publicClient.getCode({ address: owner.address })
+            expect(code?.toLowerCase()).toEqual(
+                concat(["0xef0100", BASE_EIP7702_PROXY]).toLowerCase()
+            )
+
+            // The ERC-1967 implementation slot must hold Simple7702Account.
+            const rawImplementation = await publicClient.getStorageAt({
+                address: owner.address,
+                slot: ERC1967_IMPLEMENTATION_SLOT
+            })
+            expect(rawImplementation).toBeDefined()
+            expect(getAddress(slice(rawImplementation as Hex, 12))).toEqual(
+                implementation
+            )
+
+            // setImplementation consumed the EOA's NonceTracker nonce.
+            expect(
+                await publicClient.readContract({
+                    address: BASE_EIP7702_PROXY_NONCE_TRACKER,
+                    abi: baseEip7702ProxyNonceTrackerAbi,
+                    functionName: "nonces",
+                    args: [owner.address]
+                })
+            ).toEqual(trackerNonce + 1n)
         })
 
         test.each([
