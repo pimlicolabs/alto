@@ -34,11 +34,13 @@ type RefillPlan = {
 const planRefills = ({
     balances,
     minBalance,
-    utilityBalance
+    utilityBalance,
+    refillTxGasCost
 }: {
     balances: { address: Address; balance: bigint }[]
     minBalance: bigint
     utilityBalance: bigint
+    refillTxGasCost: bigint
 }): RefillPlan => {
     // Top up wallets below minBalance to 120% of minBalance
     const candidates: Refill[] = balances
@@ -49,12 +51,15 @@ const planRefills = ({
             refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
         }))
 
+    // Each refill costs the utility account gas on top of the value sent.
+    // Reserve the gas cost per refill so the plan never commits the entire
+    // balance and leaves the refill transactions themselves unpayable.
     const refills: Refill[] = []
     let total = 0n
     for (const candidate of candidates) {
-        if (total + candidate.refillAmount <= utilityBalance) {
+        if (total + candidate.refillAmount + refillTxGasCost <= utilityBalance) {
             refills.push(candidate)
-            total += candidate.refillAmount
+            total += candidate.refillAmount + refillTxGasCost
         }
     }
 
@@ -361,10 +366,16 @@ export const validateAndRefillWallets = async ({
         address: utilityAccount.address
     })
 
+    // Gas budget the utility account must keep per refill transaction.
+    // Native transfers cost 21k gas; tempo ERC20 transfers need more.
+    const refillTxGasLimit = config.chainType === "tempo" ? 100_000n : 21_000n
+    const refillTxGasCost = refillTxGasLimit * maxFeePerGas
+
     const { refills, insufficientBalance } = planRefills({
         balances,
         minBalance,
-        utilityBalance
+        utilityBalance,
+        refillTxGasCost
     })
 
     if (insufficientBalance) {
