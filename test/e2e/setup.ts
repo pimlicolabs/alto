@@ -120,7 +120,7 @@ export default async function setup({ provide }) {
     await setupContracts({ anvilRpc })
 
     const altoInstance = alto({
-        port: 8080,
+        port: Number(process.env.ALTO_E2E_PORT ?? 8080),
         anvilRpc
     })
     await altoInstance.start()

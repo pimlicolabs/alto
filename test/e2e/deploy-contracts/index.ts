@@ -8,10 +8,15 @@ import {
 import { mnemonicToAccount } from "viem/accounts"
 import { foundry } from "viem/chains"
 import {
+    DEFAULT_RECEIVER_CREATECALL,
+    BASE_EIP7702_PROXY_CREATECALL,
     ENTRY_POINT_V06_CREATECALL,
     ENTRY_POINT_V07_CREATECALL,
     ENTRY_POINT_V08_CREATECALL,
     ENTRY_POINT_V09_CREATECALL,
+    NONCE_TRACKER_CREATECALL,
+    SIMPLE_7702_ACCOUNT_VALIDATOR_V08_CREATECALL,
+    SIMPLE_7702_ACCOUNT_VALIDATOR_V09_CREATECALL,
     SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V06_CREATECALL,
     SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V07_CREATECALL,
     SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V08_CREATECALL,
@@ -179,6 +184,59 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
         })
         .then(() => console.log("[0.6 CORE] Deploying SimpleAccountFactory"))
 
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: NONCE_TRACKER_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() => console.log("[BaseEIP7702Proxy] Deploying NonceTracker"))
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: DEFAULT_RECEIVER_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() => console.log("[BaseEIP7702Proxy] Deploying DefaultReceiver"))
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: BASE_EIP7702_PROXY_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() => console.log("[BaseEIP7702Proxy] Deploying BaseEIP7702Proxy"))
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: SIMPLE_7702_ACCOUNT_VALIDATOR_V08_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() =>
+            console.log(
+                "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.8)"
+            )
+        )
+
+    walletClient
+        .sendTransaction({
+            to: DETERMINISTIC_DEPLOYER,
+            data: SIMPLE_7702_ACCOUNT_VALIDATOR_V09_CREATECALL,
+            gas: 15_000_000n,
+            nonce: nonce++
+        })
+        .then(() =>
+            console.log(
+                "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.9)"
+            )
+        )
+
     // Wait for all deploy/setup txs to be mined.
     let onchainNonce = 0
     do {
@@ -205,7 +263,12 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             "0xf3F57446bEC27F6531EFF3Da2B917ebA8F9BA49c", // Simple7702Account Implementation 0.7
             "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789", // EntryPoint 0.6
             "0x9406Cc6185a346906296840746125a0E44976454", // SimpleAcountFactory 0.6
-            "0x90c7Fc0Fe4F0188E61C131d5dB7aCa03a684a2fB" // Simple7702Account Implementation 0.6
+            "0x90c7Fc0Fe4F0188E61C131d5dB7aCa03a684a2fB", // Simple7702Account Implementation 0.6
+            "0x5ABb791E1C8EE1D023079a65874Dd4EB87b206e9", // NonceTracker
+            "0x451A6E4cE172136Dc766249cf32a4EBD63f93E7C", // DefaultReceiver
+            "0x5b10769570856Ee76EE54A463e97fCB7D20314fa", // BaseEIP7702Proxy (https://github.com/base/eip-7702-proxy)
+            "0xdf21d27991F8F4a0D1526308f620A75d1185e7a3", // Simple7702AccountValidator (0.8)
+            "0xA4d83818BD131FACa06ABC090617930b1df2AE53" // Simple7702AccountValidator (0.9)
         ]
     })
 }

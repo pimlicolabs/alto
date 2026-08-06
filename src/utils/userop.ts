@@ -178,6 +178,8 @@ export function toViemUserOp(
     // constructed". Short-form ops without factoryData already pass the
     // check via calldata zero-padding, so their packed bytes are left
     // unchanged.
+    //
+    // https://github.com/eth-infinitism/account-abstraction/blob/develop/contracts/core/EntryPoint.sol#L514-L522
     const shouldPadEip7702Factory =
         userOp.factory === "0x7702" &&
         userOp.factoryData != null &&
