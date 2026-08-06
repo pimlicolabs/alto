@@ -832,11 +832,11 @@ describe.each([
         // full 20-byte 0x7702 marker when packing initCode; otherwise the
         // EntryPoint's Eip7702Support marker check fails and simulation
         // reverts (AA10 "sender already constructed" on v0.8).
-        test("Should send userOp with short-form 0x7702 factory and factoryData", async () => {
+        test("Should send userOp with short-form 0x7702 factory and factoryData", async (ctx) => {
             // Requires Eip7702Support (initCode executed on the sender
             // during the creation phase), introduced in EntryPoint 0.8.
             if (entryPointVersion === "0.6" || entryPointVersion === "0.7") {
-                return
+                ctx.skip()
             }
 
             const validator =
