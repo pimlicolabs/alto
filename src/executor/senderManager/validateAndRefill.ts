@@ -34,11 +34,13 @@ type RefillPlan = {
 const planRefills = ({
     balances,
     minBalance,
-    utilityBalance
+    utilityBalance,
+    maxFeePerGas
 }: {
     balances: { address: Address; balance: bigint }[]
     minBalance: bigint
     utilityBalance: bigint
+    maxFeePerGas: bigint
 }): RefillPlan => {
     // Top up wallets below minBalance to 120% of minBalance
     const candidates: Refill[] = balances
@@ -49,12 +51,16 @@ const planRefills = ({
             refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
         }))
 
+    // Reserve the refills' own gas: every refill spends from the same utility
+    // account that pays for the transactions, so planning against the full
+    // balance guarantees out-of-gas reverts once the wallet runs low.
+    const gasPerRefill = 21_000n * maxFeePerGas
     const refills: Refill[] = []
     let total = 0n
     for (const candidate of candidates) {
-        if (total + candidate.refillAmount <= utilityBalance) {
+        if (total + candidate.refillAmount + gasPerRefill <= utilityBalance) {
             refills.push(candidate)
-            total += candidate.refillAmount
+            total += candidate.refillAmount + gasPerRefill
         }
     }
 
@@ -356,7 +362,8 @@ export const validateAndRefillWallets = async ({
     const { refills, insufficientBalance } = planRefills({
         balances,
         minBalance,
-        utilityBalance
+        utilityBalance,
+        maxFeePerGas
     })
 
     if (insufficientBalance) {
