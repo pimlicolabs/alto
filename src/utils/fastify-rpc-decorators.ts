@@ -20,7 +20,7 @@ export enum RpcStatus {
 
 // define plugin using callbacks
 const plugin: FastifyPluginCallback = (fastify, _, done) => {
-    fastify.decorateRequest("rpcMethod", null)
+    fastify.decorateRequest("rpcMethod", "")
     fastify.decorateReply("rpcStatus", RpcStatus.Unset)
     fastify.decorateReply(
         "setRpcStatus",
