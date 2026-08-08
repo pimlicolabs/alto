@@ -19,5 +19,6 @@
     "enforce-unique-senders-per-bundle": false,
     "code-override-support": true,
     "enable-instant-bundling-endpoint": true,
+    "enable-boost-endpoint": true,
     "bundling-mode": "manual"
 }
