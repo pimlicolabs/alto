@@ -150,6 +150,26 @@ export class GasPriceManager {
             )
         }
 
+        // Apply ceiling values if configured (ceilings win over floors)
+        if (this.config.ceilingMaxPriorityFeePerGas) {
+            maxPriorityFeePerGas = minBigInt(
+                this.config.ceilingMaxPriorityFeePerGas,
+                maxPriorityFeePerGas
+            )
+        }
+        if (this.config.ceilingMaxFeePerGas) {
+            maxFeePerGas = minBigInt(
+                this.config.ceilingMaxFeePerGas,
+                maxFeePerGas
+            )
+            // Cap the priority fee so the ceiling is never exceeded by the
+            // maxFeePerGas >= maxPriorityFeePerGas invariant below
+            maxPriorityFeePerGas = minBigInt(
+                maxPriorityFeePerGas,
+                maxFeePerGas
+            )
+        }
+
         return {
             // Ensure that maxFeePerGas is always greater or equal than maxPriorityFeePerGas
             maxFeePerGas: maxBigInt(maxFeePerGas, maxPriorityFeePerGas),
