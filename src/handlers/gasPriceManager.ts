@@ -164,10 +164,7 @@ export class GasPriceManager {
             )
             // Cap the priority fee so the ceiling is never exceeded by the
             // maxFeePerGas >= maxPriorityFeePerGas invariant below
-            maxPriorityFeePerGas = minBigInt(
-                maxPriorityFeePerGas,
-                maxFeePerGas
-            )
+            maxPriorityFeePerGas = minBigInt(maxPriorityFeePerGas, maxFeePerGas)
         }
 
         return {
