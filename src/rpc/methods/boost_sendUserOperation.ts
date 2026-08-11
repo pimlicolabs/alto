@@ -1,4 +1,4 @@
-import { RpcError } from "@alto/types"
+import { ERC7769Errors, RpcError } from "@alto/types"
 import { isVersion06, isVersion07 } from "@alto/utils"
 import {
     type UserOperation,
@@ -40,6 +40,13 @@ export const boostSendUserOperationHandler = createMethodHandler({
     method: "boost_sendUserOperation",
     schema: boostSendUserOperationSchema,
     handler: async ({ rpcHandler, params, apiVersion }) => {
+        if (!rpcHandler.config.enableBoostEndpoint) {
+            throw new RpcError(
+                "boost_sendUserOperation endpoint is not enabled",
+                ERC7769Errors.InvalidFields
+            )
+        }
+
         const [userOp, entryPoint] = params
 
         validateUserOp({ userOp })

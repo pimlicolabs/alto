@@ -148,6 +148,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
+    "enable-boost-endpoint": {
+        description:
+            "Should the bundler accept zero-fee boosted UserOperations (boost_sendUserOperation and eth_sendUserOperation with maxFeePerGas=maxPriorityFeePerGas=0). Default false: zero-fee ops are free gas sponsorship paid by the executor wallets.",
+        type: "boolean",
+        default: false
+    },
     "skip-local-gas-calculations": {
         description:
             "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",

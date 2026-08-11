@@ -241,7 +241,21 @@ export class RpcHandler {
         apiVersion: ApiVersion
         isBoosted?: boolean
     }): Promise<[boolean, string]> {
-        if (apiVersion === "v1" || this.config.safeMode || isBoosted) {
+        // Zero fees mean the bundler sponsors inclusion gas with no on-chain
+        // reimbursement. That is only safe when the operator opted into boost.
+        const isZeroFee =
+            userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+        if (isZeroFee || isBoosted) {
+            if (!this.config.enableBoostEndpoint) {
+                return [
+                    false,
+                    "zero-fee (boosted) UserOperations require --enable-boost-endpoint"
+                ]
+            }
+            return [true, ""]
+        }
+
+        if (apiVersion === "v1" || this.config.safeMode) {
             return [true, ""]
         }
 
