@@ -26,6 +26,15 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 
+// Thrown during a replacement when the executor nonce was consumed by one of
+// the bundle's own previous transactions - the bundle already landed onchain
+// and resending it would revert with AA25.
+export class BundleAlreadyMinedError extends Error {
+    constructor(minedTxHash: Hex) {
+        super(`Bundle transaction ${minedTxHash} already mined`)
+    }
+}
+
 export const getBundleGasLimit = async ({
     config,
     userOps,

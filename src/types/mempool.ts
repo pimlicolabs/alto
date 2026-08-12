@@ -55,7 +55,11 @@ export type BundleResult =
       }
     | {
           success: false
-          reason: "filterops_failed" | "insufficient_funds" | "generic_error"
+          reason:
+              | "filterops_failed"
+              | "insufficient_funds"
+              | "generic_error"
+              | "already_mined"
           rejectedUserOps: RejectedUserOp[]
           recoverableOps: UserOpInfo[]
       }

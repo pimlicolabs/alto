@@ -678,8 +678,36 @@ export class ExecutorManager {
             networkGasPrice,
             networkBaseFee,
             userOpBundle: bundle,
-            nonce: transactionRequest.nonce
+            nonce: transactionRequest.nonce,
+            replacementTxHashes: [
+                submittedBundle.transactionHash,
+                ...submittedBundle.previousTransactionHashes
+            ]
         })
+
+        // The bundle we tried to replace was mined whilst replacing it.
+        // Resume tracking the original bundle so the block watcher resolves
+        // the userOps against the mined transaction (inclusion, reverts,
+        // wallet release) instead of resending and reverting with AA25.
+        if (!bundleResult.success && bundleResult.reason === "already_mined") {
+            this.logger.info(
+                {
+                    oldTxHash,
+                    reason,
+                    userOps: getUserOpHashes(bundle.userOps)
+                },
+                "bundle mined during replacement, skipping replacement"
+            )
+
+            this.bundleManager.trackBundle(submittedBundle)
+            this.startWatchingBlocks()
+
+            this.metrics.replacedTransactions
+                .labels({ reason, status: "already_mined" })
+                .inc()
+
+            return
+        }
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {

@@ -33,6 +33,7 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
+    BundleAlreadyMinedError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
@@ -207,12 +208,16 @@ export class Executor {
         txParam,
         gasOpts,
         childLogger,
-        submissionAttempts
+        submissionAttempts,
+        replacementTxHashes
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
         childLogger: Logger
         submissionAttempts: number
+        // When set, this send is a replacement of these previous transactions
+        // and must keep the same nonce.
+        replacementTxHashes?: HexData32[]
     }) {
         const {
             sendHandleOpsRetryCount,
@@ -286,10 +291,16 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         childLogger.warn("Transaction underpriced, retrying")
 
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
-                        })
+                        // A replacement must reuse its nonce - refetching here
+                        // could pick up a nonce advanced by the transaction
+                        // we are replacing and duplicate the bundle.
+                        if (!replacementTxHashes) {
+                            request.nonce =
+                                await publicClient.getTransactionCount({
+                                    address: account.address,
+                                    blockTag: "latest"
+                                })
+                        }
 
                         if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
@@ -345,6 +356,27 @@ export class Executor {
                     const cause = error.cause
 
                     if (cause instanceof NonceTooLowError) {
+                        // If one of the bundle's own previous transactions
+                        // consumed the nonce, the bundle already landed
+                        // onchain - resending it would revert with AA25 and
+                        // waste gas. If an unknown transaction consumed it,
+                        // the userOps weren't executed and resending with a
+                        // fresh nonce is safe.
+                        if (replacementTxHashes) {
+                            const minedTxHash = await Promise.any(
+                                replacementTxHashes.map(async (hash) => {
+                                    await publicClient.getTransactionReceipt({
+                                        hash
+                                    })
+                                    return hash
+                                })
+                            ).catch(() => undefined)
+
+                            if (minedTxHash) {
+                                throw new BundleAlreadyMinedError(minedTxHash)
+                            }
+                        }
+
                         childLogger.warn("Nonce too low, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
@@ -387,13 +419,16 @@ export class Executor {
         userOpBundle,
         networkGasPrice,
         networkBaseFee,
-        nonce
+        nonce,
+        replacementTxHashes
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
         networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
         nonce: number
+        // When set, this bundle replaces these previous transactions.
+        replacementTxHashes?: HexData32[]
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -494,7 +529,8 @@ export class Executor {
                 },
                 childLogger,
                 gasOpts,
-                submissionAttempts: userOpBundle.submissionAttempts
+                submissionAttempts: userOpBundle.submissionAttempts,
+                replacementTxHashes
             })
 
             this.eventManager.emitSubmitted({
@@ -503,6 +539,17 @@ export class Executor {
             })
         } catch (err: unknown) {
             const { rejectedUserOps, userOpsToBundle } = filterOpsResult
+
+            // The bundle we are replacing already landed onchain, the caller
+            // is responsible for resolving the userOps against the mined tx.
+            if (err instanceof BundleAlreadyMinedError) {
+                return {
+                    success: false,
+                    reason: "already_mined",
+                    rejectedUserOps,
+                    recoverableOps: []
+                }
+            }
 
             const isViemExecutionError =
                 err instanceof ContractFunctionExecutionError ||
