@@ -33,6 +33,7 @@ import { getEip7702AuthAddress } from "../utils/eip7702"
 export class ReplacementNonceConflictError extends Error {
     constructor() {
         super("Replacement nonce consumed by another transaction")
+        this.name = "ReplacementNonceConflictError"
     }
 }
 

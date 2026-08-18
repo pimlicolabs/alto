@@ -737,13 +737,17 @@ export class ExecutorManager {
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
-            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+            const {
+                rejectedUserOps,
+                recoverableOps,
+                reason: failureReason
+            } = bundleResult
 
             // Recover any userOps that can be resubmitted.
             await this.mempool.resubmitUserOps({
                 userOps: recoverableOps,
                 entryPoint,
-                reason
+                reason: failureReason
             })
 
             // For rejected userOps, we need to check for frontruns
@@ -803,6 +807,7 @@ export class ExecutorManager {
                     {
                         oldTxHash,
                         reason,
+                        failureReason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
                     "failed to replace bundle"
