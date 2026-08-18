@@ -59,7 +59,7 @@ export type BundleResult =
               | "filterops_failed"
               | "insufficient_funds"
               | "generic_error"
-              | "already_mined"
+              | "nonce_conflict"
           rejectedUserOps: RejectedUserOp[]
           recoverableOps: UserOpInfo[]
       }

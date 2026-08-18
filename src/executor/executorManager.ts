@@ -679,34 +679,58 @@ export class ExecutorManager {
             networkBaseFee,
             userOpBundle: bundle,
             nonce: transactionRequest.nonce,
-            replacementTxHashes: [
-                submittedBundle.transactionHash,
-                ...submittedBundle.previousTransactionHashes
-            ]
+            isReplacement: true
         })
 
-        // The bundle we tried to replace was mined whilst replacing it.
-        // Resume tracking the original bundle so the block watcher resolves
-        // the userOps against the mined transaction (inclusion, reverts,
-        // wallet release) instead of resending and reverting with AA25.
-        if (!bundleResult.success && bundleResult.reason === "already_mined") {
-            this.logger.info(
-                {
-                    oldTxHash,
-                    reason,
-                    userOps: getUserOpHashes(bundle.userOps)
-                },
-                "bundle mined during replacement, skipping replacement"
-            )
+        // The nonce of the bundle we tried to replace was consumed whilst
+        // replacing it.
+        if (!bundleResult.success && bundleResult.reason === "nonce_conflict") {
+            const [bundleStatus] = await this.bundleManager.getBundleStatuses([
+                submittedBundle
+            ])
 
-            this.bundleManager.trackBundle(submittedBundle)
-            this.startWatchingBlocks()
+            // One of the bundle's own transactions was mined - resolve the
+            // userOps against it now (inclusion, reverts, wallet release)
+            // instead of resending and reverting with AA25.
+            if (
+                bundleStatus.status === "included" ||
+                bundleStatus.status === "reverted"
+            ) {
+                this.logger.info(
+                    {
+                        oldTxHash,
+                        minedTxHash: bundleStatus.transactionHash,
+                        reason,
+                        userOps: getUserOpHashes(bundle.userOps)
+                    },
+                    "bundle mined during replacement, skipping replacement"
+                )
 
-            this.metrics.replacedTransactions
-                .labels({ reason, status: "already_mined" })
-                .inc()
+                this.metrics.replacedTransactions
+                    .labels({ reason, status: "already_mined" })
+                    .inc()
 
-            return
+                if (bundleStatus.status === "included") {
+                    await this.bundleManager.processIncludedBundle({
+                        submittedBundle,
+                        bundleReceipt: bundleStatus,
+                        blockReceivedTimestamp
+                    })
+                } else {
+                    await this.bundleManager.processRevertedBundle({
+                        submittedBundle,
+                        bundleReceipt: bundleStatus,
+                        blockReceivedTimestamp
+                    })
+                }
+
+                return
+            }
+
+            // The nonce was consumed by an unknown transaction (e.g. a
+            // cancel tx) - the userOps didn't land onchain, fall through to
+            // the failure handling below to resubmit them and free the
+            // wallet.
         }
 
         // Handle case where no bundle was sent.

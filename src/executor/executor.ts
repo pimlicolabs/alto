@@ -33,7 +33,7 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
-    BundleAlreadyMinedError,
+    ReplacementNonceConflictError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
@@ -209,15 +209,15 @@ export class Executor {
         gasOpts,
         childLogger,
         submissionAttempts,
-        replacementTxHashes
+        isReplacement
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
         childLogger: Logger
         submissionAttempts: number
-        // When set, this send is a replacement of these previous transactions
-        // and must keep the same nonce.
-        replacementTxHashes?: HexData32[]
+        // When set, this send replaces a previous transaction and must keep
+        // the same nonce.
+        isReplacement?: boolean
     }) {
         const {
             sendHandleOpsRetryCount,
@@ -294,7 +294,7 @@ export class Executor {
                         // A replacement must reuse its nonce - refetching here
                         // could pick up a nonce advanced by the transaction
                         // we are replacing and duplicate the bundle.
-                        if (!replacementTxHashes) {
+                        if (!isReplacement) {
                             request.nonce =
                                 await publicClient.getTransactionCount({
                                     address: account.address,
@@ -356,25 +356,13 @@ export class Executor {
                     const cause = error.cause
 
                     if (cause instanceof NonceTooLowError) {
-                        // If one of the bundle's own previous transactions
-                        // consumed the nonce, the bundle already landed
-                        // onchain - resending it would revert with AA25 and
-                        // waste gas. If an unknown transaction consumed it,
-                        // the userOps weren't executed and resending with a
-                        // fresh nonce is safe.
-                        if (replacementTxHashes) {
-                            const minedTxHash = await Promise.any(
-                                replacementTxHashes.map(async (hash) => {
-                                    await publicClient.getTransactionReceipt({
-                                        hash
-                                    })
-                                    return hash
-                                })
-                            ).catch(() => undefined)
-
-                            if (minedTxHash) {
-                                throw new BundleAlreadyMinedError(minedTxHash)
-                            }
+                        // A replacement's nonce was consumed by another
+                        // transaction - resending with a fresh nonce could
+                        // duplicate a bundle that already landed onchain.
+                        // Report the conflict and let the caller resolve who
+                        // consumed the nonce.
+                        if (isReplacement) {
+                            throw new ReplacementNonceConflictError()
                         }
 
                         childLogger.warn("Nonce too low, retrying")
@@ -420,15 +408,15 @@ export class Executor {
         networkGasPrice,
         networkBaseFee,
         nonce,
-        replacementTxHashes
+        isReplacement
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
         networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
         nonce: number
-        // When set, this bundle replaces these previous transactions.
-        replacementTxHashes?: HexData32[]
+        // When set, this bundle replaces a previous transaction.
+        isReplacement?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -530,7 +518,7 @@ export class Executor {
                 childLogger,
                 gasOpts,
                 submissionAttempts: userOpBundle.submissionAttempts,
-                replacementTxHashes
+                isReplacement
             })
 
             this.eventManager.emitSubmitted({
@@ -540,14 +528,15 @@ export class Executor {
         } catch (err: unknown) {
             const { rejectedUserOps, userOpsToBundle } = filterOpsResult
 
-            // The bundle we are replacing already landed onchain, the caller
-            // is responsible for resolving the userOps against the mined tx.
-            if (err instanceof BundleAlreadyMinedError) {
+            // The nonce of the bundle we are replacing was consumed by
+            // another transaction. The caller resolves the userOps against
+            // the mined tx if it was ours, or resubmits them if it wasn't.
+            if (err instanceof ReplacementNonceConflictError) {
                 return {
                     success: false,
-                    reason: "already_mined",
+                    reason: "nonce_conflict",
                     rejectedUserOps,
-                    recoverableOps: []
+                    recoverableOps: userOpsToBundle
                 }
             }
 
