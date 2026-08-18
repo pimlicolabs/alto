@@ -213,7 +213,14 @@ export class Executor {
         gasOpts: HandleOpsGasParams
         childLogger: Logger
         submissionAttempts: number
-    }) {
+    }): Promise<{
+        transactionHash: Hex
+        transactionRequest: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+            nonce: number
+        }
+    }> {
         const {
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
@@ -386,7 +393,26 @@ export class Executor {
             throw new Error("Transaction hash not assigned")
         }
 
-        return transactionHash as Hex
+        // Retries above can refetch the nonce and bump the gas fees, so
+        // report the request fields that were actually broadcast.
+        const gasFees =
+            request.type === "legacy"
+                ? {
+                      maxFeePerGas: request.gasPrice,
+                      maxPriorityFeePerGas: request.gasPrice
+                  }
+                : {
+                      maxFeePerGas: request.maxFeePerGas,
+                      maxPriorityFeePerGas: request.maxPriorityFeePerGas
+                  }
+
+        return {
+            transactionHash,
+            transactionRequest: {
+                ...gasFees,
+                nonce: request.nonce
+            }
+        }
     }
 
     async bundle({
@@ -464,6 +490,11 @@ export class Executor {
         })
 
         let transactionHash: HexData32
+        let transactionRequest: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+            nonce: number
+        }
         try {
             const isLegacyTransaction = this.config.legacyTransactions
             const authorizationList = getAuthorizationListFromUserOps(
@@ -491,7 +522,7 @@ export class Executor {
                 }
             }
 
-            transactionHash = await this.sendHandleOpsTransaction({
+            const sendResult = await this.sendHandleOpsTransaction({
                 txParam: {
                     account: executor,
                     nonce,
@@ -503,6 +534,8 @@ export class Executor {
                 gasOpts,
                 submissionAttempts: userOpBundle.submissionAttempts
             })
+            transactionHash = sendResult.transactionHash
+            transactionRequest = sendResult.transactionRequest
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -572,11 +605,7 @@ export class Executor {
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
-            transactionRequest: {
-                maxFeePerGas,
-                maxPriorityFeePerGas,
-                nonce
-            }
+            transactionRequest
         }
 
         return bundleResult
