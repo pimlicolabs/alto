@@ -330,24 +330,36 @@ export class Executor {
                     if (isFeeCapTooLow) {
                         childLogger.warn("max fee < basefee, retrying")
 
+                        // Refetch the base fee so the new cap clears what
+                        // the node is enforcing - a blind bump can take
+                        // several retries to catch up after a spike. Give
+                        // the cap one block of headroom (base fee can rise
+                        // 12.5% per block). Falls back to a blind bump if
+                        // the base fee is unavailable.
+                        const networkBaseFee = await publicClient
+                            .getBlock()
+                            .then((block) => block.baseFeePerGas)
+                            .catch(() => null)
+
+                        const baseFeeTarget = networkBaseFee
+                            ? scaleBigIntByPercent(networkBaseFee, 125n)
+                            : 0n
+
                         if (request.gasPrice) {
-                            request.gasPrice = scaleBigIntByPercent(
-                                request.gasPrice,
-                                125n
+                            request.gasPrice = maxBigInt(
+                                scaleBigIntByPercent(request.gasPrice, 125n),
+                                baseFeeTarget
                             )
                         }
 
                         if (request.maxFeePerGas) {
-                            request.maxFeePerGas = scaleBigIntByPercent(
-                                request.maxFeePerGas,
-                                125n
-                            )
-                        }
-
-                        if (request.maxPriorityFeePerGas) {
-                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                                request.maxPriorityFeePerGas,
-                                125n
+                            request.maxFeePerGas = maxBigInt(
+                                scaleBigIntByPercent(
+                                    request.maxFeePerGas,
+                                    125n
+                                ),
+                                baseFeeTarget +
+                                    (request.maxPriorityFeePerGas ?? 0n)
                             )
                         }
                     }
