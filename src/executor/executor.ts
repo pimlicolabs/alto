@@ -495,6 +495,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
+
         try {
             const isLegacyTransaction = this.config.legacyTransactions
             const authorizationList = getAuthorizationListFromUserOps(
