@@ -709,21 +709,23 @@ export class ExecutorManager {
                 this.metrics.replacedTransactions
                     .labels({ reason, status: "already_mined" })
                     .inc()
+            }
 
-                if (bundleStatus.status === "included") {
-                    await this.bundleManager.processIncludedBundle({
-                        submittedBundle,
-                        bundleReceipt: bundleStatus,
-                        blockReceivedTimestamp
-                    })
-                } else {
-                    await this.bundleManager.processRevertedBundle({
-                        submittedBundle,
-                        bundleReceipt: bundleStatus,
-                        blockReceivedTimestamp
-                    })
-                }
+            if (bundleStatus.status === "included") {
+                await this.bundleManager.processIncludedBundle({
+                    submittedBundle,
+                    bundleReceipt: bundleStatus,
+                    blockReceivedTimestamp
+                })
+                return
+            }
 
+            if (bundleStatus.status === "reverted") {
+                await this.bundleManager.processRevertedBundle({
+                    submittedBundle,
+                    bundleReceipt: bundleStatus,
+                    blockReceivedTimestamp
+                })
                 return
             }
 
