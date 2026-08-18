@@ -312,30 +312,37 @@ export class Executor {
                             )
                         }
                     }
-                }
 
-                if (e instanceof FeeCapTooLowError) {
-                    childLogger.warn("max fee < basefee, retrying")
+                    // Viem wraps node errors, so FeeCapTooLowError arrives
+                    // nested in the cause chain rather than as the thrown
+                    // value.
+                    const isFeeCapTooLow = e.walk(
+                        (err) => err instanceof FeeCapTooLowError
+                    )
 
-                    if (request.gasPrice) {
-                        request.gasPrice = scaleBigIntByPercent(
-                            request.gasPrice,
-                            125n
-                        )
-                    }
+                    if (isFeeCapTooLow) {
+                        childLogger.warn("max fee < basefee, retrying")
 
-                    if (request.maxFeePerGas) {
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            125n
-                        )
-                    }
+                        if (request.gasPrice) {
+                            request.gasPrice = scaleBigIntByPercent(
+                                request.gasPrice,
+                                125n
+                            )
+                        }
 
-                    if (request.maxPriorityFeePerGas) {
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            125n
-                        )
+                        if (request.maxFeePerGas) {
+                            request.maxFeePerGas = scaleBigIntByPercent(
+                                request.maxFeePerGas,
+                                125n
+                            )
+                        }
+
+                        if (request.maxPriorityFeePerGas) {
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                125n
+                            )
+                        }
                     }
                 }
 
