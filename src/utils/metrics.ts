@@ -127,6 +127,15 @@ export function createMetrics(registry: Registry, register = true) {
         ]
     })
 
+    // Set once at startup. Multiply block-based metrics by this gauge
+    // to convert them into seconds (e.g. in Grafana)
+    const chainBlockTime = new Gauge({
+        name: "alto_chain_block_time_seconds",
+        help: "Configured block time of the chain in seconds",
+        labelNames: [] as const,
+        registers
+    })
+
     const userOpInclusionDurationBlocks = new Histogram({
         name: "alto_user_operation_inclusion_duration_blocks",
         help: "Number of blocks from first submission to inclusion on-chain",
@@ -260,6 +269,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOpsValidationFailure,
         userOpInclusionDuration,
         userOpInclusionDurationBlocks,
+        chainBlockTime,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,

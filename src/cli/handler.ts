@@ -272,6 +272,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const registry = new Registry()
     const metrics = createMetrics(registry)
 
+    metrics.chainBlockTime.set(config.blockTime / 1000)
+
     await preFlightChecks(config)
 
     const senderManager = await getSenderManager({
