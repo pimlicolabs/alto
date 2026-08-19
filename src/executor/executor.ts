@@ -20,7 +20,6 @@ import {
     type Account,
     BaseError,
     ContractFunctionExecutionError,
-    FeeCapTooLowError,
     type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
@@ -36,6 +35,7 @@ import {
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
+    isFeeCapTooLowError,
     isTransactionUnderpricedError
 } from "./utils"
 
@@ -320,14 +320,7 @@ export class Executor {
                         }
                     }
 
-                    // Viem wraps node errors, so FeeCapTooLowError arrives
-                    // nested in the cause chain rather than as the thrown
-                    // value.
-                    const isFeeCapTooLow = e.walk(
-                        (err) => err instanceof FeeCapTooLowError
-                    )
-
-                    if (isFeeCapTooLow) {
+                    if (isFeeCapTooLowError(e)) {
                         childLogger.warn("max fee < basefee, retrying")
 
                         // Refetch the base fee so the new cap clears what
