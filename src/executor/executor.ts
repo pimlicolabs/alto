@@ -291,16 +291,10 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         childLogger.warn("Transaction underpriced, retrying")
 
-                        // A replacement must reuse its nonce - refetching here
-                        // could pick up a nonce advanced by the transaction
-                        // we are replacing and duplicate the bundle.
-                        if (!isReplacement) {
-                            request.nonce =
-                                await publicClient.getTransactionCount({
-                                    address: account.address,
-                                    blockTag: "latest"
-                                })
-                        }
+                        request.nonce = await publicClient.getTransactionCount({
+                            address: account.address,
+                            blockTag: "latest"
+                        })
 
                         if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
