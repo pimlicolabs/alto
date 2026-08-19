@@ -127,6 +127,17 @@ export function createMetrics(registry: Registry, register = true) {
         ]
     })
 
+    const userOpInclusionDurationBlocks = new Histogram({
+        name: "alto_user_operation_inclusion_duration_blocks",
+        help: "Number of blocks from first submission to inclusion on-chain",
+        labelNames: [] as const,
+        registers,
+        buckets: [
+            0.5, 1, 1.5, 2, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 40, 50, 75,
+            100, 150, 200, 300
+        ]
+    })
+
     const verificationGasLimitEstimationTime = new Histogram({
         name: "alto_verification_gas_limit_estimation_time_seconds",
         help: "Total duration of verification gas limit estimation",
@@ -248,6 +259,7 @@ export function createMetrics(registry: Registry, register = true) {
         userOpsValidationSuccess,
         userOpsValidationFailure,
         userOpInclusionDuration,
+        userOpInclusionDurationBlocks,
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,

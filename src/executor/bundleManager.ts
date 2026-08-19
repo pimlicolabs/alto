@@ -378,6 +378,9 @@ export class BundleManager {
 
             // Track metrics
             this.metrics.userOpInclusionDuration.observe(inclusionTimeMs / 1000)
+            this.metrics.userOpInclusionDurationBlocks.observe(
+                inclusionTimeMs / this.config.blockTime
+            )
             this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
 
             // Update reputation
