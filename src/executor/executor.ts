@@ -326,9 +326,9 @@ export class Executor {
                         // Refetch the base fee so the new cap clears what
                         // the node is enforcing - a blind bump can take
                         // several retries to catch up after a spike. Give
-                        // the cap one block of headroom (base fee can rise
-                        // 12.5% per block). Falls back to a blind bump if
-                        // the base fee is unavailable.
+                        // the cap two blocks of headroom (base fee can
+                        // rise up to 12.5% per block). Falls back to a
+                        // blind bump if the base fee is unavailable.
                         const networkBaseFee = await publicClient
                             .getBlock()
                             .then((block) => block.baseFeePerGas)
@@ -338,14 +338,27 @@ export class Executor {
                             ? scaleBigIntByPercent(networkBaseFee, 125n)
                             : 0n
 
-                        if (request.gasPrice) {
+                        // Guard on undefined, not truthiness - a 0n fee
+                        // must still be raised to the base fee target.
+                        if (request.gasPrice !== undefined) {
                             request.gasPrice = maxBigInt(
                                 scaleBigIntByPercent(request.gasPrice, 125n),
                                 baseFeeTarget
                             )
                         }
 
-                        if (request.maxFeePerGas) {
+                        // Bump the tip as well so that when this retry
+                        // replaces a same-nonce pending transaction it
+                        // clears the node's >=10% cap-and-tip replacement
+                        // rule in one attempt.
+                        if (request.maxPriorityFeePerGas !== undefined) {
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                125n
+                            )
+                        }
+
+                        if (request.maxFeePerGas !== undefined) {
                             request.maxFeePerGas = maxBigInt(
                                 scaleBigIntByPercent(
                                     request.maxFeePerGas,
