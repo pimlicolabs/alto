@@ -20,7 +20,6 @@ import {
     type Account,
     BaseError,
     ContractFunctionExecutionError,
-    FeeCapTooLowError,
     type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
@@ -37,6 +36,7 @@ import {
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
+    isFeeCapTooLowError,
     isTransactionUnderpricedError
 } from "./utils"
 
@@ -218,7 +218,14 @@ export class Executor {
         // When set, this send replaces a previous transaction and must keep
         // the same nonce.
         isReplacement?: boolean
-    }) {
+    }): Promise<{
+        transactionHash: Hex
+        transactionRequest: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+            nonce: number
+        }
+    }> {
         const {
             sendHandleOpsRetryCount,
             transactionUnderpricedMultiplier,
@@ -317,30 +324,55 @@ export class Executor {
                             )
                         }
                     }
-                }
 
-                if (e instanceof FeeCapTooLowError) {
-                    childLogger.warn("max fee < basefee, retrying")
+                    if (isFeeCapTooLowError(e)) {
+                        childLogger.warn("max fee < basefee, retrying")
 
-                    if (request.gasPrice) {
-                        request.gasPrice = scaleBigIntByPercent(
-                            request.gasPrice,
-                            125n
-                        )
-                    }
+                        // Refetch the base fee so the new cap clears what
+                        // the node is enforcing - a blind bump can take
+                        // several retries to catch up after a spike. Give
+                        // the cap two blocks of headroom (base fee can
+                        // rise up to 12.5% per block). Falls back to a
+                        // blind bump if the base fee is unavailable.
+                        const networkBaseFee = await publicClient
+                            .getBlock()
+                            .then((block) => block.baseFeePerGas)
+                            .catch(() => null)
 
-                    if (request.maxFeePerGas) {
-                        request.maxFeePerGas = scaleBigIntByPercent(
-                            request.maxFeePerGas,
-                            125n
-                        )
-                    }
+                        const baseFeeTarget = networkBaseFee
+                            ? scaleBigIntByPercent(networkBaseFee, 125n)
+                            : 0n
 
-                    if (request.maxPriorityFeePerGas) {
-                        request.maxPriorityFeePerGas = scaleBigIntByPercent(
-                            request.maxPriorityFeePerGas,
-                            125n
-                        )
+                        // Guard on undefined, not truthiness - a 0n fee
+                        // must still be raised to the base fee target.
+                        if (request.gasPrice !== undefined) {
+                            request.gasPrice = maxBigInt(
+                                scaleBigIntByPercent(request.gasPrice, 125n),
+                                baseFeeTarget
+                            )
+                        }
+
+                        // Bump the tip as well so that when this retry
+                        // replaces a same-nonce pending transaction it
+                        // clears the node's >=10% cap-and-tip replacement
+                        // rule in one attempt.
+                        if (request.maxPriorityFeePerGas !== undefined) {
+                            request.maxPriorityFeePerGas = scaleBigIntByPercent(
+                                request.maxPriorityFeePerGas,
+                                125n
+                            )
+                        }
+
+                        if (request.maxFeePerGas !== undefined) {
+                            request.maxFeePerGas = maxBigInt(
+                                scaleBigIntByPercent(
+                                    request.maxFeePerGas,
+                                    125n
+                                ),
+                                baseFeeTarget +
+                                    (request.maxPriorityFeePerGas ?? 0n)
+                            )
+                        }
                     }
                 }
 
@@ -393,7 +425,26 @@ export class Executor {
             throw new Error("Transaction hash not assigned")
         }
 
-        return transactionHash as Hex
+        // Retries above can refetch the nonce and bump the gas fees, so
+        // report the request fields that were actually broadcast.
+        const gasFees =
+            request.type === "legacy"
+                ? {
+                      maxFeePerGas: request.gasPrice,
+                      maxPriorityFeePerGas: request.gasPrice
+                  }
+                : {
+                      maxFeePerGas: request.maxFeePerGas,
+                      maxPriorityFeePerGas: request.maxPriorityFeePerGas
+                  }
+
+        return {
+            transactionHash,
+            transactionRequest: {
+                ...gasFees,
+                nonce: request.nonce
+            }
+        }
     }
 
     async bundle({
@@ -474,6 +525,12 @@ export class Executor {
         })
 
         let transactionHash: HexData32
+        let transactionRequest: {
+            maxFeePerGas: bigint
+            maxPriorityFeePerGas: bigint
+            nonce: number
+        }
+
         try {
             const isLegacyTransaction = this.config.legacyTransactions
             const authorizationList = getAuthorizationListFromUserOps(
@@ -501,7 +558,7 @@ export class Executor {
                 }
             }
 
-            transactionHash = await this.sendHandleOpsTransaction({
+            const sendResult = await this.sendHandleOpsTransaction({
                 txParam: {
                     account: executor,
                     nonce,
@@ -514,6 +571,8 @@ export class Executor {
                 submissionAttempts: userOpBundle.submissionAttempts,
                 isReplacement
             })
+            transactionHash = sendResult.transactionHash
+            transactionRequest = sendResult.transactionRequest
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -595,11 +654,7 @@ export class Executor {
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
-            transactionRequest: {
-                maxFeePerGas,
-                maxPriorityFeePerGas,
-                nonce
-            }
+            transactionRequest
         }
 
         return bundleResult

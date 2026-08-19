@@ -18,6 +18,7 @@ import {
     type Account,
     type Address,
     type BaseError,
+    FeeCapTooLowError,
     type Hex,
     type SignedAuthorizationList,
     encodeFunctionData,
@@ -91,6 +92,12 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
         )
     })
     return transactionUnderPriceError !== null
+}
+
+// Viem wraps node errors, so FeeCapTooLowError arrives nested in the
+// cause chain rather than as the thrown value.
+export const isFeeCapTooLowError = (e: BaseError) => {
+    return e.walk((err) => err instanceof FeeCapTooLowError) !== null
 }
 
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
