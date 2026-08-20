@@ -532,6 +532,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false,
         default: "10"
+    },
+    "reorg-confirmation-depth": {
+        description:
+            "Number of blocks an included bundle must survive before it is considered final. If the inclusion block is orphaned by a reorg, the affected userOperations are resubmitted. 0 treats the first receipt as final (default, disables reorg protection)",
+        type: "number",
+        require: false,
+        default: 0
     }
 }
 

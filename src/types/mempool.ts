@@ -35,6 +35,28 @@ export type UserOperationBundle = {
     submissionAttempts: number
 }
 
+// Where a bundle was seen included on chain. blockHash detects reorgs: a
+// block number can be reused across forks, a hash cannot.
+export type InclusionAnchor = {
+    transactionHash: HexData32
+    blockNumber: bigint
+    blockHash: HexData32
+}
+
+// A bundle seen included on chain but not yet reorg-confirmation-depth
+// blocks deep. Deliberately holds no executor or transaction request: the
+// wallet and the mempool processing claim were already released at
+// inclusion, so recovery after a reorg goes through mempool.resubmitUserOps
+// (fresh bundle, wallet and nonce), never by re-broadcasting the original
+// transaction.
+export type IncludedBundleInfo = {
+    uid: string
+    transactionHash: HexData32
+    previousTransactionHashes: HexData32[]
+    bundle: UserOperationBundle
+    includedAt: InclusionAnchor
+}
+
 export type RejectedUserOp = Prettify<
     UserOpInfo & {
         reason: string

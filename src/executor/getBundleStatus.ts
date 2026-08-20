@@ -9,6 +9,7 @@ export type BundleIncluded = {
     userOpReceipts: Record<Hex, UserOperationReceipt>
     transactionHash: Hex
     blockNumber: bigint
+    blockHash: Hex
 }
 
 export type BundleReverted = {
@@ -38,12 +39,19 @@ export type BundleStatus<
     | (status extends "not_found" ? BundleNotFound : never)
     | (status extends "internal_error" ? BundleInternalError : never)
 
+// The only fields getBundleStatus reads. IncludedBundleInfo satisfies this
+// structurally, so the reorg verification path can reuse the same scan.
+export type BundleReceiptQuery = Pick<
+    SubmittedBundleInfo,
+    "transactionHash" | "previousTransactionHashes" | "bundle"
+>
+
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
     submittedBundle
 }: {
-    submittedBundle: SubmittedBundleInfo
+    submittedBundle: BundleReceiptQuery
     publicClient: PublicClient
     logger: Logger
 }): Promise<BundleStatus> => {
@@ -64,7 +72,7 @@ export const getBundleStatus = async ({
     // If any of the txs are included.
     if (included) {
         const { userOps } = bundle
-        const { blockNumber, transactionHash } = included
+        const { blockNumber, blockHash, transactionHash } = included
         const userOpDetails: Record<Hex, UserOperationReceipt> = {}
 
         for (const { userOpHash } of userOps) {
@@ -75,7 +83,8 @@ export const getBundleStatus = async ({
             status: "included",
             userOpReceipts: userOpDetails,
             transactionHash,
-            blockNumber
+            blockNumber,
+            blockHash
         }
     }
 

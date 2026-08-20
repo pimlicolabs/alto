@@ -460,8 +460,26 @@ export class ExecutorManager {
 
         const pendingBundles = this.bundleManager.getPendingBundles()
 
-        if (pendingBundles.length === 0) {
+        // Keep watching while inclusions still await their reorg check.
+        if (
+            pendingBundles.length === 0 &&
+            !this.bundleManager.hasIncludedBundles()
+        ) {
             this.stopWatchingBlocks()
+            this.currentlyHandlingBlock = false
+            this.currentlyHandlingBlockNumber = undefined
+            return
+        }
+
+        // Reorg protection: verify inclusions that reached confirmation
+        // depth. No-op unless reorg-confirmation-depth > 0; verification
+        // untracks synchronously and probes without blocking this loop.
+        await this.bundleManager.checkIncludedBundles({
+            blockNumber,
+            blockReceivedTimestamp
+        })
+
+        if (pendingBundles.length === 0) {
             this.currentlyHandlingBlock = false
             this.currentlyHandlingBlockNumber = undefined
             return

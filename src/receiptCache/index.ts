@@ -7,6 +7,9 @@ import { createRedisReceiptCache } from "./createRedisReceiptCache"
 export interface ReceiptCache {
     get(userOpHash: Hex): Promise<UserOperationReceipt | undefined>
     cache(receipts: UserOperationReceipt[]): Promise<void>
+    // Drop receipts known to reference an orphaned fork, so reads fall
+    // through to the canonical chain.
+    remove(userOpHashes: Hex[]): Promise<void>
 }
 
 export { createMemoryReceiptCache } from "./createMemoryReceiptCache"

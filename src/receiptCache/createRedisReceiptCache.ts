@@ -86,6 +86,25 @@ export const createRedisReceiptCache = ({
                 )
                 sentry.captureException(err)
             }
+        },
+
+        remove: async (userOpHashes: Hex[]): Promise<void> => {
+            if (userOpHashes.length === 0) {
+                return
+            }
+
+            try {
+                await asyncCallWithTimeout(
+                    redis.del(...userOpHashes.map(getKey)),
+                    REDIS_TIMEOUT
+                )
+            } catch (err) {
+                logger.error(
+                    { err, count: userOpHashes.length },
+                    "Failed to remove receipts from Redis"
+                )
+                sentry.captureException(err)
+            }
         }
     }
 }

@@ -156,6 +156,25 @@ export class EventManager {
         })
     }
 
+    // emits when the userOperation's inclusion block was orphaned by a chain
+    // reorg and the bundler is re-checking / recovering it
+    emitReorgedOnChain(
+        userOpHash: Hex,
+        transactionHash: Hex,
+        blockNumber: bigint
+    ) {
+        this.queueEvent({
+            userOpHash,
+            event: {
+                eventType: "reorged_onchain",
+                transactionHash,
+                data: {
+                    blockNumber: Number(blockNumber)
+                }
+            }
+        })
+    }
+
     // emits when the userOperation is included onchain
     emitIncludedOnChain(
         userOpHash: Hex,
