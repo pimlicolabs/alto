@@ -122,18 +122,22 @@ export class BundleManager {
         bundleReceipt: BundleStatus<"included">
         blockReceivedTimestamp: number
     }) {
-        const { bundle } = submittedBundle
+        const {
+            uid,
+            transactionHash: submittedTransactionHash,
+            previousTransactionHashes,
+            bundle
+        } = submittedBundle
         const { userOps, entryPoint } = bundle
         const { transactionHash, blockNumber, blockHash, userOpReceipts } =
             bundleReceipt
 
         // Registered synchronously so the block watcher can't stop first.
         if (this.config.reorgConfirmationDepth > 0) {
-            this.includedBundles.set(submittedBundle.uid, {
-                uid: submittedBundle.uid,
-                transactionHash: submittedBundle.transactionHash,
-                previousTransactionHashes:
-                    submittedBundle.previousTransactionHashes,
+            this.includedBundles.set(uid, {
+                uid,
+                transactionHash: submittedTransactionHash,
+                previousTransactionHashes,
                 userOpBundle: bundle,
                 includedAt: {
                     transactionHash: transactionHash as HexData32,
