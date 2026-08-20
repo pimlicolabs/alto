@@ -471,9 +471,6 @@ export class ExecutorManager {
             return
         }
 
-        // Reorg protection: verify inclusions that reached confirmation
-        // depth. No-op unless reorg-confirmation-depth > 0; verification
-        // untracks synchronously and probes without blocking this loop.
         await this.bundleManager.checkIncludedBundles({
             blockNumber,
             blockReceivedTimestamp

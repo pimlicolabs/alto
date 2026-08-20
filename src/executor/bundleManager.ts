@@ -44,10 +44,7 @@ export class BundleManager {
     private readonly gasPriceManager: GasPriceManager
     private readonly pendingBundles: Map<string, SubmittedBundleInfo> =
         new Map()
-    // Reorg protection (reorg-confirmation-depth > 0): bundles seen included
-    // on chain, watched until their inclusion is confirmation-depth blocks
-    // deep. Separate from pendingBundles: these hold no executor wallet and
-    // no mempool processing claim.
+    // Included bundles awaiting their reorg check at confirmation depth.
     private readonly includedBundles: Map<string, IncludedBundleInfo> =
         new Map()
 
@@ -130,9 +127,7 @@ export class BundleManager {
         const { transactionHash, blockNumber, blockHash, userOpReceipts } =
             bundleReceipt
 
-        // Reorg protection: watch the inclusion until it is
-        // reorg-confirmation-depth blocks deep. Registered synchronously so
-        // the block watcher cannot stop before seeing it.
+        // Registered synchronously so the block watcher can't stop first.
         if (this.config.reorgConfirmationDepth > 0) {
             this.includedBundles.set(submittedBundle.uid, {
                 uid: submittedBundle.uid,
@@ -174,16 +169,12 @@ export class BundleManager {
         })()
     }
 
-    // Whether any inclusions are still awaiting their reorg check. Keeps the
-    // block watcher alive after the last pending bundle resolves.
     hasIncludedBundles(): boolean {
         return this.includedBundles.size > 0
     }
 
-    // Reorg protection: called every block. Verifies each included bundle
-    // once, when its inclusion is reorg-confirmation-depth blocks deep — one
-    // eth_getTransactionReceipt per bundle in its whole lifetime. The
-    // per-block cost is a bigint comparison, no RPC.
+    // Verifies each included bundle once, when its inclusion is
+    // reorg-confirmation-depth blocks deep.
     async checkIncludedBundles({
         blockNumber,
         blockReceivedTimestamp
@@ -195,10 +186,8 @@ export class BundleManager {
             return
         }
 
-        // Depth is measured against the head, never against observed blocks,
-        // so skipped block events only delay the check. In flashblocks mode
-        // (no block number) the head comes from the cached getBlockNumber; on
-        // failure (0n) nothing is deep enough and the check retries next tick.
+        // Depth is measured against the head, so skipped block events only
+        // delay the check.
         const headBlockNumber =
             blockNumber ??
             (await this.getLatestBlockWithCache().catch(() => 0n))
@@ -217,12 +206,8 @@ export class BundleManager {
         }
     }
 
-    // Re-checks the receipts of a bundle at confirmation depth:
-    //  - still included in the anchored block -> settled, nothing to do
-    //  - re-mined into another block after a reorg -> refresh receipts/status
-    //  - reverted or gone -> the inclusion was orphaned, recover the userOps
-    // Untracks the bundle synchronously, so it never runs twice and the
-    // probes below never block the block-handling loop.
+    // Re-checks a bundle's receipts at confirmation depth. Untracks
+    // synchronously, so it never runs twice.
     private verifyIncludedBundle({
         includedBundle,
         blockReceivedTimestamp
@@ -251,8 +236,7 @@ export class BundleManager {
                     return
                 }
 
-                // Re-mined after a reorg: refresh the cached receipts and
-                // status so reads reflect the canonical chain.
+                // Re-mined into a different block after a reorg.
                 this.logger.warn(
                     {
                         transactionHash: bundleStatus.transactionHash,
@@ -277,7 +261,7 @@ export class BundleManager {
                 return
             }
 
-            // Reverted or gone: the inclusion we saw was orphaned by a reorg.
+            // Reverted or gone: the inclusion was orphaned by a reorg.
             await this.recoverReorgedBundle({
                 includedBundle,
                 blockReceivedTimestamp
@@ -295,11 +279,8 @@ export class BundleManager {
         })
     }
 
-    // The bundle's inclusion vanished from the canonical chain. Probe each
-    // userOp for a rival inclusion (getUserOpStatus waits up to
-    // maxBlockWaitCount * blockTime internally, which doubles as the re-mine
-    // grace window) and resubmit the truly gone ones through the normal
-    // mempool path (fresh bundle, wallet and nonce).
+    // Probes each userOp for a rival inclusion (getUserOpStatus's internal
+    // retry doubles as the re-mine grace window) and resubmits the gone ones.
     private async recoverReorgedBundle({
         includedBundle,
         blockReceivedTimestamp
@@ -319,8 +300,7 @@ export class BundleManager {
             "included bundle orphaned by reorg, recovering"
         )
 
-        // Stop serving receipts from the orphaned block. This also forces the
-        // probes below down to getLogs, i.e. the canonical chain.
+        // Drop stale receipts so the probes below read the canonical chain.
         await this.receiptCache.remove(getUserOpHashes(userOps))
 
         const bundlerTxs = [
@@ -367,8 +347,7 @@ export class BundleManager {
             "resubmitting reorged userOps"
         )
 
-        // mempool.add resets the userOp status, so the stale "included"
-        // status self-corrects on resubmission.
+        // mempool.add resets the stale "included" status.
         await this.mempool.resubmitUserOps({
             userOps: goneUserOps,
             entryPoint,

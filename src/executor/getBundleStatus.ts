@@ -39,8 +39,6 @@ export type BundleStatus<
     | (status extends "not_found" ? BundleNotFound : never)
     | (status extends "internal_error" ? BundleInternalError : never)
 
-// The only fields getBundleStatus reads. IncludedBundleInfo satisfies this
-// structurally, so the reorg verification path can reuse the same scan.
 export type BundleReceiptQuery = Pick<
     SubmittedBundleInfo,
     "transactionHash" | "previousTransactionHashes" | "bundle"

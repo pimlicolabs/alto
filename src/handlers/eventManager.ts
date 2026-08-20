@@ -156,8 +156,7 @@ export class EventManager {
         })
     }
 
-    // emits when the userOperation's inclusion block was orphaned by a chain
-    // reorg and the bundler is re-checking / recovering it
+    // emits when the userOperation's inclusion was orphaned by a reorg
     emitReorgedOnChain(
         userOpHash: Hex,
         transactionHash: Hex,
