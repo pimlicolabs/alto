@@ -50,7 +50,7 @@ export type IncludedBundleInfo = {
     uid: string
     transactionHash: HexData32
     previousTransactionHashes: HexData32[]
-    bundle: UserOperationBundle
+    userOpBundle: UserOperationBundle
     includedAt: InclusionAnchor
 }
 

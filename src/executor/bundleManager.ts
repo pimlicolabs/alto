@@ -134,7 +134,7 @@ export class BundleManager {
                 transactionHash: submittedBundle.transactionHash,
                 previousTransactionHashes:
                     submittedBundle.previousTransactionHashes,
-                bundle,
+                userOpBundle: bundle,
                 includedAt: {
                     transactionHash: transactionHash as HexData32,
                     blockNumber,
@@ -221,7 +221,12 @@ export class BundleManager {
         // Fire and forget.
         ;(async () => {
             const bundleStatus = await getBundleStatus({
-                submittedBundle: includedBundle,
+                submittedBundle: {
+                    transactionHash: includedBundle.transactionHash,
+                    previousTransactionHashes:
+                        includedBundle.previousTransactionHashes,
+                    bundle: includedBundle.userOpBundle
+                },
                 publicClient: this.config.publicClient,
                 logger: this.logger
             })
@@ -243,7 +248,7 @@ export class BundleManager {
                         fromBlockHash: includedAt.blockHash,
                         toBlockHash: bundleStatus.blockHash,
                         userOpHashes: getUserOpHashes(
-                            includedBundle.bundle.userOps
+                            includedBundle.userOpBundle.userOps
                         )
                     },
                     "bundle re-mined after reorg"
@@ -252,7 +257,7 @@ export class BundleManager {
                     Object.values(bundleStatus.userOpReceipts)
                 )
                 await this.statusManager.set(
-                    getUserOpHashes(includedBundle.bundle.userOps),
+                    getUserOpHashes(includedBundle.userOpBundle.userOps),
                     {
                         status: "included",
                         transactionHash: bundleStatus.transactionHash
@@ -272,7 +277,9 @@ export class BundleManager {
                 {
                     err,
                     transactionHash: includedAt.transactionHash,
-                    userOpHashes: getUserOpHashes(includedBundle.bundle.userOps)
+                    userOpHashes: getUserOpHashes(
+                        includedBundle.userOpBundle.userOps
+                    )
                 },
                 "failed to verify included bundle at confirmation depth"
             )
@@ -288,8 +295,8 @@ export class BundleManager {
         includedBundle: IncludedBundleInfo
         blockReceivedTimestamp: number
     }) {
-        const { bundle, includedAt } = includedBundle
-        const { entryPoint, userOps } = bundle
+        const { userOpBundle, includedAt } = includedBundle
+        const { entryPoint, userOps } = userOpBundle
 
         this.logger.warn(
             {
