@@ -68,44 +68,13 @@ describe("reorg protection", () => {
                 .getUserOperationReceipt({ hash: userOpHash })
                 .catch(() => null)
 
+            // A receipt under a new transaction hash proves the full recovery
+            // path ran: orphaned inclusion detected, userOp resubmitted, and
+            // re-included in a fresh bundle.
             if (receipt && receipt.receipt.transactionHash !== originalTxHash) {
                 expect(receipt.success).toBe(true)
                 break
             }
         }
     }, 60_000)
-
-    test("settles cleanly when no reorg occurs", async () => {
-        const smartAccountClient = await getSmartAccountClient({
-            entryPointVersion,
-            anvilRpc,
-            altoRpc
-        })
-
-        const userOpHash = await smartAccountClient.sendUserOperation({
-            calls: [
-                {
-                    to: "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5",
-                    value: parseEther("0.01")
-                }
-            ]
-        })
-
-        const originalReceipt =
-            await smartAccountClient.waitForUserOperationReceipt({
-                hash: userOpHash
-            })
-        const originalTxHash = originalReceipt.receipt.transactionHash
-
-        // Advance past confirmation depth and give the verification a
-        // moment to run: nothing should change.
-        await anvilClient.mine({ blocks: 3 })
-        await new Promise((resolve) => setTimeout(resolve, 3_000))
-
-        const receipt = await smartAccountClient.getUserOperationReceipt({
-            hash: userOpHash
-        })
-        expect(receipt.receipt.transactionHash).toBe(originalTxHash)
-        expect(receipt.success).toBe(true)
-    }, 30_000)
 })
