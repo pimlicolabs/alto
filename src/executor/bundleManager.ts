@@ -257,16 +257,20 @@ export class BundleManager {
                 return
             }
 
-            // Re-mined into a different block after a reorg.
-            this.logger.warn(
-                {
-                    transactionHash: minedReceipt.transactionHash,
-                    fromBlockNumber: blockNumber.toString(),
-                    toBlockNumber: minedReceipt.blockNumber.toString(),
-                    userOpHashes: getUserOpHashes(userOpBundle.userOps)
-                },
-                "bundle re-mined after reorg"
-            )
+            // Re-mined into a different block after a reorg. Expected noise
+            // under flashblocks: preconfirmation block details routinely
+            // differ from the final inclusion.
+            if (!this.config.flashblocksPreconfirmationTime) {
+                this.logger.warn(
+                    {
+                        transactionHash: minedReceipt.transactionHash,
+                        fromBlockNumber: blockNumber.toString(),
+                        toBlockNumber: minedReceipt.blockNumber.toString(),
+                        userOpHashes: getUserOpHashes(userOpBundle.userOps)
+                    },
+                    "bundle re-mined after reorg"
+                )
+            }
 
             // Update receipt with correct blockHash/blockNum.
             const userOpReceipts = userOpBundle.userOps.map(({ userOpHash }) =>
