@@ -247,17 +247,13 @@ export class BundleManager {
                 })
                 return
             }
+
             const minedReceipt = receipt
 
-            // blockNumber is the settle signal. blockHash alone is not:
-            // flashblocks endpoints (all Base public RPCs) serve
-            // preconfirmation receipts whose blockHash is provisional (zero
-            // or mutating) until the block seals, so the anchored hash
-            // mismatches the sealed one on virtually every bundle.
+            // If we have the receipt, bundle is included. Can early exit.
             if (minedReceipt.blockNumber === blockNumber) {
+                // If tx was included in same block height but different block (reorg) update receipt cache.
                 if (minedReceipt.blockHash !== blockHash) {
-                    // Anchored pre-seal: refresh the cached receipts with
-                    // the sealed data already in hand.
                     await this.receiptCache.cache(
                         userOpBundle.userOps.map(({ userOpHash }) =>
                             parseUserOpReceipt(userOpHash, minedReceipt)
@@ -278,27 +274,19 @@ export class BundleManager {
                 "bundle re-mined after reorg"
             )
 
-            // Status is untouched: it already records {included, txHash} from
-            // first sight, and the receipt can only match the anchored hash.
+            // Update status
             const userOpReceipts = userOpBundle.userOps.map(({ userOpHash }) =>
                 parseUserOpReceipt(userOpHash, minedReceipt)
             )
             await this.receiptCache.cache(userOpReceipts)
+
+            // Emit reorg event
             for (const userOpReceipt of userOpReceipts) {
-                if (userOpReceipt.success) {
-                    this.eventManager.emitIncludedOnChain(
-                        userOpReceipt.userOpHash,
-                        minedReceipt.transactionHash,
-                        minedReceipt.blockNumber
-                    )
-                } else {
-                    this.eventManager.emitExecutionRevertedOnChain(
-                        userOpReceipt.userOpHash,
-                        minedReceipt.transactionHash,
-                        userOpReceipt.reason || "0x",
-                        minedReceipt.blockNumber
-                    )
-                }
+                this.eventManager.emitReorgedOnChain(
+                    userOpReceipt.userOpHash,
+                    minedReceipt.transactionHash,
+                    minedReceipt.blockNumber
+                )
             }
         })().catch((err) => {
             sentry.captureException(err)
