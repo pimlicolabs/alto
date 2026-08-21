@@ -39,17 +39,12 @@ export type BundleStatus<
     | (status extends "not_found" ? BundleNotFound : never)
     | (status extends "internal_error" ? BundleInternalError : never)
 
-export type BundleReceiptQuery = Pick<
-    SubmittedBundleInfo,
-    "transactionHash" | "previousTransactionHashes" | "bundle"
->
-
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
     submittedBundle
 }: {
-    submittedBundle: BundleReceiptQuery
+    submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient
     logger: Logger
 }): Promise<BundleStatus> => {

@@ -132,11 +132,9 @@ export class BundleManager {
             this.includedBundles.set(uid, {
                 uid,
                 userOpBundle: bundle,
-                includedAt: {
-                    transactionHash: transactionHash as HexData32,
-                    blockNumber,
-                    blockHash: blockHash as HexData32
-                }
+                transactionHash: transactionHash as HexData32,
+                blockNumber,
+                blockHash: blockHash as HexData32
             })
         }
 
@@ -184,15 +182,18 @@ export class BundleManager {
         }
 
         // Depth is measured against the head, so skipped block events only
-        // delay the check.
+        // delay the check. Head staleness is bounded by blockTime (the
+        // default 15s cache TTL would delay checks by several blocks).
         const headBlockNumber =
             blockNumber ??
-            (await this.getLatestBlockWithCache().catch(() => 0n))
+            (await this.getLatestBlockWithCache(this.config.blockTime).catch(
+                () => 0n
+            ))
         const confirmationDepth = BigInt(this.config.reorgConfirmationDepth)
 
         for (const includedBundle of this.includedBundles.values()) {
             if (
-                headBlockNumber - includedBundle.includedAt.blockNumber >=
+                headBlockNumber - includedBundle.blockNumber >=
                 confirmationDepth
             ) {
                 this.verifyIncludedBundle({
@@ -203,7 +204,7 @@ export class BundleManager {
         }
     }
 
-    // Re-checks a bundle's receipts at confirmation depth. Untracks
+    // Re-checks a bundle's receipt at confirmation depth. Untracks
     // synchronously, so it never runs twice.
     private verifyIncludedBundle({
         includedBundle,
@@ -213,66 +214,96 @@ export class BundleManager {
         blockReceivedTimestamp: number
     }) {
         this.includedBundles.delete(includedBundle.uid)
-        const { includedAt } = includedBundle
+        const { transactionHash, blockNumber, blockHash, userOpBundle } =
+            includedBundle
 
         // Fire and forget.
         ;(async () => {
-            const bundleStatus = await getBundleStatus({
-                submittedBundle: {
-                    transactionHash: includedAt.transactionHash,
-                    previousTransactionHashes: [],
-                    bundle: includedBundle.userOpBundle
-                },
-                publicClient: this.config.publicClient,
-                logger: this.logger
-            })
-
-            if (bundleStatus.status === "included") {
-                if (
-                    bundleStatus.transactionHash ===
-                        includedAt.transactionHash &&
-                    bundleStatus.blockHash === includedAt.blockHash
-                ) {
-                    // Still in the block we saw it in: settled.
-                    return
+            // A missing receipt is the reorg signal. Any other RPC failure
+            // throws: the check is logged and dropped rather than retried.
+            let receipt: TransactionReceipt | null = null
+            try {
+                receipt = await this.config.publicClient.getTransactionReceipt({
+                    hash: transactionHash
+                })
+            } catch (err) {
+                if (!(err instanceof TransactionReceiptNotFoundError)) {
+                    throw err
                 }
+            }
 
-                // Re-mined into a different block after a reorg.
-                this.logger.warn(
-                    {
-                        transactionHash: bundleStatus.transactionHash,
-                        fromBlockHash: includedAt.blockHash,
-                        toBlockHash: bundleStatus.blockHash,
-                        userOpHashes: getUserOpHashes(
-                            includedBundle.userOpBundle.userOps
+            if (!receipt || receipt.status === "reverted") {
+                // Gone (or reorged into a revert): the inclusion was orphaned.
+                await this.recoverReorgedBundle({
+                    includedBundle,
+                    blockReceivedTimestamp
+                })
+                return
+            }
+            const minedReceipt = receipt
+
+            // blockNumber is the settle signal. blockHash alone is not:
+            // flashblocks endpoints (all Base public RPCs) serve
+            // preconfirmation receipts whose blockHash is provisional (zero
+            // or mutating) until the block seals, so the anchored hash
+            // mismatches the sealed one on virtually every bundle.
+            if (minedReceipt.blockNumber === blockNumber) {
+                if (minedReceipt.blockHash !== blockHash) {
+                    // Anchored pre-seal: refresh the cached receipts with
+                    // the sealed data already in hand.
+                    await this.receiptCache.cache(
+                        userOpBundle.userOps.map(({ userOpHash }) =>
+                            parseUserOpReceipt(userOpHash, minedReceipt)
                         )
-                    },
-                    "bundle re-mined after reorg"
-                )
-                await this.receiptCache.cache(
-                    Object.values(bundleStatus.userOpReceipts)
-                )
-                await this.statusManager.set(
-                    getUserOpHashes(includedBundle.userOpBundle.userOps),
-                    {
-                        status: "included",
-                        transactionHash: bundleStatus.transactionHash
-                    }
-                )
+                    )
+                }
                 return
             }
 
-            // Reverted or gone: the inclusion was orphaned by a reorg.
-            await this.recoverReorgedBundle({
-                includedBundle,
-                blockReceivedTimestamp
-            })
+            // Re-mined into a different block after a reorg.
+            this.logger.warn(
+                {
+                    transactionHash: minedReceipt.transactionHash,
+                    fromBlockNumber: blockNumber.toString(),
+                    toBlockNumber: minedReceipt.blockNumber.toString(),
+                    userOpHashes: getUserOpHashes(userOpBundle.userOps)
+                },
+                "bundle re-mined after reorg"
+            )
+
+            const userOpReceipts = userOpBundle.userOps.map(({ userOpHash }) =>
+                parseUserOpReceipt(userOpHash, minedReceipt)
+            )
+            await this.receiptCache.cache(userOpReceipts)
+            await this.statusManager.set(
+                getUserOpHashes(userOpBundle.userOps),
+                {
+                    status: "included",
+                    transactionHash: minedReceipt.transactionHash
+                }
+            )
+            for (const userOpReceipt of userOpReceipts) {
+                if (userOpReceipt.success) {
+                    this.eventManager.emitIncludedOnChain(
+                        userOpReceipt.userOpHash,
+                        minedReceipt.transactionHash,
+                        minedReceipt.blockNumber
+                    )
+                } else {
+                    this.eventManager.emitExecutionRevertedOnChain(
+                        userOpReceipt.userOpHash,
+                        minedReceipt.transactionHash,
+                        userOpReceipt.reason || "0x",
+                        minedReceipt.blockNumber
+                    )
+                }
+            }
         })().catch((err) => {
             sentry.captureException(err)
             this.logger.error(
                 {
                     err,
-                    transactionHash: includedAt.transactionHash,
+                    transactionHash: transactionHash,
                     userOpHashes: getUserOpHashes(
                         includedBundle.userOpBundle.userOps
                     )
@@ -291,13 +322,13 @@ export class BundleManager {
         includedBundle: IncludedBundleInfo
         blockReceivedTimestamp: number
     }) {
-        const { userOpBundle, includedAt } = includedBundle
+        const { userOpBundle, transactionHash, blockNumber } = includedBundle
         const { entryPoint, userOps } = userOpBundle
 
         this.logger.warn(
             {
-                orphanedTransactionHash: includedAt.transactionHash,
-                orphanedBlockNumber: includedAt.blockNumber.toString(),
+                orphanedTransactionHash: transactionHash,
+                orphanedBlockNumber: blockNumber.toString(),
                 userOpHashes: getUserOpHashes(userOps)
             },
             "included bundle orphaned by reorg, recovering"
@@ -309,7 +340,7 @@ export class BundleManager {
         // Only the included tx is tracked as ours: an op that re-mined via an
         // older replacement sibling gets labeled "frontran" instead, and one
         // that slips past the probe fails simulation at resubmission.
-        const bundlerTxs = [includedAt.transactionHash]
+        const bundlerTxs = [transactionHash]
 
         const results = await Promise.all(
             userOps.map(async (userOpInfo) => ({
@@ -334,8 +365,8 @@ export class BundleManager {
         for (const { userOpHash } of goneUserOps) {
             this.eventManager.emitReorgedOnChain(
                 userOpHash,
-                includedAt.transactionHash,
-                includedAt.blockNumber
+                transactionHash,
+                blockNumber
             )
         }
         this.metrics.userOpsOnChain
@@ -344,7 +375,7 @@ export class BundleManager {
 
         this.logger.warn(
             {
-                orphanedTransactionHash: includedAt.transactionHash,
+                orphanedTransactionHash: transactionHash,
                 userOpHashes: getUserOpHashes(goneUserOps)
             },
             "resubmitting reorged userOps"
@@ -509,11 +540,13 @@ export class BundleManager {
     }
 
     // Helpers //
-    async getLatestBlockWithCache(): Promise<bigint> {
+    async getLatestBlockWithCache(
+        maxAge: number = this.config.blockNumberCacheTtl
+    ): Promise<bigint> {
         const now = Date.now()
         const cache = this.cachedLatestBlock
 
-        if (cache && now - cache.timestamp < this.config.blockNumberCacheTtl) {
+        if (cache && now - cache.timestamp < maxAge) {
             return cache.value
         }
 
