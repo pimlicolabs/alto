@@ -122,12 +122,7 @@ export class BundleManager {
         bundleReceipt: BundleStatus<"included">
         blockReceivedTimestamp: number
     }) {
-        const {
-            uid,
-            transactionHash: submittedTransactionHash,
-            previousTransactionHashes,
-            bundle
-        } = submittedBundle
+        const { uid, bundle } = submittedBundle
         const { userOps, entryPoint } = bundle
         const { transactionHash, blockNumber, blockHash, userOpReceipts } =
             bundleReceipt
@@ -136,8 +131,6 @@ export class BundleManager {
         if (this.config.reorgConfirmationDepth > 0) {
             this.includedBundles.set(uid, {
                 uid,
-                transactionHash: submittedTransactionHash,
-                previousTransactionHashes,
                 userOpBundle: bundle,
                 includedAt: {
                     transactionHash: transactionHash as HexData32,
@@ -226,9 +219,8 @@ export class BundleManager {
         ;(async () => {
             const bundleStatus = await getBundleStatus({
                 submittedBundle: {
-                    transactionHash: includedBundle.transactionHash,
-                    previousTransactionHashes:
-                        includedBundle.previousTransactionHashes,
+                    transactionHash: includedAt.transactionHash,
+                    previousTransactionHashes: [],
                     bundle: includedBundle.userOpBundle
                 },
                 publicClient: this.config.publicClient,
@@ -314,10 +306,10 @@ export class BundleManager {
         // Drop stale receipts so the probes below read the canonical chain.
         await this.receiptCache.remove(getUserOpHashes(userOps))
 
-        const bundlerTxs = [
-            includedBundle.transactionHash,
-            ...includedBundle.previousTransactionHashes
-        ]
+        // Only the included tx is tracked as ours: an op that re-mined via an
+        // older replacement sibling gets labeled "frontran" instead, and one
+        // that slips past the probe fails simulation at resubmission.
+        const bundlerTxs = [includedAt.transactionHash]
 
         const results = await Promise.all(
             userOps.map(async (userOpInfo) => ({

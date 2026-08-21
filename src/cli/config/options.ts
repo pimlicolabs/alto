@@ -535,7 +535,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     },
     "reorg-confirmation-depth": {
         description:
-            "Number of blocks an included bundle must survive before it is considered final. If the inclusion block is orphaned by a reorg, the affected userOperations are resubmitted. 0 treats the first receipt as final (default, disables reorg protection)",
+            "Number of blocks an included bundle must survive before it is considered final.",
         type: "number",
         require: false,
         default: 0

@@ -48,8 +48,6 @@ export type InclusionAnchor = {
 // resubmits through the mempool instead of re-broadcasting.
 export type IncludedBundleInfo = {
     uid: string
-    transactionHash: HexData32
-    previousTransactionHashes: HexData32[]
     userOpBundle: UserOperationBundle
     includedAt: InclusionAnchor
 }
