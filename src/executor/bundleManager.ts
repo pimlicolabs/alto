@@ -304,7 +304,7 @@ export class BundleManager {
             this.logger.error(
                 {
                     err,
-                    transactionHash: transactionHash,
+                    transactionHash,
                     userOpHashes: getUserOpHashes(
                         includedBundle.userOpBundle.userOps
                     )

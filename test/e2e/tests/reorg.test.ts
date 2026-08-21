@@ -1,8 +1,5 @@
 import { http, createTestClient, parseEther } from "viem"
-import {
-    type EntryPointVersion,
-    entryPoint07Address
-} from "viem/account-abstraction"
+import type { EntryPointVersion } from "viem/account-abstraction"
 import { foundry } from "viem/chains"
 import { beforeEach, describe, expect, inject, test } from "vitest"
 import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
@@ -10,7 +7,6 @@ import { beforeEachCleanUp, getSmartAccountClient } from "../src/utils/index.js"
 // Requires "reorg-confirmation-depth" > 0 in alto-config.json.
 describe("reorg protection", () => {
     const entryPointVersion = "0.7" as EntryPointVersion
-    const entryPoint = entryPoint07Address
 
     const anvilRpc = inject("anvilRpc")
     const altoRpc = inject("altoRpc")
