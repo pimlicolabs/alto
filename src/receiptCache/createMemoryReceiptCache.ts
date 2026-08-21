@@ -42,6 +42,12 @@ export const createMemoryReceiptCache = (ttl: number): ReceiptCache => {
                     timestamp
                 })
             }
+        },
+
+        remove: async (userOpHashes: Hex[]): Promise<void> => {
+            for (const userOpHash of userOpHashes) {
+                cache.delete(userOpHash)
+            }
         }
     }
 }

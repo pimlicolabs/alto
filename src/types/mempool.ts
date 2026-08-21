@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
-import type { Address, Prettify } from "viem"
+import type { Address, Hex, Prettify } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
@@ -33,6 +33,18 @@ export type UserOperationBundle = {
     version: EntryPointVersion
     userOps: UserOpInfo[]
     submissionAttempts: number
+}
+
+// A bundle seen included but not yet reorg-confirmation-depth blocks deep.
+// transactionHash/blockNumber/blockHash record where it was seen included.
+// Holds no executor: its wallet was released at inclusion, so recovery
+// resubmits through the mempool instead of re-broadcasting.
+export type IncludedBundleInfo = {
+    uid: string
+    userOpBundle: UserOperationBundle
+    transactionHash: Hex
+    blockNumber: bigint
+    blockHash: Hex
 }
 
 export type RejectedUserOp = Prettify<

@@ -9,6 +9,7 @@ export type BundleIncluded = {
     userOpReceipts: Record<Hex, UserOperationReceipt>
     transactionHash: Hex
     blockNumber: bigint
+    blockHash: Hex
 }
 
 export type BundleReverted = {
@@ -64,7 +65,7 @@ export const getBundleStatus = async ({
     // If any of the txs are included.
     if (included) {
         const { userOps } = bundle
-        const { blockNumber, transactionHash } = included
+        const { blockNumber, blockHash, transactionHash } = included
         const userOpDetails: Record<Hex, UserOperationReceipt> = {}
 
         for (const { userOpHash } of userOps) {
@@ -75,7 +76,8 @@ export const getBundleStatus = async ({
             status: "included",
             userOpReceipts: userOpDetails,
             transactionHash,
-            blockNumber
+            blockNumber,
+            blockHash
         }
     }
 

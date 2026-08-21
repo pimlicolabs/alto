@@ -7,6 +7,7 @@ import { createRedisReceiptCache } from "./createRedisReceiptCache"
 export interface ReceiptCache {
     get(userOpHash: Hex): Promise<UserOperationReceipt | undefined>
     cache(receipts: UserOperationReceipt[]): Promise<void>
+    remove(userOpHashes: Hex[]): Promise<void>
 }
 
 export { createMemoryReceiptCache } from "./createMemoryReceiptCache"
