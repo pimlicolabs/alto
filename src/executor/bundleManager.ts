@@ -249,7 +249,7 @@ export class BundleManager {
 
             const minedReceipt = receipt
 
-            // If we have the receipt, bundle is included. Can early exit.
+            // If we have the receipt, and block height + hash is the same, no reorg occurred.
             if (
                 minedReceipt.blockNumber === blockNumber &&
                 minedReceipt.blockHash === blockHash
