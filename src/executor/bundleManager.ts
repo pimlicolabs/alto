@@ -273,7 +273,7 @@ export class BundleManager {
                 "bundle re-mined after reorg"
             )
 
-            // Update status
+            // Update receipt with correct blockHash/blockNum.
             const userOpReceipts = userOpBundle.userOps.map(({ userOpHash }) =>
                 parseUserOpReceipt(userOpHash, minedReceipt)
             )
