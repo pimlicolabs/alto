@@ -186,9 +186,9 @@ export class BundleManager {
         // default 15s cache TTL would delay checks by several blocks).
         const headBlockNumber =
             blockNumber ??
-            (await this.getLatestBlockWithCache(this.config.blockTime).catch(
-                () => 0n
-            ))
+            (await this.getLatestBlockWithCache({
+                maxAge: this.config.blockTime
+            }).catch(() => 0n))
         const confirmationDepth = BigInt(this.config.reorgConfirmationDepth)
 
         for (const includedBundle of this.includedBundles.values()) {
@@ -541,7 +541,9 @@ export class BundleManager {
 
     // Helpers //
     async getLatestBlockWithCache(
-        maxAge: number = this.config.blockNumberCacheTtl
+        { maxAge }: { maxAge: number } = {
+            maxAge: this.config.blockNumberCacheTtl
+        }
     ): Promise<bigint> {
         const now = Date.now()
         const cache = this.cachedLatestBlock
