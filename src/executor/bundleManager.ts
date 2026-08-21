@@ -136,6 +136,16 @@ export class BundleManager {
                 blockNumber,
                 blockHash
             })
+            this.logger.info(
+                {
+                    transactionHash,
+                    blockNumber: blockNumber.toString(),
+                    blockHash,
+                    depth: this.config.reorgConfirmationDepth,
+                    tracked: this.includedBundles.size
+                },
+                "REORG_TEST: watching included bundle until confirmation depth"
+            )
         }
 
         // Cleanup bundle
@@ -197,11 +207,28 @@ export class BundleManager {
             }))
         const confirmationDepth = BigInt(this.config.reorgConfirmationDepth)
 
+        this.logger.info(
+            {
+                headBlockNumber: headBlockNumber.toString(),
+                tracked: this.includedBundles.size,
+                depth: this.config.reorgConfirmationDepth
+            },
+            "REORG_TEST: reorg check tick"
+        )
+
         for (const includedBundle of this.includedBundles.values()) {
             if (
                 headBlockNumber - includedBundle.blockNumber >=
                 confirmationDepth
             ) {
+                this.logger.info(
+                    {
+                        transactionHash: includedBundle.transactionHash,
+                        inclusionBlock: includedBundle.blockNumber.toString(),
+                        headBlockNumber: headBlockNumber.toString()
+                    },
+                    "REORG_TEST: bundle reached confirmation depth, verifying receipt"
+                )
                 this.verifyIncludedBundle({
                     includedBundle,
                     blockReceivedTimestamp
@@ -240,6 +267,13 @@ export class BundleManager {
 
             if (!receipt || receipt.status === "reverted") {
                 // Gone (or reorged into a revert): the inclusion was orphaned.
+                this.logger.info(
+                    {
+                        transactionHash,
+                        receiptStatus: receipt ? receipt.status : "not_found"
+                    },
+                    "REORG_TEST: inclusion orphaned by reorg, starting recovery"
+                )
                 await this.recoverReorgedBundle({
                     includedBundle,
                     blockReceivedTimestamp
@@ -255,6 +289,14 @@ export class BundleManager {
             // mismatches the sealed one on virtually every bundle.
             if (minedReceipt.blockNumber === blockNumber) {
                 if (minedReceipt.blockHash !== blockHash) {
+                    this.logger.info(
+                        {
+                            transactionHash,
+                            anchoredBlockHash: blockHash,
+                            sealedBlockHash: minedReceipt.blockHash
+                        },
+                        "REORG_TEST: settled, anchored pre-seal (flashblocks), refreshing cached receipts"
+                    )
                     // Anchored pre-seal: refresh the cached receipts with
                     // the sealed data already in hand.
                     await this.receiptCache.cache(
@@ -262,7 +304,15 @@ export class BundleManager {
                             parseUserOpReceipt(userOpHash, minedReceipt)
                         )
                     )
+                    return
                 }
+                this.logger.info(
+                    {
+                        transactionHash,
+                        blockNumber: blockNumber.toString()
+                    },
+                    "REORG_TEST: settled, receipt unchanged (no reorg)"
+                )
                 return
             }
 
@@ -364,7 +414,23 @@ export class BundleManager {
             .filter(({ status }) => status === "not_found")
             .map(({ userOpInfo }) => userOpInfo)
 
+        this.logger.info(
+            {
+                orphanedTransactionHash: transactionHash,
+                probeResults: results.map(({ userOpInfo, status }) => ({
+                    userOpHash: userOpInfo.userOpHash,
+                    status
+                })),
+                goneCount: goneUserOps.length
+            },
+            "REORG_TEST: recovery probe finished"
+        )
+
         if (goneUserOps.length === 0) {
+            this.logger.info(
+                { orphanedTransactionHash: transactionHash },
+                "REORG_TEST: all userOps found on canonical chain, nothing to resubmit"
+            )
             return
         }
 
@@ -393,6 +459,14 @@ export class BundleManager {
             entryPoint,
             reason: "reorged"
         })
+
+        this.logger.info(
+            {
+                orphanedTransactionHash: transactionHash,
+                userOpHashes: getUserOpHashes(goneUserOps)
+            },
+            "REORG_TEST: reorged userOps resubmitted to mempool"
+        )
     }
 
     /**
