@@ -188,7 +188,13 @@ export class BundleManager {
             blockNumber ??
             (await this.getLatestBlockWithCache({
                 maxAge: this.config.blockTime
-            }).catch(() => 0n))
+            }).catch((err) => {
+                this.logger.warn(
+                    { err },
+                    "failed to fetch head for reorg check, retrying next block"
+                )
+                return 0n
+            }))
         const confirmationDepth = BigInt(this.config.reorgConfirmationDepth)
 
         for (const includedBundle of this.includedBundles.values()) {
