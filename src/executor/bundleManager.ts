@@ -211,8 +211,7 @@ export class BundleManager {
         }
     }
 
-    // Re-checks a bundle's receipt at confirmation depth. Untracks
-    // synchronously, so it never runs twice.
+    // Re-checks a bundle's receipt at confirmation depth.
     private verifyIncludedBundle({
         includedBundle,
         blockReceivedTimestamp
