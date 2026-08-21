@@ -279,15 +279,6 @@ export class BundleManager {
                 parseUserOpReceipt(userOpHash, minedReceipt)
             )
             await this.receiptCache.cache(userOpReceipts)
-
-            // Emit reorg event
-            for (const userOpReceipt of userOpReceipts) {
-                this.eventManager.emitReorgedOnChain(
-                    userOpReceipt.userOpHash,
-                    minedReceipt.transactionHash,
-                    minedReceipt.blockNumber
-                )
-            }
         })().catch((err) => {
             sentry.captureException(err)
             this.logger.error(
