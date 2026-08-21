@@ -471,7 +471,9 @@ export class ExecutorManager {
             return
         }
 
-        await this.bundleManager.checkIncludedBundles({
+        // Not awaited: never rejects, and verification untracks each bundle
+        // synchronously so overlapping ticks can't double-check one.
+        this.bundleManager.checkIncludedBundles({
             blockNumber,
             blockReceivedTimestamp
         })

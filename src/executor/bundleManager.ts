@@ -132,9 +132,9 @@ export class BundleManager {
             this.includedBundles.set(uid, {
                 uid,
                 userOpBundle: bundle,
-                transactionHash: transactionHash as HexData32,
+                transactionHash,
                 blockNumber,
-                blockHash: blockHash as HexData32
+                blockHash
             })
         }
 

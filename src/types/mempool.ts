@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
-import type { Address, Prettify } from "viem"
+import type { Address, Hex, Prettify } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
@@ -42,9 +42,9 @@ export type UserOperationBundle = {
 export type IncludedBundleInfo = {
     uid: string
     userOpBundle: UserOperationBundle
-    transactionHash: HexData32
+    transactionHash: Hex
     blockNumber: bigint
-    blockHash: HexData32
+    blockHash: Hex
 }
 
 export type RejectedUserOp = Prettify<
