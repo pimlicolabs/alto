@@ -72,10 +72,7 @@ describe("reorg protection", () => {
                 .getUserOperationReceipt({ hash: userOpHash })
                 .catch(() => null)
 
-            if (
-                receipt &&
-                receipt.receipt.transactionHash !== originalTxHash
-            ) {
+            if (receipt && receipt.receipt.transactionHash !== originalTxHash) {
                 expect(receipt.success).toBe(true)
                 break
             }
