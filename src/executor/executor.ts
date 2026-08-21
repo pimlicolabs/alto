@@ -32,6 +32,7 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
+    ReplacementNonceConflictError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
@@ -207,12 +208,16 @@ export class Executor {
         txParam,
         gasOpts,
         childLogger,
-        submissionAttempts
+        submissionAttempts,
+        isReplacement
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
         childLogger: Logger
         submissionAttempts: number
+        // When set, this send replaces a previous transaction and must keep
+        // the same nonce.
+        isReplacement?: boolean
     }): Promise<{
         transactionHash: Hex
         transactionRequest: {
@@ -377,6 +382,15 @@ export class Executor {
                     const cause = error.cause
 
                     if (cause instanceof NonceTooLowError) {
+                        // A replacement's nonce was consumed by another
+                        // transaction - resending with a fresh nonce could
+                        // duplicate a bundle that already landed onchain.
+                        // Report the conflict and let the caller resolve who
+                        // consumed the nonce.
+                        if (isReplacement) {
+                            throw new ReplacementNonceConflictError()
+                        }
+
                         childLogger.warn("Nonce too low, retrying")
                         request.nonce = await publicClient.getTransactionCount({
                             address: request.from,
@@ -438,13 +452,16 @@ export class Executor {
         userOpBundle,
         networkGasPrice,
         networkBaseFee,
-        nonce
+        nonce,
+        isReplacement
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
         networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
         nonce: number
+        // When set, this bundle replaces a previous transaction.
+        isReplacement?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -551,7 +568,8 @@ export class Executor {
                 },
                 childLogger,
                 gasOpts,
-                submissionAttempts: userOpBundle.submissionAttempts
+                submissionAttempts: userOpBundle.submissionAttempts,
+                isReplacement
             })
             transactionHash = sendResult.transactionHash
             transactionRequest = sendResult.transactionRequest
@@ -562,6 +580,18 @@ export class Executor {
             })
         } catch (err: unknown) {
             const { rejectedUserOps, userOpsToBundle } = filterOpsResult
+
+            // The nonce of the bundle we are replacing was consumed by
+            // another transaction. The caller resolves the userOps against
+            // the mined tx if it was ours, or resubmits them if it wasn't.
+            if (err instanceof ReplacementNonceConflictError) {
+                return {
+                    success: false,
+                    reason: "nonce_conflict",
+                    rejectedUserOps,
+                    recoverableOps: userOpsToBundle
+                }
+            }
 
             const isViemExecutionError =
                 err instanceof ContractFunctionExecutionError ||
