@@ -277,17 +277,12 @@ export class BundleManager {
                 "bundle re-mined after reorg"
             )
 
+            // Status is untouched: it already records {included, txHash} from
+            // first sight, and the receipt can only match the anchored hash.
             const userOpReceipts = userOpBundle.userOps.map(({ userOpHash }) =>
                 parseUserOpReceipt(userOpHash, minedReceipt)
             )
             await this.receiptCache.cache(userOpReceipts)
-            await this.statusManager.set(
-                getUserOpHashes(userOpBundle.userOps),
-                {
-                    status: "included",
-                    transactionHash: minedReceipt.transactionHash
-                }
-            )
             for (const userOpReceipt of userOpReceipts) {
                 if (userOpReceipt.success) {
                     this.eventManager.emitIncludedOnChain(
