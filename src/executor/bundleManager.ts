@@ -172,9 +172,11 @@ export class BundleManager {
     // reorg-confirmation-depth blocks deep.
     async checkIncludedBundles({
         blockNumber,
+        reorgConfirmationDepth,
         blockReceivedTimestamp
     }: {
         blockNumber?: bigint
+        reorgConfirmationDepth: bigint
         blockReceivedTimestamp: number
     }): Promise<void> {
         if (this.includedBundles.size === 0) {
@@ -195,12 +197,11 @@ export class BundleManager {
                 )
                 return 0n
             }))
-        const confirmationDepth = BigInt(this.config.reorgConfirmationDepth)
 
         for (const includedBundle of this.includedBundles.values()) {
             if (
                 headBlockNumber - includedBundle.blockNumber >=
-                confirmationDepth
+                reorgConfirmationDepth
             ) {
                 this.verifyIncludedBundle({
                     includedBundle,

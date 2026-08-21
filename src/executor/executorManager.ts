@@ -471,12 +471,16 @@ export class ExecutorManager {
             return
         }
 
-        // Not awaited: never rejects, and verification untracks each bundle
-        // synchronously so overlapping ticks can't double-check one.
-        this.bundleManager.checkIncludedBundles({
-            blockNumber,
-            blockReceivedTimestamp
-        })
+        // Make reorg check if configured.
+        if (this.config.reorgConfirmationDepth > 0) {
+            this.bundleManager.checkIncludedBundles({
+                blockNumber,
+                reorgConfirmationDepth: BigInt(
+                    this.config.reorgConfirmationDepth
+                ),
+                blockReceivedTimestamp
+            })
+        }
 
         if (pendingBundles.length === 0) {
             this.currentlyHandlingBlock = false
