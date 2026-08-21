@@ -250,15 +250,10 @@ export class BundleManager {
             const minedReceipt = receipt
 
             // If we have the receipt, bundle is included. Can early exit.
-            if (minedReceipt.blockNumber === blockNumber) {
-                // If tx was included in same block height but different block (reorg) update receipt cache.
-                if (minedReceipt.blockHash !== blockHash) {
-                    await this.receiptCache.cache(
-                        userOpBundle.userOps.map(({ userOpHash }) =>
-                            parseUserOpReceipt(userOpHash, minedReceipt)
-                        )
-                    )
-                }
+            if (
+                minedReceipt.blockNumber === blockNumber &&
+                minedReceipt.blockHash === blockHash
+            ) {
                 return
             }
 
