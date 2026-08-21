@@ -127,7 +127,7 @@ export class BundleManager {
         const { transactionHash, blockNumber, blockHash, userOpReceipts } =
             bundleReceipt
 
-        // Registered synchronously so the block watcher can't stop first.
+        // Only watch for reorgs if reorg confirmation depth is set
         if (this.config.reorgConfirmationDepth > 0) {
             this.includedBundles.set(uid, {
                 uid,
