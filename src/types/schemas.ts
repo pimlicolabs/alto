@@ -722,37 +722,6 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema.or(z.null())
 })
 
-export const pimlicoSimulateAssetChangeSchema = z.object({
-    method: z.literal("pimlico_simulateAssetChange"),
-    params: z.union([
-        z.tuple([
-            userOperationSchema,
-            addressSchema, // entryPoint
-            z.object({
-                addresses: z.array(addressSchema),
-                tokens: z.array(addressSchema)
-            })
-        ]),
-        z.tuple([
-            userOperationSchema,
-            addressSchema, // entryPoint
-            z.object({
-                addresses: z.array(addressSchema),
-                tokens: z.array(addressSchema)
-            }),
-            stateOverridesSchema // optional state overrides
-        ])
-    ]),
-    result: z.array(
-        z.object({
-            address: addressSchema,
-            token: addressSchema,
-            balanceBefore: hexNumberSchema,
-            balanceAfter: hexNumberSchema
-        })
-    )
-})
-
 export const altoVersions = z.enum(["v1", "v2"])
 export type AltoVersions = z.infer<typeof altoVersions>
 
@@ -776,8 +745,7 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     debugGetStakeStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
-    pimlicoSendUserOperationNowSchema.omit({ result: true }),
-    pimlicoSimulateAssetChangeSchema.omit({ result: true })
+    pimlicoSendUserOperationNowSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
 
@@ -800,8 +768,7 @@ export const bundlerRpcSchema = z.union([
     debugGetStakeStatusSchema,
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
-    pimlicoSendUserOperationNowSchema,
-    pimlicoSimulateAssetChangeSchema
+    pimlicoSendUserOperationNowSchema
 ])
 
 export type BundlingMode = z.infer<
