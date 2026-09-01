@@ -378,18 +378,12 @@ export class Executor {
 
                     if (cause instanceof NonceTooLowError) {
                         childLogger.warn("Nonce too low, retrying")
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: request.from,
-                            blockTag: "latest"
-                        })
+                        request.nonce = request.nonce + 1
                     }
 
                     if (cause instanceof NonceTooHighError) {
                         childLogger.warn("Nonce too high, retrying")
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: request.from,
-                            blockTag: "latest"
-                        })
+                        request.nonce = request.nonce - 1
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
