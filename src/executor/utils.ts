@@ -89,6 +89,33 @@ export const isFeeCapTooLowError = (e: BaseError) => {
     return e.walk((err) => err instanceof FeeCapTooLowError) !== null
 }
 
+// Some nodes report the account's actual nonce in their "nonce too low" /
+// "nonce too high" rejection. Viem keeps the raw node message in `details`.
+//   nitro:        "nonce too low: address 0x.., tx: 389 state: 392"
+//   geth/op-geth: "nonce too low: next nonce 392, tx nonce 389"
+// Returns undefined when the message carries no nonce so callers can fall
+// back to a blind +1 / -1 adjustment.
+const NODE_NONCE_PATTERNS = [/\bstate:\s*(\d+)/i, /\bnext nonce\s*(\d+)/i]
+
+export const parseNonceFromError = (e: BaseError): number | undefined => {
+    const details = e.details
+    if (!details) {
+        return undefined
+    }
+
+    for (const pattern of NODE_NONCE_PATTERNS) {
+        const match = details.match(pattern)
+        if (match) {
+            const nonce = Number(match[1])
+            if (Number.isSafeInteger(nonce)) {
+                return nonce
+            }
+        }
+    }
+
+    return undefined
+}
+
 // V7 source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.7/contracts/core/EntryPoint.sol
 // V6 source: https://github.com/eth-infinitism/account-abstraction/blob/fa61290d37d079e928d92d53a122efcc63822214/contracts/core/EntryPoint.sol#L236
 export function calculateAA95GasFloor({
