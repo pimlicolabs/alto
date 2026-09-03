@@ -36,7 +36,8 @@ import {
     getAuthorizationListFromUserOps,
     getUserOpHashes,
     isFeeCapTooLowError,
-    isTransactionUnderpricedError
+    isTransactionUnderpricedError,
+    parseNonceFromError
 } from "./utils"
 
 type HandleOpsTxParams = {
@@ -376,14 +377,30 @@ export class Executor {
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
+                    // Prefer the nonce the node reported in its error;
+                    // otherwise step blindly toward it.
                     if (cause instanceof NonceTooLowError) {
-                        childLogger.warn("Nonce too low, retrying")
-                        request.nonce = request.nonce + 1
+                        const nodeNonce = parseNonceFromError(error)
+                        childLogger.warn(
+                            { txNonce: request.nonce, nodeNonce },
+                            "Nonce too low, retrying"
+                        )
+                        request.nonce =
+                            nodeNonce !== undefined && nodeNonce > request.nonce
+                                ? nodeNonce
+                                : request.nonce + 1
                     }
 
                     if (cause instanceof NonceTooHighError) {
-                        childLogger.warn("Nonce too high, retrying")
-                        request.nonce = request.nonce - 1
+                        const nodeNonce = parseNonceFromError(error)
+                        childLogger.warn(
+                            { txNonce: request.nonce, nodeNonce },
+                            "Nonce too high, retrying"
+                        )
+                        request.nonce =
+                            nodeNonce !== undefined && nodeNonce < request.nonce
+                                ? nodeNonce
+                                : request.nonce - 1
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
