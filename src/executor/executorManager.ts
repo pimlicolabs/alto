@@ -699,18 +699,76 @@ export class ExecutorManager {
             networkGasPrice,
             networkBaseFee,
             userOpBundle: bundle,
-            nonce: transactionRequest.nonce
+            nonce: transactionRequest.nonce,
+            isReplacement: true
         })
+
+        // The nonce of the bundle we tried to replace was consumed whilst
+        // replacing it.
+        if (!bundleResult.success && bundleResult.reason === "nonce_conflict") {
+            const [bundleStatus] = await this.bundleManager.getBundleStatuses([
+                submittedBundle
+            ])
+
+            // One of the bundle's own transactions was mined - resolve the
+            // userOps against it now (inclusion, reverts, wallet release)
+            // instead of resending and reverting with AA25.
+            if (
+                bundleStatus.status === "included" ||
+                bundleStatus.status === "reverted"
+            ) {
+                this.logger.info(
+                    {
+                        oldTxHash,
+                        minedTxHash: bundleStatus.transactionHash,
+                        reason,
+                        userOps: getUserOpHashes(bundle.userOps)
+                    },
+                    "bundle mined during replacement, skipping replacement"
+                )
+
+                this.metrics.replacedTransactions
+                    .labels({ reason, status: "already_mined" })
+                    .inc()
+            }
+
+            if (bundleStatus.status === "included") {
+                await this.bundleManager.processIncludedBundle({
+                    submittedBundle,
+                    bundleReceipt: bundleStatus,
+                    blockReceivedTimestamp
+                })
+                return
+            }
+
+            if (bundleStatus.status === "reverted") {
+                await this.bundleManager.processRevertedBundle({
+                    submittedBundle,
+                    bundleReceipt: bundleStatus,
+                    blockReceivedTimestamp
+                })
+                return
+            }
+
+            // The nonce was consumed by an unknown transaction (e.g. a
+            // cancel tx) - the userOps didn't land onchain, fall through to
+            // the failure handling below to resubmit them and free the
+            // wallet.
+        }
 
         // Handle case where no bundle was sent.
         if (!bundleResult.success) {
-            const { rejectedUserOps, recoverableOps, reason } = bundleResult
+            const {
+                rejectedUserOps,
+                recoverableOps,
+                reason: failureReason
+            } = bundleResult
 
             // Recover any userOps that can be resubmitted.
             await this.mempool.resubmitUserOps({
                 userOps: recoverableOps,
                 entryPoint,
-                reason
+                reason: failureReason
             })
 
             // For rejected userOps, we need to check for frontruns
@@ -770,6 +828,7 @@ export class ExecutorManager {
                     {
                         oldTxHash,
                         reason,
+                        failureReason,
                         userOps: getUserOpHashes(rejectedUserOps)
                     },
                     "failed to replace bundle"
