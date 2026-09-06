@@ -128,20 +128,14 @@ export class Executor {
         // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
         // GasBid = min(maxFee, base + priority)
         if (chainType === "arbitrum") {
-            const scaledBaseFee = scaleBigIntByPercent(
+            const gasBid = scaleBigIntByPercent(
                 networkBaseFee,
-                100n + 20n * BigInt(bundle.submissionAttempts)
+                arbitrumBaseFeeMultiplier
             )
 
             return {
-                maxFeePerGas: scaleBigIntByPercent(
-                    scaledBaseFee,
-                    arbitrumBaseFeeMultiplier
-                ),
-                maxPriorityFeePerGas: scaleBigIntByPercent(
-                    scaledBaseFee,
-                    arbitrumBaseFeeMultiplier
-                )
+                maxFeePerGas: gasBid,
+                maxPriorityFeePerGas: gasBid
             }
         }
 
