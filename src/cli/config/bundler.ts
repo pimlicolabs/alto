@@ -154,7 +154,8 @@ export const executorArgsSchema = z.object({
     "gas-price-replacement-threshold": z
         .string()
         .transform(BigInt)
-        .default("10")
+        .default("10"),
+    "reorg-confirmation-depth": z.number().int().min(0).default(0)
 })
 
 export const utilityArgsSchema = z.object({

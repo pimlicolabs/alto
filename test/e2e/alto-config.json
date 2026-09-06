@@ -19,5 +19,6 @@
     "enforce-unique-senders-per-bundle": false,
     "code-override-support": true,
     "enable-instant-bundling-endpoint": true,
+    "reorg-confirmation-depth": 2,
     "bundling-mode": "manual"
 }

@@ -856,6 +856,13 @@ const OpEventType = z.union([
         })
     }),
     z.object({
+        eventType: z.literal("reorged_onchain"),
+        transactionHash: hexData32Schema,
+        data: z.object({
+            blockNumber: z.number()
+        })
+    }),
+    z.object({
         eventType: z.literal("failed_onchain"),
         transactionHash: hexData32Schema,
         data: z.object({

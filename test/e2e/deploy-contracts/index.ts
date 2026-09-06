@@ -1,6 +1,7 @@
 import {
     http,
     type Address,
+    type Hex,
     type PublicClient,
     createPublicClient,
     createWalletClient
@@ -60,195 +61,100 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
         transport: http(anvilRpc)
     })
 
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+    const deployments: { data: Hex; label: string }[] = [
+        {
             data: SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V09_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[7702] Deploying Simple7702AccountImplementation (0.9)"
-            )
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[7702] Deploying Simple7702AccountImplementation (0.9)"
+        },
+        {
             data: SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V08_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[7702] Deploying Simple7702AccountImplementation (0.8)"
-            )
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[7702] Deploying Simple7702AccountImplementation (0.8)"
+        },
+        {
             data: SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V07_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[7702] Deploying Simple7702AccountImplementation (0.7)"
-            )
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[7702] Deploying Simple7702AccountImplementation (0.7)"
+        },
+        {
             data: SIMPLE_7702_ACCOUNT_IMPLEMENTATION_V06_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[7702] Deploying Simple7702AccountImplementation (0.6)"
-            )
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[7702] Deploying Simple7702AccountImplementation (0.6)"
+        },
+        {
             data: ENTRY_POINT_V09_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.9 CORE] Deploying EntryPoint"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.9 CORE] Deploying EntryPoint"
+        },
+        {
             data: SIMPLE_ACCOUNT_FACTORY_V09_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.9 CORE] Deploying SimpleAccountFactory"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.9 CORE] Deploying SimpleAccountFactory"
+        },
+        {
             data: ENTRY_POINT_V08_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.8 CORE] Deploying EntryPoint"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.8 CORE] Deploying EntryPoint"
+        },
+        {
             data: SIMPLE_ACCOUNT_FACTORY_V08_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.8 CORE] Deploying SimpleAccountFactory"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.8 CORE] Deploying SimpleAccountFactory"
+        },
+        {
             data: ENTRY_POINT_V07_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.7 CORE] Deploying EntryPoint"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.7 CORE] Deploying EntryPoint"
+        },
+        {
             data: SIMPLE_ACCOUNT_FACTORY_V07_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.7 CORE] Deploying SimpleAccountFactory"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.7 CORE] Deploying SimpleAccountFactory"
+        },
+        {
             data: ENTRY_POINT_V06_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.6 CORE] Deploying EntryPoint"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.6 CORE] Deploying EntryPoint"
+        },
+        {
             data: SIMPLE_ACCOUNT_FACTORY_V06_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[0.6 CORE] Deploying SimpleAccountFactory"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[0.6 CORE] Deploying SimpleAccountFactory"
+        },
+        {
             data: BASE_EIP7702_PROXY_NONCE_TRACKER_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[BaseEIP7702Proxy] Deploying NonceTracker"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[BaseEIP7702Proxy] Deploying NonceTracker"
+        },
+        {
             data: BASE_EIP7702_PROXY_DEFAULT_RECEIVER_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() => console.log("[BaseEIP7702Proxy] Deploying DefaultReceiver"))
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[BaseEIP7702Proxy] Deploying DefaultReceiver"
+        },
+        {
             data: BASE_EIP7702_PROXY_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log("[BaseEIP7702Proxy] Deploying BaseEIP7702Proxy")
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[BaseEIP7702Proxy] Deploying BaseEIP7702Proxy"
+        },
+        {
             data: BASE_EIP7702_PROXY_SIMPLE_7702_ACCOUNT_VALIDATOR_V08_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.8)"
-            )
-        )
-
-    walletClient
-        .sendTransaction({
-            to: DETERMINISTIC_DEPLOYER,
+            label: "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.8)"
+        },
+        {
             data: BASE_EIP7702_PROXY_SIMPLE_7702_ACCOUNT_VALIDATOR_V09_CREATECALL,
-            gas: 15_000_000n,
-            nonce: nonce++
-        })
-        .then(() =>
-            console.log(
-                "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.9)"
-            )
+            label: "[BaseEIP7702Proxy] Deploying Simple7702AccountValidator (0.9)"
+        }
+    ]
+
+    // Send sequentially so txs arrive at anvil in nonce order. Anvil in
+    // auto-mine only mines a tx whose nonce is next; txs arriving out of
+    // order are queued and may never be flushed if no further traffic
+    // arrives, which hangs the setup.
+    const txHashes: Hex[] = []
+    for (const { data, label } of deployments) {
+        txHashes.push(
+            await walletClient.sendTransaction({
+                to: DETERMINISTIC_DEPLOYER,
+                data,
+                gas: 15_000_000n,
+                nonce: nonce++
+            })
         )
+        console.log(label)
+    }
 
     // Wait for all deploy/setup txs to be mined.
-    let onchainNonce = 0
-    do {
-        onchainNonce = await client.getTransactionCount({
-            address: walletClient.account.address
-        })
-        await new Promise((resolve) => setTimeout(resolve, 500))
-    } while (onchainNonce !== nonce)
-
-    console.log("okay")
+    await Promise.all(
+        txHashes.map((hash) =>
+            client.waitForTransactionReceipt({ hash, pollingInterval: 50 })
+        )
+    )
 
     await verifyDeployed({
         client,

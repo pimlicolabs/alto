@@ -37,7 +37,8 @@ import {
     getAuthorizationListFromUserOps,
     getUserOpHashes,
     isFeeCapTooLowError,
-    isTransactionUnderpricedError
+    isTransactionUnderpricedError,
+    parseNonceFromError
 } from "./utils"
 
 type HandleOpsTxParams = {
@@ -128,20 +129,14 @@ export class Executor {
         // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
         // GasBid = min(maxFee, base + priority)
         if (chainType === "arbitrum") {
-            const scaledBaseFee = scaleBigIntByPercent(
+            const gasBid = scaleBigIntByPercent(
                 networkBaseFee,
-                100n + 20n * BigInt(bundle.submissionAttempts)
+                arbitrumBaseFeeMultiplier
             )
 
             return {
-                maxFeePerGas: scaleBigIntByPercent(
-                    scaledBaseFee,
-                    arbitrumBaseFeeMultiplier
-                ),
-                maxPriorityFeePerGas: scaleBigIntByPercent(
-                    scaledBaseFee,
-                    arbitrumBaseFeeMultiplier
-                )
+                maxFeePerGas: gasBid,
+                maxPriorityFeePerGas: gasBid
             }
         }
 
@@ -381,6 +376,8 @@ export class Executor {
                 if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
+                    // Prefer the nonce the node reported in its error;
+                    // otherwise step blindly toward it.
                     if (cause instanceof NonceTooLowError) {
                         // A replacement's nonce was consumed by another
                         // transaction - resending with a fresh nonce could
@@ -391,19 +388,27 @@ export class Executor {
                             throw new ReplacementNonceConflictError()
                         }
 
-                        childLogger.warn("Nonce too low, retrying")
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: request.from,
-                            blockTag: "latest"
-                        })
+                        const nodeNonce = parseNonceFromError(error)
+                        childLogger.warn(
+                            { txNonce: request.nonce, nodeNonce },
+                            "Nonce too low, retrying"
+                        )
+                        request.nonce =
+                            nodeNonce !== undefined && nodeNonce > request.nonce
+                                ? nodeNonce
+                                : request.nonce + 1
                     }
 
                     if (cause instanceof NonceTooHighError) {
-                        childLogger.warn("Nonce too high, retrying")
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: request.from,
-                            blockTag: "latest"
-                        })
+                        const nodeNonce = parseNonceFromError(error)
+                        childLogger.warn(
+                            { txNonce: request.nonce, nodeNonce },
+                            "Nonce too high, retrying"
+                        )
+                        request.nonce =
+                            nodeNonce !== undefined && nodeNonce < request.nonce
+                                ? nodeNonce
+                                : request.nonce - 1
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {

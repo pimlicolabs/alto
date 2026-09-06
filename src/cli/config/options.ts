@@ -532,6 +532,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false,
         default: "10"
+    },
+    "reorg-confirmation-depth": {
+        description:
+            "Number of blocks an included bundle must survive before it is considered final.",
+        type: "number",
+        require: false,
+        default: 0
     }
 }
 
