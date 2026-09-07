@@ -750,6 +750,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "number",
         require: false
     },
+    "fixed-block-interval": {
+        description:
+            "When set, skip watching block numbers over RPC and instead treat every N milliseconds as a new block. Use when eth_blockNumber is slow or unreliable.",
+        type: "number",
+        require: false
+    },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",
         type: "number",

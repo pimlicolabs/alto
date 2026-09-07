@@ -222,8 +222,14 @@ export class ExecutorManager {
             return
         }
 
-        // If preconfirmationTime is set, poll at intervals instead of watching blocks
-        if (this.config.flashblocksPreconfirmationTime) {
+        // If a fixed interval is configured (or flashblocks preconfirmation
+        // time), treat every tick as a new block instead of watching block
+        // numbers over RPC. This keeps bundling going when eth_blockNumber
+        // is slow or unresponsive.
+        const fixedInterval =
+            this.config.fixedBlockInterval ??
+            this.config.flashblocksPreconfirmationTime
+        if (fixedInterval) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
                 try {
@@ -231,7 +237,7 @@ export class ExecutorManager {
                 } catch (err) {
                     this.logger.error({ err }, "error while polling blocks")
                 }
-            }, this.config.flashblocksPreconfirmationTime)
+            }, fixedInterval)
 
             // Store cleanup function
             this.unWatch = () => {
