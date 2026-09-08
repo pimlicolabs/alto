@@ -13,7 +13,13 @@ import type {
     UserOpInfo,
     UserOperationReceipt
 } from "@alto/types"
-import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
+import {
+    AsyncTimeoutError,
+    type Logger,
+    type Metrics,
+    asyncCallWithTimeout,
+    parseUserOpReceipt
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -91,18 +97,31 @@ export class BundleManager {
         return Array.from(this.pendingBundles.values())
     }
 
+    // When timeout is set, a bundle whose receipts don't come back in time
+    // is reported as not_found for this tick instead of holding the loop.
     getBundleStatuses(
-        pendingBundles: SubmittedBundleInfo[]
+        pendingBundles: SubmittedBundleInfo[],
+        { timeout }: { timeout?: number } = {}
     ): Promise<BundleStatus[]> {
         return Promise.all(
             pendingBundles.map(async (bundle) => {
                 try {
-                    return await getBundleStatus({
+                    const statusPromise = getBundleStatus({
                         submittedBundle: bundle,
                         publicClient: this.config.publicClient,
                         logger: this.logger
                     })
+                    return timeout
+                        ? await asyncCallWithTimeout(statusPromise, timeout)
+                        : await statusPromise
                 } catch (err) {
+                    if (err instanceof AsyncTimeoutError) {
+                        this.logger.warn(
+                            { transactionHash: bundle.transactionHash },
+                            "bundle status fetch timed out, treating as not found"
+                        )
+                        return { status: "not_found" as const }
+                    }
                     sentry.captureException(err)
                     return {
                         status: "internal_error" as const,
@@ -542,7 +561,9 @@ export class BundleManager {
         const { userOps, entryPoint } = bundle
 
         this.stopTrackingBundle(submittedBundle)
-        await this.senderManager.markWalletProcessed(executor)
+        if (!submittedBundle.walletReleased) {
+            await this.senderManager.markWalletProcessed(executor)
+        }
         await this.mempool.removeProcessing({ entryPoint, userOps })
     }
 

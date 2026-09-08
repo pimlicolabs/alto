@@ -15,6 +15,10 @@ export type SubmittedBundleInfo = {
     bundle: UserOperationBundle
     executor: Account
     lastReplaced: number
+    // Set when the executor wallet was handed back to the sender manager
+    // before this bundle was confirmed (emergency mode). Consumers must not
+    // release the wallet again.
+    walletReleased?: boolean
 }
 
 // Serializable version of SubmittedBundleInfo for persistence to Redis/queue

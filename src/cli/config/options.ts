@@ -750,11 +750,19 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "number",
         require: false
     },
-    "fixed-block-interval": {
+    "emergency-mode": {
         description:
-            "When set, skip watching block numbers over RPC and instead treat every N milliseconds as a new block. Use when eth_blockNumber is slow or unreliable.",
+            "Keep bundling when RPC reads (receipts, logs, block number) lag but transaction submission works. Runs the block loop on a fixed 1s tick instead of watching block numbers, bounds RPC calls in that loop, releases executor wallets as soon as a bundle is accepted, and disables stuck-bundle replacement.",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "emergency-rpc-timeout": {
+        description:
+            "Timeout (ms) applied to RPC calls inside the block handling loop while emergency mode is enabled",
         type: "number",
-        require: false
+        require: false,
+        default: 2000
     },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",
