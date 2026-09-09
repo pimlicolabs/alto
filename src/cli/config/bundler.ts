@@ -245,6 +245,7 @@ export const rpcArgsSchema = z.object({
     "block-polling-interval": z.number().int().min(0).optional(),
     "emergency-mode": z.boolean().optional().default(false),
     "emergency-rpc-timeout": z.number().int().min(1).optional().default(2000),
+    "emergency-gas-price": z.string().transform(BigInt).optional(),
     "max-block-wait-count": z.number().int().min(0).optional().default(2),
     "max-block-range": z.number().int().min(0).optional(),
     "block-number-cache-ttl": z.number().int().min(0).optional().default(15000), // Default to 15s

@@ -5,6 +5,7 @@ import {
 } from "@alto/types"
 import {
     type Logger,
+    asyncCallWithTimeout,
     maxBigInt,
     minBigInt,
     scaleBigIntByPercent
@@ -515,6 +516,61 @@ export class GasPriceManager {
         }
     }
 
+    // In emergency mode RPC reads are time-bounded. A read that doesn't
+    // return in time falls back to the given value instead of blocking the
+    // send path; if there is no fallback the original error propagates.
+    private async withEmergencyFallback<T>({
+        fetch,
+        fallback,
+        what
+    }: {
+        fetch: () => Promise<T>
+        fallback: () => Promise<T | undefined>
+        what: string
+    }): Promise<T> {
+        if (!this.config.emergencyMode) {
+            return await fetch()
+        }
+
+        try {
+            return await asyncCallWithTimeout(
+                fetch(),
+                this.config.emergencyRpcTimeout
+            )
+        } catch (err) {
+            const value = await fallback()
+            if (value === undefined) {
+                throw err
+            }
+            this.logger.warn(
+                { err, what },
+                "emergency mode: RPC read failed, using fallback value"
+            )
+            return value
+        }
+    }
+
+    private async emergencyGasPriceFallback(): Promise<
+        GasPriceParameters | undefined
+    > {
+        const emergencyGasPrice = this.config.emergencyGasPrice
+        if (emergencyGasPrice !== undefined) {
+            return {
+                maxFeePerGas: emergencyGasPrice,
+                maxPriorityFeePerGas: emergencyGasPrice
+            }
+        }
+
+        const [maxFeePerGas, maxPriorityFeePerGas] = await Promise.all([
+            this.maxFeePerGasQueue.getLatestValue(),
+            this.maxPriorityFeePerGasQueue.getLatestValue()
+        ])
+        if (maxFeePerGas && maxPriorityFeePerGas) {
+            return { maxFeePerGas, maxPriorityFeePerGas }
+        }
+        return undefined
+    }
+
     public async getBaseFee(): Promise<bigint> {
         try {
             if (this.config.legacyTransactions) {
@@ -522,7 +578,13 @@ export class GasPriceManager {
             }
 
             if (this.config.gasPriceRefreshInterval === 0) {
-                return await this.tryUpdateBaseFee()
+                return await this.withEmergencyFallback({
+                    fetch: () => this.tryUpdateBaseFee(),
+                    fallback: async () =>
+                        (await this.baseFeePerGasQueue.getLatestValue()) ??
+                        undefined,
+                    what: "baseFee"
+                })
             }
 
             let baseFee = await this.baseFeePerGasQueue.getLatestValue()
@@ -562,7 +624,11 @@ export class GasPriceManager {
 
         if (this.config.gasPriceRefreshInterval === 0) {
             try {
-                return await this.tryUpdateGasPrice()
+                return await this.withEmergencyFallback({
+                    fetch: () => this.tryUpdateGasPrice(),
+                    fallback: () => this.emergencyGasPriceFallback(),
+                    what: "gasPrice"
+                })
             } catch (e) {
                 this.logger.error(e, "No gas price available")
                 throw new Error("No gas price available")
@@ -590,7 +656,11 @@ export class GasPriceManager {
     }: {
         forExecutor: boolean
     }): Promise<GasPriceParameters> {
-        return await this.innerGetGasPrice({ forExecutor })
+        return await this.withEmergencyFallback({
+            fetch: () => this.innerGetGasPrice({ forExecutor }),
+            fallback: () => this.emergencyGasPriceFallback(),
+            what: "networkGasPrice"
+        })
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {

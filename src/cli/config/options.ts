@@ -759,10 +759,16 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "emergency-rpc-timeout": {
         description:
-            "Timeout (ms) applied to RPC calls inside the block handling loop while emergency mode is enabled",
+            "Timeout (ms) applied to RPC reads (block loop, gas price, base fee) while emergency mode is enabled",
         type: "number",
         require: false,
         default: 2000
+    },
+    "emergency-gas-price": {
+        description:
+            "Gas price (wei) used for maxFeePerGas and maxPriorityFeePerGas when a gas price read times out in emergency mode. Without it the last known price is used.",
+        type: "string",
+        require: false
     },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",
