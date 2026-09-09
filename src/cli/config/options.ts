@@ -766,9 +766,10 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "emergency-gas-price": {
         description:
-            "Gas price (wei) used for maxFeePerGas and maxPriorityFeePerGas when a gas price read times out in emergency mode. Without it the last known price is used.",
+            "Gas price (wei) used for maxFeePerGas and maxPriorityFeePerGas when a gas price read times out in emergency mode",
         type: "string",
-        require: false
+        require: false,
+        default: "1000000000" // 1 gwei
     },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",

@@ -523,7 +523,8 @@ export class ExecutorManager {
 
         const [bundleStatuses, networkGasPrice, networkBaseFee] =
             await Promise.all([
-                this.bundleManager.getBundleStatuses(pendingBundles, {
+                this.bundleManager.getBundleStatuses({
+                    pendingBundles,
                     timeout: rpcTimeout
                 }),
                 bounded(
@@ -745,9 +746,9 @@ export class ExecutorManager {
         // The nonce of the bundle we tried to replace was consumed whilst
         // replacing it.
         if (!bundleResult.success && bundleResult.reason === "nonce_conflict") {
-            const [bundleStatus] = await this.bundleManager.getBundleStatuses([
-                submittedBundle
-            ])
+            const [bundleStatus] = await this.bundleManager.getBundleStatuses({
+                pendingBundles: [submittedBundle]
+            })
 
             // One of the bundle's own transactions was mined - resolve the
             // userOps against it now (inclusion, reverts, wallet release)

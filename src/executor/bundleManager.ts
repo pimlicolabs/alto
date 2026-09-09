@@ -99,10 +99,13 @@ export class BundleManager {
 
     // When timeout is set, a bundle whose receipts don't come back in time
     // is reported as not_found for this tick instead of holding the loop.
-    getBundleStatuses(
-        pendingBundles: SubmittedBundleInfo[],
-        { timeout }: { timeout?: number } = {}
-    ): Promise<BundleStatus[]> {
+    getBundleStatuses({
+        pendingBundles,
+        timeout
+    }: {
+        pendingBundles: SubmittedBundleInfo[]
+        timeout?: number
+    }): Promise<BundleStatus[]> {
         return Promise.all(
             pendingBundles.map(async (bundle) => {
                 try {
