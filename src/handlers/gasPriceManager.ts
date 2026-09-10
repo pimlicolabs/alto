@@ -411,10 +411,8 @@ export class GasPriceManager {
         }
     }
 
-    // This method throws if it can't get a valid RPC response, except in
-    // emergency mode where a slow or failed read returns the last known gas
-    // price, or the configured emergency gas price if none is known, so the
-    // send path never blocks on the RPC.
+    // Throws if it can't get a valid RPC response. In emergency mode falls
+    // back to the last known value, then to emergencyGasPrice.
     private async innerGetGasPrice({
         forExecutor
     }: {
@@ -560,11 +558,8 @@ export class GasPriceManager {
         }
     }
 
-    // This method throws if it can't get a valid RPC response, except in
-    // emergency mode where a slow or failed read returns the last known base
-    // fee, or the configured emergency gas price if none is known, so callers
-    // never block on the RPC. On Arbitrum the base fee is the entire gas bid,
-    // so returning 0n here would make every bundle unsendable.
+    // Throws if it can't get a valid RPC response. In emergency mode falls
+    // back to the last known value, then to emergencyGasPrice.
     private async innerGetBaseFee(): Promise<bigint> {
         if (!this.config.emergencyMode) {
             return await this.tryUpdateBaseFee()

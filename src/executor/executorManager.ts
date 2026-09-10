@@ -426,15 +426,10 @@ export class ExecutorManager {
         }
 
         if (this.emergencyMode) {
-            // Receipts can't be relied on, so don't track the bundle. Free the
-            // wallet and userOps now; eth_getUserOperationReceipt still reads
-            // logs live, but status stays "submitted" and reverted or reorged
-            // bundles are not recovered.
+            // Receipts can't be relied on, free the wallet and userOps now.
             await this.bundleManager.freeSubmittedBundle(submittedBundle)
         } else {
-            // Track bundle and start loop to watch blocks. Must happen before
-            // any await so a failed store write can't leave a broadcast
-            // bundle untracked.
+            // Track bundle and start loop to watch blocks.
             this.bundleManager.trackBundle(submittedBundle)
             this.startWatchingBlocks()
         }
