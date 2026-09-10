@@ -16,8 +16,6 @@ import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
-// Block loop tick used in emergency mode, when block numbers can't be trusted.
-const EMERGENCY_MODE_TICK_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
@@ -42,9 +40,9 @@ export class ExecutorManager {
 
     private currentlyHandlingBlock = false
     private currentlyHandlingBlockNumber: bigint | undefined
-    // Emergency mode keeps bundling when RPC reads lag but submission works:
-    // fixed block ticks, bounded RPC calls in the block loop, wallets
-    // released on acceptance, and no stuck-bundle replacement.
+    // Emergency mode keeps bundling when RPC reads lag but submission works.
+    // Submitted bundles are not tracked: the wallet and userOps are freed as
+    // soon as the transaction is accepted, so nothing waits on receipts.
     private readonly emergencyMode: boolean
 
     constructor({
@@ -229,11 +227,9 @@ export class ExecutorManager {
             return
         }
 
-        // If preconfirmationTime is set, or emergency mode is on, poll at a
-        // fixed interval instead of watching block numbers over RPC.
-        const fixedInterval =
-            this.config.flashblocksPreconfirmationTime ??
-            (this.emergencyMode ? EMERGENCY_MODE_TICK_MS : undefined)
+        // If preconfirmationTime is set, poll at a fixed interval instead of
+        // watching block numbers over RPC.
+        const fixedInterval = this.config.flashblocksPreconfirmationTime
         if (fixedInterval) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
@@ -425,22 +421,22 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        // Track bundle and start loop to watch blocks
-        this.bundleManager.trackBundle(submittedBundle)
-        this.startWatchingBlocks()
-
-        // In emergency mode we can't rely on receipts to free the wallet, so
-        // hand it back as soon as the transaction is accepted. The bundle
-        // stays tracked for status updates once reads recover.
-        if (this.emergencyMode) {
-            submittedBundle.walletReleased = true
-            await this.senderManager.markWalletProcessed(wallet)
-        }
-
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
             transactionHash: submittedBundle.transactionHash
         })
+
+        if (this.emergencyMode) {
+            // Receipts can't be relied on, so don't track the bundle. Free the
+            // wallet and userOps now; eth_getUserOperationReceipt still reads
+            // logs live, but status stays "submitted" and reverted or reorged
+            // bundles are not recovered.
+            await this.bundleManager.freeSubmittedBundle(submittedBundle)
+        } else {
+            // Track bundle and start loop to watch blocks
+            this.bundleManager.trackBundle(submittedBundle)
+            this.startWatchingBlocks()
+        }
 
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
@@ -507,21 +503,9 @@ export class ExecutorManager {
             return
         }
 
-        // In emergency mode every RPC read in this loop is time-bounded so a
-        // lagging node can't hold the block handling guard. Receipt lookups
-        // are bounded here; gas price and base fee reads are bounded inside
-        // GasPriceManager, which also owns the emergency fallbacks.
-        const emergencyMode = this.emergencyMode
-        const rpcTimeout = emergencyMode
-            ? this.config.emergencyRpcTimeout
-            : undefined
-
         const [bundleStatuses, networkGasPrice, networkBaseFee] =
             await Promise.all([
-                this.bundleManager.getBundleStatuses({
-                    pendingBundles,
-                    timeout: rpcTimeout
-                }),
+                this.bundleManager.getBundleStatuses({ pendingBundles }),
                 this.gasPriceManager
                     .tryGetNetworkGasPrice({ forExecutor: true })
                     .catch(() => ({
@@ -550,9 +534,7 @@ export class ExecutorManager {
                 }
 
                 // can be potentially resubmitted - so we first submit it again to optimize for the speed
-                // In emergency mode "not found" most likely means "included
-                // but not yet visible", so replacing would duplicate it.
-                if (bundleStatus.status === "not_found" && !emergencyMode) {
+                if (bundleStatus.status === "not_found") {
                     this.potentiallyResubmitBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
@@ -871,9 +853,7 @@ export class ExecutorManager {
             }
 
             // Free wallet as no bundle was sent.
-            if (!submittedBundle.walletReleased) {
-                await this.senderManager.markWalletProcessed(executor)
-            }
+            await this.senderManager.markWalletProcessed(executor)
 
             this.metrics.replacedTransactions
                 .labels({ reason, status: "failed" })

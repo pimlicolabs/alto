@@ -752,7 +752,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "emergency-mode": {
         description:
-            "Keep bundling when RPC reads lag but submission works. Bounds RPC reads, frees wallets on acceptance, disables replacement, skips gas price and PVG checks",
+            "Keep bundling when RPC reads lag but submission works. Bounds gas reads, frees wallets and userOps on submission without tracking receipts, skips gas price and PVG checks",
         type: "boolean",
         require: false,
         default: false
