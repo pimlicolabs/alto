@@ -766,7 +766,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "emergency-gas-price": {
         description:
-            "Gas price (wei) used for maxFeePerGas and maxPriorityFeePerGas when a gas price read times out in emergency mode",
+            "Gas price (wei) used for maxFeePerGas and maxPriorityFeePerGas when a gas price read times out in emergency mode. Also used as the base fee when a base fee read times out and no previous value is known",
         type: "string",
         require: false,
         default: "1000000000" // 1 gwei

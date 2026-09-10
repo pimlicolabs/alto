@@ -423,6 +423,7 @@ export class GasPriceManager {
             return await this.fetchGasPrice({ forExecutor })
         }
 
+        // Emergency mode
         try {
             return await asyncCallWithTimeout(
                 this.fetchGasPrice({ forExecutor }),
@@ -548,12 +549,15 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response, except in
     // emergency mode where a slow or failed read returns the last known base
-    // fee so callers never block on the RPC.
+    // fee, or the configured emergency gas price if none is known, so callers
+    // never block on the RPC. On Arbitrum the base fee is the entire gas bid,
+    // so returning 0n here would make every bundle unsendable.
     private async innerGetBaseFee(): Promise<bigint> {
         if (!this.config.emergencyMode) {
             return await this.tryUpdateBaseFee()
         }
 
+        // Emergency mode
         try {
             return await asyncCallWithTimeout(
                 this.tryUpdateBaseFee(),
@@ -561,14 +565,20 @@ export class GasPriceManager {
             )
         } catch (err) {
             const lastKnown = await this.baseFeePerGasQueue.getLatestValue()
-            if (lastKnown === null) {
-                throw err
+            if (lastKnown !== null) {
+                this.logger.warn(
+                    { err },
+                    "base fee read failed in emergency mode, using last known value"
+                )
+                return lastKnown
             }
+
+            const { emergencyGasPrice } = this.config
             this.logger.warn(
-                { err },
-                "base fee read failed in emergency mode, using last known value"
+                { err, emergencyGasPrice },
+                "base fee read failed in emergency mode with no last known value, using emergency gas price"
             )
-            return lastKnown
+            return emergencyGasPrice
         }
     }
 
