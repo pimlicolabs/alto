@@ -537,7 +537,7 @@ export class BundleManager {
     }
 
     // Free executors and remove userOps from mempool.
-    async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
+    private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
         const { executor, bundle } = submittedBundle
         const { userOps, entryPoint } = bundle
 
