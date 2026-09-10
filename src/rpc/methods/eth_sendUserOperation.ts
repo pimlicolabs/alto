@@ -105,8 +105,10 @@ const validatePvg = async ({
     config: AltoConfig
     isBoosted?: boolean
 }): Promise<[boolean, string]> => {
-    // PVG validation is skipped for v1
-    if (apiVersion === "v1" || isBoosted) {
+    // PVG validation is skipped for v1 and boosted userOperations, and in
+    // emergency mode where the L2 fee inputs come from RPC reads that may be
+    // stale, slow, or replaced by the emergency fallback.
+    if (apiVersion === "v1" || isBoosted || config.emergencyMode) {
         return [true, ""]
     }
 

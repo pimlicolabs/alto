@@ -752,7 +752,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "emergency-mode": {
         description:
-            "Keep bundling when RPC reads (receipts, logs, block number) lag but transaction submission works. Runs the block loop on a fixed 1s tick instead of watching block numbers, bounds RPC calls in that loop, releases executor wallets as soon as a bundle is accepted, and disables stuck-bundle replacement.",
+            "Keep bundling when RPC reads (receipts, logs, block number) lag but transaction submission works. Runs the block loop on a fixed 1s tick instead of watching block numbers, bounds RPC calls in that loop, releases executor wallets as soon as a bundle is accepted, disables stuck-bundle replacement, and skips the maxFeePerGas and preVerificationGas checks on eth_sendUserOperation.",
         type: "boolean",
         require: false,
         default: false
