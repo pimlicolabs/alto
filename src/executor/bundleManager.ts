@@ -91,11 +91,9 @@ export class BundleManager {
         return Array.from(this.pendingBundles.values())
     }
 
-    getBundleStatuses({
-        pendingBundles
-    }: {
+    getBundleStatuses(
         pendingBundles: SubmittedBundleInfo[]
-    }): Promise<BundleStatus[]> {
+    ): Promise<BundleStatus[]> {
         return Promise.all(
             pendingBundles.map(async (bundle) => {
                 try {
