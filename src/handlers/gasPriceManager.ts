@@ -411,57 +411,47 @@ export class GasPriceManager {
         }
     }
 
-    // Runs an RPC read. Outside emergency mode errors propagate. In emergency
-    // mode the read is bounded by emergencyRpcTimeout and a slow or failed
-    // read resolves to the fallback so callers never block on the RPC.
-    private async withEmergencyFallback<T>({
-        read,
-        fallback
+    // This method throws if it can't get a valid RPC response, except in
+    // emergency mode where a slow or failed read returns the last known gas
+    // price, or the configured emergency gas price if none is known, so the
+    // send path never blocks on the RPC.
+    private async innerGetGasPrice({
+        forExecutor
     }: {
-        read: () => Promise<T>
-        fallback: (err: unknown) => Promise<T>
-    }): Promise<T> {
+        forExecutor: boolean
+    }): Promise<GasPriceParameters> {
         if (!this.config.emergencyMode) {
-            return await read()
+            return await this.fetchGasPrice({ forExecutor })
         }
 
+        // Emergency mode
         try {
             return await asyncCallWithTimeout(
-                read(),
+                this.fetchGasPrice({ forExecutor }),
                 this.config.emergencyRpcTimeout
             )
         } catch (err) {
-            return await fallback(err)
-        }
-    }
+            const [maxFeePerGas, maxPriorityFeePerGas] = await Promise.all([
+                this.maxFeePerGasQueue.getLatestValue(),
+                this.maxPriorityFeePerGasQueue.getLatestValue()
+            ])
+            if (maxFeePerGas !== null && maxPriorityFeePerGas !== null) {
+                this.logger.warn(
+                    { err },
+                    "gas price read failed in emergency mode, using last known value"
+                )
+                return { maxFeePerGas, maxPriorityFeePerGas }
+            }
 
-    // Last known gas price, or the configured emergency gas price if none is
-    // known. Never saved to the queues so a fallback can't masquerade as an
-    // observed value.
-    private async getFallbackGasPrice(
-        err: unknown
-    ): Promise<GasPriceParameters> {
-        const [maxFeePerGas, maxPriorityFeePerGas] = await Promise.all([
-            this.maxFeePerGasQueue.getLatestValue(),
-            this.maxPriorityFeePerGasQueue.getLatestValue()
-        ])
-
-        if (maxFeePerGas !== null && maxPriorityFeePerGas !== null) {
+            const { emergencyGasPrice } = this.config
             this.logger.warn(
-                { err },
-                "gas price read failed in emergency mode, using last known value"
+                { err, emergencyGasPrice },
+                "gas price read failed in emergency mode with no last known value, using emergency gas price"
             )
-            return { maxFeePerGas, maxPriorityFeePerGas }
-        }
-
-        const { emergencyGasPrice } = this.config
-        this.logger.warn(
-            { err, emergencyGasPrice },
-            "gas price read failed in emergency mode with no last known value, using emergency gas price"
-        )
-        return {
-            maxFeePerGas: emergencyGasPrice,
-            maxPriorityFeePerGas: emergencyGasPrice
+            return {
+                maxFeePerGas: emergencyGasPrice,
+                maxPriorityFeePerGas: emergencyGasPrice
+            }
         }
     }
 
@@ -572,30 +562,37 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response, except in
     // emergency mode where a slow or failed read returns the last known base
-    // fee, or the configured emergency gas price if none is known. On Arbitrum
-    // the base fee is the entire gas bid, so returning 0n here would make
-    // every bundle unsendable.
+    // fee, or the configured emergency gas price if none is known, so callers
+    // never block on the RPC. On Arbitrum the base fee is the entire gas bid,
+    // so returning 0n here would make every bundle unsendable.
     private async innerGetBaseFee(): Promise<bigint> {
-        return await this.withEmergencyFallback({
-            read: () => this.tryUpdateBaseFee(),
-            fallback: async (err) => {
-                const lastKnown = await this.baseFeePerGasQueue.getLatestValue()
-                if (lastKnown !== null) {
-                    this.logger.warn(
-                        { err },
-                        "base fee read failed in emergency mode, using last known value"
-                    )
-                    return lastKnown
-                }
+        if (!this.config.emergencyMode) {
+            return await this.tryUpdateBaseFee()
+        }
 
-                const { emergencyGasPrice } = this.config
+        // Emergency mode
+        try {
+            return await asyncCallWithTimeout(
+                this.tryUpdateBaseFee(),
+                this.config.emergencyRpcTimeout
+            )
+        } catch (err) {
+            const lastKnown = await this.baseFeePerGasQueue.getLatestValue()
+            if (lastKnown !== null) {
                 this.logger.warn(
-                    { err, emergencyGasPrice },
-                    "base fee read failed in emergency mode with no last known value, using emergency gas price"
+                    { err },
+                    "base fee read failed in emergency mode, using last known value"
                 )
-                return emergencyGasPrice
+                return lastKnown
             }
-        })
+
+            const { emergencyGasPrice } = this.config
+            this.logger.warn(
+                { err, emergencyGasPrice },
+                "base fee read failed in emergency mode with no last known value, using emergency gas price"
+            )
+            return emergencyGasPrice
+        }
     }
 
     public async getBaseFee(): Promise<bigint> {
@@ -625,21 +622,14 @@ export class GasPriceManager {
 
     // This method throws if it can't get a valid RPC response.
     private async tryUpdateGasPrice(): Promise<GasPriceParameters> {
-        return await this.withEmergencyFallback({
-            read: async () => {
-                const gasPrice = await this.fetchGasPrice({
-                    forExecutor: false
-                })
-
-                this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
-                this.maxPriorityFeePerGasQueue.saveValue(
-                    gasPrice.maxPriorityFeePerGas
-                )
-
-                return gasPrice
-            },
-            fallback: (err) => this.getFallbackGasPrice(err)
+        const gasPrice = await this.innerGetGasPrice({
+            forExecutor: false
         })
+
+        this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
+        this.maxPriorityFeePerGasQueue.saveValue(gasPrice.maxPriorityFeePerGas)
+
+        return gasPrice
     }
 
     public async getGasPrice(): Promise<GasPriceParameters> {
@@ -681,10 +671,7 @@ export class GasPriceManager {
     }: {
         forExecutor: boolean
     }): Promise<GasPriceParameters> {
-        return await this.withEmergencyFallback({
-            read: () => this.fetchGasPrice({ forExecutor }),
-            fallback: (err) => this.getFallbackGasPrice(err)
-        })
+        return await this.innerGetGasPrice({ forExecutor })
     }
 
     public async getMaxBaseFeePerGas(): Promise<bigint> {
