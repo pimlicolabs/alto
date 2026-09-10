@@ -16,6 +16,8 @@ import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
+// Block loop tick used in emergency mode, when eth_getBlock can't be trusted.
+const EMERGENCY_MODE_TICK_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
@@ -227,9 +229,11 @@ export class ExecutorManager {
             return
         }
 
-        // If preconfirmationTime is set, poll at a fixed interval instead of
-        // watching block numbers over RPC.
-        const fixedInterval = this.config.flashblocksPreconfirmationTime
+        // If preconfirmationTime is set, or emergency mode is on, poll at a
+        // fixed interval instead of watching blocks over RPC.
+        const fixedInterval =
+            this.config.flashblocksPreconfirmationTime ??
+            (this.emergencyMode ? EMERGENCY_MODE_TICK_MS : undefined)
         if (fixedInterval) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
@@ -421,11 +425,6 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        await this.mempool.markUserOpsAsSubmitted({
-            userOps: submittedBundle.bundle.userOps,
-            transactionHash: submittedBundle.transactionHash
-        })
-
         if (this.emergencyMode) {
             // Receipts can't be relied on, so don't track the bundle. Free the
             // wallet and userOps now; eth_getUserOperationReceipt still reads
@@ -433,10 +432,17 @@ export class ExecutorManager {
             // bundles are not recovered.
             await this.bundleManager.freeSubmittedBundle(submittedBundle)
         } else {
-            // Track bundle and start loop to watch blocks
+            // Track bundle and start loop to watch blocks. Must happen before
+            // any await so a failed store write can't leave a broadcast
+            // bundle untracked.
             this.bundleManager.trackBundle(submittedBundle)
             this.startWatchingBlocks()
         }
+
+        await this.mempool.markUserOpsAsSubmitted({
+            userOps: submittedBundle.bundle.userOps,
+            transactionHash: submittedBundle.transactionHash
+        })
 
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
