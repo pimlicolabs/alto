@@ -750,6 +750,26 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "number",
         require: false
     },
+    "emergency-mode": {
+        description:
+            "Keep bundling when RPC reads lag but submission works. Bounds gas reads, frees userOps on submission and wallets 1s later without tracking receipts, skips gas price and PVG checks",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "emergency-rpc-timeout": {
+        description: "Timeout (ms) for RPC reads in emergency mode",
+        type: "number",
+        require: false,
+        default: 2000
+    },
+    "emergency-gas-price": {
+        description:
+            "Fallback gas price and base fee (wei) when reads time out in emergency mode",
+        type: "string",
+        require: false,
+        default: "1000000000" // 1 gwei
+    },
     "max-block-wait-count": {
         description: "Max block wait count for frontrun check",
         type: "number",

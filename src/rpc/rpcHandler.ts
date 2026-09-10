@@ -241,7 +241,14 @@ export class RpcHandler {
         apiVersion: ApiVersion
         isBoosted?: boolean
     }): Promise<[boolean, string]> {
-        if (apiVersion === "v1" || this.config.safeMode || isBoosted) {
+        // Skipped in emergency mode: the gas price floor is derived from RPC
+        // reads that may be stale or replaced by the emergency fallback.
+        if (
+            apiVersion === "v1" ||
+            this.config.safeMode ||
+            this.config.emergencyMode ||
+            isBoosted
+        ) {
             return [true, ""]
         }
 

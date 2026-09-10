@@ -16,6 +16,9 @@ import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
+// Delay before an emergency mode wallet is handed back after its bundle is
+// accepted, so the pending tx isn't raced by a reused nonce.
+const EMERGENCY_WALLET_RELEASE_DELAY_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
@@ -40,6 +43,10 @@ export class ExecutorManager {
 
     private currentlyHandlingBlock = false
     private currentlyHandlingBlockNumber: bigint | undefined
+    // Emergency mode keeps bundling when RPC reads lag but submission works.
+    // Submitted bundles are not tracked: userOps are freed on acceptance and
+    // the wallet is handed back after a short delay, so nothing waits on receipts.
+    private readonly emergencyMode: boolean
 
     constructor({
         config,
@@ -72,6 +79,7 @@ export class ExecutorManager {
         this.senderManager = senderManager
         this.bundlingMode = this.config.bundleMode
         this.bundleManager = bundleManager
+        this.emergencyMode = this.config.emergencyMode
 
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.redisBlockCache = {
@@ -222,8 +230,10 @@ export class ExecutorManager {
             return
         }
 
-        // If preconfirmationTime is set, poll at intervals instead of watching blocks
-        if (this.config.flashblocksPreconfirmationTime) {
+        // If preconfirmationTime is set, poll at a fixed interval instead of
+        // watching blocks over RPC.
+        const fixedInterval = this.config.flashblocksPreconfirmationTime
+        if (fixedInterval) {
             // Set up interval to call handleBlock
             const intervalId = setInterval(async () => {
                 try {
@@ -231,7 +241,7 @@ export class ExecutorManager {
                 } catch (err) {
                     this.logger.error({ err }, "error while polling blocks")
                 }
-            }, this.config.flashblocksPreconfirmationTime)
+            }, fixedInterval)
 
             // Store cleanup function
             this.unWatch = () => {
@@ -414,9 +424,23 @@ export class ExecutorManager {
             lastReplaced: Date.now()
         }
 
-        // Track bundle and start loop to watch blocks
-        this.bundleManager.trackBundle(submittedBundle)
-        this.startWatchingBlocks()
+        if (this.emergencyMode) {
+            // Receipts can't be relied on, free the userOps now and the wallet
+            // after a short delay.
+            await this.mempool.removeProcessing({
+                entryPoint,
+                userOps: submittedBundle.bundle.userOps
+            })
+            setTimeout(() => {
+                this.senderManager.markWalletProcessed(wallet).catch((err) => {
+                    this.logger.error({ err }, "failed to release wallet")
+                })
+            }, EMERGENCY_WALLET_RELEASE_DELAY_MS)
+        } else {
+            // Track bundle and start loop to watch blocks.
+            this.bundleManager.trackBundle(submittedBundle)
+            this.startWatchingBlocks()
+        }
 
         await this.mempool.markUserOpsAsSubmitted({
             userOps: submittedBundle.bundle.userOps,
