@@ -6,12 +6,7 @@ import type {
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
-import {
-    type Logger,
-    type Metrics,
-    asyncCallWithTimeout,
-    scaleBigIntByPercent
-} from "@alto/utils"
+import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex, WatchBlocksReturnType } from "viem"
@@ -512,14 +507,14 @@ export class ExecutorManager {
             return
         }
 
-        // In emergency mode every RPC call in this loop is time-bounded so a
-        // lagging node can't hold the block handling guard.
+        // In emergency mode every RPC read in this loop is time-bounded so a
+        // lagging node can't hold the block handling guard. Receipt lookups
+        // are bounded here; gas price and base fee reads are bounded inside
+        // GasPriceManager, which also owns the emergency fallbacks.
         const emergencyMode = this.emergencyMode
         const rpcTimeout = emergencyMode
             ? this.config.emergencyRpcTimeout
             : undefined
-        const bounded = <T>(promise: Promise<T>): Promise<T> =>
-            rpcTimeout ? asyncCallWithTimeout(promise, rpcTimeout) : promise
 
         const [bundleStatuses, networkGasPrice, networkBaseFee] =
             await Promise.all([
@@ -527,15 +522,13 @@ export class ExecutorManager {
                     pendingBundles,
                     timeout: rpcTimeout
                 }),
-                bounded(
-                    this.gasPriceManager.tryGetNetworkGasPrice({
-                        forExecutor: true
-                    })
-                ).catch(() => ({
-                    maxFeePerGas: 0n,
-                    maxPriorityFeePerGas: 0n
-                })),
-                bounded(this.getBaseFee()).catch(() => 0n)
+                this.gasPriceManager
+                    .tryGetNetworkGasPrice({ forExecutor: true })
+                    .catch(() => ({
+                        maxFeePerGas: 0n,
+                        maxPriorityFeePerGas: 0n
+                    })),
+                this.getBaseFee().catch(() => 0n)
             ])
 
         await Promise.all(

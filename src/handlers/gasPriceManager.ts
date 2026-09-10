@@ -546,6 +546,32 @@ export class GasPriceManager {
         }
     }
 
+    // This method throws if it can't get a valid RPC response, except in
+    // emergency mode where a slow or failed read returns the last known base
+    // fee so callers never block on the RPC.
+    private async innerGetBaseFee(): Promise<bigint> {
+        if (!this.config.emergencyMode) {
+            return await this.tryUpdateBaseFee()
+        }
+
+        try {
+            return await asyncCallWithTimeout(
+                this.tryUpdateBaseFee(),
+                this.config.emergencyRpcTimeout
+            )
+        } catch (err) {
+            const lastKnown = await this.baseFeePerGasQueue.getLatestValue()
+            if (lastKnown === null) {
+                throw err
+            }
+            this.logger.warn(
+                { err },
+                "base fee read failed in emergency mode, using last known value"
+            )
+            return lastKnown
+        }
+    }
+
     public async getBaseFee(): Promise<bigint> {
         try {
             if (this.config.legacyTransactions) {
@@ -553,33 +579,12 @@ export class GasPriceManager {
             }
 
             if (this.config.gasPriceRefreshInterval === 0) {
-                if (!this.config.emergencyMode) {
-                    return await this.tryUpdateBaseFee()
-                }
-
-                // Emergency mode: bound the read, fall back to last known.
-                try {
-                    return await asyncCallWithTimeout(
-                        this.tryUpdateBaseFee(),
-                        this.config.emergencyRpcTimeout
-                    )
-                } catch (err) {
-                    const lastKnown =
-                        await this.baseFeePerGasQueue.getLatestValue()
-                    if (lastKnown === null) {
-                        throw err
-                    }
-                    this.logger.warn(
-                        { err },
-                        "base fee read failed in emergency mode, using last known value"
-                    )
-                    return lastKnown
-                }
+                return await this.innerGetBaseFee()
             }
 
             let baseFee = await this.baseFeePerGasQueue.getLatestValue()
             if (!baseFee) {
-                baseFee = await this.tryUpdateBaseFee()
+                baseFee = await this.innerGetBaseFee()
             }
 
             return baseFee
