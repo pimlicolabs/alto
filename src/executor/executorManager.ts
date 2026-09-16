@@ -134,7 +134,16 @@ export class ExecutorManager {
 
         // Send bundles to executor
         for (const bundle of bundles) {
-            this.sendBundleToExecutor(bundle)
+            this.sendBundleToExecutor(bundle).catch((err) => {
+                this.logger.error(
+                    {
+                        err,
+                        entryPoint: bundle.entryPoint,
+                        userOps: getUserOpHashes(bundle.userOps)
+                    },
+                    "unexpected error sending bundle to executor"
+                )
+            })
         }
 
         const rpm = this.opsCount.length
