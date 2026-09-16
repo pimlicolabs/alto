@@ -105,18 +105,31 @@ export const createRedisSenderManager = async ({
         getWallet: async () => {
             logger.trace("waiting for wallet ")
 
-            let walletAddress: string | null = null
+            let wallet: Account | undefined
 
-            while (!walletAddress) {
-                walletAddress = await walletPool.pop()
-                await delay(100)
-            }
+            while (!wallet) {
+                const walletAddress = await walletPool.pop()
 
-            const wallet = wallets.find((w) => w.address === walletAddress)
+                if (walletAddress) {
+                    wallet = wallets.find((w) => w.address === walletAddress)
 
-            // should never happen
-            if (!wallet) {
-                throw new Error("wallet not found")
+                    // Can happen during a rolling deploy when a newer
+                    // instance registered wallets this instance doesn't
+                    // have a key for. Return it so it isn't lost from the
+                    // pool and keep waiting for a wallet we can use.
+                    if (!wallet) {
+                        await walletPool.push(walletAddress)
+                        logger.warn(
+                            { executor: walletAddress },
+                            "popped unknown wallet from pool, returning it"
+                        )
+                    }
+                }
+
+                // Pool empty or unknown wallet, small backoff then poll again
+                if (!wallet) {
+                    await delay(100)
+                }
             }
 
             activeWallets.add(wallet)
