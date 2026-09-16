@@ -126,8 +126,7 @@ export const createRedisSenderManager = async ({
                     }
                 }
 
-                // Pool empty or we got an unknown wallet, back off before
-                // polling again.
+                // Pool empty or unknown wallet, small backoff then poll again
                 if (!wallet) {
                     await delay(100)
                 }
