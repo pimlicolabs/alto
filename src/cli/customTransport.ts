@@ -1,4 +1,5 @@
 import type { Logger } from "@alto/utils"
+import { fetch as undiciFetch } from "undici"
 import {
     type Hex,
     type HttpTransport,
@@ -91,7 +92,9 @@ export function customTransport(
                             await rpc.http(url, {
                                 body,
                                 fetchOptions,
-                                timeout
+                                timeout,
+                                // undici's fetch always uses the Agent set in alto.ts; Node's built-in fetch only does when its bundled undici matches.
+                                fetchFn: undiciFetch as unknown as typeof fetch
                             })
                         ]
                     }
