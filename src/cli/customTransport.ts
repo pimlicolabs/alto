@@ -1,5 +1,5 @@
 import type { Logger } from "@alto/utils"
-import { fetch as undiciFetch } from "undici"
+import { Agent, fetch as undiciFetch } from "undici"
 import {
     type Hex,
     type HttpTransport,
@@ -60,6 +60,12 @@ const CALLPHASE_REVERTED_SELECTOR = toFunctionSelector(
     )
 )
 
+// Reuse connections for 50s (undici default is 4s) so sends skip the TLS handshake.
+const keepAliveAgent = new Agent({
+    keepAliveTimeout: 50_000,
+    keepAliveMaxTimeout: 50_000
+})
+
 export function customTransport(
     /** URL of the JSON-RPC API. Defaults to the chain's public RPC URL. */
     url_: string,
@@ -91,9 +97,12 @@ export function customTransport(
                         return [
                             await rpc.http(url, {
                                 body,
-                                fetchOptions,
+                                fetchOptions: {
+                                    ...fetchOptions,
+                                    dispatcher: keepAliveAgent
+                                } as RequestInit,
                                 timeout,
-                                // undici's fetch always uses the Agent set in alto.ts; Node's built-in fetch only does when its bundled undici matches.
+                                // undici's fetch, so the dispatcher is honoured on any Node version.
                                 fetchFn: undiciFetch as unknown as typeof fetch
                             })
                         ]

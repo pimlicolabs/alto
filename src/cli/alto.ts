@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import * as sentry from "@sentry/node"
 import dotenv from "dotenv"
-import { Agent, setGlobalDispatcher } from "undici"
 import { HttpRequestError, InternalRpcError, TimeoutError } from "viem"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
@@ -21,19 +20,6 @@ import {
     utilityOptions
 } from "./config"
 import { registerCommandToYargs } from "./util"
-
-// Keep outbound HTTP connections open between requests. Node's fetch drops an
-// idle connection after 4s by default, which is longer than the gap between
-// bundle sends on a quiet chain or pod, so most sends to the sequencer paid
-// a fresh DNS + TCP + TLS handshake. 50s stays under the 60s idle timeout
-// used by common load balancers so we do not reuse a socket the server has
-// already closed.
-setGlobalDispatcher(
-    new Agent({
-        keepAliveTimeout: 50_000,
-        keepAliveMaxTimeout: 50_000
-    })
-)
 
 // Load environment variables from .env file
 if (process.env.DOTENV_CONFIG_PATH) {
