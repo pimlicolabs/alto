@@ -168,6 +168,20 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    const inclusionStalled = new Gauge({
+        name: "alto_inclusion_stalled",
+        help: "Whether blocks are advancing while no pending bundle lands (0=OK, 1=stalled)",
+        labelNames: [] as const,
+        registers
+    })
+
+    const stuckReplacementsSkipped = new Counter({
+        name: "alto_stuck_replacements_skipped_total",
+        help: "Number of stuck-bundle replacements skipped during an inclusion stall",
+        labelNames: [] as const,
+        registers
+    })
+
     const userOpsResubmitted = new Counter({
         name: "alto_user_operations_resubmitted_total",
         help: "Number of user operations resubmitted",
@@ -271,6 +285,8 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,
+        inclusionStalled,
+        stuckReplacementsSkipped,
         userOpsResubmitted,
         userOpsDropped,
         utilityWalletBalance,

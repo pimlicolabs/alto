@@ -469,6 +469,27 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         require: false,
         default: "4337"
     },
+    "inclusion-stall-blocks": {
+        description:
+            "Number of consecutive blocks with pending bundles and no inclusions before the chain is treated as stalled and stuck-bundle replacements are paused (0 disables)",
+        type: "number",
+        require: false,
+        default: 5
+    },
+    "inclusion-stall-min-duration": {
+        description:
+            "Minimum time (in ms) without inclusions, in addition to inclusion-stall-blocks, before the chain is treated as stalled",
+        type: "number",
+        require: false,
+        default: 15_000
+    },
+    "inclusion-stall-max-pause": {
+        description:
+            "While stalled, a stuck bundle is still replaced once it has gone this long (in ms) without a replacement, so a dropped transaction is eventually rebroadcast",
+        type: "number",
+        require: false,
+        default: 60_000
+    },
     "executor-gas-multiplier": {
         description: "Amount to scale the gas estimations used for bundling",
         type: "string",

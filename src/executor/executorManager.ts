@@ -13,6 +13,7 @@ import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
+import { InclusionStallDetector } from "./inclusionStallDetector"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
@@ -31,6 +32,7 @@ export class ExecutorManager {
     private readonly metrics: Metrics
     private readonly gasPriceManager: GasPriceManager
     private readonly bundleManager: BundleManager
+    private readonly inclusionStallDetector: InclusionStallDetector
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private unWatch: WatchBlocksReturnType | undefined
@@ -80,6 +82,10 @@ export class ExecutorManager {
         this.bundlingMode = this.config.bundleMode
         this.bundleManager = bundleManager
         this.emergencyMode = this.config.emergencyMode
+        this.inclusionStallDetector = new InclusionStallDetector({
+            minBlocks: config.inclusionStallBlocks,
+            minDurationMs: config.inclusionStallMinDuration
+        })
 
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             this.redisBlockCache = {
@@ -484,6 +490,14 @@ export class ExecutorManager {
 
         const pendingBundles = this.bundleManager.getPendingBundles()
 
+        if (pendingBundles.length === 0) {
+            this.updateInclusionStall({
+                blockNumber,
+                pendingCount: 0,
+                landedCount: 0
+            })
+        }
+
         // Keep watching while inclusions still await their reorg check.
         if (
             pendingBundles.length === 0 &&
@@ -523,6 +537,15 @@ export class ExecutorManager {
                     })),
                 this.getBaseFee().catch(() => 0n)
             ])
+
+        // Update before resubmitting so this block's result is taken into account.
+        this.updateInclusionStall({
+            blockNumber,
+            pendingCount: pendingBundles.length,
+            landedCount: bundleStatuses.filter(
+                ({ status }) => status === "included" || status === "reverted"
+            ).length
+        })
 
         await Promise.all(
             bundleStatuses.map(async (bundleStatus, index) => {
@@ -564,6 +587,50 @@ export class ExecutorManager {
 
         this.currentlyHandlingBlock = false
         this.currentlyHandlingBlockNumber = undefined
+    }
+
+    private updateInclusionStall({
+        blockNumber,
+        pendingCount,
+        landedCount
+    }: {
+        blockNumber: bigint | undefined
+        pendingCount: number
+        landedCount: number
+    }) {
+        const { transition, blocksWithoutInclusion, stalledForMs } =
+            this.inclusionStallDetector.update({
+                blockNumber,
+                now: Date.now(),
+                pendingCount,
+                landedCount
+            })
+
+        if (transition === undefined) {
+            return
+        }
+
+        const context = {
+            chainId: this.config.chainId,
+            blockNumber: blockNumber?.toString(),
+            pendingBundles: pendingCount,
+            blocksWithoutInclusion,
+            stalledForMs
+        }
+
+        if (transition === "entered") {
+            this.metrics.inclusionStalled.set(1)
+            this.logger.warn(
+                context,
+                "inclusion stall detected, pausing stuck bundle replacements"
+            )
+        } else {
+            this.metrics.inclusionStalled.set(0)
+            this.logger.info(
+                context,
+                "inclusion stall cleared, resuming stuck bundle replacements"
+            )
+        }
     }
 
     potentiallyResubmitBundle({
@@ -612,6 +679,18 @@ export class ExecutorManager {
                 reason: "gas_price"
             })
         } else if (isStuck) {
+            // Blocks advance but nothing of ours lands, so bumping gas won't
+            // help. Hold stuck replacements (gas_price ones still go through)
+            // until inclusions resume or the max pause elapses, which still
+            // rebroadcasts a tx the node may have dropped.
+            const isPausedByStall =
+                this.inclusionStallDetector.isStalled() &&
+                Date.now() - lastReplaced < this.config.inclusionStallMaxPause
+            if (isPausedByStall) {
+                this.metrics.stuckReplacementsSkipped.inc()
+                return
+            }
+
             this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceBundle({
                 blockReceivedTimestamp,

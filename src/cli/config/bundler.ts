@@ -125,6 +125,9 @@ export const executorArgsSchema = z.object({
         )
         .optional()
         .default("4337"),
+    "inclusion-stall-blocks": z.number().int().min(0).default(5),
+    "inclusion-stall-min-duration": z.number().int().min(0).default(15_000),
+    "inclusion-stall-max-pause": z.number().int().min(0).default(60_000),
     "executor-private-keys": z.union([
         z
             .array(hexData32Schema)
