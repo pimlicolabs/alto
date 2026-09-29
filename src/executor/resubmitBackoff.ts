@@ -23,7 +23,7 @@ export const getEffectiveStuckTimeout = ({
     return Math.min(resubmitStuckTimeout * backoff, maxStuckTimeout)
 }
 
-// A pending bundle stops being replaced once it has been resubmitted
+// A stuck bundle stops being replaced once it has been resubmitted
 // maxResubmits times. maxResubmits is optional: when unset there is no limit.
 export const hasReachedMaxResubmits = ({
     submissionAttempts,
@@ -33,4 +33,42 @@ export const hasReachedMaxResubmits = ({
     maxResubmits: number | undefined
 }): boolean => {
     return maxResubmits !== undefined && submissionAttempts >= maxResubmits
+}
+
+export type ResubmitAction =
+    | "replace_gas_price"
+    | "replace_stuck"
+    | "drop"
+    | "none"
+
+// Decide what to do with a pending bundle that hasn't been mined yet.
+// Gas-price bumps take priority and are exempt from max-resubmits: a bundle
+// priced below the network is always replaced, regardless of the cap. Only
+// stuck replacements are capped. submissionAttempts counts every replacement
+// (gas-price bumps included), so the stuck cap and backoff are driven by the
+// total number of attempts.
+export const getResubmitAction = ({
+    isGasPriceTooLow,
+    isStuck,
+    submissionAttempts,
+    maxResubmits
+}: {
+    isGasPriceTooLow: boolean
+    isStuck: boolean
+    submissionAttempts: number
+    maxResubmits: number | undefined
+}): ResubmitAction => {
+    if (isGasPriceTooLow) {
+        return "replace_gas_price"
+    }
+
+    if (!isStuck) {
+        return "none"
+    }
+
+    if (hasReachedMaxResubmits({ submissionAttempts, maxResubmits })) {
+        return "drop"
+    }
+
+    return "replace_stuck"
 }

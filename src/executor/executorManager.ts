@@ -13,10 +13,7 @@ import type { Hex, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
-import {
-    getEffectiveStuckTimeout,
-    hasReachedMaxResubmits
-} from "./resubmitBackoff"
+import { getEffectiveStuckTimeout, getResubmitAction } from "./resubmitBackoff"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
@@ -588,24 +585,6 @@ export class ExecutorManager {
         const { maxFeePerGas, maxPriorityFeePerGas } = transactionRequest
         const { entryPoint, submissionAttempts } = bundle
 
-        // Stop replacing a pending bundle once it has hit the resubmit cap and
-        // drop its userOps, mirroring the mempool resubmit path. Without this a
-        // chain stall could replace the same bundle unboundedly.
-        if (
-            hasReachedMaxResubmits({
-                submissionAttempts,
-                maxResubmits: this.config.maxResubmits
-            })
-        ) {
-            this.bundleManager.stopTrackingBundle(submittedBundle)
-            const rejectedUserOps = bundle.userOps.map((userOpInfo) => ({
-                ...userOpInfo,
-                reason: "max resubmits reached"
-            }))
-            this.mempool.dropUserOps(entryPoint, rejectedUserOps)
-            return
-        }
-
         const replacementPercent =
             100n + this.config.gasPriceReplacementThreshold
 
@@ -625,7 +604,7 @@ export class ExecutorManager {
         // The stuck-resubmit interval widens with each replacement attempt so a
         // chain stall produces a gentle backoff instead of a fixed-cadence
         // replacement storm. A genuine gas-market move still triggers a fast
-        // replacement via the isGasPriceTooLow path above.
+        // replacement via the isGasPriceTooLow path.
         const effectiveStuckTimeout = getEffectiveStuckTimeout({
             submissionAttempts,
             resubmitStuckTimeout: this.config.resubmitStuckTimeout,
@@ -635,7 +614,18 @@ export class ExecutorManager {
 
         const isStuck = Date.now() - lastReplaced > effectiveStuckTimeout
 
-        if (isGasPriceTooLow) {
+        // Gas-price bumps are always replaced and exempt from max-resubmits.
+        // Only stuck replacements are capped: once a stuck bundle hits the cap
+        // we stop replacing it and drop its userOps, mirroring the mempool
+        // resubmit path, so a chain stall can't replace it unboundedly.
+        const action = getResubmitAction({
+            isGasPriceTooLow,
+            isStuck,
+            submissionAttempts,
+            maxResubmits: this.config.maxResubmits
+        })
+
+        if (action === "replace_gas_price") {
             this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceBundle({
                 blockReceivedTimestamp,
@@ -644,7 +634,7 @@ export class ExecutorManager {
                 networkBaseFee,
                 reason: "gas_price"
             })
-        } else if (isStuck) {
+        } else if (action === "replace_stuck") {
             this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceBundle({
                 blockReceivedTimestamp,
@@ -653,6 +643,20 @@ export class ExecutorManager {
                 networkBaseFee,
                 reason: "stuck"
             })
+        } else if (action === "drop") {
+            this.bundleManager.stopTrackingBundle(submittedBundle)
+            const rejectedUserOps = bundle.userOps.map((userOpInfo) => ({
+                ...userOpInfo,
+                reason: "max resubmits reached"
+            }))
+            this.mempool
+                .dropUserOps(entryPoint, rejectedUserOps)
+                .catch((err: unknown) => {
+                    this.logger.error(
+                        { err },
+                        "failed to drop userOps after max resubmits"
+                    )
+                })
         }
     }
 
