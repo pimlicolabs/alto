@@ -455,6 +455,20 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false
     },
+    "resubmit-stuck-backoff-factor": {
+        description:
+            "Multiplier applied to resubmit-stuck-timeout for each prior replacement attempt, so the stuck-resubmit interval backs off exponentially during a chain stall (1 disables backoff)",
+        type: "number",
+        require: false,
+        default: 2
+    },
+    "max-resubmit-stuck-timeout": {
+        description:
+            "Upper bound (in ms) for the backed-off stuck-resubmit interval, capping how far resubmit-stuck-backoff-factor can grow it",
+        type: "number",
+        require: false,
+        default: 120_000
+    },
     "resubmit-multiplier-ceiling": {
         description:
             "Maximum multiplier for gasPrice when resubmitting transactions",

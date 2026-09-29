@@ -21,6 +21,8 @@ export default defineConfig({
         sequence: {
             concurrent: false
         },
+        // Unit tests run via vitest.unit.config.ts without the anvil globalSetup.
+        exclude: ["**/node_modules/**", "tests/unit/**"],
         fileParallelism: false,
         globalSetup: join(__dirname, "./setup.ts"),
         environment: "node",

@@ -115,6 +115,8 @@ export const executorArgsSchema = z.object({
     "max-bundle-count": z.number().int().min(1).optional(),
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
     "max-resubmits": z.number().int().min(0).optional(),
+    "resubmit-stuck-backoff-factor": z.number().min(1).default(2),
+    "max-resubmit-stuck-timeout": z.number().int().min(0).default(120_000),
     "resubmit-multiplier-ceiling": z.string().transform(BigInt),
     "gas-limit-rounding-multiple": z
         .string()
