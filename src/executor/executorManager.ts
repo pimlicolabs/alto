@@ -94,9 +94,21 @@ export class ExecutorManager {
         }
     }
 
+    // Rejection handler for fire-and-forget async work. It logs which task
+    // failed, then rethrows so the rejection still reaches the process-level
+    // unhandledRejection handler (graceful shutdown), as it did before.
+    private logAndRethrow(message: string): (err: unknown) => never {
+        return (err: unknown) => {
+            this.logger.error({ err }, message)
+            throw err
+        }
+    }
+
     start(): void {
         if (this.bundlingMode === "auto") {
-            this.autoScalingBundling()
+            this.autoScalingBundling().catch(
+                this.logAndRethrow("auto scaling bundling failed")
+            )
         }
     }
 
@@ -110,7 +122,9 @@ export class ExecutorManager {
         }
 
         if (bundleMode === "auto") {
-            this.autoScalingBundling()
+            this.autoScalingBundling().catch(
+                this.logAndRethrow("auto scaling bundling failed")
+            )
         }
     }
 
@@ -135,7 +149,9 @@ export class ExecutorManager {
 
         // Send bundles to executor
         for (const bundle of bundles) {
-            this.sendBundleToExecutor(bundle)
+            this.sendBundleToExecutor(bundle).catch(
+                this.logAndRethrow("failed to send bundle to executor")
+            )
         }
 
         const rpm = this.opsCount.length
@@ -498,13 +514,15 @@ export class ExecutorManager {
 
         // Make reorg check if configured.
         if (this.config.reorgConfirmationDepth > 0) {
-            this.bundleManager.checkIncludedBundles({
-                blockNumber,
-                reorgConfirmationDepth: BigInt(
-                    this.config.reorgConfirmationDepth
-                ),
-                blockReceivedTimestamp
-            })
+            this.bundleManager
+                .checkIncludedBundles({
+                    blockNumber,
+                    reorgConfirmationDepth: BigInt(
+                        this.config.reorgConfirmationDepth
+                    ),
+                    blockReceivedTimestamp
+                })
+                .catch(this.logAndRethrow("failed to check included bundles"))
         }
 
         if (pendingBundles.length === 0) {
@@ -633,7 +651,7 @@ export class ExecutorManager {
                 networkGasPrice,
                 networkBaseFee,
                 reason: "gas_price"
-            })
+            }).catch(this.logAndRethrow("failed to replace underpriced bundle"))
         } else if (action === "replace_stuck") {
             this.bundleManager.stopTrackingBundle(submittedBundle)
             this.replaceBundle({
@@ -642,7 +660,7 @@ export class ExecutorManager {
                 networkGasPrice,
                 networkBaseFee,
                 reason: "stuck"
-            })
+            }).catch(this.logAndRethrow("failed to replace stuck bundle"))
         } else if (action === "drop") {
             this.bundleManager.stopTrackingBundle(submittedBundle)
             const rejectedUserOps = bundle.userOps.map((userOpInfo) => ({
