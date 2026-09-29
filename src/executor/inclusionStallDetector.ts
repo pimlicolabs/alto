@@ -72,9 +72,7 @@ export class InclusionStallDetector {
             return this.snapshot({ transition: undefined, now })
         }
 
-        if (this.streakStartedAt === undefined) {
-            this.streakStartedAt = now
-        }
+        this.streakStartedAt ??= now
         this.blocksWithoutInclusion++
 
         const shouldStall =
