@@ -232,18 +232,25 @@ export class GasPriceManager {
         let maxFeePerGas: bigint | undefined
         let maxPriorityFeePerGas: bigint | undefined
 
-        const { publicClient, staticMaxPriorityFeePerGas } = this.config
+        const { publicClient, staticMaxPriorityFeePerGas, chainType } =
+            this.config
 
         try {
             let chain: Chain | undefined
 
             // If staticMaxPriorityFeePerGas is set, use it as a static value instead of RPC estimation.
-            if (staticMaxPriorityFeePerGas) {
+            // Arbitrum ignores priority fees and eth_maxPriorityFeePerGas always returns 0,
+            // so skip that RPC call and use 0 (handled by the zero fallback below).
+            const fixedMaxPriorityFeePerGas =
+                staticMaxPriorityFeePerGas ||
+                (chainType === "arbitrum" ? 0n : undefined)
+
+            if (fixedMaxPriorityFeePerGas !== undefined) {
                 chain = {
                     ...publicClient.chain,
                     fees: {
                         ...publicClient.chain.fees,
-                        maxPriorityFeePerGas: staticMaxPriorityFeePerGas
+                        maxPriorityFeePerGas: fixedMaxPriorityFeePerGas
                     }
                 }
             }
