@@ -118,12 +118,15 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
-        help: "Duration of user operation inclusion from first submission to inclusion on-chain",
+        help: "Duration from a user operation reaching the bundler to the bundler seeing it included on-chain",
         labelNames: [] as const,
         registers,
+        // Sub-second buckets so fast chains (flashblocks, Arbitrum) get real
+        // percentiles instead of interpolation within a single 0-0.5s bucket
         buckets: [
-            0.5, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120,
-            180, 240, 300, 600, 900, 1200
+            0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.75, 1, 1.5,
+            2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120, 180,
+            240, 300, 600, 900, 1200
         ]
     })
 
@@ -136,7 +139,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDurationBlocks = new Histogram({
         name: "alto_user_operation_inclusion_duration_blocks",
-        help: "Number of blocks from first submission to inclusion on-chain",
+        help: "Number of blocks from a user operation reaching the bundler to the bundler seeing it included on-chain",
         labelNames: [] as const,
         registers,
         buckets: [
