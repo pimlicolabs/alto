@@ -95,7 +95,7 @@ export class ExecutorManager {
 
     start(): void {
         if (this.bundlingMode === "auto") {
-            this.autoScalingBundling()
+            void this.autoScalingBundling()
         }
     }
 
@@ -109,7 +109,7 @@ export class ExecutorManager {
         }
 
         if (bundleMode === "auto") {
-            this.autoScalingBundling()
+            void this.autoScalingBundling()
         }
     }
 
@@ -134,7 +134,7 @@ export class ExecutorManager {
 
         // Send bundles to executor
         for (const bundle of bundles) {
-            this.sendBundleToExecutor(bundle)
+            void this.sendBundleToExecutor(bundle)
         }
 
         const rpm = this.opsCount.length
@@ -497,7 +497,7 @@ export class ExecutorManager {
 
         // Make reorg check if configured.
         if (this.config.reorgConfirmationDepth > 0) {
-            this.bundleManager.checkIncludedBundles({
+            void this.bundleManager.checkIncludedBundles({
                 blockNumber,
                 reorgConfirmationDepth: BigInt(
                     this.config.reorgConfirmationDepth
@@ -609,7 +609,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceBundle({
+            void this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -618,7 +618,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceBundle({
+            void this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -629,76 +629,96 @@ export class ExecutorManager {
     }
 
     async cancelBundle(submittedBundle: SubmittedBundleInfo): Promise<void> {
-        const {
-            bundle: { userOps },
-            executor,
-            transactionRequest,
-            transactionHash
-        } = submittedBundle
+        await this.tryCancelBundle({
+            submittedBundle,
+            logger: this.logger.child({
+                userOps: getUserOpHashes(submittedBundle.bundle.userOps)
+            }),
+            attempt: 0,
+            gasMultiplier: 150n // Start with 50% increase
+        })
+    }
+
+    // Retries are sequential: each attempt waits for the previous one to land.
+    private async tryCancelBundle({
+        submittedBundle,
+        logger,
+        attempt,
+        gasMultiplier
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        logger: Logger
+        attempt: number
+        gasMultiplier: bigint
+    }): Promise<void> {
+        const { executor, transactionRequest, transactionHash } =
+            submittedBundle
+
+        if (attempt >= 5) {
+            // All retries exhausted
+            logger.error(
+                { transactionHash },
+                "failed to cancel bundle after max retries"
+            )
+            return
+        }
 
         const { walletClients, publicClient, blockTime } = this.config
         const walletClient = walletClients.public
-        const logger = this.logger.child({
-            userOps: getUserOpHashes(userOps)
-        })
+        let nextGasMultiplier = gasMultiplier
 
-        let gasMultiplier = 150n // Start with 50% increase
+        try {
+            // Check if transaction is still pending
+            const currentNonce = await publicClient.getTransactionCount({
+                address: executor.address,
+                blockTag: "latest"
+            })
 
-        for (let attempt = 0; attempt < 5; attempt++) {
-            try {
-                // Check if transaction is still pending
-                const currentNonce = await publicClient.getTransactionCount({
-                    address: executor.address,
-                    blockTag: "latest"
-                })
-
-                if (currentNonce > transactionRequest.nonce) {
-                    logger.info("Transaction already mined or cancelled")
-                    return
-                }
-
-                logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
-
-                // Send cancel transaction with increasing gas price
-                const cancelTxHash = await walletClient.sendTransaction({
-                    account: executor,
-                    to: executor.address,
-                    value: 0n,
-                    nonce: transactionRequest.nonce,
-                    maxFeePerGas: scaleBigIntByPercent(
-                        transactionRequest.maxFeePerGas,
-                        gasMultiplier
-                    ),
-                    maxPriorityFeePerGas: scaleBigIntByPercent(
-                        transactionRequest.maxPriorityFeePerGas,
-                        gasMultiplier
-                    )
-                })
-
-                logger.info(
-                    {
-                        originalTxHash: transactionHash,
-                        cancelTxHash,
-                        attempt: attempt + 1
-                    },
-                    "cancel transaction sent"
-                )
-
-                // Wait for transaction to potentially be mined
-                await new Promise((resolve) =>
-                    setTimeout(resolve, blockTime / 2)
-                )
-            } catch (err) {
-                logger.warn({ err }, "failed to cancel bundle")
-                gasMultiplier += 20n // Increase gas by additional 20% each retry
+            if (currentNonce > transactionRequest.nonce) {
+                logger.info("Transaction already mined or cancelled")
+                return
             }
+
+            logger.info(`Trying to cancel bundle, attempt ${attempt + 1}`)
+
+            // Send cancel transaction with increasing gas price
+            const cancelTxHash = await walletClient.sendTransaction({
+                account: executor,
+                to: executor.address,
+                value: 0n,
+                nonce: transactionRequest.nonce,
+                maxFeePerGas: scaleBigIntByPercent(
+                    transactionRequest.maxFeePerGas,
+                    gasMultiplier
+                ),
+                maxPriorityFeePerGas: scaleBigIntByPercent(
+                    transactionRequest.maxPriorityFeePerGas,
+                    gasMultiplier
+                )
+            })
+
+            logger.info(
+                {
+                    originalTxHash: transactionHash,
+                    cancelTxHash,
+                    attempt: attempt + 1
+                },
+                "cancel transaction sent"
+            )
+
+            // Wait for transaction to potentially be mined
+            await new Promise((resolve) => setTimeout(resolve, blockTime / 2))
+        } catch (err) {
+            logger.warn({ err }, "failed to cancel bundle")
+            nextGasMultiplier += 20n // Increase gas by additional 20% each retry
         }
 
-        // All retries exhausted
-        logger.error(
-            { transactionHash },
-            "failed to cancel bundle after max retries"
-        )
+        await this.tryCancelBundle({
+            submittedBundle,
+            logger,
+            attempt: attempt + 1,
+            gasMultiplier: nextGasMultiplier
+        })
     }
 
     async replaceBundle({
