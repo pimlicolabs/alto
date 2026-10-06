@@ -91,6 +91,10 @@ export class BundleManager {
         return Array.from(this.pendingBundles.values())
     }
 
+    getPendingBundle(uid: string): SubmittedBundleInfo | undefined {
+        return this.pendingBundles.get(uid)
+    }
+
     getBundleStatuses(
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {

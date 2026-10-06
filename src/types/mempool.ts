@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
-import type { Address, Hex, Prettify } from "viem"
+import type { Address, Hex, Prettify, TransactionReceipt } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
@@ -64,6 +64,9 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
+          // Set when the bundle was sent with eth_sendRawTransactionSync.
+          // Resolves to the receipt the node returned, or undefined.
+          syncReceipt?: Promise<TransactionReceipt | undefined>
       }
     | {
           success: false

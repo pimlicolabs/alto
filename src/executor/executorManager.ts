@@ -9,10 +9,11 @@ import type {
 import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import type { Hex, WatchBlocksReturnType } from "viem"
+import type { Hex, TransactionReceipt, WatchBlocksReturnType } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
+import { getBundleStatusFromReceipt } from "./getBundleStatus"
 import type { SenderManager } from "./senderManager"
 import { getUserOpHashes } from "./utils"
 
@@ -400,7 +401,8 @@ export class ExecutorManager {
             userOpsBundled,
             rejectedUserOps,
             transactionRequest,
-            transactionHash
+            transactionHash,
+            syncReceipt
         } = bundleResult
 
         // Increment submission attempts for all userOps submitted.
@@ -450,7 +452,62 @@ export class ExecutorManager {
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
+        // After markUserOpsAsSubmitted so "submitted" can't overwrite the
+        // included status.
+        if (syncReceipt && !this.emergencyMode) {
+            syncReceipt
+                .then(async (receipt) => {
+                    if (receipt) {
+                        await this.processSyncReceipt({
+                            uid: submittedBundle.uid,
+                            receipt
+                        })
+                    }
+                })
+                .catch((err) => {
+                    this.logger.error({ err }, "failed to process sync receipt")
+                })
+        }
+
         return transactionHash
+    }
+
+    // Processes a bundle from the receipt returned by eth_sendRawTransactionSync,
+    // as the block loop would on finding it.
+    private async processSyncReceipt({
+        uid,
+        receipt
+    }: {
+        uid: string
+        receipt: TransactionReceipt
+    }) {
+        // Untracked means the block loop already processed it or it is being
+        // replaced, either way it's handled there.
+        const submittedBundle = this.bundleManager.getPendingBundle(uid)
+        if (!submittedBundle) {
+            return
+        }
+
+        const blockReceivedTimestamp = Date.now()
+        const bundleStatus = getBundleStatusFromReceipt({
+            bundle: submittedBundle.bundle,
+            receipt
+        })
+
+        if (bundleStatus.status === "included") {
+            await this.bundleManager.processIncludedBundle({
+                submittedBundle,
+                bundleReceipt: bundleStatus,
+                blockReceivedTimestamp
+            })
+            return
+        }
+
+        await this.bundleManager.processRevertedBundle({
+            submittedBundle,
+            bundleReceipt: bundleStatus,
+            blockReceivedTimestamp
+        })
     }
 
     stopWatchingBlocks(): void {
@@ -529,6 +586,16 @@ export class ExecutorManager {
 
         await Promise.all(
             bundleStatuses.map(async (bundleStatus, index) => {
+                // Processed from its eth_sendRawTransactionSync receipt while
+                // the statuses were fetched.
+                if (
+                    !this.bundleManager.getPendingBundle(
+                        pendingBundles[index].uid
+                    )
+                ) {
+                    return
+                }
+
                 if (bundleStatus.status === "included") {
                     await this.bundleManager.processIncludedBundle({
                         submittedBundle: pendingBundles[index],
@@ -549,6 +616,16 @@ export class ExecutorManager {
                 if (bundleStatus.status === "not_found") {
                     const [networkGasPrice, networkBaseFee] =
                         await networkGasParams
+
+                    // Its sync receipt may have landed while awaiting gas.
+                    if (
+                        !this.bundleManager.getPendingBundle(
+                            pendingBundles[index].uid
+                        )
+                    ) {
+                        return
+                    }
+
                     this.potentiallyResubmitBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],

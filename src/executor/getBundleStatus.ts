@@ -1,7 +1,7 @@
 import type { UserOperationReceipt } from "@alto/types"
 import type { Logger } from "pino"
-import type { Hex, PublicClient } from "viem"
-import type { SubmittedBundleInfo } from "../types/mempool"
+import type { Hex, PublicClient, TransactionReceipt } from "viem"
+import type { SubmittedBundleInfo, UserOperationBundle } from "../types/mempool"
 import { parseUserOpReceipt } from "../utils/userop"
 
 export type BundleIncluded = {
@@ -61,31 +61,28 @@ export const getBundleStatus = async ({
     )
 
     const included = receipts.find((receipt) => receipt?.status === "success")
+    const reverted = receipts.find((receipt) => receipt?.status === "reverted")
+    const receipt = included ?? reverted
 
-    // If any of the txs are included.
-    if (included) {
-        const { userOps } = bundle
-        const { blockNumber, blockHash, transactionHash } = included
-        const userOpDetails: Record<Hex, UserOperationReceipt> = {}
-
-        for (const { userOpHash } of userOps) {
-            userOpDetails[userOpHash] = parseUserOpReceipt(userOpHash, included)
-        }
-
-        return {
-            status: "included",
-            userOpReceipts: userOpDetails,
-            transactionHash,
-            blockNumber,
-            blockHash
-        }
+    if (receipt) {
+        return getBundleStatusFromReceipt({ bundle, receipt })
     }
 
-    const reverted = receipts.find((receipt) => receipt?.status === "reverted")
+    // If none of the receipts are included or reverted, return not_found.
+    return { status: "not_found" }
+}
 
-    // If any of the txs reverted.
-    if (reverted) {
-        const { blockNumber, transactionHash } = reverted
+// Return the status of a bundle from the receipt of one of its transactions.
+export const getBundleStatusFromReceipt = ({
+    bundle,
+    receipt
+}: {
+    bundle: UserOperationBundle
+    receipt: TransactionReceipt
+}): BundleStatus<"included" | "reverted"> => {
+    const { blockNumber, blockHash, transactionHash } = receipt
+
+    if (receipt.status === "reverted") {
         return {
             status: "reverted",
             blockNumber,
@@ -93,6 +90,16 @@ export const getBundleStatus = async ({
         }
     }
 
-    // If none of the receipts are included or reverted, return not_found.
-    return { status: "not_found" }
+    const userOpReceipts: Record<Hex, UserOperationReceipt> = {}
+    for (const { userOpHash } of bundle.userOps) {
+        userOpReceipts[userOpHash] = parseUserOpReceipt(userOpHash, receipt)
+    }
+
+    return {
+        status: "included",
+        userOpReceipts,
+        transactionHash,
+        blockNumber,
+        blockHash
+    }
 }

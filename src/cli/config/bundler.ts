@@ -241,6 +241,7 @@ export const rpcArgsSchema = z.object({
         .optional()
         .transform((val) => val?.split(","))
         .pipe(z.array(z.string().url()).optional()),
+    "send-raw-transaction-sync": z.boolean().optional().default(false),
     "block-time": z.number().int().min(0),
     "block-polling-interval": z.number().int().min(0).optional(),
     "emergency-mode": z.boolean().optional().default(false),

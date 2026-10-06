@@ -738,6 +738,13 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "string",
         require: false
     },
+    "send-raw-transaction-sync": {
+        description:
+            "Send bundles with eth_sendRawTransactionSync (EIP-7966) and cache receipts as soon as the node returns them. Only enable on chains whose send endpoints support it",
+        type: "boolean",
+        require: false,
+        default: false
+    },
     "block-time": {
         description: "Block time for the chain (ms)",
         type: "number",
