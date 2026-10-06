@@ -512,17 +512,20 @@ export class ExecutorManager {
             return
         }
 
-        const [bundleStatuses, networkGasPrice, networkBaseFee] =
-            await Promise.all([
-                this.bundleManager.getBundleStatuses(pendingBundles),
-                this.gasPriceManager
-                    .tryGetNetworkGasPrice({ forExecutor: true })
-                    .catch(() => ({
-                        maxFeePerGas: 0n,
-                        maxPriorityFeePerGas: 0n
-                    })),
-                this.getBaseFee().catch(() => 0n)
-            ])
+        // Gas params are only needed to resubmit bundles that haven't landed,
+        // fetch them in parallel so inclusion processing doesn't wait on them.
+        const networkGasParams = Promise.all([
+            this.gasPriceManager
+                .tryGetNetworkGasPrice({ forExecutor: true })
+                .catch(() => ({
+                    maxFeePerGas: 0n,
+                    maxPriorityFeePerGas: 0n
+                })),
+            this.getBaseFee().catch(() => 0n)
+        ])
+
+        const bundleStatuses =
+            await this.bundleManager.getBundleStatuses(pendingBundles)
 
         await Promise.all(
             bundleStatuses.map(async (bundleStatus, index) => {
@@ -544,6 +547,8 @@ export class ExecutorManager {
 
                 // can be potentially resubmitted - so we first submit it again to optimize for the speed
                 if (bundleStatus.status === "not_found") {
+                    const [networkGasPrice, networkBaseFee] =
+                        await networkGasParams
                     this.potentiallyResubmitBundle({
                         blockReceivedTimestamp,
                         submittedBundle: pendingBundles[index],
