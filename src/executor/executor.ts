@@ -54,6 +54,11 @@ import {
     parseNonceFromError
 } from "./utils"
 
+// Floor on how long a sync send is awaited before the bundle is tracked as
+// pending. Fast chains set block-time below the send round trip, and a
+// rejection that arrives after the wait is never retried.
+const MIN_SYNC_SEND_WAIT_MS = 1_000
+
 type HandleOpsTxParams = {
     gas: bigint
     account: Account
@@ -484,10 +489,11 @@ export class Executor {
     }
 
     // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
-    // the receipt once the transaction is included. Waits up to one block for
-    // the response so rejections still reach the caller's retry handling,
-    // then returns with syncReceipt still pending so the bundle is tracked
-    // (and can be replaced) while it waits for inclusion. syncReceipt resolves
+    // the receipt once the transaction is included. Waits up to one block
+    // (at least MIN_SYNC_SEND_WAIT_MS) for the response so rejections still
+    // reach the caller's retry handling, then returns with syncReceipt still
+    // pending so the bundle is tracked (and can be replaced) while it waits
+    // for inclusion. syncReceipt resolves
     // to undefined if no receipt comes back and never rejects.
     async sendTransactionSync({
         walletClient,
@@ -531,7 +537,10 @@ export class Executor {
             const response = await Promise.race([
                 send,
                 new Promise<undefined>((resolve) =>
-                    setTimeout(resolve, this.config.blockTime)
+                    setTimeout(
+                        resolve,
+                        Math.max(this.config.blockTime, MIN_SYNC_SEND_WAIT_MS)
+                    )
                 )
             ])
 
