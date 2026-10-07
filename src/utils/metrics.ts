@@ -122,11 +122,11 @@ export function createMetrics(registry: Registry, register = true) {
         labelNames: [] as const,
         registers,
         // Sub-second buckets so fast chains (flashblocks, Arbitrum) get real
-        // percentiles instead of interpolation within a single 0-0.5s bucket
+        // percentiles instead of interpolation within a single 0-0.5s bucket.
+        // Nothing lands below 0.1s since min-bundle-interval defaults to 100ms
         buckets: [
-            0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.5, 0.6, 0.75, 1, 1.5,
-            2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 25, 30, 40, 50, 60, 120, 180,
-            240, 300, 600, 900, 1200
+            0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.75, 1, 1.5, 2, 3, 5, 8, 12,
+            20, 30, 60, 90, 120, 300, 600, 1200
         ]
     })
 
