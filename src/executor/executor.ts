@@ -32,7 +32,7 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import {
-    ReplacementNonceConflictError,
+    NonceConflictError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getUserOpHashes,
@@ -261,9 +261,14 @@ export class Executor {
         let attempts = 0
         let transactionHash: Hex | undefined
         const maxAttempts = sendHandleOpsRetryCount
+        // Set once an attempt fails in a way that doesn't prove the node
+        // rejected it (e.g. a timeout), so that transaction may still land.
+        let possiblySent = false
+        const sendStart = Date.now()
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
+            const attemptStart = Date.now()
             try {
                 // Round up gasLimit to nearest multiple
                 request.gas = roundUpBigInt({
@@ -282,21 +287,35 @@ export class Executor {
                             nonce: request.nonce
                         },
                         txHash: transactionHash,
-                        isPrivate: usePrivateEndpoint
+                        isPrivate: usePrivateEndpoint,
+                        sendAttempts: attempts + 1,
+                        sendDurationMs: Date.now() - sendStart
                     },
                     "submitted bundle transaction"
                 )
 
                 break
             } catch (e: unknown) {
+                let isKnownRejection = false
+
                 if (e instanceof BaseError) {
                     if (isTransactionUnderpricedError(e)) {
+                        isKnownRejection = true
                         childLogger.warn("Transaction underpriced, retrying")
 
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
-                        })
+                        const latestNonce =
+                            await publicClient.getTransactionCount({
+                                address: account.address,
+                                blockTag: "latest"
+                            })
+
+                        // An earlier attempt may have consumed the nonce -
+                        // moving to a fresh nonce could duplicate the bundle.
+                        if (possiblySent && latestNonce > request.nonce) {
+                            throw new NonceConflictError()
+                        }
+
+                        request.nonce = latestNonce
 
                         if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
@@ -321,6 +340,7 @@ export class Executor {
                     }
 
                     if (isFeeCapTooLowError(e)) {
+                        isKnownRejection = true
                         childLogger.warn("max fee < basefee, retrying")
 
                         // Refetch the base fee so the new cap clears what
@@ -379,13 +399,17 @@ export class Executor {
                     // Prefer the nonce the node reported in its error;
                     // otherwise step blindly toward it.
                     if (cause instanceof NonceTooLowError) {
-                        // A replacement's nonce was consumed by another
-                        // transaction - resending with a fresh nonce could
-                        // duplicate a bundle that already landed onchain.
-                        // Report the conflict and let the caller resolve who
-                        // consumed the nonce.
-                        if (isReplacement) {
-                            throw new ReplacementNonceConflictError()
+                        isKnownRejection = true
+
+                        // The nonce was consumed by another transaction, which
+                        // may be the bundle's own (the transaction being
+                        // replaced, or an earlier attempt that timed out) -
+                        // resending with a fresh nonce could duplicate a
+                        // bundle that already landed onchain. Report the
+                        // conflict and let the caller resolve who consumed
+                        // the nonce.
+                        if (isReplacement || possiblySent) {
+                            throw new NonceConflictError()
                         }
 
                         const nodeNonce = parseNonceFromError(error)
@@ -400,6 +424,7 @@ export class Executor {
                     }
 
                     if (cause instanceof NonceTooHighError) {
+                        isKnownRejection = true
                         const nodeNonce = parseNonceFromError(error)
                         childLogger.warn(
                             { txNonce: request.nonce, nodeNonce },
@@ -412,9 +437,22 @@ export class Executor {
                     }
 
                     if (cause instanceof IntrinsicGasTooLowError) {
+                        isKnownRejection = true
                         childLogger.warn("Intrinsic gas too low, retrying")
                         request.gas = scaleBigIntByPercent(request.gas, 150n)
                     }
+                }
+
+                if (!isKnownRejection) {
+                    possiblySent = true
+                    childLogger.warn(
+                        {
+                            err: e,
+                            attempt: attempts + 1,
+                            attemptDurationMs: Date.now() - attemptStart
+                        },
+                        "bundle transaction send attempt failed"
+                    )
                 }
 
                 attempts++
@@ -586,10 +624,10 @@ export class Executor {
         } catch (err: unknown) {
             const { rejectedUserOps, userOpsToBundle } = filterOpsResult
 
-            // The nonce of the bundle we are replacing was consumed by
-            // another transaction. The caller resolves the userOps against
-            // the mined tx if it was ours, or resubmits them if it wasn't.
-            if (err instanceof ReplacementNonceConflictError) {
+            // The bundle's nonce was consumed by another transaction, possibly
+            // its own. The caller resolves the userOps against the mined tx
+            // if it was ours, or resubmits them if it wasn't.
+            if (err instanceof NonceConflictError) {
                 return {
                     success: false,
                     reason: "nonce_conflict",

@@ -27,14 +27,15 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 
-// Thrown during a replacement when the executor nonce was consumed by another
-// transaction. The caller resolves whether it was one of the bundle's own
-// transactions (resending would revert with AA25) or an unknown transaction
-// (the userOps can be resubmitted).
-export class ReplacementNonceConflictError extends Error {
+// Thrown when the executor nonce was consumed by another transaction that may
+// be one of the bundle's own: during a replacement, or after an earlier send
+// attempt that may have reached the node (e.g. a timeout). The caller resolves
+// whether it was one of the bundle's own transactions (resending would revert
+// with AA25) or an unknown transaction (the userOps can be resubmitted).
+export class NonceConflictError extends Error {
     constructor() {
-        super("Replacement nonce consumed by another transaction")
-        this.name = "ReplacementNonceConflictError"
+        super("Nonce consumed by another transaction")
+        this.name = "NonceConflictError"
     }
 }
 
