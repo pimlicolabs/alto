@@ -290,8 +290,18 @@ export class ExecutorManager {
 
         const wallet = await this.senderManager.getWallet()
 
+        // On Arbitrum the bundle gas price is derived from the base fee only
+        // (see Executor.getBundleGasPrice), so skip fetching the network gas price.
+        const skipNetworkGasPrice =
+            this.config.chainType === "arbitrum" &&
+            !this.config.skipLocalGasCalculations
+
         const [gasPriceParams, baseFee, nonce] = await Promise.all([
-            this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }),
+            skipNetworkGasPrice
+                ? { maxFeePerGas: 0n, maxPriorityFeePerGas: 0n }
+                : this.gasPriceManager.tryGetNetworkGasPrice({
+                      forExecutor: true
+                  }),
             this.getBaseFee(),
             this.config.publicClient.getTransactionCount({
                 address: wallet.address,
