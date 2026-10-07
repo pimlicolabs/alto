@@ -118,7 +118,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
-        help: "Duration of user operation inclusion from first submission to inclusion on-chain",
+        help: "Duration from receiving a user operation to seeing the block that included it",
         labelNames: [] as const,
         registers,
         buckets: [
@@ -136,7 +136,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDurationBlocks = new Histogram({
         name: "alto_user_operation_inclusion_duration_blocks",
-        help: "Number of blocks from first submission to inclusion on-chain",
+        help: "Number of blocks from receiving a user operation to seeing the block that included it",
         labelNames: [] as const,
         registers,
         buckets: [
@@ -245,6 +245,89 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    // === userOp journey timings === //
+    // `attempt` is one of USER_OP_ATTEMPT_LABELS, see getUserOpAttemptLabel.
+    const userOpStageDuration = new Histogram({
+        name: "alto_user_operation_stage_duration_seconds",
+        help: "Duration of each stage of a user operation's journey through the bundler",
+        labelNames: ["stage", "attempt"] as const,
+        registers,
+        buckets: [
+            0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1,
+            1.5, 2, 3, 5, 7.5, 10, 15, 20, 30, 60, 120, 300
+        ]
+    })
+
+    const userOpEndToEndDuration = new Histogram({
+        name: "alto_user_operation_end_to_end_duration_seconds",
+        help: "Duration from receiving a user operation to processing its inclusion receipt",
+        labelNames: ["attempt"] as const,
+        registers,
+        buckets: [
+            0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1, 1.5, 2, 3, 5, 7.5, 10, 15,
+            20, 30, 60, 120, 300, 600
+        ]
+    })
+
+    // `attempt` is "first" for a new bundle tx, "replacement" when
+    // replacing a pending bundle tx.
+    const bundlePrepareStepDuration = new Histogram({
+        name: "alto_bundle_prepare_step_duration_seconds",
+        help: "Duration of each step between popping user operations from the mempool and the bundle transaction being accepted by the node",
+        labelNames: ["step", "attempt"] as const,
+        registers,
+        buckets: [
+            0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3,
+            0.5, 0.75, 1, 1.5, 2, 3, 5, 10, 30
+        ]
+    })
+
+    const bundleSendTransactionRetries = new Histogram({
+        name: "alto_bundle_send_transaction_retries",
+        help: "Number of failed sendTransaction calls before a bundle transaction was accepted (or gave up)",
+        labelNames: ["attempt", "result"] as const,
+        registers,
+        buckets: [0, 1, 2, 3, 4, 5, 7, 10]
+    })
+
+    const handleBlockDuration = new Histogram({
+        name: "alto_executor_handle_block_duration_seconds",
+        help: "Duration of handling a new block while bundles are pending",
+        labelNames: [] as const,
+        registers,
+        buckets: [
+            0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2,
+            3, 5, 10, 30
+        ]
+    })
+
+    const handleBlockSkipped = new Counter({
+        name: "alto_executor_handle_block_skipped_total",
+        help: "Number of block events skipped because the previous block was still being handled",
+        labelNames: [] as const,
+        registers
+    })
+
+    // === send transaction RPC fan-out (multiRpcTransport) === //
+    // `endpoint` is the URL hostname only, never the path or query.
+    const sendTransactionRpcDuration = new Histogram({
+        name: "alto_send_transaction_rpc_duration_seconds",
+        help: "Duration of each send transaction RPC endpoint's response",
+        labelNames: ["method", "endpoint", "result"] as const,
+        registers,
+        buckets: [
+            0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1,
+            1.5, 2, 3, 5, 10
+        ]
+    })
+
+    const sendTransactionRpcWins = new Counter({
+        name: "alto_send_transaction_rpc_wins_total",
+        help: "Number of times each send transaction RPC endpoint answered first successfully",
+        labelNames: ["method", "endpoint"] as const,
+        registers
+    })
+
     const altoSecondValidationFailed = new Counter({
         name: "alto_second_validation_failed",
         help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
@@ -281,6 +364,66 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsRequiredBalance,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
+        userOpStageDuration,
+        userOpEndToEndDuration,
+        bundlePrepareStepDuration,
+        bundleSendTransactionRetries,
+        handleBlockDuration,
+        handleBlockSkipped,
+        sendTransactionRpcDuration,
+        sendTransactionRpcWins,
         altoSecondValidationFailed
     }
+}
+
+export type UserOpStage =
+    | "validation"
+    | "mempool_wait"
+    | "pickup_to_submitted"
+    | "submitted_to_block_seen"
+    | "block_seen_to_processed"
+
+export type BundlePrepareStep =
+    | "get_bundles"
+    | "wallet_acquire"
+    | "gas_and_nonce_fetch"
+    | "filter_ops_simulation"
+    | "send_transaction"
+    | "send_transaction_with_retries"
+    | "total"
+
+// "first": first pass through the bundler.
+// "resubmit": the userOp went back to the mempool after an earlier attempt
+// (failed bundle, reorg, ...).
+// "replacement": included via a replacement of its bundle transaction.
+export type UserOpAttemptLabel = "first" | "resubmit" | "replacement"
+
+export const getUserOpAttemptLabel = ({
+    priorSubmissionAttempts,
+    replaced = false
+}: {
+    priorSubmissionAttempts: number
+    replaced?: boolean
+}): UserOpAttemptLabel => {
+    if (replaced) {
+        return "replacement"
+    }
+    return priorSubmissionAttempts > 0 ? "resubmit" : "first"
+}
+
+// Observes `endMs - startMs` in seconds. Timestamps may be missing on
+// userOps written by older bundler versions, the observation is skipped then.
+export const observeDurationMs = ({
+    histogram,
+    startMs,
+    endMs
+}: {
+    histogram: { observe: (value: number) => void }
+    startMs: number | undefined
+    endMs: number
+}) => {
+    if (startMs === undefined || endMs < startMs) {
+        return
+    }
+    histogram.observe((endMs - startMs) / 1000)
 }

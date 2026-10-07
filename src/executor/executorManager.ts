@@ -6,7 +6,14 @@ import type {
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
-import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
+import {
+    type BundlePrepareStep,
+    type Logger,
+    type Metrics,
+    getUserOpAttemptLabel,
+    observeDurationMs,
+    scaleBigIntByPercent
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import type { Hex, WatchBlocksReturnType } from "viem"
@@ -119,11 +126,19 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
+        const getBundlesStart = performance.now()
         const bundles = await this.mempool.getBundles(
             this.config.maxBundleCount
         )
 
         if (bundles.length > 0) {
+            // Only observed when bundles were built, empty polls are noise.
+            this.observeBundlePrepareStep({
+                step: "get_bundles",
+                attempt: "first",
+                startMs: getBundlesStart
+            })
+
             // Count total ops and add timestamps
             const totalOps = bundles.reduce(
                 (sum, bundle) => sum + bundle.userOps.length,
@@ -288,8 +303,15 @@ export class ExecutorManager {
             return undefined
         }
 
+        const bundleStart = performance.now()
         const wallet = await this.senderManager.getWallet()
+        this.observeBundlePrepareStep({
+            step: "wallet_acquire",
+            attempt: "first",
+            startMs: bundleStart
+        })
 
+        const gasAndNonceStart = performance.now()
         const [gasPriceParams, baseFee, nonce] = await Promise.all([
             this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }),
             this.getBaseFee(),
@@ -299,6 +321,11 @@ export class ExecutorManager {
             })
         ]).catch((_) => {
             return []
+        })
+        this.observeBundlePrepareStep({
+            step: "gas_and_nonce_fetch",
+            attempt: "first",
+            startMs: gasAndNonceStart
         })
 
         if (!gasPriceParams || nonce === undefined) {
@@ -403,10 +430,34 @@ export class ExecutorManager {
             transactionHash
         } = bundleResult
 
+        this.observeBundlePrepareStep({
+            step: "total",
+            attempt: "first",
+            startMs: bundleStart
+        })
+
+        const firstSubmittedAt = Date.now()
+        for (const {
+            submissionAttempts,
+            poppedFromMempoolAt
+        } of userOpsBundled) {
+            observeDurationMs({
+                histogram: this.metrics.userOpStageDuration.labels({
+                    stage: "pickup_to_submitted",
+                    attempt: getUserOpAttemptLabel({
+                        priorSubmissionAttempts: submissionAttempts
+                    })
+                }),
+                startMs: poppedFromMempoolAt,
+                endMs: firstSubmittedAt
+            })
+        }
+
         // Increment submission attempts for all userOps submitted.
         userOpsBundled = userOpsBundled.map((userOpInfo) => ({
             ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
+            submissionAttempts: userOpInfo.submissionAttempts + 1,
+            firstSubmittedAt
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
@@ -453,6 +504,20 @@ export class ExecutorManager {
         return transactionHash
     }
 
+    private observeBundlePrepareStep({
+        step,
+        attempt,
+        startMs
+    }: {
+        step: BundlePrepareStep
+        attempt: "first" | "replacement"
+        startMs: number
+    }) {
+        this.metrics.bundlePrepareStepDuration
+            .labels({ step, attempt })
+            .observe((performance.now() - startMs) / 1000)
+    }
+
     stopWatchingBlocks(): void {
         if (this.unWatch) {
             this.unWatch()
@@ -475,6 +540,7 @@ export class ExecutorManager {
                     "skipping block event, previous block still being handled"
                 )
             }
+            this.metrics.handleBlockSkipped.inc()
             return
         }
 
@@ -567,6 +633,10 @@ export class ExecutorManager {
             })
         )
 
+        // Only observed when bundles were pending, idle blocks return early.
+        this.metrics.handleBlockDuration.observe(
+            (Date.now() - blockReceivedTimestamp) / 1000
+        )
         this.currentlyHandlingBlock = false
         this.currentlyHandlingBlockNumber = undefined
     }
@@ -723,6 +793,7 @@ export class ExecutorManager {
 
         const { entryPoint } = bundle
 
+        const replaceStart = performance.now()
         const bundleResult = await this.executor.bundle({
             executor: executor,
             networkGasPrice,
@@ -884,7 +955,14 @@ export class ExecutorManager {
             transactionHash: newTxHash
         } = bundleResult
 
-        // Increment submission attempts for all replaced userOps
+        this.observeBundlePrepareStep({
+            step: "total",
+            attempt: "replacement",
+            startMs: replaceStart
+        })
+
+        // Increment submission attempts for all replaced userOps, keeping
+        // firstSubmittedAt so inclusion timings include the replacement.
         const userOpsReplaced = userOpsBundled.map((userOpInfo) => ({
             ...userOpInfo,
             submissionAttempts: userOpInfo.submissionAttempts + 1

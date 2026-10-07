@@ -893,9 +893,15 @@ export const userOpInfoSchema = z.object({
     userOp: userOperationSchema,
     // === userOp Details ===
     userOpHash: hexData32Schema,
-    addedToMempool: z.number(), // timestamp when the bundling process begins (when it leaves outstanding mempool)
+    addedToMempool: z.number(), // timestamp (ms) when the send handler received the userOp, before validation
     referencedContracts: referencedCodeHashesSchema.optional(),
-    submissionAttempts: z.number()
+    submissionAttempts: z.number(),
+    // === Stage timestamps (ms) for metrics ===
+    // Optional because older bundler versions write userOps to Redis without
+    // them during rollouts. Observations are skipped when they are missing.
+    enteredMempoolAt: z.number().optional(), // last added to the outstanding mempool (reset on resubmit)
+    poppedFromMempoolAt: z.number().optional(), // last popped into a bundle
+    firstSubmittedAt: z.number().optional() // first bundle tx of the current attempt accepted by the node (kept on replacement)
 })
 
 // Export types derived from schemas

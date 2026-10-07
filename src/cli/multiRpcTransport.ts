@@ -1,4 +1,4 @@
-import type { Logger } from "@alto/utils"
+import type { Logger, Metrics } from "@alto/utils"
 import {
     type EIP1193RequestFn,
     type HttpTransportConfig,
@@ -8,6 +8,19 @@ import {
 } from "viem"
 import { customTransport } from "./customTransport"
 
+// Only these methods are timed, to keep metric cardinality bounded.
+const TIMED_METHODS = new Set(["eth_sendRawTransaction"])
+
+// Metric label for an endpoint. Hostname only: URL paths and queries can
+// contain API keys.
+const getEndpointLabel = (url: string): string => {
+    try {
+        return new URL(url).hostname || "unknown"
+    } catch {
+        return "unknown"
+    }
+}
+
 // Fans out every request to all urls in parallel, resolving with the first
 // successful response and rejecting only if every endpoint fails. Fanning out
 // non-send methods too keeps a lagging or method-restricted endpoint (e.g. a
@@ -16,14 +29,20 @@ import { customTransport } from "./customTransport"
 // and some endpoints don't allow it.
 export function multiRpcTransport(
     urls: string[],
-    config: HttpTransportConfig & { logger: Logger; chainId: number }
+    config: HttpTransportConfig & {
+        logger: Logger
+        chainId: number
+        metrics: Metrics
+    }
 ): Transport {
     const {
         key = "multiRpc",
         name = "Multi RPC JSON-RPC",
         logger,
-        chainId
+        chainId,
+        metrics
     } = config
+    const endpoints = urls.map(getEndpointLabel)
 
     return ({ chain, retryCount, timeout }) => {
         const transports = urls.map((url) =>
@@ -47,22 +66,48 @@ export function multiRpcTransport(
                     return numberToHex(chainId)
                 }
 
-                const sends = transports.map((transport, index) => {
+                const isTimed = TIMED_METHODS.has(method)
+
+                const sends = transports.map(async (transport, index) => {
+                    const start = performance.now()
+                    const observe = (result: "success" | "error") => {
+                        if (!isTimed) {
+                            return
+                        }
+                        metrics.sendTransactionRpcDuration
+                            .labels({
+                                method,
+                                endpoint: endpoints[index],
+                                result
+                            })
+                            .observe((performance.now() - start) / 1000)
+                    }
+
                     const send = transport.request({ method, params })
                     // Handle every rejection eagerly so an endpoint failing
                     // after another already succeeded can never become an
                     // unhandled rejection.
-                    send.catch((err: unknown) => {
-                        logger.warn(
-                            { err, url: urls[index], method },
-                            "multi rpc endpoint request failed"
-                        )
-                    })
-                    return send
+                    send.then(
+                        () => observe("success"),
+                        (err: unknown) => {
+                            observe("error")
+                            logger.warn(
+                                { err, url: urls[index], method },
+                                "multi rpc endpoint request failed"
+                            )
+                        }
+                    )
+                    return { index, response: await send }
                 })
 
                 try {
-                    return await Promise.any(sends)
+                    const { index, response } = await Promise.any(sends)
+                    if (isTimed) {
+                        metrics.sendTransactionRpcWins
+                            .labels({ method, endpoint: endpoints[index] })
+                            .inc()
+                    }
+                    return response
                 } catch (err) {
                     // Rethrow the first endpoint's error instead of the
                     // AggregateError so viem's error classification (nonce
