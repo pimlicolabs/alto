@@ -18,7 +18,6 @@ import type { Logger, Metrics } from "@alto/utils"
 import {
     getAAError,
     getAddressFromInitCodeOrPaymasterAndData,
-    getUserOpAttemptLabel,
     getViemEntryPointVersion,
     isVersion06,
     isVersion07,
@@ -430,8 +429,7 @@ export class Mempool {
         if (userOpInfo.submissionAttempts === 0) {
             observeDurationMs({
                 histogram: this.metrics.userOpStageDuration.labels({
-                    stage: "validation",
-                    attempt: "first"
+                    stage: "validation"
                 }),
                 startMs: userOpInfo.addedToMempool,
                 endMs: enteredMempoolAt
@@ -926,11 +924,7 @@ export class Mempool {
                 const poppedFromMempoolAt = Date.now()
                 observeDurationMs({
                     histogram: this.metrics.userOpStageDuration.labels({
-                        stage: "mempool_wait",
-                        attempt: getUserOpAttemptLabel({
-                            priorSubmissionAttempts:
-                                currentUserOp.submissionAttempts
-                        })
+                        stage: "mempool_wait"
                     }),
                     startMs: currentUserOp.enteredMempoolAt,
                     endMs: poppedFromMempoolAt

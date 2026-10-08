@@ -7,10 +7,8 @@ import type {
     UserOperationBundle
 } from "@alto/types"
 import {
-    type BundlePrepareStep,
     type Logger,
     type Metrics,
-    getUserOpAttemptLabel,
     observeDurationMs,
     scaleBigIntByPercent
 } from "@alto/utils"
@@ -128,19 +126,11 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const getBundlesStart = performance.now()
         const bundles = await this.mempool.getBundles(
             this.config.maxBundleCount
         )
 
         if (bundles.length > 0) {
-            // Only observed when bundles were built, empty polls are noise.
-            this.observeBundlePrepareStep({
-                step: "get_bundles",
-                attempt: "first",
-                startMs: getBundlesStart
-            })
-
             // Count total ops and add timestamps
             const totalOps = bundles.reduce(
                 (sum, bundle) => sum + bundle.userOps.length,
@@ -325,19 +315,12 @@ export class ExecutorManager {
     }): Promise<Hex | undefined> {
         const { entryPoint, userOps, version } = userOpBundle
 
-        const bundleStart = performance.now()
         const wallet = await withSpan({
             name: "bundle.wallet_acquire",
             fn: () => this.senderManager.getWallet()
         })
         span.setAttribute("bundle.executor", wallet.address)
-        this.observeBundlePrepareStep({
-            step: "wallet_acquire",
-            attempt: "first",
-            startMs: bundleStart
-        })
 
-        const gasAndNonceStart = performance.now()
         const [gasPriceParams, baseFee, nonce] = await withSpan({
             name: "bundle.gas_and_nonce_fetch",
             fn: () =>
@@ -353,11 +336,6 @@ export class ExecutorManager {
                 ])
         }).catch((_) => {
             return []
-        })
-        this.observeBundlePrepareStep({
-            step: "gas_and_nonce_fetch",
-            attempt: "first",
-            startMs: gasAndNonceStart
         })
 
         if (!gasPriceParams || nonce === undefined) {
@@ -472,12 +450,6 @@ export class ExecutorManager {
             transactionHash
         } = bundleResult
 
-        this.observeBundlePrepareStep({
-            step: "total",
-            attempt: "first",
-            startMs: bundleStart
-        })
-
         span.setAttributes({
             "bundle.outcome": "submitted",
             "bundle.tx_hash": transactionHash,
@@ -487,16 +459,10 @@ export class ExecutorManager {
         })
 
         const firstSubmittedAt = Date.now()
-        for (const {
-            submissionAttempts,
-            poppedFromMempoolAt
-        } of userOpsBundled) {
+        for (const { poppedFromMempoolAt } of userOpsBundled) {
             observeDurationMs({
                 histogram: this.metrics.userOpStageDuration.labels({
-                    stage: "pickup_to_submitted",
-                    attempt: getUserOpAttemptLabel({
-                        priorSubmissionAttempts: submissionAttempts
-                    })
+                    stage: "pickup_to_submitted"
                 }),
                 startMs: poppedFromMempoolAt,
                 endMs: firstSubmittedAt
@@ -552,20 +518,6 @@ export class ExecutorManager {
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
         return transactionHash
-    }
-
-    private observeBundlePrepareStep({
-        step,
-        attempt,
-        startMs
-    }: {
-        step: BundlePrepareStep
-        attempt: "first" | "replacement"
-        startMs: number
-    }) {
-        this.metrics.bundlePrepareStepDuration
-            .labels({ step, attempt })
-            .observe((performance.now() - startMs) / 1000)
     }
 
     stopWatchingBlocks(): void {
@@ -875,7 +827,6 @@ export class ExecutorManager {
 
         const { entryPoint } = bundle
 
-        const replaceStart = performance.now()
         const bundleResult = await this.executor.bundle({
             executor: executor,
             networkGasPrice,
@@ -1036,12 +987,6 @@ export class ExecutorManager {
             transactionRequest: newTransactionRequest,
             transactionHash: newTxHash
         } = bundleResult
-
-        this.observeBundlePrepareStep({
-            step: "total",
-            attempt: "replacement",
-            startMs: replaceStart
-        })
 
         // Increment submission attempts for all replaced userOps, keeping
         // firstSubmittedAt so inclusion timings include the replacement.

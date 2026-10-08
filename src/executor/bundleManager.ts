@@ -16,7 +16,6 @@ import type {
 import {
     type Logger,
     type Metrics,
-    getUserOpAttemptLabel,
     observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
@@ -177,14 +176,13 @@ export class BundleManager {
             await this.receiptCache.cache(receipts)
 
             // Batch process userOps
-            await this.processIncludedUserOps({
+            await this.processIncludedUserOps(
                 userOpsBatch,
                 transactionHash,
                 blockNumber,
                 entryPoint,
-                blockReceivedTimestamp,
-                replaced: submittedBundle.previousTransactionHashes.length > 0
-            })
+                blockReceivedTimestamp
+            )
         })()
     }
 
@@ -672,25 +670,16 @@ export class BundleManager {
         this.pendingBundles.delete(submittedBundle.uid)
     }
 
-    private async processIncludedUserOps({
-        userOpsBatch,
-        transactionHash,
-        blockNumber,
-        entryPoint,
-        blockReceivedTimestamp,
-        replaced
-    }: {
+    private async processIncludedUserOps(
         userOpsBatch: {
             userOpInfo: UserOpInfo
             userOpReceipt: UserOperationReceipt
-        }[]
-        transactionHash: Hash
-        blockNumber: bigint
-        entryPoint: Address
+        }[],
+        transactionHash: Hash,
+        blockNumber: bigint,
+        entryPoint: Address,
         blockReceivedTimestamp: number
-        // Whether the bundle transaction was replaced before inclusion.
-        replaced: boolean
-    }) {
+    ) {
         // Update all statuses in one batch
         await this.statusManager.set(
             userOpsBatch.map(({ userOpInfo }) => userOpInfo.userOpHash),
@@ -740,8 +729,7 @@ export class BundleManager {
             this.observeInclusionStages({
                 userOpInfo,
                 blockReceivedTimestamp,
-                processedAt,
-                replaced
+                processedAt
             })
 
             // Update reputation
@@ -760,44 +748,24 @@ export class BundleManager {
     private observeInclusionStages({
         userOpInfo,
         blockReceivedTimestamp,
-        processedAt,
-        replaced
+        processedAt
     }: {
         userOpInfo: UserOpInfo
         blockReceivedTimestamp: number
         processedAt: number
-        replaced: boolean
     }) {
-        const { submissionAttempts, firstSubmittedAt, addedToMempool } =
-            userOpInfo
-
-        // submissionAttempts already counts the send that got included.
-        const attempt = getUserOpAttemptLabel({
-            priorSubmissionAttempts: submissionAttempts - 1,
-            replaced
-        })
-
         observeDurationMs({
             histogram: this.metrics.userOpStageDuration.labels({
-                stage: "submitted_to_block_seen",
-                attempt
+                stage: "submitted_to_block_seen"
             }),
-            startMs: firstSubmittedAt,
+            startMs: userOpInfo.firstSubmittedAt,
             endMs: blockReceivedTimestamp
         })
         observeDurationMs({
             histogram: this.metrics.userOpStageDuration.labels({
-                stage: "block_seen_to_processed",
-                attempt
+                stage: "block_seen_to_processed"
             }),
             startMs: blockReceivedTimestamp,
-            endMs: processedAt
-        })
-        observeDurationMs({
-            histogram: this.metrics.userOpEndToEndDuration.labels({
-                attempt
-            }),
-            startMs: addedToMempool,
             endMs: processedAt
         })
     }
@@ -831,14 +799,13 @@ export class BundleManager {
                 // Cache the receipt
                 await this.receiptCache.cache([userOpReceipt])
 
-                await this.processIncludedUserOps({
-                    userOpsBatch: [{ userOpInfo, userOpReceipt }],
+                await this.processIncludedUserOps(
+                    [{ userOpInfo, userOpReceipt }],
                     transactionHash,
                     blockNumber,
                     entryPoint,
-                    blockReceivedTimestamp,
-                    replaced: bundlerTxs.length > 1
-                })
+                    blockReceivedTimestamp
+                )
 
                 // userOp was bundled by this bundler
                 return "included"

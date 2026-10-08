@@ -7,7 +7,7 @@ import type {
     UserOpInfo,
     UserOperationBundle
 } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     jsonStringifyWithBigint,
     maxBigInt,
@@ -75,19 +75,15 @@ export class Executor {
     config: AltoConfig
     logger: Logger
     eventManager: EventManager
-    metrics: Metrics
 
     constructor({
         config,
-        eventManager,
-        metrics
+        eventManager
     }: {
         config: AltoConfig
         eventManager: EventManager
-        metrics: Metrics
     }) {
         this.config = config
-        this.metrics = metrics
         this.logger = config.getLogger(
             { module: "executor" },
             {
@@ -267,26 +263,6 @@ export class Executor {
         let transactionHash: Hex | undefined
         const maxAttempts = sendHandleOpsRetryCount
 
-        const attemptLabel = isReplacement ? "replacement" : "first"
-        const sendStart = performance.now()
-        const observeSendCompleted = ({
-            result,
-            failedCalls
-        }: {
-            result: "success" | "failed"
-            failedCalls: number
-        }) => {
-            this.metrics.bundlePrepareStepDuration
-                .labels({
-                    step: "send_transaction_with_retries",
-                    attempt: attemptLabel
-                })
-                .observe((performance.now() - sendStart) / 1000)
-            this.metrics.bundleSendTransactionRetries
-                .labels({ attempt: attemptLabel, result })
-                .observe(failedCalls)
-        }
-
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
             try {
@@ -296,7 +272,6 @@ export class Executor {
                     multiple: this.config.gasLimitRoundingMultiple
                 })
 
-                const callStart = performance.now()
                 transactionHash = await withSpan({
                     name: "bundle.send_transaction",
                     attributes: {
@@ -305,13 +280,6 @@ export class Executor {
                         "bundle.nonce": request.nonce
                     },
                     fn: () => walletClient.sendTransaction(request)
-                }).finally(() => {
-                    this.metrics.bundlePrepareStepDuration
-                        .labels({
-                            step: "send_transaction",
-                            attempt: attemptLabel
-                        })
-                        .observe((performance.now() - callStart) / 1000)
                 })
 
                 childLogger.info(
@@ -426,10 +394,6 @@ export class Executor {
                         // Report the conflict and let the caller resolve who
                         // consumed the nonce.
                         if (isReplacement) {
-                            observeSendCompleted({
-                                result: "failed",
-                                failedCalls: attempts + 1
-                            })
                             throw new ReplacementNonceConflictError()
                         }
 
@@ -465,10 +429,6 @@ export class Executor {
                 attempts++
 
                 if (attempts === maxAttempts) {
-                    observeSendCompleted({
-                        result: "failed",
-                        failedCalls: attempts
-                    })
                     throw error
                 }
             }
@@ -478,8 +438,6 @@ export class Executor {
         if (!transactionHash) {
             throw new Error("Transaction hash not assigned")
         }
-
-        observeSendCompleted({ result: "success", failedCalls: attempts })
 
         // Retries above can refetch the nonce and bump the gas fees, so
         // report the request fields that were actually broadcast.
@@ -527,7 +485,6 @@ export class Executor {
             entryPoint
         })
 
-        const filterOpsStart = performance.now()
         const filterOpsResult = await withSpan({
             name: "bundle.filter_ops_simulation",
             fn: async (span) => {
@@ -542,12 +499,6 @@ export class Executor {
                 return result
             }
         })
-        this.metrics.bundlePrepareStepDuration
-            .labels({
-                step: "filter_ops_simulation",
-                attempt: isReplacement ? "replacement" : "first"
-            })
-            .observe((performance.now() - filterOpsStart) / 1000)
 
         if (filterOpsResult.status === "unhandled_error") {
             childLogger.error(

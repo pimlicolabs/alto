@@ -95,17 +95,14 @@ const getEventManager = ({
 
 const getExecutor = ({
     config,
-    eventManager,
-    metrics
+    eventManager
 }: {
     config: AltoConfig
     eventManager: EventManager
-    metrics: Metrics
 }): Executor => {
     return new Executor({
         config,
-        eventManager,
-        metrics
+        eventManager
     })
 }
 
@@ -269,8 +266,7 @@ export const setupServer = async ({
 
     const executor = getExecutor({
         config,
-        eventManager,
-        metrics
+        eventManager
     })
 
     const bundleManager = new BundleManager({
