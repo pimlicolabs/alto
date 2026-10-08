@@ -34,11 +34,13 @@ type RefillPlan = {
 const planRefills = ({
     balances,
     minBalance,
-    utilityBalance
+    utilityBalance,
+    refillTxGasCost
 }: {
     balances: { address: Address; balance: bigint }[]
     minBalance: bigint
     utilityBalance: bigint
+    refillTxGasCost: bigint
 }): RefillPlan => {
     // Top up wallets below minBalance to 120% of minBalance
     const candidates: Refill[] = balances
@@ -49,12 +51,15 @@ const planRefills = ({
             refillAmount: scaleBigIntByPercent(minBalance, 120n) - balance
         }))
 
+    // Each refill costs the utility account gas on top of the value sent.
+    // Reserve the gas cost per refill so the plan never commits the entire
+    // balance and leaves the refill transactions themselves unpayable.
     const refills: Refill[] = []
     let total = 0n
     for (const candidate of candidates) {
-        if (total + candidate.refillAmount <= utilityBalance) {
+        if (total + candidate.refillAmount + refillTxGasCost <= utilityBalance) {
             refills.push(candidate)
-            total += candidate.refillAmount
+            total += candidate.refillAmount + refillTxGasCost
         }
     }
 
@@ -299,20 +304,28 @@ export const validateAndRefillWallets = async ({
             redisClient = new Redis(config.redisEndpoint)
         }
 
+        // TTL must cover most of the refill interval: at half the interval a
+        // second instance ticking later in the same interval can acquire the
+        // lock and refill twice per interval.
         const acquired = await redisClient
             .set(
                 `${config.redisKeyPrefix}:${config.chainId}:wallet-refill-lock`,
                 "1",
                 "EX",
-                Math.floor(config.executorRefillInterval / 2),
+                Math.max(1, Math.floor(config.executorRefillInterval * 0.9)),
                 "NX"
             )
             .catch((err: unknown) => {
+                // The lock exists to prevent duplicate fund movements. If we
+                // cannot verify exclusivity, skip this interval instead of
+                // refilling concurrently on every scaled instance. Wallets
+                // still hold their remaining balance, so a skipped interval
+                // is recoverable; duplicated refills are not free.
                 logger.warn(
                     { err },
-                    "Redis lock check failed, proceeding with update"
+                    "Redis lock check failed, skipping refill this interval"
                 )
-                return "OK"
+                return null
             })
 
         if (acquired !== "OK") {
@@ -353,10 +366,16 @@ export const validateAndRefillWallets = async ({
         address: utilityAccount.address
     })
 
+    // Gas budget the utility account must keep per refill transaction.
+    // Native transfers cost 21k gas; tempo ERC20 transfers need more.
+    const refillTxGasLimit = config.chainType === "tempo" ? 100_000n : 21_000n
+    const refillTxGasCost = refillTxGasLimit * maxFeePerGas
+
     const { refills, insufficientBalance } = planRefills({
         balances,
         minBalance,
-        utilityBalance
+        utilityBalance,
+        refillTxGasCost
     })
 
     if (insufficientBalance) {
