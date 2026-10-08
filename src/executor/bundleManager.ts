@@ -562,27 +562,30 @@ export class BundleManager {
             return
         }
 
-        // Child of the active bundle.send span. Bundles restored from another
-        // instance have no active span and start a new trace.
-        const span = executorTracer.startSpan(
-            "bundle.inclusion",
-            {
-                attributes: {
-                    "bundle.uid": uid,
-                    "bundle.tx_hash": transactionHash,
-                    "bundle.executor": executor.address,
-                    "bundle.entry_point": bundle.entryPoint,
-                    "bundle.user_op_count": bundle.userOps.length,
-                    "bundle.restored": restored,
-                    // bundle.send already carries the hashes, only a new
-                    // trace needs them to be searchable by userOp hash.
-                    ...(restored && {
-                        "bundle.user_op_hashes": getUserOpHashes(bundle.userOps)
-                    })
-                }
-            },
-            context.active()
-        )
+        // Its own trace, as it outlives bundle.send by blocks. The two spans
+        // link to each other instead. Restored bundles have no send span.
+        const sendSpan = trace.getActiveSpan()
+        const sendSpanContext = sendSpan?.spanContext()
+        const hasSendSpan =
+            sendSpanContext !== undefined &&
+            trace.isSpanContextValid(sendSpanContext)
+
+        const span = executorTracer.startSpan("bundle.inclusion", {
+            root: true,
+            links: hasSendSpan ? [{ context: sendSpanContext }] : [],
+            attributes: {
+                "bundle.uid": uid,
+                "bundle.tx_hash": transactionHash,
+                "bundle.executor": executor.address,
+                "bundle.entry_point": bundle.entryPoint,
+                "bundle.user_op_count": bundle.userOps.length,
+                "bundle.user_op_hashes": getUserOpHashes(bundle.userOps),
+                "bundle.restored": restored
+            }
+        })
+        if (hasSendSpan) {
+            sendSpan?.addLink({ context: span.spanContext() })
+        }
         this.inclusionSpans.set(uid, span)
     }
 
