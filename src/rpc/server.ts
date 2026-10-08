@@ -105,12 +105,13 @@ export class Server {
 
         this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]
-            if (ignoredRoutes.includes(request.routeOptions.url)) {
+            const routeUrl = request.routeOptions.url ?? "unknown"
+            if (ignoredRoutes.includes(routeUrl)) {
                 return
             }
 
             const labels = {
-                route: request.routeOptions.url,
+                route: routeUrl,
                 code: reply.statusCode,
                 method: request.method,
                 rpc_method: request.rpcMethod,
