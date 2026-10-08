@@ -22,6 +22,7 @@ import {
     isVersion06,
     isVersion07,
     jsonStringifyWithBigint,
+    observeDurationMs,
     scaleBigIntByPercent
 } from "@alto/utils"
 import { type Hex, getAddress, getContract } from "viem"
@@ -418,10 +419,22 @@ export class Mempool {
             entryPoint
         )
 
+        const enteredMempoolAt = Date.now()
         await this.store.addOutstanding({
             entryPoint,
-            userOpInfos: [userOpInfo]
+            userOpInfos: [{ ...userOpInfo, enteredMempoolAt }]
         })
+
+        // Resubmitted userOps were already validated on their first add.
+        if (userOpInfo.submissionAttempts === 0) {
+            observeDurationMs({
+                histogram: this.metrics.userOpStageDuration.labels({
+                    stage: "validation"
+                }),
+                startMs: userOpInfo.receivedAt,
+                endMs: enteredMempoolAt
+            })
+        }
 
         await this.statusManager.set([userOpHash], {
             status: "not_submitted",
@@ -908,7 +921,18 @@ export class Mempool {
                 this.reputationManager.decreaseUserOpCount(userOp)
 
                 // Add userOp to current bundle.
-                currentBundle.userOps.push(currentUserOp)
+                const poppedFromMempoolAt = Date.now()
+                observeDurationMs({
+                    histogram: this.metrics.userOpStageDuration.labels({
+                        stage: "mempool_wait"
+                    }),
+                    startMs: currentUserOp.enteredMempoolAt,
+                    endMs: poppedFromMempoolAt
+                })
+                currentBundle.userOps.push({
+                    ...currentUserOp,
+                    poppedFromMempoolAt
+                })
 
                 // Try to fetch more userOps if we've exhausted this batch.
                 if (unusedUserOps.length === 0) {

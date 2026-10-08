@@ -49,10 +49,12 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         // Prepare bundle
+        const receivedAt = Date.now()
         const userOpInfo: UserOpInfo = {
             userOp,
             userOpHash,
-            addedToMempool: Date.now(),
+            receivedAt,
+            addedToMempool: receivedAt, // deprecated alias, see withReceivedAt
             submissionAttempts: 0
         }
 

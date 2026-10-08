@@ -13,7 +13,19 @@ import type {
     UserOpInfo,
     UserOperationReceipt
 } from "@alto/types"
-import { type Logger, type Metrics, parseUserOpReceipt } from "@alto/utils"
+import {
+    type Logger,
+    type Metrics,
+    observeDurationMs,
+    parseUserOpReceipt
+} from "@alto/utils"
+import {
+    type Attributes,
+    type Span,
+    SpanStatusCode,
+    context,
+    trace
+} from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -29,6 +41,7 @@ import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
+import { executorTracer, getShortErrorMessage } from "./tracing"
 
 export class BundleManager {
     private readonly reputationManager: InterfaceReputationManager
@@ -47,6 +60,9 @@ export class BundleManager {
     // Included bundles awaiting their reorg check at confirmation depth.
     private readonly includedBundles: Map<string, IncludedBundleInfo> =
         new Map()
+    // One span per bundle from submission until it is resolved, replacement
+    // txs reuse it. Kept off SubmittedBundleInfo as that gets serialized.
+    private readonly inclusionSpans: Map<string, Span> = new Map()
 
     constructor({
         config,
@@ -95,21 +111,23 @@ export class BundleManager {
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {
         return Promise.all(
-            pendingBundles.map(async (bundle) => {
-                try {
-                    return await getBundleStatus({
-                        submittedBundle: bundle,
-                        publicClient: this.config.publicClient,
-                        logger: this.logger
-                    })
-                } catch (err) {
-                    sentry.captureException(err)
-                    return {
-                        status: "internal_error" as const,
-                        error: err instanceof Error ? err.message : String(err)
+            pendingBundles.map((bundle) =>
+                this.withInclusionSpan(bundle.uid, async () => {
+                    try {
+                        return await getBundleStatus({
+                            submittedBundle: bundle,
+                            publicClient: this.config.publicClient,
+                            logger: this.logger
+                        })
+                    } catch (err) {
+                        sentry.captureException(err)
+                        return {
+                            status: "internal_error" as const,
+                            error: getShortErrorMessage(err)
+                        }
                     }
-                }
-            })
+                })
+            )
         )
     }
 
@@ -139,7 +157,14 @@ export class BundleManager {
         }
 
         // Cleanup bundle
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "included",
+            attributes: {
+                "bundle.included_tx_hash": transactionHash,
+                "bundle.block_number": Number(blockNumber)
+            }
+        })
 
         // Process all userOps in parallel (non-blocking)
         // The IIFE returns immediately, allowing the caller to continue
@@ -402,7 +427,14 @@ export class BundleManager {
             "Processing reverted bundle"
         )
 
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "reverted",
+            attributes: {
+                "bundle.included_tx_hash": transactionHash,
+                "bundle.block_number": Number(blockNumber)
+            }
+        })
 
         const networkBaseFee = this.config.legacyTransactions
             ? 0n
@@ -497,7 +529,11 @@ export class BundleManager {
         )
 
         // Clean up the bundle so it doesn't get stuck
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "internal_error",
+            attributes: { "bundle.error": error }
+        })
 
         // Mark all userOps as failed
         await this.statusManager.set(
@@ -514,8 +550,109 @@ export class BundleManager {
             .inc(userOps.length)
     }
 
-    public trackBundle(submittedBundle: SubmittedBundleInfo) {
-        this.pendingBundles.set(submittedBundle.uid, submittedBundle)
+    public trackBundle(
+        submittedBundle: SubmittedBundleInfo,
+        {
+            sendSpan,
+            restored = false
+        }: {
+            // The bundle.send span that submitted it, absent when restored.
+            sendSpan?: Span
+            restored?: boolean
+        } = {}
+    ) {
+        const { uid, executor, transactionHash, bundle } = submittedBundle
+        this.pendingBundles.set(uid, submittedBundle)
+
+        if (this.inclusionSpans.has(uid)) {
+            return
+        }
+
+        // Its own trace, as it outlives bundle.send by blocks. The two spans
+        // link to each other instead.
+        const sendSpanContext = sendSpan?.spanContext()
+        const hasSendSpan =
+            sendSpanContext !== undefined &&
+            trace.isSpanContextValid(sendSpanContext)
+
+        const span = executorTracer.startSpan("bundle.inclusion", {
+            root: true,
+            links: hasSendSpan ? [{ context: sendSpanContext }] : [],
+            attributes: {
+                "bundle.uid": uid,
+                "bundle.tx_hash": transactionHash,
+                "bundle.executor": executor.address,
+                "bundle.entry_point": bundle.entryPoint,
+                "bundle.user_op_count": bundle.userOps.length,
+                "bundle.user_op_hashes": getUserOpHashes(bundle.userOps),
+                "bundle.restored": restored
+            }
+        })
+        if (hasSendSpan) {
+            sendSpan?.addLink({ context: span.spanContext() })
+        }
+        this.inclusionSpans.set(uid, span)
+    }
+
+    public getInclusionSpan(uid: string): Span | undefined {
+        return this.inclusionSpans.get(uid)
+    }
+
+    // Runs fn with the bundle's inclusion span active, so its RPC calls nest
+    // under it. Runs fn as is when the bundle has no inclusion span.
+    public withInclusionSpan<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+        const span = this.inclusionSpans.get(uid)
+        if (!span) {
+            return fn()
+        }
+        return context.with(trace.setSpan(context.active(), span), fn)
+    }
+
+    // Ends the bundle's inclusion span, a no-op if it already ended.
+    public endInclusionSpan({
+        uid,
+        outcome,
+        attributes
+    }: {
+        uid: string
+        outcome: string
+        attributes?: Attributes
+    }) {
+        const span = this.inclusionSpans.get(uid)
+        if (!span) {
+            return
+        }
+
+        this.inclusionSpans.delete(uid)
+        span.setAttributes({ ...attributes, "bundle.outcome": outcome })
+        if (outcome !== "included" && outcome !== "handed_off") {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: outcome })
+        }
+        span.end()
+    }
+
+    // Ends the inclusion span unless the bundle is still being tracked, e.g.
+    // after a replacement attempt that may or may not have re-tracked it.
+    public endInclusionSpanIfUntracked({
+        uid,
+        outcome,
+        attributes
+    }: {
+        uid: string
+        outcome: string
+        attributes?: Attributes
+    }) {
+        if (this.pendingBundles.has(uid)) {
+            return
+        }
+        this.endInclusionSpan({ uid, outcome, attributes })
+    }
+
+    // Pending bundles are handed to another instance on shutdown.
+    public endAllInclusionSpans({ outcome }: { outcome: string }) {
+        for (const uid of Array.from(this.inclusionSpans.keys())) {
+            this.endInclusionSpan({ uid, outcome })
+        }
     }
 
     // Helpers //
@@ -537,11 +674,20 @@ export class BundleManager {
     }
 
     // Free executors and remove userOps from mempool.
-    private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor, bundle } = submittedBundle
+    private async freeSubmittedBundle({
+        submittedBundle,
+        outcome,
+        attributes
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        outcome: string
+        attributes?: Attributes
+    }) {
+        const { executor, bundle, uid } = submittedBundle
         const { userOps, entryPoint } = bundle
 
         this.stopTrackingBundle(submittedBundle)
+        this.endInclusionSpan({ uid, outcome, attributes })
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeProcessing({ entryPoint, userOps })
     }
@@ -569,13 +715,18 @@ export class BundleManager {
                 transactionHash
             }
         )
+        const processedAt = Date.now()
 
         // Process each userOp
         for (const { userOpInfo, userOpReceipt } of userOpsBatch) {
-            const { userOpHash, userOp, submissionAttempts, addedToMempool } =
+            const { userOpHash, userOp, submissionAttempts, receivedAt } =
                 userOpInfo
 
-            const inclusionTimeMs = blockReceivedTimestamp - addedToMempool
+            // Can only be missing on userOps written by much older versions.
+            const inclusionTimeMs =
+                receivedAt === undefined
+                    ? undefined
+                    : blockReceivedTimestamp - receivedAt
             this.logger.info(
                 { userOpHash, transactionHash, inclusionTimeMs },
                 "user op included"
@@ -601,11 +752,20 @@ export class BundleManager {
             }
 
             // Track metrics
-            this.metrics.userOpInclusionDuration.observe(inclusionTimeMs / 1000)
-            this.metrics.userOpInclusionDurationBlocks.observe(
-                inclusionTimeMs / this.config.blockTime
-            )
+            if (inclusionTimeMs !== undefined) {
+                this.metrics.userOpInclusionDuration.observe(
+                    inclusionTimeMs / 1000
+                )
+                this.metrics.userOpInclusionDurationBlocks.observe(
+                    inclusionTimeMs / this.config.blockTime
+                )
+            }
             this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
+            this.observeInclusionStages({
+                userOpInfo,
+                blockReceivedTimestamp,
+                processedAt
+            })
 
             // Update reputation
             const accountDeployed = this.checkAccountDeployment(
@@ -618,6 +778,31 @@ export class BundleManager {
                 accountDeployed
             )
         }
+    }
+
+    private observeInclusionStages({
+        userOpInfo,
+        blockReceivedTimestamp,
+        processedAt
+    }: {
+        userOpInfo: UserOpInfo
+        blockReceivedTimestamp: number
+        processedAt: number
+    }) {
+        observeDurationMs({
+            histogram: this.metrics.userOpStageDuration.labels({
+                stage: "submitted_to_block_seen"
+            }),
+            startMs: userOpInfo.firstSubmittedAt,
+            endMs: blockReceivedTimestamp
+        })
+        observeDurationMs({
+            histogram: this.metrics.userOpStageDuration.labels({
+                stage: "block_seen_to_processed"
+            }),
+            startMs: blockReceivedTimestamp,
+            endMs: processedAt
+        })
     }
 
     async getUserOpStatus({

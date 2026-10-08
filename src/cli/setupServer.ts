@@ -10,12 +10,13 @@ import {
 import { RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { createMempoolStore } from "@alto/store"
 import type { InterfaceValidator } from "@alto/types"
-import type { Metrics } from "@alto/utils"
+import { type Metrics, asyncCallWithTimeout } from "@alto/utils"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
 import { BundleManager } from "../executor/bundleManager"
 import { flushOnStartUp } from "../executor/senderManager/flushOnStartUp"
 import { validateAndRefillWallets } from "../executor/senderManager/validateAndRefill"
+import { flushTraces } from "../executor/tracing"
 import { persistShutdownState, restoreShutdownState } from "./shutDown"
 
 const getReputationManager = (
@@ -394,6 +395,11 @@ export const setupServer = async ({
 
             await stopPromise
             rootLogger.info("server stopped")
+
+            // Bounded so an unreachable collector can't hold up the exit.
+            await asyncCallWithTimeout(flushTraces(), 5_000).catch((err) => {
+                rootLogger.warn({ err }, "failed to flush traces")
+            })
 
             if (cleanupError) {
                 throw cleanupError

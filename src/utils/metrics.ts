@@ -118,7 +118,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDuration = new Histogram({
         name: "alto_user_operation_inclusion_duration_seconds",
-        help: "Duration of user operation inclusion from first submission to inclusion on-chain",
+        help: "Duration from receiving a user operation to seeing the block that included it",
         labelNames: [] as const,
         registers,
         buckets: [
@@ -136,7 +136,7 @@ export function createMetrics(registry: Registry, register = true) {
 
     const userOpInclusionDurationBlocks = new Histogram({
         name: "alto_user_operation_inclusion_duration_blocks",
-        help: "Number of blocks from first submission to inclusion on-chain",
+        help: "Number of blocks from receiving a user operation to seeing the block that included it",
         labelNames: [] as const,
         registers,
         buckets: [
@@ -245,6 +245,32 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    // === userOp journey timings === //
+    // Kept small on purpose: one series set per stage per pod. Bundle prepare
+    // steps are covered by the bundle.send trace spans instead.
+    const userOpStageDuration = new Histogram({
+        name: "alto_user_operation_stage_duration_seconds",
+        help: "Duration of each stage of a user operation's journey through the bundler",
+        labelNames: ["stage"] as const,
+        registers,
+        buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 15, 60]
+    })
+
+    const handleBlockDuration = new Histogram({
+        name: "alto_executor_handle_block_duration_seconds",
+        help: "Duration of handling a new block while bundles are pending",
+        labelNames: [] as const,
+        registers,
+        buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]
+    })
+
+    const handleBlockSkipped = new Counter({
+        name: "alto_executor_handle_block_skipped_total",
+        help: "Number of block events skipped because the previous block was still being handled",
+        labelNames: [] as const,
+        registers
+    })
+
     const altoSecondValidationFailed = new Counter({
         name: "alto_second_validation_failed",
         help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
@@ -281,6 +307,33 @@ export function createMetrics(registry: Registry, register = true) {
         executorWalletsRequiredBalance,
         walletsProcessingTime,
         userOpsSubmissionAttempts,
+        userOpStageDuration,
+        handleBlockDuration,
+        handleBlockSkipped,
         altoSecondValidationFailed
     }
+}
+
+export type UserOpStage =
+    | "validation"
+    | "mempool_wait"
+    | "pickup_to_submitted"
+    | "submitted_to_block_seen"
+    | "block_seen_to_processed"
+
+// Observes `endMs - startMs` in seconds. Timestamps may be missing on
+// userOps written by older bundler versions, the observation is skipped then.
+export const observeDurationMs = ({
+    histogram,
+    startMs,
+    endMs
+}: {
+    histogram: { observe: (value: number) => void }
+    startMs: number | undefined
+    endMs: number
+}) => {
+    if (startMs === undefined || endMs < startMs) {
+        return
+    }
+    histogram.observe((endMs - startMs) / 1000)
 }

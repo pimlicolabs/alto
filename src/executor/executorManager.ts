@@ -6,14 +6,26 @@ import type {
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
-import { type Logger, type Metrics, scaleBigIntByPercent } from "@alto/utils"
+import {
+    type Logger,
+    type Metrics,
+    observeDurationMs,
+    scaleBigIntByPercent
+} from "@alto/utils"
+import {
+    ROOT_CONTEXT,
+    type Span,
+    SpanStatusCode,
+    context
+} from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import type { Hex, WatchBlocksReturnType } from "viem"
+import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
+import { withSpan } from "./tracing"
 import { getUserOpHashes } from "./utils"
 
 // Delay before an emergency mode wallet is handed back after its bundle is
@@ -109,7 +121,9 @@ export class ExecutorManager {
         }
 
         if (bundleMode === "auto") {
-            this.autoScalingBundling()
+            // Called from an RPC request, whose context the bundling timers
+            // would otherwise carry, tracing every later bundle under it.
+            context.with(ROOT_CONTEXT, () => this.autoScalingBundling())
         }
     }
 
@@ -230,6 +244,14 @@ export class ExecutorManager {
             return
         }
 
+        // Timers and block callbacks inherit the context they are created in.
+        // Start them from the root so block handling isn't traced under the
+        // bundle.send span that happened to start the watcher.
+        context.with(ROOT_CONTEXT, () => this.watchBlocks())
+        this.logger.debug("started watching blocks")
+    }
+
+    private watchBlocks(): void {
         // If preconfirmationTime is set, poll at a fixed interval instead of
         // watching blocks over RPC.
         const fixedInterval = this.config.flashblocksPreconfirmationTime
@@ -269,8 +291,6 @@ export class ExecutorManager {
                 emitMissed: false
             })
         }
-
-        this.logger.debug("started watching blocks")
     }
 
     async getBaseFee(): Promise<bigint> {
@@ -283,25 +303,57 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
-        const { entryPoint, userOps, version } = userOpBundle
+        const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
             return undefined
         }
 
-        const wallet = await this.senderManager.getWallet()
+        return await withSpan({
+            name: "bundle.send",
+            attributes: {
+                "bundle.entry_point": entryPoint,
+                "bundle.user_op_count": userOps.length,
+                "bundle.user_op_hashes": getUserOpHashes(userOps)
+            },
+            fn: (span) => this.sendBundle({ userOpBundle, span })
+        })
+    }
 
-        const [gasPriceParams, baseFee, nonce] = await Promise.all([
-            this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }),
-            this.getBaseFee(),
-            this.config.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "latest"
-            })
-        ]).catch((_) => {
+    private async sendBundle({
+        userOpBundle,
+        span
+    }: {
+        userOpBundle: UserOperationBundle
+        span: Span
+    }): Promise<Hex | undefined> {
+        const { entryPoint, userOps, version } = userOpBundle
+
+        const wallet = await withSpan({
+            name: "bundle.wallet_acquire",
+            fn: () => this.senderManager.getWallet()
+        })
+        span.setAttribute("bundle.executor", wallet.address)
+
+        const [gasPriceParams, baseFee, nonce] = await withSpan({
+            name: "bundle.gas_and_nonce_fetch",
+            fn: () =>
+                Promise.all([
+                    this.gasPriceManager.tryGetNetworkGasPrice({
+                        forExecutor: true
+                    }),
+                    this.getBaseFee(),
+                    this.config.publicClient.getTransactionCount({
+                        address: wallet.address,
+                        blockTag: "latest"
+                    })
+                ])
+        }).catch((_) => {
             return []
         })
 
         if (!gasPriceParams || nonce === undefined) {
+            span.setAttribute("bundle.outcome", "gas_params_unavailable")
+            span.setStatus({ code: SpanStatusCode.ERROR })
             // Free executor if failed to get initial params.
             await this.senderManager.markWalletProcessed(wallet)
             await this.mempool.resubmitUserOps({
@@ -322,6 +374,14 @@ export class ExecutorManager {
 
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            span.setAttributes({
+                "bundle.outcome": "failed",
+                "bundle.failure_reason": reason,
+                "bundle.rejected_count": rejectedUserOps.length,
+                "bundle.recoverable_count": recoverableOps.length
+            })
+            span.setStatus({ code: SpanStatusCode.ERROR, message: reason })
 
             // Recover any userOps that can be resubmitted.
             await this.mempool.resubmitUserOps({
@@ -403,10 +463,30 @@ export class ExecutorManager {
             transactionHash
         } = bundleResult
 
+        span.setAttributes({
+            "bundle.outcome": "submitted",
+            "bundle.tx_hash": transactionHash,
+            "bundle.nonce": transactionRequest.nonce,
+            "bundle.bundled_count": userOpsBundled.length,
+            "bundle.rejected_count": rejectedUserOps.length
+        })
+
+        const firstSubmittedAt = Date.now()
+        for (const { poppedFromMempoolAt } of userOpsBundled) {
+            observeDurationMs({
+                histogram: this.metrics.userOpStageDuration.labels({
+                    stage: "pickup_to_submitted"
+                }),
+                startMs: poppedFromMempoolAt,
+                endMs: firstSubmittedAt
+            })
+        }
+
         // Increment submission attempts for all userOps submitted.
         userOpsBundled = userOpsBundled.map((userOpInfo) => ({
             ...userOpInfo,
-            submissionAttempts: userOpInfo.submissionAttempts + 1
+            submissionAttempts: userOpInfo.submissionAttempts + 1,
+            firstSubmittedAt
         }))
 
         const submittedBundle: SubmittedBundleInfo = {
@@ -438,7 +518,7 @@ export class ExecutorManager {
             }, EMERGENCY_WALLET_RELEASE_DELAY_MS)
         } else {
             // Track bundle and start loop to watch blocks.
-            this.bundleManager.trackBundle(submittedBundle)
+            this.bundleManager.trackBundle(submittedBundle, { sendSpan: span })
             this.startWatchingBlocks()
         }
 
@@ -475,6 +555,7 @@ export class ExecutorManager {
                     "skipping block event, previous block still being handled"
                 )
             }
+            this.metrics.handleBlockSkipped.inc()
             return
         }
 
@@ -528,45 +609,56 @@ export class ExecutorManager {
             await this.bundleManager.getBundleStatuses(pendingBundles)
 
         await Promise.all(
-            bundleStatuses.map(async (bundleStatus, index) => {
-                if (bundleStatus.status === "included") {
-                    await this.bundleManager.processIncludedBundle({
-                        submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus,
-                        blockReceivedTimestamp
-                    })
-                }
+            bundleStatuses.map((bundleStatus, index) =>
+                this.bundleManager.withInclusionSpan(
+                    pendingBundles[index].uid,
+                    async () => {
+                        if (bundleStatus.status === "included") {
+                            await this.bundleManager.processIncludedBundle({
+                                submittedBundle: pendingBundles[index],
+                                bundleReceipt: bundleStatus,
+                                blockReceivedTimestamp
+                            })
+                        }
 
-                if (bundleStatus.status === "reverted") {
-                    await this.bundleManager.processRevertedBundle({
-                        blockReceivedTimestamp,
-                        submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus
-                    })
-                }
+                        if (bundleStatus.status === "reverted") {
+                            await this.bundleManager.processRevertedBundle({
+                                blockReceivedTimestamp,
+                                submittedBundle: pendingBundles[index],
+                                bundleReceipt: bundleStatus
+                            })
+                        }
 
-                // can be potentially resubmitted - so we first submit it again to optimize for the speed
-                if (bundleStatus.status === "not_found") {
-                    const [networkGasPrice, networkBaseFee] =
-                        await networkGasParams
-                    this.potentiallyResubmitBundle({
-                        blockReceivedTimestamp,
-                        submittedBundle: pendingBundles[index],
-                        networkGasPrice,
-                        networkBaseFee
-                    })
-                }
+                        // can be potentially resubmitted - so we first submit it again to optimize for the speed
+                        if (bundleStatus.status === "not_found") {
+                            const [networkGasPrice, networkBaseFee] =
+                                await networkGasParams
+                            this.potentiallyResubmitBundle({
+                                blockReceivedTimestamp,
+                                submittedBundle: pendingBundles[index],
+                                networkGasPrice,
+                                networkBaseFee
+                            })
+                        }
 
-                // Internal error - clean up the bundle so it doesn't get stuck
-                if (bundleStatus.status === "internal_error") {
-                    await this.bundleManager.processInternalErrorBundle({
-                        submittedBundle: pendingBundles[index],
-                        error: bundleStatus.error
-                    })
-                }
-            })
+                        // Internal error - clean up the bundle so it doesn't get stuck
+                        if (bundleStatus.status === "internal_error") {
+                            await this.bundleManager.processInternalErrorBundle(
+                                {
+                                    submittedBundle: pendingBundles[index],
+                                    error: bundleStatus.error
+                                }
+                            )
+                        }
+                    }
+                )
+            )
         )
 
+        // Only observed when bundles were pending, idle blocks return early.
+        this.metrics.handleBlockDuration.observe(
+            (Date.now() - blockReceivedTimestamp) / 1000
+        )
         this.currentlyHandlingBlock = false
         this.currentlyHandlingBlockNumber = undefined
     }
@@ -701,7 +793,39 @@ export class ExecutorManager {
         )
     }
 
-    async replaceBundle({
+    async replaceBundle(args: {
+        blockReceivedTimestamp: number
+        submittedBundle: SubmittedBundleInfo
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
+        reason: "gas_price" | "stuck"
+    }): Promise<void> {
+        const { submittedBundle, reason } = args
+        const { uid, transactionHash } = submittedBundle
+
+        try {
+            // Nested under the bundle's inclusion span so the replacement's
+            // RPC calls show up in the same trace.
+            await withSpan({
+                name: "bundle.replace",
+                parent: this.bundleManager.getInclusionSpan(uid),
+                attributes: {
+                    "bundle.replace.reason": reason,
+                    "bundle.replace.old_tx_hash": transactionHash
+                },
+                fn: () => this.replaceBundleTx(args)
+            })
+        } finally {
+            // Re-tracked on success, ended by processing when the bundle was
+            // mined meanwhile, otherwise its userOps went back to the mempool.
+            this.bundleManager.endInclusionSpanIfUntracked({
+                uid,
+                outcome: "replacement_failed"
+            })
+        }
+    }
+
+    private async replaceBundleTx({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -884,7 +1008,8 @@ export class ExecutorManager {
             transactionHash: newTxHash
         } = bundleResult
 
-        // Increment submission attempts for all replaced userOps
+        // Increment submission attempts for all replaced userOps, keeping
+        // firstSubmittedAt so inclusion timings include the replacement.
         const userOpsReplaced = userOpsBundled.map((userOpInfo) => ({
             ...userOpInfo,
             submissionAttempts: userOpInfo.submissionAttempts + 1
@@ -908,6 +1033,19 @@ export class ExecutorManager {
 
         // Track bundle and start loop to watch blocks
         this.bundleManager.trackBundle(newSubmittedBundle)
+        this.bundleManager
+            .getInclusionSpan(newSubmittedBundle.uid)
+            ?.addEvent("replaced", {
+                "bundle.replace.reason": reason,
+                "bundle.replace.old_tx_hash": oldTxHash,
+                "bundle.replace.new_tx_hash": newTxHash,
+                "bundle.replace.max_fee_per_gas": toHex(
+                    newTransactionRequest.maxFeePerGas
+                ),
+                "bundle.replace.max_priority_fee_per_gas": toHex(
+                    newTransactionRequest.maxPriorityFeePerGas
+                )
+            })
         this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.

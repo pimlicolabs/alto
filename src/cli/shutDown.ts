@@ -1,9 +1,10 @@
 import { getUserOpHashes } from "@alto/executor"
 import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool, StatusManager } from "@alto/mempool"
-import type {
-    SerializableSubmittedBundleInfo,
-    SubmittedBundleInfo
+import {
+    type SerializableSubmittedBundleInfo,
+    type SubmittedBundleInfo,
+    withReceivedAt
 } from "@alto/types"
 import {
     recoverableJsonParseWithBigint,
@@ -58,7 +59,10 @@ function deserializePendingBundle(
         transactionHash: serializedBundle.transactionHash,
         previousTransactionHashes: serializedBundle.previousTransactionHashes,
         transactionRequest: serializedBundle.transactionRequest,
-        bundle: serializedBundle.bundle,
+        bundle: {
+            ...serializedBundle.bundle,
+            userOps: serializedBundle.bundle.userOps.map(withReceivedAt)
+        },
         lastReplaced: serializedBundle.lastReplaced
     }
 }
@@ -150,6 +154,14 @@ export async function persistShutdownState({
     config: AltoConfig
     logger: Logger
 }) {
+    // End inclusion spans before any early return so they still get exported.
+    // Only the restoration queue hands pending bundles to the next instance.
+    const handsOffBundles =
+        !config.enableHorizontalScaling && Boolean(config.redisEndpoint)
+    bundleManager.endAllInclusionSpans({
+        outcome: handsOffBundles ? "handed_off" : "shutdown"
+    })
+
     // When horizontal scaling is enabled, we keep outstanding store in redis so that outstanding userOps can be picked up by other instances.
     // We flush all locally processing userOps and push them to outstanding redis to be picked up by the next alto instance.
     if (config.enableHorizontalScaling) {
@@ -388,7 +400,7 @@ export async function restoreShutdownState({
                         if (outstanding.length > 0) {
                             await mempool.store.addOutstanding({
                                 entryPoint,
-                                userOpInfos: outstanding
+                                userOpInfos: outstanding.map(withReceivedAt)
                             })
                         }
                     }
@@ -406,7 +418,9 @@ export async function restoreShutdownState({
                             continue
                         }
 
-                        bundleManager.trackBundle(submittedBundle)
+                        bundleManager.trackBundle(submittedBundle, {
+                            restored: true
+                        })
                         if (senderManager.lockWallet) {
                             senderManager.lockWallet(submittedBundle.executor)
                         }
