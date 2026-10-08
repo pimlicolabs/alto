@@ -41,7 +41,7 @@ import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
-import { executorTracer } from "./tracing"
+import { executorTracer, getShortErrorMessage } from "./tracing"
 
 export class BundleManager {
     private readonly reputationManager: InterfaceReputationManager
@@ -123,8 +123,7 @@ export class BundleManager {
                         sentry.captureException(err)
                         return {
                             status: "internal_error" as const,
-                            error:
-                                err instanceof Error ? err.message : String(err)
+                            error: getShortErrorMessage(err)
                         }
                     }
                 })
@@ -553,7 +552,14 @@ export class BundleManager {
 
     public trackBundle(
         submittedBundle: SubmittedBundleInfo,
-        { restored = false }: { restored?: boolean } = {}
+        {
+            sendSpan,
+            restored = false
+        }: {
+            // The bundle.send span that submitted it, absent when restored.
+            sendSpan?: Span
+            restored?: boolean
+        } = {}
     ) {
         const { uid, executor, transactionHash, bundle } = submittedBundle
         this.pendingBundles.set(uid, submittedBundle)
@@ -563,8 +569,7 @@ export class BundleManager {
         }
 
         // Its own trace, as it outlives bundle.send by blocks. The two spans
-        // link to each other instead. Restored bundles have no send span.
-        const sendSpan = trace.getActiveSpan()
+        // link to each other instead.
         const sendSpanContext = sendSpan?.spanContext()
         const hasSendSpan =
             sendSpanContext !== undefined &&
@@ -717,7 +722,11 @@ export class BundleManager {
             const { userOpHash, userOp, submissionAttempts, receivedAt } =
                 userOpInfo
 
-            const inclusionTimeMs = blockReceivedTimestamp - receivedAt
+            // Can only be missing on userOps written by much older versions.
+            const inclusionTimeMs =
+                receivedAt === undefined
+                    ? undefined
+                    : blockReceivedTimestamp - receivedAt
             this.logger.info(
                 { userOpHash, transactionHash, inclusionTimeMs },
                 "user op included"
@@ -743,10 +752,14 @@ export class BundleManager {
             }
 
             // Track metrics
-            this.metrics.userOpInclusionDuration.observe(inclusionTimeMs / 1000)
-            this.metrics.userOpInclusionDurationBlocks.observe(
-                inclusionTimeMs / this.config.blockTime
-            )
+            if (inclusionTimeMs !== undefined) {
+                this.metrics.userOpInclusionDuration.observe(
+                    inclusionTimeMs / 1000
+                )
+                this.metrics.userOpInclusionDurationBlocks.observe(
+                    inclusionTimeMs / this.config.blockTime
+                )
+            }
             this.metrics.userOpsSubmissionAttempts.observe(submissionAttempts)
             this.observeInclusionStages({
                 userOpInfo,

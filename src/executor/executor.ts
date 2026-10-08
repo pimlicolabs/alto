@@ -15,6 +15,7 @@ import {
     roundUpBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
+import { SpanStatusCode } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import {
     type Account,
@@ -496,6 +497,12 @@ export class Executor {
                     logger: childLogger
                 })
                 span.setAttribute("bundle.filter_ops.status", result.status)
+                if (result.status !== "success") {
+                    span.setStatus({
+                        code: SpanStatusCode.ERROR,
+                        message: result.status
+                    })
+                }
                 return result
             }
         })

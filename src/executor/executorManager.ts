@@ -121,7 +121,9 @@ export class ExecutorManager {
         }
 
         if (bundleMode === "auto") {
-            this.autoScalingBundling()
+            // Called from an RPC request, whose context the bundling timers
+            // would otherwise carry, tracing every later bundle under it.
+            context.with(ROOT_CONTEXT, () => this.autoScalingBundling())
         }
     }
 
@@ -516,7 +518,7 @@ export class ExecutorManager {
             }, EMERGENCY_WALLET_RELEASE_DELAY_MS)
         } else {
             // Track bundle and start loop to watch blocks.
-            this.bundleManager.trackBundle(submittedBundle)
+            this.bundleManager.trackBundle(submittedBundle, { sendSpan: span })
             this.startWatchingBlocks()
         }
 
