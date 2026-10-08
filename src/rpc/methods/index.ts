@@ -17,7 +17,6 @@ import { ethSupportedEntryPointsHandler } from "./eth_supportedEntryPoints"
 import { pimlicoGetUserOperationGasPriceHandler } from "./pimlico_getUserOperationGasPrice"
 import { pimlicoGetUserOperationStatusHandler } from "./pimlico_getUserOperationStatus"
 import { pimlicoSendUserOperationNowHandler } from "./pimlico_sendUserOperationNow"
-import { pimlicoSimulateAssetChangeHandler } from "./pimlico_simulateAssetChange"
 
 export function registerHandlers(rpcHandler: RpcHandler) {
     // eth_* namespace
@@ -42,7 +41,6 @@ export function registerHandlers(rpcHandler: RpcHandler) {
     rpcHandler.registerHandler(pimlicoGetUserOperationGasPriceHandler)
     rpcHandler.registerHandler(pimlicoGetUserOperationStatusHandler)
     rpcHandler.registerHandler(pimlicoSendUserOperationNowHandler)
-    rpcHandler.registerHandler(pimlicoSimulateAssetChangeHandler)
 
     // boost_* namespace
     rpcHandler.registerHandler(boostSendUserOperationHandler)
