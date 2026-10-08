@@ -568,8 +568,15 @@ export class BundleManager {
                     "bundle.tx_hash": transactionHash,
                     "bundle.executor": executor.address,
                     "bundle.entry_point": bundle.entryPoint,
-                    "bundle.user_op_hashes": getUserOpHashes(bundle.userOps),
-                    "bundle.restored": restored
+                    "bundle.user_op_count": bundle.userOps.length,
+                    "bundle.restored": restored,
+                    // bundle.send already carries the hashes, only a new
+                    // trace needs them to be searchable by userOp hash.
+                    ...(restored && {
+                        "bundle.user_op_hashes": getUserOpHashes(
+                            bundle.userOps
+                        )
+                    })
                 }
             },
             context.active()
