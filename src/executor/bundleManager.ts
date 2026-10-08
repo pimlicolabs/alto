@@ -692,10 +692,10 @@ export class BundleManager {
 
         // Process each userOp
         for (const { userOpInfo, userOpReceipt } of userOpsBatch) {
-            const { userOpHash, userOp, submissionAttempts, addedToMempool } =
+            const { userOpHash, userOp, submissionAttempts, receivedAt } =
                 userOpInfo
 
-            const inclusionTimeMs = blockReceivedTimestamp - addedToMempool
+            const inclusionTimeMs = blockReceivedTimestamp - receivedAt
             this.logger.info(
                 { userOpHash, transactionHash, inclusionTimeMs },
                 "user op included"

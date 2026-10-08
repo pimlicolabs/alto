@@ -889,20 +889,42 @@ export const referencedCodeHashesSchema = z.object({
     hash: z.string()
 })
 
-export const userOpInfoSchema = z.object({
-    userOp: userOperationSchema,
-    // === userOp Details ===
-    userOpHash: hexData32Schema,
-    addedToMempool: z.number(), // timestamp (ms) when the send handler received the userOp, before validation
-    referencedContracts: referencedCodeHashesSchema.optional(),
-    submissionAttempts: z.number(),
-    // === Stage timestamps (ms) for metrics ===
-    // Optional because older bundler versions write userOps to Redis without
-    // them during rollouts. Observations are skipped when they are missing.
-    enteredMempoolAt: z.number().optional(), // last added to the outstanding mempool (reset on resubmit)
-    poppedFromMempoolAt: z.number().optional(), // last popped into a bundle
-    firstSubmittedAt: z.number().optional() // first bundle tx of the current attempt accepted by the node (kept on replacement)
-})
+// `receivedAt` used to be called `addedToMempool`. Bundler versions from
+// before the rename only read and write the old key, so during rollouts both
+// keys are written and either is accepted.
+// TODO: drop addedToMempool once every instance reads receivedAt.
+export const withReceivedAt = <T>(userOpInfo: T): T => {
+    if (typeof userOpInfo !== "object" || userOpInfo === null) {
+        return userOpInfo
+    }
+    const { receivedAt, addedToMempool } = userOpInfo as {
+        receivedAt?: unknown
+        addedToMempool?: unknown
+    }
+    if (receivedAt !== undefined || addedToMempool === undefined) {
+        return userOpInfo
+    }
+    return { ...userOpInfo, receivedAt: addedToMempool }
+}
+
+export const userOpInfoSchema = z.preprocess(
+    withReceivedAt,
+    z.object({
+        userOp: userOperationSchema,
+        // === userOp Details ===
+        userOpHash: hexData32Schema,
+        receivedAt: z.number(), // timestamp (ms) when the send handler received the userOp, before validation
+        addedToMempool: z.number().optional(), // deprecated alias of receivedAt, see withReceivedAt
+        referencedContracts: referencedCodeHashesSchema.optional(),
+        submissionAttempts: z.number(),
+        // === Stage timestamps (ms) for metrics ===
+        // Optional because older bundler versions write userOps to Redis without
+        // them during rollouts. Observations are skipped when they are missing.
+        enteredMempoolAt: z.number().optional(), // last added to the outstanding mempool (reset on resubmit)
+        poppedFromMempoolAt: z.number().optional(), // last popped into a bundle
+        firstSubmittedAt: z.number().optional() // first bundle tx of the current attempt accepted by the node (kept on replacement)
+    })
+)
 
 // Export types derived from schemas
 export type ReferencedCodeHashes = z.infer<typeof referencedCodeHashesSchema>

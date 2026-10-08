@@ -59,7 +59,7 @@ const validateChainRules = async ({
                         entryPointAddress: entryPoint,
                         chainId: rpcHandler.config.chainId
                     }),
-                    addedToMempool: Date.now(),
+                    receivedAt: Date.now(),
                     submissionAttempts: 0
                 }
 
@@ -225,10 +225,12 @@ export async function addToMempoolIfValid({
         chainId: rpcHandler.config.chainId
     })
 
+    const receivedAt = Date.now()
     const userOpInfo: UserOpInfo = {
         userOp,
         userOpHash,
-        addedToMempool: Date.now(),
+        receivedAt,
+        addedToMempool: receivedAt, // deprecated alias, see withReceivedAt
         submissionAttempts: 0
     }
 

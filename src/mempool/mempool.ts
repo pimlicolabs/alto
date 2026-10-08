@@ -431,7 +431,7 @@ export class Mempool {
                 histogram: this.metrics.userOpStageDuration.labels({
                     stage: "validation"
                 }),
-                startMs: userOpInfo.addedToMempool,
+                startMs: userOpInfo.receivedAt,
                 endMs: enteredMempoolAt
             })
         }
