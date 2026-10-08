@@ -573,9 +573,7 @@ export class BundleManager {
                     // bundle.send already carries the hashes, only a new
                     // trace needs them to be searchable by userOp hash.
                     ...(restored && {
-                        "bundle.user_op_hashes": getUserOpHashes(
-                            bundle.userOps
-                        )
+                        "bundle.user_op_hashes": getUserOpHashes(bundle.userOps)
                     })
                 }
             },
