@@ -20,6 +20,12 @@ import {
     observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
+import {
+    type Attributes,
+    type Span,
+    SpanStatusCode,
+    context
+} from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -35,6 +41,7 @@ import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
+import { executorTracer } from "./tracing"
 
 export class BundleManager {
     private readonly reputationManager: InterfaceReputationManager
@@ -53,6 +60,9 @@ export class BundleManager {
     // Included bundles awaiting their reorg check at confirmation depth.
     private readonly includedBundles: Map<string, IncludedBundleInfo> =
         new Map()
+    // One span per bundle from submission until it is resolved, replacement
+    // txs reuse it. Kept off SubmittedBundleInfo as that gets serialized.
+    private readonly inclusionSpans: Map<string, Span> = new Map()
 
     constructor({
         config,
@@ -145,7 +155,14 @@ export class BundleManager {
         }
 
         // Cleanup bundle
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "included",
+            attributes: {
+                "bundle.included_tx_hash": transactionHash,
+                "bundle.block_number": Number(blockNumber)
+            }
+        })
 
         // Process all userOps in parallel (non-blocking)
         // The IIFE returns immediately, allowing the caller to continue
@@ -409,7 +426,14 @@ export class BundleManager {
             "Processing reverted bundle"
         )
 
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "reverted",
+            attributes: {
+                "bundle.included_tx_hash": transactionHash,
+                "bundle.block_number": Number(blockNumber)
+            }
+        })
 
         const networkBaseFee = this.config.legacyTransactions
             ? 0n
@@ -504,7 +528,11 @@ export class BundleManager {
         )
 
         // Clean up the bundle so it doesn't get stuck
-        await this.freeSubmittedBundle(submittedBundle)
+        await this.freeSubmittedBundle({
+            submittedBundle,
+            outcome: "internal_error",
+            attributes: { "bundle.error": error }
+        })
 
         // Mark all userOps as failed
         await this.statusManager.set(
@@ -521,8 +549,85 @@ export class BundleManager {
             .inc(userOps.length)
     }
 
-    public trackBundle(submittedBundle: SubmittedBundleInfo) {
-        this.pendingBundles.set(submittedBundle.uid, submittedBundle)
+    public trackBundle(
+        submittedBundle: SubmittedBundleInfo,
+        { restored = false }: { restored?: boolean } = {}
+    ) {
+        const { uid, executor, transactionHash, bundle } = submittedBundle
+        this.pendingBundles.set(uid, submittedBundle)
+
+        if (this.inclusionSpans.has(uid)) {
+            return
+        }
+
+        // Child of the active bundle.send span. Bundles restored from another
+        // instance have no active span and start a new trace.
+        const span = executorTracer.startSpan(
+            "bundle.inclusion",
+            {
+                attributes: {
+                    "bundle.uid": uid,
+                    "bundle.tx_hash": transactionHash,
+                    "bundle.executor": executor.address,
+                    "bundle.entry_point": bundle.entryPoint,
+                    "bundle.user_op_hashes": getUserOpHashes(bundle.userOps),
+                    "bundle.restored": restored
+                }
+            },
+            context.active()
+        )
+        this.inclusionSpans.set(uid, span)
+    }
+
+    public getInclusionSpan(uid: string): Span | undefined {
+        return this.inclusionSpans.get(uid)
+    }
+
+    // Ends the bundle's inclusion span, a no-op if it already ended.
+    public endInclusionSpan({
+        uid,
+        outcome,
+        attributes
+    }: {
+        uid: string
+        outcome: string
+        attributes?: Attributes
+    }) {
+        const span = this.inclusionSpans.get(uid)
+        if (!span) {
+            return
+        }
+
+        this.inclusionSpans.delete(uid)
+        span.setAttributes({ ...attributes, "bundle.outcome": outcome })
+        if (outcome !== "included" && outcome !== "handed_off") {
+            span.setStatus({ code: SpanStatusCode.ERROR, message: outcome })
+        }
+        span.end()
+    }
+
+    // Ends the inclusion span unless the bundle is still being tracked, e.g.
+    // after a replacement attempt that may or may not have re-tracked it.
+    public endInclusionSpanIfUntracked({
+        uid,
+        outcome,
+        attributes
+    }: {
+        uid: string
+        outcome: string
+        attributes?: Attributes
+    }) {
+        if (this.pendingBundles.has(uid)) {
+            return
+        }
+        this.endInclusionSpan({ uid, outcome, attributes })
+    }
+
+    // Pending bundles are handed to another instance on shutdown.
+    public endAllInclusionSpans({ outcome }: { outcome: string }) {
+        for (const uid of Array.from(this.inclusionSpans.keys())) {
+            this.endInclusionSpan({ uid, outcome })
+        }
     }
 
     // Helpers //
@@ -544,11 +649,20 @@ export class BundleManager {
     }
 
     // Free executors and remove userOps from mempool.
-    private async freeSubmittedBundle(submittedBundle: SubmittedBundleInfo) {
-        const { executor, bundle } = submittedBundle
+    private async freeSubmittedBundle({
+        submittedBundle,
+        outcome,
+        attributes
+    }: {
+        submittedBundle: SubmittedBundleInfo
+        outcome: string
+        attributes?: Attributes
+    }) {
+        const { executor, bundle, uid } = submittedBundle
         const { userOps, entryPoint } = bundle
 
         this.stopTrackingBundle(submittedBundle)
+        this.endInclusionSpan({ uid, outcome, attributes })
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeProcessing({ entryPoint, userOps })
     }

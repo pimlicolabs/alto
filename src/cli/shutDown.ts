@@ -194,6 +194,7 @@ export async function persistShutdownState({
             bundleManager.getPendingBundles(),
             statusManager.dumpAll()
         ]
+        bundleManager.endAllInclusionSpans({ outcome: "handed_off" })
 
         const entrypointData = await Promise.all(
             config.entrypoints.map(async (entryPoint) => {
@@ -406,7 +407,9 @@ export async function restoreShutdownState({
                             continue
                         }
 
-                        bundleManager.trackBundle(submittedBundle)
+                        bundleManager.trackBundle(submittedBundle, {
+                            restored: true
+                        })
                         if (senderManager.lockWallet) {
                             senderManager.lockWallet(submittedBundle.executor)
                         }

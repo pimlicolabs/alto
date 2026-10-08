@@ -308,26 +308,6 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    // === send transaction RPC fan-out (multiRpcTransport) === //
-    // `endpoint` is the URL hostname only, never the path or query.
-    const sendTransactionRpcDuration = new Histogram({
-        name: "alto_send_transaction_rpc_duration_seconds",
-        help: "Duration of each send transaction RPC endpoint's response",
-        labelNames: ["method", "endpoint", "result"] as const,
-        registers,
-        buckets: [
-            0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1,
-            1.5, 2, 3, 5, 10
-        ]
-    })
-
-    const sendTransactionRpcWins = new Counter({
-        name: "alto_send_transaction_rpc_wins_total",
-        help: "Number of times each send transaction RPC endpoint answered first successfully",
-        labelNames: ["method", "endpoint"] as const,
-        registers
-    })
-
     const altoSecondValidationFailed = new Counter({
         name: "alto_second_validation_failed",
         help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
@@ -370,8 +350,6 @@ export function createMetrics(registry: Registry, register = true) {
         bundleSendTransactionRetries,
         handleBlockDuration,
         handleBlockSkipped,
-        sendTransactionRpcDuration,
-        sendTransactionRpcWins,
         altoSecondValidationFailed
     }
 }

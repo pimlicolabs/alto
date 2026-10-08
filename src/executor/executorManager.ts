@@ -14,13 +14,15 @@ import {
     observeDurationMs,
     scaleBigIntByPercent
 } from "@alto/utils"
+import { type Span, SpanStatusCode } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import type { Hex, WatchBlocksReturnType } from "viem"
+import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
+import { withSpan } from "./tracing"
 import { getUserOpHashes } from "./utils"
 
 // Delay before an emergency mode wallet is handed back after its bundle is
@@ -298,13 +300,37 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
-        const { entryPoint, userOps, version } = userOpBundle
+        const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
             return undefined
         }
 
+        return await withSpan({
+            name: "bundle.send",
+            attributes: {
+                "bundle.entry_point": entryPoint,
+                "bundle.user_op_count": userOps.length,
+                "bundle.user_op_hashes": getUserOpHashes(userOps)
+            },
+            fn: (span) => this.sendBundle({ userOpBundle, span })
+        })
+    }
+
+    private async sendBundle({
+        userOpBundle,
+        span
+    }: {
+        userOpBundle: UserOperationBundle
+        span: Span
+    }): Promise<Hex | undefined> {
+        const { entryPoint, userOps, version } = userOpBundle
+
         const bundleStart = performance.now()
-        const wallet = await this.senderManager.getWallet()
+        const wallet = await withSpan({
+            name: "bundle.wallet_acquire",
+            fn: () => this.senderManager.getWallet()
+        })
+        span.setAttribute("bundle.executor", wallet.address)
         this.observeBundlePrepareStep({
             step: "wallet_acquire",
             attempt: "first",
@@ -312,14 +338,20 @@ export class ExecutorManager {
         })
 
         const gasAndNonceStart = performance.now()
-        const [gasPriceParams, baseFee, nonce] = await Promise.all([
-            this.gasPriceManager.tryGetNetworkGasPrice({ forExecutor: true }),
-            this.getBaseFee(),
-            this.config.publicClient.getTransactionCount({
-                address: wallet.address,
-                blockTag: "latest"
-            })
-        ]).catch((_) => {
+        const [gasPriceParams, baseFee, nonce] = await withSpan({
+            name: "bundle.gas_and_nonce_fetch",
+            fn: () =>
+                Promise.all([
+                    this.gasPriceManager.tryGetNetworkGasPrice({
+                        forExecutor: true
+                    }),
+                    this.getBaseFee(),
+                    this.config.publicClient.getTransactionCount({
+                        address: wallet.address,
+                        blockTag: "latest"
+                    })
+                ])
+        }).catch((_) => {
             return []
         })
         this.observeBundlePrepareStep({
@@ -329,6 +361,8 @@ export class ExecutorManager {
         })
 
         if (!gasPriceParams || nonce === undefined) {
+            span.setAttribute("bundle.outcome", "gas_params_unavailable")
+            span.setStatus({ code: SpanStatusCode.ERROR })
             // Free executor if failed to get initial params.
             await this.senderManager.markWalletProcessed(wallet)
             await this.mempool.resubmitUserOps({
@@ -349,6 +383,14 @@ export class ExecutorManager {
 
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult
+
+            span.setAttributes({
+                "bundle.outcome": "failed",
+                "bundle.failure_reason": reason,
+                "bundle.rejected_count": rejectedUserOps.length,
+                "bundle.recoverable_count": recoverableOps.length
+            })
+            span.setStatus({ code: SpanStatusCode.ERROR, message: reason })
 
             // Recover any userOps that can be resubmitted.
             await this.mempool.resubmitUserOps({
@@ -434,6 +476,14 @@ export class ExecutorManager {
             step: "total",
             attempt: "first",
             startMs: bundleStart
+        })
+
+        span.setAttributes({
+            "bundle.outcome": "submitted",
+            "bundle.tx_hash": transactionHash,
+            "bundle.nonce": transactionRequest.nonce,
+            "bundle.bundled_count": userOpsBundled.length,
+            "bundle.rejected_count": rejectedUserOps.length
         })
 
         const firstSubmittedAt = Date.now()
@@ -771,7 +821,39 @@ export class ExecutorManager {
         )
     }
 
-    async replaceBundle({
+    async replaceBundle(args: {
+        blockReceivedTimestamp: number
+        submittedBundle: SubmittedBundleInfo
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
+        reason: "gas_price" | "stuck"
+    }): Promise<void> {
+        const { submittedBundle, reason } = args
+        const { uid, transactionHash } = submittedBundle
+
+        try {
+            // Nested under the bundle's inclusion span so the replacement's
+            // RPC calls show up in the same trace.
+            await withSpan({
+                name: "bundle.replace",
+                parent: this.bundleManager.getInclusionSpan(uid),
+                attributes: {
+                    "bundle.replace.reason": reason,
+                    "bundle.replace.old_tx_hash": transactionHash
+                },
+                fn: () => this.replaceBundleTx(args)
+            })
+        } finally {
+            // Re-tracked on success, ended by processing when the bundle was
+            // mined meanwhile, otherwise its userOps went back to the mempool.
+            this.bundleManager.endInclusionSpanIfUntracked({
+                uid,
+                outcome: "replacement_failed"
+            })
+        }
+    }
+
+    private async replaceBundleTx({
         blockReceivedTimestamp,
         submittedBundle,
         networkGasPrice,
@@ -986,6 +1068,19 @@ export class ExecutorManager {
 
         // Track bundle and start loop to watch blocks
         this.bundleManager.trackBundle(newSubmittedBundle)
+        this.bundleManager
+            .getInclusionSpan(newSubmittedBundle.uid)
+            ?.addEvent("replaced", {
+                "bundle.replace.reason": reason,
+                "bundle.replace.old_tx_hash": oldTxHash,
+                "bundle.replace.new_tx_hash": newTxHash,
+                "bundle.replace.max_fee_per_gas": toHex(
+                    newTransactionRequest.maxFeePerGas
+                ),
+                "bundle.replace.max_priority_fee_per_gas": toHex(
+                    newTransactionRequest.maxPriorityFeePerGas
+                )
+            })
         this.startWatchingBlocks()
 
         // Drop all userOperations that were rejected during simulation.

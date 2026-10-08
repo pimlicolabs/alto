@@ -31,6 +31,7 @@ import {
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
+import { withSpan } from "./tracing"
 import {
     ReplacementNonceConflictError,
     encodeHandleOpsCalldata,
@@ -296,16 +297,22 @@ export class Executor {
                 })
 
                 const callStart = performance.now()
-                transactionHash = await walletClient
-                    .sendTransaction(request)
-                    .finally(() => {
-                        this.metrics.bundlePrepareStepDuration
-                            .labels({
-                                step: "send_transaction",
-                                attempt: attemptLabel
-                            })
-                            .observe((performance.now() - callStart) / 1000)
-                    })
+                transactionHash = await withSpan({
+                    name: "bundle.send_transaction",
+                    attributes: {
+                        "bundle.send.attempt": attempts,
+                        "bundle.send.is_private": Boolean(usePrivateEndpoint),
+                        "bundle.nonce": request.nonce
+                    },
+                    fn: () => walletClient.sendTransaction(request)
+                }).finally(() => {
+                    this.metrics.bundlePrepareStepDuration
+                        .labels({
+                            step: "send_transaction",
+                            attempt: attemptLabel
+                        })
+                        .observe((performance.now() - callStart) / 1000)
+                })
 
                 childLogger.info(
                     {
@@ -521,12 +528,19 @@ export class Executor {
         })
 
         const filterOpsStart = performance.now()
-        const filterOpsResult = await filterOpsAndEstimateGas({
-            checkEip7702AuthNonces: false, // Ignore EIP-7702 auth nonce check to save latency.
-            networkBaseFee,
-            userOpBundle,
-            config: this.config,
-            logger: childLogger
+        const filterOpsResult = await withSpan({
+            name: "bundle.filter_ops_simulation",
+            fn: async (span) => {
+                const result = await filterOpsAndEstimateGas({
+                    checkEip7702AuthNonces: false, // Ignore EIP-7702 auth nonce check to save latency.
+                    networkBaseFee,
+                    userOpBundle,
+                    config: this.config,
+                    logger: childLogger
+                })
+                span.setAttribute("bundle.filter_ops.status", result.status)
+                return result
+            }
         })
         this.metrics.bundlePrepareStepDuration
             .labels({

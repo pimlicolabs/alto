@@ -190,9 +190,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             .extend(withEthCallSender)
     }
 
-    const registry = new Registry()
-    const metrics = createMetrics(registry)
-
     const createWalletTransport = (url: string) =>
         customTransport(url, {
             logger: logger.child(
@@ -208,7 +205,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                       [
                           multiRpcTransport(args.sendTransactionRpcUrl, {
                               chainId,
-                              metrics,
                               logger: logger.child(
                                   { module: "wallet_client" },
                                   {
@@ -272,6 +268,9 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     const gasPriceManager = new GasPriceManager(config)
 
     await gasPriceManager.init()
+
+    const registry = new Registry()
+    const metrics = createMetrics(registry)
 
     metrics.chainBlockTime.set(config.blockTime / 1000)
 
