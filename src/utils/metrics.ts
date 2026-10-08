@@ -252,10 +252,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration of each stage of a user operation's journey through the bundler",
         labelNames: ["stage", "attempt"] as const,
         registers,
-        buckets: [
-            0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1,
-            1.5, 2, 3, 5, 7.5, 10, 15, 20, 30, 60, 120, 300
-        ]
+        buckets: [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 120]
     })
 
     const userOpEndToEndDuration = new Histogram({
@@ -263,10 +260,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration from receiving a user operation to processing its inclusion receipt",
         labelNames: ["attempt"] as const,
         registers,
-        buckets: [
-            0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.75, 1, 1.5, 2, 3, 5, 7.5, 10, 15,
-            20, 30, 60, 120, 300, 600
-        ]
+        buckets: [0.25, 0.5, 1, 2, 3, 5, 10, 30, 60, 300]
     })
 
     // `attempt` is "first" for a new bundle tx, "replacement" when
@@ -276,10 +270,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration of each step between popping user operations from the mempool and the bundle transaction being accepted by the node",
         labelNames: ["step", "attempt"] as const,
         registers,
-        buckets: [
-            0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3,
-            0.5, 0.75, 1, 1.5, 2, 3, 5, 10, 30
-        ]
+        buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 10]
     })
 
     const bundleSendTransactionRetries = new Histogram({
@@ -287,7 +278,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Number of failed sendTransaction calls before a bundle transaction was accepted (or gave up)",
         labelNames: ["attempt", "result"] as const,
         registers,
-        buckets: [0, 1, 2, 3, 4, 5, 7, 10]
+        buckets: [0, 1, 2, 3, 5, 10]
     })
 
     const handleBlockDuration = new Histogram({
@@ -295,10 +286,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration of handling a new block while bundles are pending",
         labelNames: [] as const,
         registers,
-        buckets: [
-            0.01, 0.025, 0.05, 0.075, 0.1, 0.15, 0.2, 0.3, 0.5, 0.75, 1, 1.5, 2,
-            3, 5, 10, 30
-        ]
+        buckets: [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
     })
 
     const handleBlockSkipped = new Counter({
