@@ -12,7 +12,12 @@ import {
     observeDurationMs,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Span, SpanStatusCode } from "@opentelemetry/api"
+import {
+    ROOT_CONTEXT,
+    type Span,
+    SpanStatusCode,
+    context
+} from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
 import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
@@ -237,6 +242,14 @@ export class ExecutorManager {
             return
         }
 
+        // Timers and block callbacks inherit the context they are created in.
+        // Start them from the root so block handling isn't traced under the
+        // bundle.send span that happened to start the watcher.
+        context.with(ROOT_CONTEXT, () => this.watchBlocks())
+        this.logger.debug("started watching blocks")
+    }
+
+    private watchBlocks(): void {
         // If preconfirmationTime is set, poll at a fixed interval instead of
         // watching blocks over RPC.
         const fixedInterval = this.config.flashblocksPreconfirmationTime
@@ -276,8 +289,6 @@ export class ExecutorManager {
                 emitMissed: false
             })
         }
-
-        this.logger.debug("started watching blocks")
     }
 
     async getBaseFee(): Promise<bigint> {
@@ -596,43 +607,50 @@ export class ExecutorManager {
             await this.bundleManager.getBundleStatuses(pendingBundles)
 
         await Promise.all(
-            bundleStatuses.map(async (bundleStatus, index) => {
-                if (bundleStatus.status === "included") {
-                    await this.bundleManager.processIncludedBundle({
-                        submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus,
-                        blockReceivedTimestamp
-                    })
-                }
+            bundleStatuses.map((bundleStatus, index) =>
+                this.bundleManager.withInclusionSpan(
+                    pendingBundles[index].uid,
+                    async () => {
+                        if (bundleStatus.status === "included") {
+                            await this.bundleManager.processIncludedBundle({
+                                submittedBundle: pendingBundles[index],
+                                bundleReceipt: bundleStatus,
+                                blockReceivedTimestamp
+                            })
+                        }
 
-                if (bundleStatus.status === "reverted") {
-                    await this.bundleManager.processRevertedBundle({
-                        blockReceivedTimestamp,
-                        submittedBundle: pendingBundles[index],
-                        bundleReceipt: bundleStatus
-                    })
-                }
+                        if (bundleStatus.status === "reverted") {
+                            await this.bundleManager.processRevertedBundle({
+                                blockReceivedTimestamp,
+                                submittedBundle: pendingBundles[index],
+                                bundleReceipt: bundleStatus
+                            })
+                        }
 
-                // can be potentially resubmitted - so we first submit it again to optimize for the speed
-                if (bundleStatus.status === "not_found") {
-                    const [networkGasPrice, networkBaseFee] =
-                        await networkGasParams
-                    this.potentiallyResubmitBundle({
-                        blockReceivedTimestamp,
-                        submittedBundle: pendingBundles[index],
-                        networkGasPrice,
-                        networkBaseFee
-                    })
-                }
+                        // can be potentially resubmitted - so we first submit it again to optimize for the speed
+                        if (bundleStatus.status === "not_found") {
+                            const [networkGasPrice, networkBaseFee] =
+                                await networkGasParams
+                            this.potentiallyResubmitBundle({
+                                blockReceivedTimestamp,
+                                submittedBundle: pendingBundles[index],
+                                networkGasPrice,
+                                networkBaseFee
+                            })
+                        }
 
-                // Internal error - clean up the bundle so it doesn't get stuck
-                if (bundleStatus.status === "internal_error") {
-                    await this.bundleManager.processInternalErrorBundle({
-                        submittedBundle: pendingBundles[index],
-                        error: bundleStatus.error
-                    })
-                }
-            })
+                        // Internal error - clean up the bundle so it doesn't get stuck
+                        if (bundleStatus.status === "internal_error") {
+                            await this.bundleManager.processInternalErrorBundle(
+                                {
+                                    submittedBundle: pendingBundles[index],
+                                    error: bundleStatus.error
+                                }
+                            )
+                        }
+                    }
+                )
+            )
         )
 
         // Only observed when bundles were pending, idle blocks return early.

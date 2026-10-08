@@ -23,7 +23,8 @@ import {
     type Attributes,
     type Span,
     SpanStatusCode,
-    context
+    context,
+    trace
 } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import {
@@ -110,21 +111,24 @@ export class BundleManager {
         pendingBundles: SubmittedBundleInfo[]
     ): Promise<BundleStatus[]> {
         return Promise.all(
-            pendingBundles.map(async (bundle) => {
-                try {
-                    return await getBundleStatus({
-                        submittedBundle: bundle,
-                        publicClient: this.config.publicClient,
-                        logger: this.logger
-                    })
-                } catch (err) {
-                    sentry.captureException(err)
-                    return {
-                        status: "internal_error" as const,
-                        error: err instanceof Error ? err.message : String(err)
+            pendingBundles.map((bundle) =>
+                this.withInclusionSpan(bundle.uid, async () => {
+                    try {
+                        return await getBundleStatus({
+                            submittedBundle: bundle,
+                            publicClient: this.config.publicClient,
+                            logger: this.logger
+                        })
+                    } catch (err) {
+                        sentry.captureException(err)
+                        return {
+                            status: "internal_error" as const,
+                            error:
+                                err instanceof Error ? err.message : String(err)
+                        }
                     }
-                }
-            })
+                })
+            )
         )
     }
 
@@ -584,6 +588,16 @@ export class BundleManager {
 
     public getInclusionSpan(uid: string): Span | undefined {
         return this.inclusionSpans.get(uid)
+    }
+
+    // Runs fn with the bundle's inclusion span active, so its RPC calls nest
+    // under it. Runs fn as is when the bundle has no inclusion span.
+    public withInclusionSpan<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+        const span = this.inclusionSpans.get(uid)
+        if (!span) {
+            return fn()
+        }
+        return context.with(trace.setSpan(context.active(), span), fn)
     }
 
     // Ends the bundle's inclusion span, a no-op if it already ended.
