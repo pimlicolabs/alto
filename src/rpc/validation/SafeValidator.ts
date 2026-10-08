@@ -481,11 +481,23 @@ export class SafeValidator
         }
         const resultData = lastResult.data as Hex
 
-        // Decode the validation result from the revert data
-        const { errorName, args } = decodeErrorResult({
-            abi: pimlicoSimulationsAbi,
-            data: resultData
-        })
+        // Decode the validation result from the revert data.
+        // Unknown custom errors (e.g. paymaster/EntryPoint errors missing
+        // from the simulations ABI) must surface as RpcError, otherwise
+        // src/rpc/server.ts maps the raw viem error to a 500.
+        let decodedValidationError: ReturnType<typeof decodeErrorResult>
+        try {
+            decodedValidationError = decodeErrorResult({
+                abi: pimlicoSimulationsAbi,
+                data: resultData
+            })
+        } catch (e) {
+            if (e instanceof RpcError) {
+                throw e
+            }
+            throw new RpcError(resultData, ERC7769Errors.SimulateValidation)
+        }
+        const { errorName, args } = decodedValidationError
 
         if (errorName !== "ValidationResult") {
             let errorCode = ERC7769Errors.SimulateValidation
