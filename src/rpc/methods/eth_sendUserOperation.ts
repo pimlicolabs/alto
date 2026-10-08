@@ -225,10 +225,12 @@ export async function addToMempoolIfValid({
         chainId: rpcHandler.config.chainId
     })
 
+    const receivedAt = Date.now()
     const userOpInfo: UserOpInfo = {
         userOp,
         userOpHash,
-        receivedAt: Date.now(),
+        receivedAt,
+        addedToMempool: receivedAt, // deprecated alias, see withReceivedAt
         submissionAttempts: 0
     }
 

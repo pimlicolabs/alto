@@ -1,9 +1,10 @@
 import { getUserOpHashes } from "@alto/executor"
 import type { BundleManager, SenderManager } from "@alto/executor"
 import type { Mempool, StatusManager } from "@alto/mempool"
-import type {
-    SerializableSubmittedBundleInfo,
-    SubmittedBundleInfo
+import {
+    type SerializableSubmittedBundleInfo,
+    type SubmittedBundleInfo,
+    withReceivedAt
 } from "@alto/types"
 import {
     recoverableJsonParseWithBigint,
@@ -58,7 +59,10 @@ function deserializePendingBundle(
         transactionHash: serializedBundle.transactionHash,
         previousTransactionHashes: serializedBundle.previousTransactionHashes,
         transactionRequest: serializedBundle.transactionRequest,
-        bundle: serializedBundle.bundle,
+        bundle: {
+            ...serializedBundle.bundle,
+            userOps: serializedBundle.bundle.userOps.map(withReceivedAt)
+        },
         lastReplaced: serializedBundle.lastReplaced
     }
 }
@@ -389,7 +393,7 @@ export async function restoreShutdownState({
                         if (outstanding.length > 0) {
                             await mempool.store.addOutstanding({
                                 entryPoint,
-                                userOpInfos: outstanding
+                                userOpInfos: outstanding.map(withReceivedAt)
                             })
                         }
                     }
