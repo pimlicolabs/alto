@@ -738,6 +738,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
         type: "string",
         require: false
     },
+    "send-transaction-timeout": {
+        description:
+            "Timeout for bundle submissions through send-transaction-rpc-url and its rpc-url fallback (in ms). Defaults to 10s",
+        type: "number",
+        require: false
+    },
     "block-time": {
         description: "Block time for the chain (ms)",
         type: "number",

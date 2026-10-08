@@ -190,12 +190,13 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             .extend(withEthCallSender)
     }
 
-    const createWalletTransport = (url: string) =>
+    const createWalletTransport = (url: string, timeout?: number) =>
         customTransport(url, {
             logger: logger.child(
                 { module: "wallet_client" },
                 { level: args.walletClientLogLevel || args.logLevel }
-            )
+            ),
+            timeout
         })
 
     const walletClients = {
@@ -205,6 +206,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                       [
                           multiRpcTransport(args.sendTransactionRpcUrl, {
                               chainId,
+                              timeout: args.sendTransactionTimeout,
                               logger: logger.child(
                                   { module: "wallet_client" },
                                   {
@@ -214,7 +216,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                                   }
                               )
                           }),
-                          createWalletTransport(args.rpcUrl)
+                          createWalletTransport(
+                              args.rpcUrl,
+                              args.sendTransactionTimeout
+                          )
                       ],
                       { rank: false }
                   ),
