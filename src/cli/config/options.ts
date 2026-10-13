@@ -680,7 +680,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
         },
         "arbitrum-priority-fee-percent": {
             description:
-                "Percentage of the network baseFee to use as maxPriorityFeePerGas on Arbitrum networks (ignored if static-max-priority-fee-per-gas is set)",
+                "Percentage of the network baseFee to use as maxPriorityFeePerGas on Arbitrum networks",
             type: "string",
             require: false,
             default: "5"

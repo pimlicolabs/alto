@@ -114,7 +114,6 @@ export class Executor {
             chainType,
             arbitrumBaseFeeMultiplier,
             arbitrumPriorityFeePercent,
-            staticMaxPriorityFeePerGas,
             skipLocalGasCalculations
         } = this.config
 
@@ -138,15 +137,14 @@ export class Executor {
             )
 
             // Since ArbOS 61 (Elara), Arbitrum replaced Timeboost with priority
-            // gas auctions and now charges the priority fee. Use the static
-            // priority fee if configured, otherwise a percentage of the
-            // network baseFee (default 5%). Capped at gasBid to stay valid.
+            // gas auctions and now charges the priority fee. Use a percentage
+            // of the network baseFee (default 5%), capped at gasBid to stay
+            // valid.
             const maxPriorityFeePerGas = minBigInt(
-                staticMaxPriorityFeePerGas ??
-                    scaleBigIntByPercent(
-                        networkBaseFee,
-                        arbitrumPriorityFeePercent
-                    ),
+                scaleBigIntByPercent(
+                    networkBaseFee,
+                    arbitrumPriorityFeePercent
+                ),
                 gasBid
             )
 
