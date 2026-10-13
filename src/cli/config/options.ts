@@ -678,6 +678,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: false,
             default: "150"
         },
+        "arbitrum-priority-fee-percent": {
+            description:
+                "Percentage of maxFeePerGas to use as maxPriorityFeePerGas on Arbitrum networks (ignored if static-max-priority-fee-per-gas is set)",
+            type: "string",
+            require: false,
+            default: "5"
+        },
         "citrea-l1-diff-size": {
             description:
                 "Static L1 diff size used for Citrea pre-verification gas calculation",

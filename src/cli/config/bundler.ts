@@ -218,6 +218,13 @@ export const compatibilityArgsSchema = z.object({
         .optional(),
     "supports-eip7623": z.boolean().default(false),
     "arbitrum-base-fee-multiplier": z.string().transform(BigInt).default("150"),
+    "arbitrum-priority-fee-percent": z
+        .string()
+        .transform(BigInt)
+        .refine((val) => val >= 0n && val <= 100n, {
+            message: "must be between 0 and 100"
+        })
+        .default("5"),
     "citrea-l1-diff-size": z.string().transform(BigInt).default("150"),
     "eip-7702-support": z.boolean().default(true),
     "chain-native-decimals": z.number().int().min(1).default(18)
