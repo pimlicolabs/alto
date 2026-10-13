@@ -113,6 +113,7 @@ export class Executor {
             legacyTransactions,
             chainType,
             arbitrumBaseFeeMultiplier,
+            arbitrumPriorityFeePercent,
             skipLocalGasCalculations
         } = this.config
 
@@ -126,8 +127,7 @@ export class Executor {
             }
         }
 
-        // Arbtirum's sequencer orders based on first come first serve.
-        // Because of this, maxFee/maxPriorityFee is ignored and the bundler *always* pays the network's baseFee.
+        // The bundler always pays at least the network's baseFee on Arbitrum.
         // The bundler need to set a large enough gasBid to account for network baseFee fluctuations.
         // GasBid = min(maxFee, base + priority)
         if (chainType === "arbitrum") {
@@ -136,9 +136,17 @@ export class Executor {
                 arbitrumBaseFeeMultiplier
             )
 
+            // Since ArbOS 61 (Elara), Arbitrum replaced Timeboost with priority
+            // gas auctions and now charges the priority fee. Use a percentage
+            // of the network baseFee (default 5%).
+            const maxPriorityFeePerGas = scaleBigIntByPercent(
+                networkBaseFee,
+                arbitrumPriorityFeePercent
+            )
+
             return {
                 maxFeePerGas: gasBid,
-                maxPriorityFeePerGas: gasBid
+                maxPriorityFeePerGas
             }
         }
 
