@@ -217,7 +217,13 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
-    "arbitrum-base-fee-multiplier": z.string().transform(BigInt).default("150"),
+    "arbitrum-base-fee-multiplier": z
+        .string()
+        .transform(BigInt)
+        .refine((val) => val > 100n, {
+            message: "must be greater than 100"
+        })
+        .default("150"),
     "arbitrum-priority-fee-percent": z
         .string()
         .transform(BigInt)
