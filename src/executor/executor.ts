@@ -138,8 +138,8 @@ export class Executor {
 
             // Since ArbOS 61 (Elara), Arbitrum replaced Timeboost with priority
             // gas auctions and now charges the priority fee. Default to 0 to
-            // avoid overpaying, unless a static priority fee is configured
-            // (capped at gasBid to stay valid).
+            // opt out of inclusion priority, unless a static priority fee is
+            // configured (capped at gasBid to stay valid).
             const maxPriorityFeePerGas = staticMaxPriorityFeePerGas
                 ? minBigInt(staticMaxPriorityFeePerGas, gasBid)
                 : 0n
