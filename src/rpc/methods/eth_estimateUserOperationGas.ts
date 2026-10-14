@@ -338,7 +338,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             ...gasEstimateResult.estimates
         }
 
-        const executionGasComponent = calcExecutionPvgComponent({
+        const executionGasComponent = await calcExecutionPvgComponent({
             userOp: userOpWithEstimatedGas,
             supportsEip7623,
             config: rpcHandler.config

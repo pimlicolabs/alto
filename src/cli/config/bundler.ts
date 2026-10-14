@@ -346,7 +346,8 @@ export const preVerificationGasArgsSchema = z.object({
 })
 
 export const glamsterdamArgsSchema = z.object({
-    "supports-eip7976": z.boolean().default(false)
+    "supports-eip7976": z.boolean().default(false),
+    "supports-eip2780": z.boolean().default(false)
 })
 
 export const mempoolArgsSchema = z.object({
