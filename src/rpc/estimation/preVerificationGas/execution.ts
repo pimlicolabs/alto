@@ -5,8 +5,15 @@ import {
     maxBigInt,
     unscaleBigIntByPercent
 } from "@alto/utils"
-import { size, slice } from "viem"
+import { size, slice, zeroAddress } from "viem"
 import type { AltoConfig } from "../../../createConfig"
+import {
+    EIP2780_ACCOUNT_WRITE,
+    EIP2780_EXECUTION_PER_AUTH_BASE_COST,
+    EIP8037_AUTH_BASE_STATE_GAS,
+    EIP8037_NEW_ACCOUNT_STATE_GAS,
+    getEip7702AuthAddress
+} from "../../../utils/eip7702"
 import { encodeUserOp } from "./encodeUserOp"
 
 export interface GasOverheads {
@@ -59,8 +66,54 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
     }
 }
 
+// Under EIP-2780 the cost of an EIP-7702 authorization depends on the
+// authority's state: creating the account and setting a new delegation
+// indicator are charged as EIP-8037 state gas.
+async function getEip7702AuthGas({
+    userOp,
+    config
+}: {
+    userOp: UserOperation
+    config: AltoConfig
+}): Promise<bigint> {
+    if (!userOp.eip7702Auth) {
+        return 0n
+    }
+
+    if (!config.supportsEip2780) {
+        return defaultOverHeads.eip7702AuthGas
+    }
+
+    const { publicClient } = config
+    const [code, nonce, balance] = await Promise.all([
+        publicClient.getCode({ address: userOp.sender }),
+        publicClient.getTransactionCount({ address: userOp.sender }),
+        publicClient.getBalance({ address: userOp.sender })
+    ])
+
+    const hasCode = code !== undefined && size(code) > 0
+    const isDelegated = hasCode && slice(code, 0, 3) === "0xef0100"
+    const accountExists = hasCode || nonce > 0 || balance > 0n
+    const setsDelegation =
+        getEip7702AuthAddress(userOp.eip7702Auth) !== zeroAddress
+
+    // The authority is never tx.sender or tx.to of the bundle, so the first
+    // write to it is always charged
+    let authGas = EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
+
+    if (!accountExists) {
+        authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+    }
+
+    if (setsDelegation && !isDelegated) {
+        authGas += EIP8037_AUTH_BASE_STATE_GAS
+    }
+
+    return authGas
+}
+
 // Calculate the execution gas component of preVerificationGas
-export function calcExecutionPvgComponent({
+export async function calcExecutionPvgComponent({
     userOp,
     supportsEip7623,
     config
@@ -68,7 +121,7 @@ export function calcExecutionPvgComponent({
     userOp: UserOperation
     supportsEip7623: boolean
     config: AltoConfig
-}): bigint {
+}): Promise<bigint> {
     const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
 
@@ -85,9 +138,7 @@ export function calcExecutionPvgComponent({
 
     let callDataOverhead = 0n
     let perUserOpOverhead = oh.perUserOp
-    if (userOp.eip7702Auth) {
-        perUserOpOverhead += oh.eip7702AuthGas
-    }
+    perUserOpOverhead += await getEip7702AuthGas({ userOp, config })
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
