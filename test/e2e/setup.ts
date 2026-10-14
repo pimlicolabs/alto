@@ -5,6 +5,9 @@ import { alto } from "./src/utils/altoInstance.js"
 
 // biome-ignore lint/style/noDefaultExport: vitest needs this
 export default async function setup({ provide }) {
+    // prool treats anything on anvil's stderr as a startup failure
+    process.env.FOUNDRY_DISABLE_NIGHTLY_WARNING = "1"
+
     const anvilInstance = anvil({
         chainId: foundry.id,
         port: 8545,
