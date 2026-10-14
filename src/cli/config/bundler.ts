@@ -217,7 +217,6 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
-    "supports-eip7976": z.boolean().default(false),
     "arbitrum-base-fee-multiplier": z
         .string()
         .transform(BigInt)
@@ -346,6 +345,10 @@ export const preVerificationGasArgsSchema = z.object({
     "eip7623-tokens-per-nonzero-byte": z.string().transform(BigInt).default("4")
 })
 
+export const glamsterdamArgsSchema = z.object({
+    "supports-eip7976": z.boolean().default(false)
+})
+
 export const mempoolArgsSchema = z.object({
     "restoration-queue-timeout": z
         .number()
@@ -415,6 +418,9 @@ export type IPreVerificationGasArgsInput = z.input<
     typeof preVerificationGasArgsSchema
 >
 
+export type IGlamsterdamArgs = z.infer<typeof glamsterdamArgsSchema>
+export type IGlamsterdamArgsInput = z.input<typeof glamsterdamArgsSchema>
+
 export type IOptions = z.infer<typeof optionArgsSchema>
 export type IOptionsInput = z.input<typeof optionArgsSchema>
 
@@ -433,5 +439,6 @@ export const optionArgsSchema = z.object({
     ...executorArgsSchema.shape,
     ...mempoolArgsSchema.shape,
     ...redisArgsSchema.shape,
-    ...preVerificationGasArgsSchema.shape
+    ...preVerificationGasArgsSchema.shape,
+    ...glamsterdamArgsSchema.shape
 })

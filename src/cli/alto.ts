@@ -11,6 +11,7 @@ import {
     debugOptions,
     executorOptions,
     gasEstimationOptions,
+    glamsterdamOptions,
     logOptions,
     mempoolOptions,
     preVerificationGasOptions,
@@ -102,6 +103,8 @@ export function getAltoCli(): yargs.Argv {
             Object.keys(preVerificationGasOptions),
             "PreVerificationGas Options:"
         )
+        .options(glamsterdamOptions)
+        .group(Object.keys(glamsterdamOptions), "Glamsterdam Options:")
         .options(mempoolOptions)
         .group(Object.keys(mempoolOptions), "Mempool Options:")
         .options(redisOptions)
