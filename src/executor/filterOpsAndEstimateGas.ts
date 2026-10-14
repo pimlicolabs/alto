@@ -21,7 +21,7 @@ import {
 import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
-import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGasCalculator"
+import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGas"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
