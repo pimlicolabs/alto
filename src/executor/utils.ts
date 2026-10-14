@@ -10,6 +10,7 @@ import {
     type Logger,
     isVersion06,
     isVersion07,
+    maxBigInt,
     scaleBigIntByPercent,
     toPackedUserOp
 } from "@alto/utils"
@@ -22,10 +23,14 @@ import {
     type Hex,
     type SignedAuthorizationList,
     encodeFunctionData,
+    size,
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
+
+// EIP-7976 floor: 16 gas per token, 4 tokens per byte
+const EIP7976_FLOOR_PER_BYTE_GAS = 64n
 
 // Thrown during a replacement when the executor nonce was consumed by another
 // transaction. The caller resolves whether it was one of the bundle's own
@@ -78,6 +83,18 @@ export const getBundleGasLimit = async ({
         const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
 
         gasLimit = aa95GasFloor + eip7702Overhead
+
+        // EIP-7976: a gasLimit below the calldata floor is invalid
+        if (config.supportsEip7976) {
+            const calldata = encodeHandleOpsCalldata({
+                userOps,
+                beneficiary: executorAddress
+            })
+            const calldataFloor =
+                config.transactionGasStipend +
+                BigInt(size(calldata)) * EIP7976_FLOOR_PER_BYTE_GAS
+            gasLimit = maxBigInt(gasLimit, calldataFloor)
+        }
     }
 
     return scaleBigIntByPercent(gasLimit, config.executorGasMultiplier)

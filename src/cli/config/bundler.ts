@@ -217,6 +217,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
+    "supports-eip7976": z.boolean().default(false),
     "arbitrum-base-fee-multiplier": z
         .string()
         .transform(BigInt)

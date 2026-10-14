@@ -671,6 +671,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: false,
             default: false
         },
+        "supports-eip7976": {
+            description:
+                "Whether the chain supports EIP-7976 (Increase calldata floor cost to 64 gas per byte)",
+            type: "boolean",
+            require: false,
+            default: false
+        },
         "arbitrum-base-fee-multiplier": {
             description:
                 "Multiplier for gas bids on Arbitrum networks to account for baseFee fluctuations",
