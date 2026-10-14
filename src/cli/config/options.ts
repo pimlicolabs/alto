@@ -443,6 +443,13 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
         type: "boolean",
         require: false,
         default: false
+    },
+    "supports-eip2780": {
+        description:
+            "Whether the chain supports EIP-2780 (Resource-based intrinsic transaction gas, prices EIP-7702 authorizations with EIP-8037 state gas)",
+        type: "boolean",
+        require: false,
+        default: false
     }
 }
 
