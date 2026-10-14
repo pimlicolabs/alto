@@ -12,7 +12,8 @@ runs:
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
-        # Pinned: anvil >=1.8.1 mines asynchronously (eth_sendRawTransaction
-        # returns before the tx is mined), breaking tests that rely on
-        # synchronous automine.
-        version: v1.7.1
+        # Pinned nightly: the Glamsterdam e2e tests need anvil's Amsterdam
+        # gas rules (EIP-2780, EIP-7976, EIP-8037), which no stable release
+        # implements yet. anvil >=1.8.1 mines asynchronously, so tests wait
+        # for receipts instead of relying on synchronous automine.
+        version: nightly-f14e39d2a14d2ba9e9132b0aa7e10a3932a054fc
