@@ -8,7 +8,12 @@ import type {
     UserOperation09,
     UserOperationBundle
 } from "@alto/types"
-import { type Logger, scaleBigIntByPercent, toPackedUserOp } from "@alto/utils"
+import {
+    type Logger,
+    getSimulationGasLimit,
+    scaleBigIntByPercent,
+    toPackedUserOp
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     type Address,
@@ -89,12 +94,8 @@ export const getFilterOpsResult = async ({
         revertReason: Hex
     }[]
 }> => {
-    const {
-        publicClient,
-        pimlicoSimulationContract,
-        codeOverrideSupport,
-        fixedGasLimitForEstimation
-    } = config
+    const { publicClient, pimlicoSimulationContract, codeOverrideSupport } =
+        config
 
     if (!pimlicoSimulationContract) {
         throw new Error("pimlicoSimulationContract not set")
@@ -180,7 +181,7 @@ export const getFilterOpsResult = async ({
 
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
-        gas: fixedGasLimitForEstimation,
+        gas: getSimulationGasLimit(config),
         data,
         ...(stateOverride.length > 0 ? { stateOverride } : {})
     })

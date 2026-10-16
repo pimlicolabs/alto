@@ -24,6 +24,7 @@ import {
     getAddressFromInitCodeOrPaymasterAndData,
     getAuthorizationStateOverrides,
     getEntryPointSimulationsAddress,
+    getSimulationGasLimit,
     getViemEntryPointVersion,
     jsonStringifyWithBigint,
     toPackedUserOp
@@ -287,6 +288,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: entryPoint,
+                gas: getSimulationGasLimit(this.config),
                 data: encodeFunctionData({
                     abi: EntryPointV06Abi,
                     functionName: "simulateValidation",
@@ -463,6 +465,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: pimlicoSimulationsAddress,
+                gas: getSimulationGasLimit(this.config),
                 data: entryPointSimulationsCallData
             },
             {

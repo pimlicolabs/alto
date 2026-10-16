@@ -1,5 +1,6 @@
 import { type IOptions, type IOptionsInput, optionArgsSchema } from "@alto/cli"
 import { fromZodError } from "zod-validation-error"
+import { EIP8037_TX_MAX_GAS_LIMIT } from "../utils/eip8037"
 
 type CamelCase<S extends string> =
     S extends `${infer P1}-${infer P2}${infer P3}`
@@ -43,5 +44,35 @@ export const parseArgs = (
         throw new Error(error.message)
     }
 
-    return convertKeysToCamelCase(parsing.data)
+    return convertKeysToCamelCase(applyGlamsterdamArgs(parsing.data))
+}
+
+function applyGlamsterdamArgs(args: IOptions): IOptions {
+    const glamsterdamArgs = args["glamsterdam-enabled"]
+        ? {
+              ...args,
+              "supports-eip7976": true,
+              "supports-eip2780": true,
+              "supports-eip8037": true
+          }
+        : args
+
+    if (glamsterdamArgs["supports-eip8037"]) {
+        const gasLimitArgs = [
+            "max-gas-per-bundle",
+            "max-gas-per-user-op",
+            "fixed-gas-limit-for-estimation"
+        ] as const
+
+        for (const name of gasLimitArgs) {
+            const value = glamsterdamArgs[name]
+            if (value !== undefined && value > EIP8037_TX_MAX_GAS_LIMIT) {
+                throw new Error(
+                    `--${name} (${value}) must be at most ${EIP8037_TX_MAX_GAS_LIMIT} when EIP-8037 is enabled`
+                )
+            }
+        }
+    }
+
+    return glamsterdamArgs
 }
