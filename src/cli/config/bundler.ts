@@ -454,6 +454,8 @@ export const optionArgsSchema = z
         ...preVerificationGasArgsSchema.shape,
         ...glamsterdamArgsSchema.shape
     })
+    // --glamsterdam-enabled turns on every Glamsterdam EIP alto handles.
+    // Each EIP flag can still be set on its own.
     .transform((args) => ({
         ...args,
         "supports-eip7976":
@@ -463,12 +465,16 @@ export const optionArgsSchema = z
         "supports-eip8037":
             args["supports-eip8037"] || args["glamsterdam-enabled"]
     }))
+    // EIP-8037: tx gas above --tx-max-gas-limit goes into the state gas
+    // reservoir, which gasleft() can't see. Bundles are capped at the limit,
+    // so the mempool must not build bundles that need more than it.
     .refine(
         (args) =>
             !args["supports-eip8037"] ||
             args["max-gas-per-bundle"] <= args["tx-max-gas-limit"],
         exceedsTxMaxGasLimit("max-gas-per-bundle")
     )
+    // A userOp above the limit could never fit in a bundle
     .refine(
         (args) =>
             !args["supports-eip8037"] ||
