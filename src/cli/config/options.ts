@@ -460,7 +460,7 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     },
     "supports-eip8037": {
         description:
-            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at 16,777,216 so state gas is never paid from the reservoir",
+            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at --tx-max-gas-limit so state gas is never paid from the reservoir",
         type: "boolean",
         require: false,
         default: false
@@ -702,6 +702,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "boolean",
             require: false,
             default: false
+        },
+        "tx-max-gas-limit": {
+            description:
+                "The chain's per-transaction gas cap. With --supports-eip8037, simulation and bundle gas limits are kept at or below it",
+            type: "string",
+            require: false,
+            default: "16777216"
         },
         "arbitrum-base-fee-multiplier": {
             description:

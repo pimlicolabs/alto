@@ -217,6 +217,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
+    "tx-max-gas-limit": z.string().transform(BigInt).default("16777216"),
     "arbitrum-base-fee-multiplier": z
         .string()
         .transform(BigInt)
@@ -430,18 +431,47 @@ export type IOptionsInput = z.input<typeof optionArgsSchema>
 export type IRedisArgs = z.infer<typeof redisArgsSchema>
 export type IRedisArgsInput = z.input<typeof redisArgsSchema>
 
-export const optionArgsSchema = z.object({
-    ...bundlerArgsSchema.shape,
-    ...compatibilityArgsSchema.shape,
-    ...logArgsSchema.shape,
-    ...serverArgsSchema.shape,
-    ...rpcArgsSchema.shape,
-    ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape,
-    ...utilityArgsSchema.shape,
-    ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape,
-    ...redisArgsSchema.shape,
-    ...preVerificationGasArgsSchema.shape,
-    ...glamsterdamArgsSchema.shape
+const exceedsTxMaxGasLimit = (
+    name: "max-gas-per-bundle" | "max-gas-per-user-op"
+) => ({
+    path: [name],
+    message: "must be at most --tx-max-gas-limit when EIP-8037 is enabled"
 })
+
+export const optionArgsSchema = z
+    .object({
+        ...bundlerArgsSchema.shape,
+        ...compatibilityArgsSchema.shape,
+        ...logArgsSchema.shape,
+        ...serverArgsSchema.shape,
+        ...rpcArgsSchema.shape,
+        ...debugArgsSchema.shape,
+        ...gasEstimationArgsSchema.shape,
+        ...utilityArgsSchema.shape,
+        ...executorArgsSchema.shape,
+        ...mempoolArgsSchema.shape,
+        ...redisArgsSchema.shape,
+        ...preVerificationGasArgsSchema.shape,
+        ...glamsterdamArgsSchema.shape
+    })
+    .transform((args) => ({
+        ...args,
+        "supports-eip7976":
+            args["supports-eip7976"] || args["glamsterdam-enabled"],
+        "supports-eip2780":
+            args["supports-eip2780"] || args["glamsterdam-enabled"],
+        "supports-eip8037":
+            args["supports-eip8037"] || args["glamsterdam-enabled"]
+    }))
+    .refine(
+        (args) =>
+            !args["supports-eip8037"] ||
+            args["max-gas-per-bundle"] <= args["tx-max-gas-limit"],
+        exceedsTxMaxGasLimit("max-gas-per-bundle")
+    )
+    .refine(
+        (args) =>
+            !args["supports-eip8037"] ||
+            args["max-gas-per-user-op"] <= args["tx-max-gas-limit"],
+        exceedsTxMaxGasLimit("max-gas-per-user-op")
+    )
