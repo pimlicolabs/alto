@@ -23,7 +23,6 @@ import {
     type Hex,
     type SignedAuthorizationList,
     encodeFunctionData,
-    size,
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -84,16 +83,33 @@ export const getBundleGasLimit = async ({
 
         gasLimit = aa95GasFloor + eip7702Overhead
 
-        // EIP-7976: a gasLimit below the calldata floor is invalid
-        if (config.supportsEip7976) {
-            const calldata = encodeHandleOpsCalldata({
-                userOps,
-                beneficiary: executorAddress
-            })
-            const calldataFloor =
-                config.transactionGasStipend +
-                BigInt(size(calldata)) * EIP7976_FLOOR_PER_BYTE_GAS
-            gasLimit = maxBigInt(gasLimit, calldataFloor)
+        // EIP-7623 / EIP-7976: a gasLimit below the calldata floor is invalid
+        if (config.supportsEip7623 || config.supportsEip7976) {
+            const calldata = toBytes(
+                encodeHandleOpsCalldata({
+                    userOps,
+                    beneficiary: executorAddress
+                })
+            )
+
+            let floorGas: bigint
+            if (config.supportsEip7976) {
+                floorGas = BigInt(calldata.length) * EIP7976_FLOOR_PER_BYTE_GAS
+            } else {
+                const nonZeroBytes = BigInt(
+                    calldata.filter((byte) => byte !== 0).length
+                )
+                const zeroBytes = BigInt(calldata.length) - nonZeroBytes
+                const tokens =
+                    zeroBytes +
+                    nonZeroBytes * config.eip7623TokensPerNonzeroByte
+                floorGas = tokens * config.eip7623FloorPerTokenGas
+            }
+
+            gasLimit = maxBigInt(
+                gasLimit,
+                config.transactionGasStipend + floorGas
+            )
         }
     }
 
