@@ -51,6 +51,8 @@ beforeAll(async () => {
             // Only EIP-2780: with the EIP-7976 floor on, PVG also depends on
             // the estimated gas limits, which hides the authorization deltas
             "supports-eip2780": true,
+            // Amsterdam anvil charges EIP-8037 state gas
+            "supports-eip8037": true,
             "transaction-gas-stipend": "15000",
             // Unscaled PVG, so the deltas below are the raw state gas
             "v6-pre-verification-gas-limit-multiplier": "100",
