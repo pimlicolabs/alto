@@ -1,11 +1,12 @@
 import type { UserOperation } from "@alto/types"
 import {
+    hasPaymaster,
     isVersion06,
     isVersion07,
     maxBigInt,
     unscaleBigIntByPercent
 } from "@alto/utils"
-import { size, slice, zeroAddress } from "viem"
+import { type Address, parseAbi, size, slice, zeroAddress } from "viem"
 import type { AltoConfig } from "../../../createConfig"
 import {
     EIP2780_ACCOUNT_WRITE,
@@ -14,6 +15,7 @@ import {
     EIP8037_NEW_ACCOUNT_STATE_GAS,
     getEip7702AuthAddress
 } from "../../../utils/eip7702"
+import { EIP8037_NEW_SLOT_STATE_GAS } from "../../../utils/eip8037"
 import { encodeUserOp } from "./encodeUserOp"
 
 export interface GasOverheads {
@@ -115,13 +117,57 @@ async function getEip7702AuthGas({
     return authGas
 }
 
+// The EntryPoint refunds unused prefund into the refund address's deposit
+// after the userOp's gas cost is fixed, so that write is never charged to the
+// userOp. Under EIP-8037, if the deposit slot was empty when the bundle
+// started, the refund creates it and costs new-slot state gas. Validation
+// creating and clearing the same slot refills gasleft() and doesn't offset it.
+async function getEip8037RefundDepositGas({
+    userOp,
+    entryPoint,
+    config
+}: {
+    userOp: UserOperation
+    entryPoint: Address
+    config: AltoConfig
+}): Promise<bigint> {
+    if (!config.supportsEip8037) {
+        return 0n
+    }
+
+    // The refund goes to the paymaster's deposit, which must already cover
+    // the prefund
+    if (hasPaymaster(userOp)) {
+        return 0n
+    }
+
+    const deposit = await config.publicClient.readContract({
+        address: entryPoint,
+        abi: parseAbi([
+            "function balanceOf(address account) view returns (uint256)"
+        ]),
+        functionName: "balanceOf",
+        args: [userOp.sender]
+    })
+
+    // Restoring a slot that wasn't empty at the start of the bundle doesn't
+    // create state
+    if (deposit > 0n) {
+        return 0n
+    }
+
+    return EIP8037_NEW_SLOT_STATE_GAS
+}
+
 // Calculate the execution gas component of preVerificationGas
 export async function calcExecutionPvgComponent({
     userOp,
+    entryPoint,
     supportsEip7623,
     config
 }: {
     userOp: UserOperation
+    entryPoint: Address
     supportsEip7623: boolean
     config: AltoConfig
 }): Promise<bigint> {
@@ -141,7 +187,11 @@ export async function calcExecutionPvgComponent({
 
     let callDataOverhead = 0n
     let perUserOpOverhead = oh.perUserOp
-    perUserOpOverhead += await getEip7702AuthGas({ userOp, config })
+    const [eip7702AuthGas, eip8037RefundDepositGas] = await Promise.all([
+        getEip7702AuthGas({ userOp, config }),
+        getEip8037RefundDepositGas({ userOp, entryPoint, config })
+    ])
+    perUserOpOverhead += eip7702AuthGas + eip8037RefundDepositGas
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
