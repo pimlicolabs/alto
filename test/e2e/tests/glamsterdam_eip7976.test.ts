@@ -38,6 +38,8 @@ beforeAll(async () => {
         flags: {
             "supports-eip7976": true,
             "supports-eip2780": true,
+            // Amsterdam anvil charges EIP-8037 state gas
+            "supports-eip8037": true,
             "transaction-gas-stipend": TRANSACTION_GAS_STIPEND.toString()
         }
     })
