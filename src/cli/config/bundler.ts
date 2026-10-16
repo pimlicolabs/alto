@@ -217,6 +217,7 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
+    "tx-max-gas-limit": z.string().transform(BigInt).default("16777216"),
     "arbitrum-base-fee-multiplier": z
         .string()
         .transform(BigInt)
@@ -346,8 +347,10 @@ export const preVerificationGasArgsSchema = z.object({
 })
 
 export const glamsterdamArgsSchema = z.object({
+    "glamsterdam-enabled": z.boolean().default(false),
     "supports-eip7976": z.boolean().default(false),
-    "supports-eip2780": z.boolean().default(false)
+    "supports-eip2780": z.boolean().default(false),
+    "supports-eip8037": z.boolean().default(false)
 })
 
 export const mempoolArgsSchema = z.object({
@@ -428,18 +431,63 @@ export type IOptionsInput = z.input<typeof optionArgsSchema>
 export type IRedisArgs = z.infer<typeof redisArgsSchema>
 export type IRedisArgsInput = z.input<typeof redisArgsSchema>
 
-export const optionArgsSchema = z.object({
-    ...bundlerArgsSchema.shape,
-    ...compatibilityArgsSchema.shape,
-    ...logArgsSchema.shape,
-    ...serverArgsSchema.shape,
-    ...rpcArgsSchema.shape,
-    ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape,
-    ...utilityArgsSchema.shape,
-    ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape,
-    ...redisArgsSchema.shape,
-    ...preVerificationGasArgsSchema.shape,
-    ...glamsterdamArgsSchema.shape
+const exceedsTxMaxGasLimit = (
+    name: "max-gas-per-bundle" | "max-gas-per-user-op"
+) => ({
+    path: [name],
+    message: "must be at most --tx-max-gas-limit when EIP-8037 is enabled"
 })
+
+export const optionArgsSchema = z
+    .object({
+        ...bundlerArgsSchema.shape,
+        ...compatibilityArgsSchema.shape,
+        ...logArgsSchema.shape,
+        ...serverArgsSchema.shape,
+        ...rpcArgsSchema.shape,
+        ...debugArgsSchema.shape,
+        ...gasEstimationArgsSchema.shape,
+        ...utilityArgsSchema.shape,
+        ...executorArgsSchema.shape,
+        ...mempoolArgsSchema.shape,
+        ...redisArgsSchema.shape,
+        ...preVerificationGasArgsSchema.shape,
+        ...glamsterdamArgsSchema.shape
+    })
+    // --glamsterdam-enabled turns on every Glamsterdam EIP alto handles.
+    // Each EIP flag can still be set on its own.
+    .transform((args) => ({
+        ...args,
+        "supports-eip7976":
+            args["supports-eip7976"] || args["glamsterdam-enabled"],
+        "supports-eip2780":
+            args["supports-eip2780"] || args["glamsterdam-enabled"],
+        "supports-eip8037":
+            args["supports-eip8037"] || args["glamsterdam-enabled"]
+    }))
+    // EIP-8037 caps each simulation at --tx-max-gas-limit. Unsplit, a single
+    // call runs simulateHandleOp and the verification binary searches back to
+    // back, which can run out of gas under the cap.
+    .transform((args) => ({
+        ...args,
+        "split-simulation-calls":
+            args["split-simulation-calls"] || args["supports-eip8037"]
+    }))
+    // EIP-8037: tx gas above --tx-max-gas-limit goes into the state gas
+    // reservoir, which gasleft() can't see. Bundles are capped at the limit,
+    // so the mempool must not build bundles that need more than it.
+    .refine((args) => {
+        if (!args["supports-eip8037"]) {
+            return true
+        }
+
+        return args["max-gas-per-bundle"] <= args["tx-max-gas-limit"]
+    }, exceedsTxMaxGasLimit("max-gas-per-bundle"))
+    // A userOp above the limit could never fit in a bundle
+    .refine((args) => {
+        if (!args["supports-eip8037"]) {
+            return true
+        }
+
+        return args["max-gas-per-user-op"] <= args["tx-max-gas-limit"]
+    }, exceedsTxMaxGasLimit("max-gas-per-user-op"))

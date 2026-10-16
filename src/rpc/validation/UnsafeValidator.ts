@@ -17,7 +17,12 @@ import {
     type ValidationResult07,
     entryPointExecutionErrorSchema06
 } from "@alto/types"
-import { type Logger, type Metrics, isVersion06 } from "@alto/utils"
+import {
+    type Logger,
+    type Metrics,
+    getSimulationGasLimit,
+    isVersion06
+} from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
     BaseError,
@@ -284,10 +289,10 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const simulateValidationPromise = entryPointContract.simulate
-            .simulateValidation(
-                [userOp],
-                eip7702Override ? { stateOverride: eip7702Override } : {}
-            )
+            .simulateValidation([userOp], {
+                gas: getSimulationGasLimit(this.config),
+                ...(eip7702Override ? { stateOverride: eip7702Override } : {})
+            })
             .catch((e) => {
                 if (e instanceof Error) {
                     return e
