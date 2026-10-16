@@ -125,6 +125,7 @@ const validatePvg = async ({
     } else {
         const executionGasComponent = await calcExecutionPvgComponent({
             userOp,
+            entryPoint,
             supportsEip7623: rpcHandler.config.supportsEip7623,
             config: rpcHandler.config
         })
