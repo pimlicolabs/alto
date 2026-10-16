@@ -468,16 +468,18 @@ export const optionArgsSchema = z
     // EIP-8037: tx gas above --tx-max-gas-limit goes into the state gas
     // reservoir, which gasleft() can't see. Bundles are capped at the limit,
     // so the mempool must not build bundles that need more than it.
-    .refine(
-        (args) =>
-            !args["supports-eip8037"] ||
-            args["max-gas-per-bundle"] <= args["tx-max-gas-limit"],
-        exceedsTxMaxGasLimit("max-gas-per-bundle")
-    )
+    .refine((args) => {
+        if (!args["supports-eip8037"]) {
+            return true
+        }
+
+        return args["max-gas-per-bundle"] <= args["tx-max-gas-limit"]
+    }, exceedsTxMaxGasLimit("max-gas-per-bundle"))
     // A userOp above the limit could never fit in a bundle
-    .refine(
-        (args) =>
-            !args["supports-eip8037"] ||
-            args["max-gas-per-user-op"] <= args["tx-max-gas-limit"],
-        exceedsTxMaxGasLimit("max-gas-per-user-op")
-    )
+    .refine((args) => {
+        if (!args["supports-eip8037"]) {
+            return true
+        }
+
+        return args["max-gas-per-user-op"] <= args["tx-max-gas-limit"]
+    }, exceedsTxMaxGasLimit("max-gas-per-user-op"))
