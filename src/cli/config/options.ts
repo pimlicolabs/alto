@@ -6,6 +6,7 @@ import type {
     IDebugArgsInput,
     IExecutorArgsInput,
     IGasEstimationArgsInput,
+    IGlamsterdamArgsInput,
     ILogArgsInput,
     IMempoolArgsInput,
     IOptionsInput,
@@ -434,6 +435,16 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
             default: "4"
         }
     }
+
+export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
+    "supports-eip7976": {
+        description:
+            "Whether the chain supports EIP-7976 (Increase calldata floor cost to 64 gas per byte)",
+        type: "boolean",
+        require: false,
+        default: false
+    }
+}
 
 export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     "max-bundle-count": {
