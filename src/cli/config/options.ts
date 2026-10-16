@@ -450,6 +450,13 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
     }
 
 export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
+    "glamsterdam-enabled": {
+        description:
+            "Whether the chain has activated Glamsterdam. Enables --supports-eip7976, --supports-eip2780 and --supports-eip8037",
+        type: "boolean",
+        require: false,
+        default: false
+    },
     "supports-eip7976": {
         description:
             "Whether the chain supports EIP-7976 (Increase calldata floor cost to 64 gas per byte)",
@@ -460,6 +467,13 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     "supports-eip2780": {
         description:
             "Whether the chain supports EIP-2780 (Resource-based intrinsic transaction gas, prices EIP-7702 authorizations with EIP-8037 state gas)",
+        type: "boolean",
+        require: false,
+        default: false
+    },
+    "supports-eip8037": {
+        description:
+            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at 16,777,216 so state gas is never paid from the reservoir",
         type: "boolean",
         require: false,
         default: false

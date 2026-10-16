@@ -1,5 +1,5 @@
 import type { StateOverrides, UserOperation06 } from "@alto/types"
-import type { Logger } from "@alto/utils"
+import { type Logger, getSimulationGasLimit } from "@alto/utils"
 import { type Address, type Hex, getContract } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
@@ -44,8 +44,7 @@ export class GasEstimator06 {
         const {
             publicClient,
             //blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation
+            utilityWalletAddress
         } = this.config
 
         const viemStateOverride = await prepareSimulationOverrides06({
@@ -67,7 +66,7 @@ export class GasEstimator06 {
                 [userOp, targetAddress, targetCallData],
                 {
                     account: utilityWalletAddress,
-                    gas: fixedGasLimitForEstimation,
+                    gas: getSimulationGasLimit(this.config),
                     stateOverride: viemStateOverride
                 }
             )
