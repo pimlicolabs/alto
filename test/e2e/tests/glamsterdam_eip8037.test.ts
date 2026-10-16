@@ -1,4 +1,4 @@
-import { type Hex, createTestClient, http, zeroAddress } from "viem"
+import { http, type Hex, createTestClient, zeroAddress } from "viem"
 import {
     type EntryPointVersion,
     entryPoint06Address,
