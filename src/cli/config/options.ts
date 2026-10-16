@@ -473,7 +473,7 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     },
     "supports-eip8037": {
         description:
-            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at --tx-max-gas-limit so state gas is never paid from the reservoir",
+            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at --tx-max-gas-limit so state gas is never paid from the reservoir. Enables --split-simulation-calls",
         type: "boolean",
         require: false,
         default: false

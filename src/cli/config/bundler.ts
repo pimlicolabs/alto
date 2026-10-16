@@ -470,6 +470,14 @@ export const optionArgsSchema = z
         "supports-eip8037":
             args["supports-eip8037"] || args["glamsterdam-enabled"]
     }))
+    // EIP-8037 caps each simulation at --tx-max-gas-limit. Unsplit, a single
+    // call runs simulateHandleOp and the verification binary searches back to
+    // back, which can run out of gas under the cap.
+    .transform((args) => ({
+        ...args,
+        "split-simulation-calls":
+            args["split-simulation-calls"] || args["supports-eip8037"]
+    }))
     // EIP-8037: tx gas above --tx-max-gas-limit goes into the state gas
     // reservoir, which gasleft() can't see. Bundles are capped at the limit,
     // so the mempool must not build bundles that need more than it.
