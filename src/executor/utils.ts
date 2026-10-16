@@ -11,7 +11,6 @@ import {
     isVersion06,
     isVersion07,
     maxBigInt,
-    minBigInt,
     scaleBigIntByPercent,
     toPackedUserOp
 } from "@alto/utils"
@@ -115,18 +114,7 @@ export const getBundleGasLimit = async ({
         }
     }
 
-    const scaledGasLimit = scaleBigIntByPercent(
-        gasLimit,
-        config.executorGasMultiplier
-    )
-
-    // EIP-8037: gas above the cap goes into the state gas reservoir, which
-    // the EntryPoint can't see, so userOps would be undercharged
-    if (config.supportsEip8037) {
-        return minBigInt(scaledGasLimit, config.txMaxGasLimit)
-    }
-
-    return scaledGasLimit
+    return scaleBigIntByPercent(gasLimit, config.executorGasMultiplier)
 }
 
 export const isTransactionUnderpricedError = (e: BaseError) => {
