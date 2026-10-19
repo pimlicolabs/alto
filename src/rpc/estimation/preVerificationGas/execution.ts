@@ -86,19 +86,9 @@ async function getEip7702AuthGas({
         return defaultOverHeads.eip7702AuthGas
     }
 
-    const { publicClient } = config
-    // We can remove these RPC calls, we have all info we need.
-    // userOp.eip7702Auth has nonce and we can get userOp.sender's code during
-    // simulation
-    const [code, nonce, balance] = await Promise.all([
-        publicClient.getCode({ address: userOp.sender }),
-        publicClient.getTransactionCount({ address: userOp.sender }),
-        publicClient.getBalance({ address: userOp.sender })
-    ])
-
-    const hasCode = code !== undefined && size(code) > 0
-    const isDelegated = hasCode && slice(code, 0, 3) === "0xef0100"
-    const accountExists = hasCode || nonce > 0 || balance > 0n
+    // validateEip7702Auth rejects auths whose nonce doesn't match the
+    // authority's onchain nonce, so we can use it in place of an RPC call
+    const { nonce } = userOp.eip7702Auth
     const setsDelegation =
         getEip7702AuthAddress(userOp.eip7702Auth) !== zeroAddress
 
@@ -106,11 +96,23 @@ async function getEip7702AuthGas({
     // write to it is always charged
     let authGas = EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
 
-    if (!accountExists) {
-        authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+    // Deploying a contract or setting a delegation bumps the nonce, so a zero
+    // nonce means the authority has no code and exists only if it holds a
+    // balance. A non-zero nonce means it exists.
+    if (nonce === 0) {
+        const balance = await config.publicClient.getBalance({
+            address: userOp.sender
+        })
+
+        if (balance === 0n) {
+            authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+        }
     }
 
-    if (setsDelegation && !isDelegated) {
+    // Simulation overrides the sender's code with the delegation, so we can't
+    // tell if it was already delegated. Assume it wasn't, which overcharges
+    // only re-delegations.
+    if (setsDelegation) {
         authGas += EIP8037_AUTH_BASE_STATE_GAS
     }
 
