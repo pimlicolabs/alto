@@ -351,8 +351,10 @@ export const preVerificationGasArgsSchema = z.object({
 })
 
 export const glamsterdamArgsSchema = z.object({
+    "glamsterdam-enabled": z.boolean().default(false),
     "supports-eip7976": z.boolean().default(false),
-    "supports-eip2780": z.boolean().default(false)
+    "supports-eip2780": z.boolean().default(false),
+    "supports-eip8037": z.boolean().default(false)
 })
 
 export const mempoolArgsSchema = z.object({
@@ -433,18 +435,47 @@ export type IOptionsInput = z.input<typeof optionArgsSchema>
 export type IRedisArgs = z.infer<typeof redisArgsSchema>
 export type IRedisArgsInput = z.input<typeof redisArgsSchema>
 
-export const optionArgsSchema = z.object({
-    ...bundlerArgsSchema.shape,
-    ...compatibilityArgsSchema.shape,
-    ...logArgsSchema.shape,
-    ...serverArgsSchema.shape,
-    ...rpcArgsSchema.shape,
-    ...debugArgsSchema.shape,
-    ...gasEstimationArgsSchema.shape,
-    ...utilityArgsSchema.shape,
-    ...executorArgsSchema.shape,
-    ...mempoolArgsSchema.shape,
-    ...redisArgsSchema.shape,
-    ...preVerificationGasArgsSchema.shape,
-    ...glamsterdamArgsSchema.shape
-})
+// EIP-8037: tx gas above 2^24 goes into the state gas reservoir, which
+// gasleft() can't see
+const GLAMSTERDAM_SIMULATION_GAS_LIMIT = 16_777_216n
+
+export const optionArgsSchema = z
+    .object({
+        ...bundlerArgsSchema.shape,
+        ...compatibilityArgsSchema.shape,
+        ...logArgsSchema.shape,
+        ...serverArgsSchema.shape,
+        ...rpcArgsSchema.shape,
+        ...debugArgsSchema.shape,
+        ...gasEstimationArgsSchema.shape,
+        ...utilityArgsSchema.shape,
+        ...executorArgsSchema.shape,
+        ...mempoolArgsSchema.shape,
+        ...redisArgsSchema.shape,
+        ...preVerificationGasArgsSchema.shape,
+        ...glamsterdamArgsSchema.shape
+    })
+    // --glamsterdam-enabled turns on every Glamsterdam EIP alto handles.
+    // Each EIP flag can still be set on its own.
+    //
+    // Simulations default to 2^24 gas so state gas is never paid from the
+    // EIP-8037 reservoir. Unsplit, a single call runs simulateHandleOp and the
+    // verification binary searches back to back, which can run out of gas
+    // under that limit, so each phase gets its own call.
+    .transform((args) => {
+        const glamsterdamEnabled = args["glamsterdam-enabled"]
+
+        return {
+            ...args,
+            "supports-eip7976": args["supports-eip7976"] || glamsterdamEnabled,
+            "supports-eip2780": args["supports-eip2780"] || glamsterdamEnabled,
+            "supports-eip8037": args["supports-eip8037"] || glamsterdamEnabled,
+            "fixed-gas-limit-for-estimation":
+                args["fixed-gas-limit-for-estimation"] ??
+                (glamsterdamEnabled
+                    ? GLAMSTERDAM_SIMULATION_GAS_LIMIT
+                    : undefined),
+            "split-simulation-calls":
+                args["split-simulation-calls"] || glamsterdamEnabled
+        }
+    })

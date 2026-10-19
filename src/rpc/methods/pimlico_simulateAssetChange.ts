@@ -99,6 +99,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )
@@ -122,6 +123,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )
@@ -136,6 +138,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )

@@ -287,6 +287,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: entryPoint,
+                gas: this.config.fixedGasLimitForEstimation,
                 data: encodeFunctionData({
                     abi: EntryPointV06Abi,
                     functionName: "simulateValidation",
@@ -463,6 +464,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: pimlicoSimulationsAddress,
+                gas: this.config.fixedGasLimitForEstimation,
                 data: entryPointSimulationsCallData
             },
             {

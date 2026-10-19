@@ -284,10 +284,10 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         const simulateValidationPromise = entryPointContract.simulate
-            .simulateValidation(
-                [userOp],
-                eip7702Override ? { stateOverride: eip7702Override } : {}
-            )
+            .simulateValidation([userOp], {
+                gas: this.config.fixedGasLimitForEstimation,
+                ...(eip7702Override ? { stateOverride: eip7702Override } : {})
+            })
             .catch((e) => {
                 if (e instanceof Error) {
                     return e
