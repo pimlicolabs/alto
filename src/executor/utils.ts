@@ -73,18 +73,13 @@ export const getBundleGasLimit = async ({
             beneficiary: executorAddress
         })
 
-        let eip7702Overhead: bigint
-        if (config.supportsEip2780) {
-            // State at inclusion time is unknown here, so assume each
-            // authority is a new account without a delegation indicator
-            const authCount = getAuthorizationListFromUserOps(userOps)?.length
-            eip7702Overhead = BigInt(authCount ?? 0) * EIP2780_MAX_AUTH_GAS
-        } else {
-            const eip7702UserOpCount = userOps.filter(
-                (userOp) => userOp.eip7702Auth
-            ).length
-            eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
-        }
+        const authCount = getAuthorizationListFromUserOps(userOps)?.length ?? 0
+        // Under EIP-2780, state at inclusion time is unknown here, so assume
+        // each authority is a new account without a delegation indicator
+        const perAuthGas = config.supportsEip2780
+            ? EIP2780_MAX_AUTH_GAS
+            : 40_000n
+        const eip7702Overhead = BigInt(authCount) * perAuthGas
 
         gasLimit = aa95GasFloor + eip7702Overhead
 
