@@ -19,7 +19,7 @@ import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     calcMonadPvg
-} from "../estimation/preVerificationGasCalculator"
+} from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
