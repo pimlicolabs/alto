@@ -85,6 +85,9 @@ async function getEip7702AuthGas({
     }
 
     const { publicClient } = config
+    // We can remove these RPC calls, we have all info we need.
+    // userOp.eip7702Auth has nonce and we can get userOp.sender's code during
+    // simulation
     const [code, nonce, balance] = await Promise.all([
         publicClient.getCode({ address: userOp.sender }),
         publicClient.getTransactionCount({ address: userOp.sender }),
