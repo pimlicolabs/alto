@@ -217,7 +217,6 @@ export const compatibilityArgsSchema = z.object({
         .transform((val) => parseGwei(val))
         .optional(),
     "supports-eip7623": z.boolean().default(false),
-    "tx-max-gas-limit": z.string().transform(BigInt).default("16777216"),
     "arbitrum-base-fee-multiplier": z
         .string()
         .transform(BigInt)
@@ -436,12 +435,9 @@ export type IOptionsInput = z.input<typeof optionArgsSchema>
 export type IRedisArgs = z.infer<typeof redisArgsSchema>
 export type IRedisArgsInput = z.input<typeof redisArgsSchema>
 
-const exceedsTxMaxGasLimit = (
-    name: "max-gas-per-bundle" | "max-gas-per-user-op"
-) => ({
-    path: [name],
-    message: "must be at most --tx-max-gas-limit when EIP-8037 is enabled"
-})
+// EIP-8037: tx gas above 2^24 goes into the state gas reservoir, which
+// gasleft() can't see
+const GLAMSTERDAM_SIMULATION_GAS_LIMIT = 16_777_216n
 
 export const optionArgsSchema = z
     .object({
@@ -461,38 +457,25 @@ export const optionArgsSchema = z
     })
     // --glamsterdam-enabled turns on every Glamsterdam EIP alto handles.
     // Each EIP flag can still be set on its own.
-    .transform((args) => ({
-        ...args,
-        "supports-eip7976":
-            args["supports-eip7976"] || args["glamsterdam-enabled"],
-        "supports-eip2780":
-            args["supports-eip2780"] || args["glamsterdam-enabled"],
-        "supports-eip8037":
-            args["supports-eip8037"] || args["glamsterdam-enabled"]
-    }))
-    // EIP-8037 caps each simulation at --tx-max-gas-limit. Unsplit, a single
-    // call runs simulateHandleOp and the verification binary searches back to
-    // back, which can run out of gas under the cap.
-    .transform((args) => ({
-        ...args,
-        "split-simulation-calls":
-            args["split-simulation-calls"] || args["supports-eip8037"]
-    }))
-    // EIP-8037: tx gas above --tx-max-gas-limit goes into the state gas
-    // reservoir, which gasleft() can't see. Bundles are capped at the limit,
-    // so the mempool must not build bundles that need more than it.
-    .refine((args) => {
-        if (!args["supports-eip8037"]) {
-            return true
-        }
+    //
+    // Simulations default to 2^24 gas so state gas is never paid from the
+    // EIP-8037 reservoir. Unsplit, a single call runs simulateHandleOp and the
+    // verification binary searches back to back, which can run out of gas
+    // under that limit, so each phase gets its own call.
+    .transform((args) => {
+        const glamsterdamEnabled = args["glamsterdam-enabled"]
 
-        return args["max-gas-per-bundle"] <= args["tx-max-gas-limit"]
-    }, exceedsTxMaxGasLimit("max-gas-per-bundle"))
-    // A userOp above the limit could never fit in a bundle
-    .refine((args) => {
-        if (!args["supports-eip8037"]) {
-            return true
+        return {
+            ...args,
+            "supports-eip7976": args["supports-eip7976"] || glamsterdamEnabled,
+            "supports-eip2780": args["supports-eip2780"] || glamsterdamEnabled,
+            "supports-eip8037": args["supports-eip8037"] || glamsterdamEnabled,
+            "fixed-gas-limit-for-estimation":
+                args["fixed-gas-limit-for-estimation"] ??
+                (glamsterdamEnabled
+                    ? GLAMSTERDAM_SIMULATION_GAS_LIMIT
+                    : undefined),
+            "split-simulation-calls":
+                args["split-simulation-calls"] || glamsterdamEnabled
         }
-
-        return args["max-gas-per-user-op"] <= args["tx-max-gas-limit"]
-    }, exceedsTxMaxGasLimit("max-gas-per-user-op"))
+    })

@@ -9,7 +9,6 @@ import {
 import {
     type Logger,
     getEntryPointSimulationsAddress,
-    getSimulationGasLimit,
     getViemEntryPointVersion,
     toPackedUserOp
 } from "@alto/utils"
@@ -141,7 +140,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: getSimulationGasLimit(this.config)
+                    gas: this.config.fixedGasLimitForEstimation
                 }
             )
 
@@ -227,7 +226,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: getSimulationGasLimit(this.config)
+                    gas: this.config.fixedGasLimitForEstimation
                 }
             )
             return {
@@ -286,7 +285,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride,
-                        gas: getSimulationGasLimit(this.config)
+                        gas: this.config.fixedGasLimitForEstimation
                     }
                 )
 
@@ -417,7 +416,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: viemStateOverride,
-                        gas: getSimulationGasLimit(this.config)
+                        gas: this.config.fixedGasLimitForEstimation
                     }
                 )
 
@@ -464,7 +463,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: viemStateOverride,
-                        gas: getSimulationGasLimit(this.config)
+                        gas: this.config.fixedGasLimitForEstimation
                     }
                 )
 

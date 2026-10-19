@@ -452,7 +452,7 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
 export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     "glamsterdam-enabled": {
         description:
-            "Whether the chain has activated Glamsterdam. Enables --supports-eip7976, --supports-eip2780 and --supports-eip8037",
+            "Whether the chain has activated Glamsterdam. Enables --supports-eip7976, --supports-eip2780 and --supports-eip8037, enables --split-simulation-calls and defaults --fixed-gas-limit-for-estimation to 16777216",
         type: "boolean",
         require: false,
         default: false
@@ -473,7 +473,7 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     },
     "supports-eip8037": {
         description:
-            "Whether the chain supports EIP-8037 (State creation gas cost increase). Caps simulation and bundle gas limits at --tx-max-gas-limit so state gas is never paid from the reservoir. Enables --split-simulation-calls",
+            "Whether the chain supports EIP-8037 (State creation gas cost increase)",
         type: "boolean",
         require: false,
         default: false
@@ -715,13 +715,6 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             type: "boolean",
             require: false,
             default: false
-        },
-        "tx-max-gas-limit": {
-            description:
-                "The chain's per-transaction gas cap. With --supports-eip8037, simulation and bundle gas limits are kept at or below it",
-            type: "string",
-            require: false,
-            default: "16777216"
         },
         "arbitrum-base-fee-multiplier": {
             description:

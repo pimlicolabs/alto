@@ -8,7 +8,6 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import {
-    getSimulationGasLimit,
     isVersion06,
     isVersion07,
     isVersion08,
@@ -100,7 +99,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            gas: getSimulationGasLimit(rpcHandler.config),
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )
@@ -124,7 +123,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            gas: getSimulationGasLimit(rpcHandler.config),
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )
@@ -139,7 +138,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
-                            gas: getSimulationGasLimit(rpcHandler.config),
+                            gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
                     )
