@@ -28,9 +28,6 @@ import {
 import type { AltoConfig } from "../createConfig"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 
-// EIP-7976 floor: 16 gas per token, 4 tokens per byte
-const EIP7976_FLOOR_PER_BYTE_GAS = 64n
-
 // Thrown during a replacement when the executor nonce was consumed by another
 // transaction. The caller resolves whether it was one of the bundle's own
 // transactions (resending would revert with AA25) or an unknown transaction
@@ -94,7 +91,8 @@ export const getBundleGasLimit = async ({
 
             let floorGas: bigint
             if (config.supportsEip7976) {
-                floorGas = BigInt(calldata.length) * EIP7976_FLOOR_PER_BYTE_GAS
+                floorGas =
+                    BigInt(calldata.length) * config.eip7976FloorPerByteGas
             } else {
                 const nonZeroBytes = BigInt(
                     calldata.filter((byte) => byte !== 0).length

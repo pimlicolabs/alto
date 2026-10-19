@@ -45,9 +45,6 @@ const defaultOverHeads: GasOverheads = {
     floorPerTokenGasCost: 10n
 }
 
-// EIP-7976 floor: 16 gas per token, every byte counts as 4 floor tokens
-const EIP7976_FLOOR_PER_TOKEN_GAS = 16n
-
 function getGasOverheads(config: AltoConfig): GasOverheads {
     return {
         ...defaultOverHeads,
@@ -56,7 +53,7 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
         standardTokenGasCost: config.calldataZeroByteGas,
         nonZeroByte: config.calldataNonZeroByteGas,
         floorPerTokenGasCost: config.supportsEip7976
-            ? EIP7976_FLOOR_PER_TOKEN_GAS
+            ? config.eip7976FloorPerTokenGas
             : config.eip7623FloorPerTokenGas,
         tokensPerNonzeroByte: config.eip7623TokensPerNonzeroByte
     }

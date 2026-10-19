@@ -433,6 +433,19 @@ export const preVerificationGasOptions: CliCommandOptions<IPreVerificationGasArg
             type: "string",
             require: false,
             default: "4"
+        },
+        "eip7976-floor-per-token-gas": {
+            description: "EIP-7976 floor gas cost per token",
+            type: "string",
+            require: false,
+            default: "16"
+        },
+        "eip7976-floor-per-byte-gas": {
+            description:
+                "EIP-7976 floor gas cost per calldata byte, used for the bundle gasLimit",
+            type: "string",
+            require: false,
+            default: "64"
         }
     }
 
