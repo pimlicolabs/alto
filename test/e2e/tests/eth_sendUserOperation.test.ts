@@ -311,7 +311,7 @@ describe.each([
                 privateKey
             })
 
-            await client.sendUserOperation({
+            const deployHash = await client.sendUserOperation({
                 calls: [
                     {
                         to: client.account.address,
@@ -322,6 +322,10 @@ describe.each([
             })
 
             await sendBundleNow({ altoRpc })
+
+            // anvil mines asynchronously: wait for the deployment before
+            // preparing userOps that assume the account exists
+            await client.waitForUserOperationReceipt({ hash: deployHash })
 
             const opHashes = await Promise.all(
                 nonceKeys.map((nonceKey) =>
@@ -407,7 +411,7 @@ describe.each([
                 privateKey
             })
 
-            await client.sendUserOperation({
+            const deployHash = await client.sendUserOperation({
                 calls: [
                     {
                         to: client.account.address,
@@ -418,6 +422,10 @@ describe.each([
             })
 
             await sendBundleNow({ altoRpc })
+
+            // anvil mines asynchronously: wait for the deployment before
+            // preparing userOps that assume the account exists
+            await client.waitForUserOperationReceipt({ hash: deployHash })
 
             const nonceKey = 100n
             const nonceValueDiffs = [0n, 1n, 2n]

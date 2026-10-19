@@ -46,7 +46,15 @@ const verifyDeployed = async ({
     }
 }
 
-export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
+export async function setupContracts({
+    anvilRpc,
+    gas = 15_000_000n
+}: {
+    anvilRpc: string
+    // Amsterdam (EIP-8037) charges code deposit as state gas, so deploys
+    // there need a much higher gas limit
+    gas?: bigint
+}) {
     let nonce = 0
 
     const walletClient = createWalletClient({
@@ -142,7 +150,7 @@ export async function setupContracts({ anvilRpc }: { anvilRpc: string }) {
             await walletClient.sendTransaction({
                 to: DETERMINISTIC_DEPLOYER,
                 data,
-                gas: 15_000_000n,
+                gas,
                 nonce: nonce++
             })
         )
