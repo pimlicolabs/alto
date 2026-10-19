@@ -18,13 +18,13 @@ import {
 
 // EIP-8037: tx gas above this goes into the state gas reservoir
 const TX_MAX_GAS_LIMIT = 16_777_216n
-// Low cap for the instance that checks simulations respect the limit
-const LOW_TX_MAX_GAS_LIMIT = 2_000_000n
+// Low simulation gas for the instance that checks simulations respect it
+const LOW_SIMULATION_GAS_LIMIT = 2_000_000n
 const AMSTERDAM_ANVIL_PORT = 8548
 const GLAMSTERDAM_ALTO_PORT = 8092
 const LOW_CAP_ALTO_PORT = 8093
 
-// Loops 131,072 times (~3.4M gas), more than LOW_TX_MAX_GAS_LIMIT
+// Loops 131,072 times (~3.4M gas), more than LOW_SIMULATION_GAS_LIMIT
 //   PUSH3 0x020000; loop: JUMPDEST PUSH1 1 SWAP1 SUB DUP1 PUSH1 4 JUMPI; STOP
 const GAS_BURNER = "0x00000000000000000000000000000000000b0b0b"
 const GAS_BURNER_CODE: Hex = "0x620200005b600190038060045700"
@@ -49,9 +49,8 @@ beforeAll(async () => {
         flags: {
             "glamsterdam-enabled": true,
             "transaction-gas-stipend": "15000",
-            "tx-max-gas-limit": LOW_TX_MAX_GAS_LIMIT.toString(),
-            "max-gas-per-bundle": LOW_TX_MAX_GAS_LIMIT.toString(),
-            "max-gas-per-user-op": LOW_TX_MAX_GAS_LIMIT.toString()
+            "fixed-gas-limit-for-estimation":
+                LOW_SIMULATION_GAS_LIMIT.toString()
         }
     })
 })
@@ -133,7 +132,7 @@ describe.each([
             )
         })
 
-        test("Estimation is limited to --tx-max-gas-limit", async () => {
+        test("Estimation is limited to --fixed-gas-limit-for-estimation", async () => {
             const calls = [{ to: GAS_BURNER, data: "0x", value: 0n }] as const
 
             const glamsterdamClient = await getSmartAccountClient({
@@ -143,7 +142,7 @@ describe.each([
             })
             const { callGasLimit } =
                 await glamsterdamClient.estimateUserOperationGas({ calls })
-            expect(callGasLimit).toBeGreaterThan(LOW_TX_MAX_GAS_LIMIT)
+            expect(callGasLimit).toBeGreaterThan(LOW_SIMULATION_GAS_LIMIT)
 
             const lowCapClient = await getSmartAccountClient({
                 entryPointVersion,
