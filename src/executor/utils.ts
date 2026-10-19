@@ -26,7 +26,7 @@ import {
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { getEip7702AuthAddress } from "../utils/eip7702"
+import { EIP2780_MAX_AUTH_GAS, getEip7702AuthAddress } from "../utils/eip7702"
 
 // Thrown during a replacement when the executor nonce was consumed by another
 // transaction. The caller resolves whether it was one of the bundle's own
@@ -73,10 +73,13 @@ export const getBundleGasLimit = async ({
             beneficiary: executorAddress
         })
 
-        const eip7702UserOpCount = userOps.filter(
-            (userOp) => userOp.eip7702Auth
-        ).length
-        const eip7702Overhead = BigInt(eip7702UserOpCount) * 40_000n
+        const authCount = getAuthorizationListFromUserOps(userOps)?.length ?? 0
+        // Under EIP-2780, state at inclusion time is unknown here, so assume
+        // each authority is a new account without a delegation indicator
+        const perAuthGas = config.supportsEip2780
+            ? EIP2780_MAX_AUTH_GAS
+            : 40_000n
+        const eip7702Overhead = BigInt(authCount) * perAuthGas
 
         gasLimit = aa95GasFloor + eip7702Overhead
 
