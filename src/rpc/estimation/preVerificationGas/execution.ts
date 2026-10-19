@@ -52,7 +52,9 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
         zeroByte: config.calldataZeroByteGas,
         standardTokenGasCost: config.calldataZeroByteGas,
         nonZeroByte: config.calldataNonZeroByteGas,
-        floorPerTokenGasCost: config.eip7623FloorPerTokenGas,
+        floorPerTokenGasCost: config.supportsEip7976
+            ? config.eip7976FloorPerTokenGas
+            : config.eip7623FloorPerTokenGas,
         tokensPerNonzeroByte: config.eip7623TokensPerNonzeroByte
     }
 }
@@ -75,6 +77,10 @@ export function calcExecutionPvgComponent({
             .map((x) => (x === 0 ? 1 : Number(oh.tokensPerNonzeroByte)))
             .reduce((sum, x) => sum + x)
     )
+    // EIP-7976 counts zero and non-zero bytes alike towards the floor
+    const floorTokenCount = config.supportsEip7976
+        ? BigInt(packed.length) * oh.tokensPerNonzeroByte
+        : tokenCount
     const userOpWordsLength = BigInt(Math.floor((size(packed) + 31) / 32))
 
     let callDataOverhead = 0n
@@ -101,7 +107,7 @@ export function calcExecutionPvgComponent({
     const userOpShareOfStipend =
         oh.transactionGasStipend / oh.expectedBundleSize
 
-    if (supportsEip7623) {
+    if (supportsEip7623 || config.supportsEip7976) {
         const calculatedGasUsed = getUserOpGasUsed({
             userOp,
             config
@@ -111,6 +117,7 @@ export function calcExecutionPvgComponent({
             getEip7623transactionGasCost({
                 stipendGasCost: userOpShareOfStipend,
                 tokenGasCount: tokenCount,
+                floorTokenCount,
                 oh,
                 executionGasCost:
                     userOpShareOfBundleCost +
@@ -130,20 +137,23 @@ export function calcExecutionPvgComponent({
 }
 
 // Based on the formula in https://eips.ethereum.org/EIPS/eip-7623#specification
+// and https://eips.ethereum.org/EIPS/eip-7976#specification
 function getEip7623transactionGasCost({
     stipendGasCost,
     tokenGasCount,
+    floorTokenCount,
     executionGasCost,
     oh
 }: {
     stipendGasCost: bigint
     tokenGasCount: bigint
+    floorTokenCount: bigint
     executionGasCost: bigint
     oh: GasOverheads
 }): bigint {
     const standardCost =
         oh.standardTokenGasCost * tokenGasCount + executionGasCost
-    const floorCost = oh.floorPerTokenGasCost * tokenGasCount
+    const floorCost = oh.floorPerTokenGasCost * floorTokenCount
 
     return stipendGasCost + maxBigInt(standardCost, floorCost)
 }

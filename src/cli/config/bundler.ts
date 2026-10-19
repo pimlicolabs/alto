@@ -342,7 +342,16 @@ export const preVerificationGasArgsSchema = z.object({
     "calldata-zero-byte-gas": z.string().transform(BigInt).default("4"),
     "calldata-non-zero-byte-gas": z.string().transform(BigInt).default("16"),
     "eip7623-floor-per-token-gas": z.string().transform(BigInt).default("10"),
-    "eip7623-tokens-per-nonzero-byte": z.string().transform(BigInt).default("4")
+    "eip7623-tokens-per-nonzero-byte": z
+        .string()
+        .transform(BigInt)
+        .default("4"),
+    "eip7976-floor-per-token-gas": z.string().transform(BigInt).default("16"),
+    "eip7976-floor-per-byte-gas": z.string().transform(BigInt).default("64")
+})
+
+export const glamsterdamArgsSchema = z.object({
+    "supports-eip7976": z.boolean().default(false)
 })
 
 export const mempoolArgsSchema = z.object({
@@ -414,6 +423,9 @@ export type IPreVerificationGasArgsInput = z.input<
     typeof preVerificationGasArgsSchema
 >
 
+export type IGlamsterdamArgs = z.infer<typeof glamsterdamArgsSchema>
+export type IGlamsterdamArgsInput = z.input<typeof glamsterdamArgsSchema>
+
 export type IOptions = z.infer<typeof optionArgsSchema>
 export type IOptionsInput = z.input<typeof optionArgsSchema>
 
@@ -432,5 +444,6 @@ export const optionArgsSchema = z.object({
     ...executorArgsSchema.shape,
     ...mempoolArgsSchema.shape,
     ...redisArgsSchema.shape,
-    ...preVerificationGasArgsSchema.shape
+    ...preVerificationGasArgsSchema.shape,
+    ...glamsterdamArgsSchema.shape
 })
