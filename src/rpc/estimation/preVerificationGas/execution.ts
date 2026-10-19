@@ -141,6 +141,8 @@ async function getEip8037RefundDepositGas({
         return 0n
     }
 
+    // TODO: remove this RPC call, the simulation can return the sender's
+    // deposit at the start of the userOp
     const deposit = await config.publicClient.readContract({
         address: entryPoint,
         abi: parseAbi([
