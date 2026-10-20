@@ -1,8 +1,8 @@
 export {
-    calcExecutionPvgComponent,
-    calcStatePvgComponent,
+    getBasePvgComponent,
+    getOnchainStateGas,
     type GasOverheads
-} from "./execution"
+} from "./base"
 export { calcL2PvgComponent } from "./l2"
 export { getArbitrumL1GasEstimate } from "./l2/arbitrum"
 export { calcMonadPvg } from "./monad"
