@@ -71,7 +71,7 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
 // Under EIP-2780 the cost of an EIP-7702 authorization depends on the
 // authority's state: creating the account and setting a new delegation
 // indicator are charged as EIP-8037 state gas
-async function getEip7702Gas({
+async function getEip7702Overhead({
     userOp,
     config
 }: {
@@ -138,7 +138,7 @@ async function getEip7702Gas({
 // userOp. Under EIP-8037, if the deposit slot was empty when the bundle
 // started, the refund creates it and costs new-slot state gas. Validation
 // creating and clearing the same slot refills gasleft() and doesn't offset it.
-async function getRefundDepositStateGas({
+async function getEip8037RefundDepositOverhead({
     userOp,
     entryPoint,
     config
@@ -188,11 +188,11 @@ export async function getDynamicPvgComponent({
     entryPoint: Address
     config: AltoConfig
 }): Promise<bigint> {
-    const [eip7702Gas, refundDepositStateGas] = await Promise.all([
-        getEip7702Gas({ userOp, config }),
-        getRefundDepositStateGas({ userOp, entryPoint, config })
+    const [eip7702Overhead, eip8037RefundDepositOverhead] = await Promise.all([
+        getEip7702Overhead({ userOp, config }),
+        getEip8037RefundDepositOverhead({ userOp, entryPoint, config })
     ])
-    return eip7702Gas + refundDepositStateGas
+    return eip7702Overhead + eip8037RefundDepositOverhead
 }
 
 // Calculate the base component of preVerificationGas: everything except the
