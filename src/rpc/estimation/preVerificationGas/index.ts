@@ -1,6 +1,6 @@
 export {
     getBasePvgComponent,
-    getEip7702AndRefundGas,
+    getDynamicOverheadGas,
     type GasOverheads
 } from "./base"
 export { calcL2PvgComponent } from "./l2"

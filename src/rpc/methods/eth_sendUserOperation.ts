@@ -24,7 +24,7 @@ import {
     calcL2PvgComponent,
     calcMonadPvg,
     getBasePvgComponent,
-    getEip7702AndRefundGas
+    getDynamicOverheadGas
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -124,8 +124,8 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const [eip7702AndRefundGas, l2PvgComponent] = await Promise.all([
-            getEip7702AndRefundGas({
+        const [dynamicOverheadGas, l2PvgComponent] = await Promise.all([
+            getDynamicOverheadGas({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -141,7 +141,7 @@ const validatePvg = async ({
         const basePvgComponent = getBasePvgComponent({
             userOp,
             config: rpcHandler.config,
-            eip7702AndRefundGas
+            dynamicOverheadGas
         })
         requiredPvg = basePvgComponent + l2PvgComponent
     }
