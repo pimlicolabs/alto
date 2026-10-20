@@ -16,7 +16,7 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcEip8037PvgComponent,
+    calcStatePvgComponent,
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     calcMonadPvg
@@ -299,7 +299,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
             l2PvgComponent,
-            eip8037PvgComponent
+            statePvgComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOp,
@@ -318,7 +318,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 gasPriceManager: rpcHandler.gasPriceManager,
                 validate: false
             }),
-            calcEip8037PvgComponent({
+            calcStatePvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -347,7 +347,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const executionPvgComponent = calcExecutionPvgComponent({
             userOp: userOpWithEstimatedGas,
             config: rpcHandler.config,
-            eip8037PvgComponent
+            statePvgComponent
         })
 
         // Calculate total preVerificationGas by summing both components
