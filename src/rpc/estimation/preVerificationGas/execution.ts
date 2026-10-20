@@ -68,16 +68,15 @@ function getGasOverheads(config: AltoConfig): GasOverheads {
     }
 }
 
-// Under EIP-2780 the cost of an EIP-7702 authorization depends on the
-// authority's state: creating the account and setting a new delegation
-// indicator are charged as EIP-8037 state gas.
-async function getEip7702AuthGas({
+// The part of an EIP-7702 authorization's cost that doesn't depend on the
+// authority's state
+function getEip7702AuthGas({
     userOp,
     config
 }: {
     userOp: UserOperation
     config: AltoConfig
-}): Promise<bigint> {
+}): bigint {
     if (!userOp.eip7702Auth) {
         return 0n
     }
@@ -86,13 +85,27 @@ async function getEip7702AuthGas({
         return defaultOverHeads.eip7702AuthGas
     }
 
+    // The authority is never tx.sender or tx.to of the bundle, so the first
+    // write to it is always charged
+    return EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
+}
+
+// Under EIP-2780, creating the authority's account and setting a new
+// delegation indicator are charged as EIP-8037 state gas
+async function getEip7702AuthStateGas({
+    userOp,
+    config
+}: {
+    userOp: UserOperation
+    config: AltoConfig
+}): Promise<bigint> {
+    if (!userOp.eip7702Auth || !config.supportsEip2780) {
+        return 0n
+    }
+
     const { publicClient } = config
     const setsDelegation =
         getEip7702AuthAddress(userOp.eip7702Auth) !== zeroAddress
-
-    // The authority is never tx.sender or tx.to of the bundle, so the first
-    // write to it is always charged
-    let authGas = EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
 
     // validateEip7702Auth checks the auth nonce against the onchain nonce, so
     // we can use it instead of an RPC call. Deploying a contract or setting a
@@ -105,32 +118,30 @@ async function getEip7702AuthGas({
             address: userOp.sender
         })
 
+        let stateGas = 0n
+
         if (balance === 0n) {
-            authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+            stateGas += EIP8037_NEW_ACCOUNT_STATE_GAS
         }
 
         if (setsDelegation) {
-            authGas += EIP8037_AUTH_BASE_STATE_GAS
+            stateGas += EIP8037_AUTH_BASE_STATE_GAS
         }
 
-        return authGas
+        return stateGas
     }
 
     // Non-zero nonce: the authority exists, but may already be delegated, in
     // which case no new delegation indicator is created
-    if (setsDelegation) {
-        const code = await publicClient.getCode({ address: userOp.sender })
-        const isDelegated =
-            code !== undefined &&
-            size(code) > 0 &&
-            slice(code, 0, 3) === "0xef0100"
-
-        if (!isDelegated) {
-            authGas += EIP8037_AUTH_BASE_STATE_GAS
-        }
+    if (!setsDelegation) {
+        return 0n
     }
 
-    return authGas
+    const code = await publicClient.getCode({ address: userOp.sender })
+    const isDelegated =
+        code !== undefined && size(code) > 0 && slice(code, 0, 3) === "0xef0100"
+
+    return isDelegated ? 0n : EIP8037_AUTH_BASE_STATE_GAS
 }
 
 // The EntryPoint refunds unused prefund into the refund address's deposit
@@ -177,10 +188,8 @@ async function getEip8037RefundDepositGas({
     return EIP8037_NEW_SLOT_STATE_GAS
 }
 
-// State gas the userOp is charged depending on onchain state. It doesn't
-// depend on the userOp's gas limits, so estimation fetches it alongside
-// simulation.
-export async function calcStatePvgComponent({
+// EIP-8037 state gas the userOp is charged, which depends on onchain state
+export async function calcEip8037StatePvgComponent({
     userOp,
     entryPoint,
     config
@@ -189,22 +198,22 @@ export async function calcStatePvgComponent({
     entryPoint: Address
     config: AltoConfig
 }): Promise<bigint> {
-    const [eip7702AuthGas, eip8037RefundDepositGas] = await Promise.all([
-        getEip7702AuthGas({ userOp, config }),
+    const [eip7702AuthStateGas, refundDepositStateGas] = await Promise.all([
+        getEip7702AuthStateGas({ userOp, config }),
         getEip8037RefundDepositGas({ userOp, entryPoint, config })
     ])
-    return eip7702AuthGas + eip8037RefundDepositGas
+    return eip7702AuthStateGas + refundDepositStateGas
 }
 
 // Calculate the execution gas component of preVerificationGas
 export function calcExecutionPvgComponent({
     userOp,
     config,
-    statePvgComponent
+    eip8037StatePvgComponent
 }: {
     userOp: UserOperation
     config: AltoConfig
-    statePvgComponent: bigint
+    eip8037StatePvgComponent: bigint
 }): bigint {
     const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
@@ -221,7 +230,10 @@ export function calcExecutionPvgComponent({
     const userOpWordsLength = BigInt(Math.floor((size(packed) + 31) / 32))
 
     let callDataOverhead = 0n
-    let perUserOpOverhead = oh.perUserOp + statePvgComponent
+    let perUserOpOverhead =
+        oh.perUserOp +
+        getEip7702AuthGas({ userOp, config }) +
+        eip8037StatePvgComponent
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {

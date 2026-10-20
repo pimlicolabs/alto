@@ -19,7 +19,7 @@ import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     calcMonadPvg,
-    calcStatePvgComponent
+    calcEip8037StatePvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -299,7 +299,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
             l2GasComponent,
-            statePvgComponent
+            eip8037StatePvgComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOp,
@@ -318,9 +318,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 gasPriceManager: rpcHandler.gasPriceManager,
                 validate: false
             }),
-            // Independent of the estimated gas limits, so its RPC reads run
-            // alongside simulation instead of after it
-            calcStatePvgComponent({
+            calcEip8037StatePvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -349,7 +347,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const executionGasComponent = calcExecutionPvgComponent({
             userOp: userOpWithEstimatedGas,
             config: rpcHandler.config,
-            statePvgComponent
+            eip8037StatePvgComponent
         })
 
         // Calculate total preVerificationGas by summing both components

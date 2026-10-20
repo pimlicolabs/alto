@@ -1,6 +1,6 @@
 export {
     calcExecutionPvgComponent,
-    calcStatePvgComponent,
+    calcEip8037StatePvgComponent,
     type GasOverheads
 } from "./execution"
 export { calcL2PvgComponent } from "./l2"
