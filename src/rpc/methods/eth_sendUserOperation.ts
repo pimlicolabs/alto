@@ -21,10 +21,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
+    calcEip8037StatePvgComponent,
     calcExecutionPvgComponent,
     calcL2PvgComponent,
-    calcMonadPvg,
-    calcEip8037StatePvgComponent
+    calcMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
