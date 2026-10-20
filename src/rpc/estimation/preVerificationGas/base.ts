@@ -179,7 +179,7 @@ async function getRefundDepositStateGas({
 
 // Per-userOp overhead that depends on EIP flags and chain state rather than
 // being fixed: EIP-7702 authorization gas and refund deposit state gas
-export async function getDynamicOverheadGas({
+export async function getDynamicPvgComponent({
     userOp,
     entryPoint,
     config
@@ -200,11 +200,11 @@ export async function getDynamicOverheadGas({
 export function getBasePvgComponent({
     userOp,
     config,
-    dynamicOverheadGas
+    dynamicPvgComponent
 }: {
     userOp: UserOperation
     config: AltoConfig
-    dynamicOverheadGas: bigint
+    dynamicPvgComponent: bigint
 }): bigint {
     const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
@@ -221,7 +221,7 @@ export function getBasePvgComponent({
     const userOpWordsLength = BigInt(Math.floor((size(packed) + 31) / 32))
 
     let callDataOverhead = 0n
-    let perUserOpOverhead = oh.perUserOp + dynamicOverheadGas
+    let perUserOpOverhead = oh.perUserOp + dynamicPvgComponent
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {

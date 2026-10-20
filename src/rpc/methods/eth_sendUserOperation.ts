@@ -21,10 +21,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcL2PvgComponent,
     calcMonadPvg,
     getBasePvgComponent,
-    getDynamicOverheadGas
+    getDynamicPvgComponent,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -124,13 +124,13 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const [dynamicOverheadGas, l2PvgComponent] = await Promise.all([
-            getDynamicOverheadGas({
+        const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
+            getDynamicPvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
             }),
-            calcL2PvgComponent({
+            getL2PvgComponent({
                 config: rpcHandler.config,
                 userOp,
                 entryPoint,
@@ -141,7 +141,7 @@ const validatePvg = async ({
         const basePvgComponent = getBasePvgComponent({
             userOp,
             config: rpcHandler.config,
-            dynamicOverheadGas
+            dynamicPvgComponent
         })
         requiredPvg = basePvgComponent + l2PvgComponent
     }

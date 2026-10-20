@@ -16,10 +16,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcL2PvgComponent,
     calcMonadPvg,
     getBasePvgComponent,
-    getDynamicOverheadGas
+    getDynamicPvgComponent,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -299,7 +299,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
             l2PvgComponent,
-            dynamicOverheadGas
+            dynamicPvgComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOp,
@@ -311,14 +311,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            calcL2PvgComponent({
+            getL2PvgComponent({
                 config: rpcHandler.config,
                 userOp,
                 entryPoint,
                 gasPriceManager: rpcHandler.gasPriceManager,
                 validate: false
             }),
-            getDynamicOverheadGas({
+            getDynamicPvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -347,7 +347,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const basePvgComponent = getBasePvgComponent({
             userOp: userOpWithEstimatedGas,
             config: rpcHandler.config,
-            dynamicOverheadGas
+            dynamicPvgComponent
         })
 
         // Calculate total preVerificationGas by summing both components
