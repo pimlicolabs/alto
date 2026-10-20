@@ -28,6 +28,7 @@ import {
 
 // EIP-8037 state gas charged for an EIP-7702 authorization under EIP-2780
 const EIP8037_NEW_ACCOUNT_STATE_GAS = 183_600n
+const EIP8037_AUTH_BASE_STATE_GAS = 35_190n
 const AMSTERDAM_ANVIL_PORT = 8547
 const FLAGGED_ALTO_PORT = 8091
 // PVG also moves by a few gas when estimated gas limits change calldata bytes
@@ -181,12 +182,12 @@ describe.each([
             const receipt = await client.waitForUserOperationReceipt({ hash })
             expect(receipt.success).toBe(true)
 
-            // The sender's code is overridden during simulation, so PVG can't
-            // tell an already delegated authority apart and still charges the
-            // auth base state gas
             const delegatedAccountPvg = await estimatePvg()
 
-            expectWithin(delegatedAccountPvg, existingAccountPvg)
+            expectWithin(
+                existingAccountPvg - delegatedAccountPvg,
+                EIP8037_AUTH_BASE_STATE_GAS
+            )
         })
 
         test.each([

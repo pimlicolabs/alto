@@ -123,19 +123,20 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const executionGasComponent = await calcExecutionPvgComponent({
-            userOp,
-            entryPoint,
-            supportsEip7623: rpcHandler.config.supportsEip7623,
-            config: rpcHandler.config
-        })
-        const l2GasComponent = await calcL2PvgComponent({
-            config: rpcHandler.config,
-            userOp,
-            entryPoint,
-            gasPriceManager: rpcHandler.gasPriceManager,
-            validate: true
-        })
+        const [executionGasComponent, l2GasComponent] = await Promise.all([
+            calcExecutionPvgComponent({
+                userOp,
+                entryPoint,
+                config: rpcHandler.config
+            }),
+            calcL2PvgComponent({
+                config: rpcHandler.config,
+                userOp,
+                entryPoint,
+                gasPriceManager: rpcHandler.gasPriceManager,
+                validate: true
+            })
+        ])
         requiredPvg = executionGasComponent + l2GasComponent
     }
 

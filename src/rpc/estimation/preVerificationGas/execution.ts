@@ -86,33 +86,41 @@ async function getEip7702AuthGas({
         return defaultOverHeads.eip7702AuthGas
     }
 
-    // validateEip7702Auth rejects auths whose nonce doesn't match the
-    // authority's onchain nonce, so we can use it in place of an RPC call
-    const { nonce } = userOp.eip7702Auth
+    const { publicClient } = config
     const setsDelegation =
         getEip7702AuthAddress(userOp.eip7702Auth) !== zeroAddress
+
+    // validateEip7702Auth rejects auths whose nonce doesn't match the
+    // authority's onchain nonce, so we can trust it here. Deploying a contract
+    // or setting a delegation bumps the nonce, so a zero nonce means the
+    // authority has no code and exists only if it holds a balance, and a
+    // non-zero nonce means it exists but may already be delegated. Either way
+    // a single read settles it.
+    let accountExists = true
+    let isDelegated = false
+
+    if (userOp.eip7702Auth.nonce === 0) {
+        const balance = await publicClient.getBalance({
+            address: userOp.sender
+        })
+        accountExists = balance > 0n
+    } else {
+        const code = await publicClient.getCode({ address: userOp.sender })
+        isDelegated =
+            code !== undefined &&
+            size(code) > 0 &&
+            slice(code, 0, 3) === "0xef0100"
+    }
 
     // The authority is never tx.sender or tx.to of the bundle, so the first
     // write to it is always charged
     let authGas = EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
 
-    // Deploying a contract or setting a delegation bumps the nonce, so a zero
-    // nonce means the authority has no code and exists only if it holds a
-    // balance. A non-zero nonce means it exists.
-    if (nonce === 0) {
-        const balance = await config.publicClient.getBalance({
-            address: userOp.sender
-        })
-
-        if (balance === 0n) {
-            authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
-        }
+    if (!accountExists) {
+        authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
     }
 
-    // Simulation overrides the sender's code with the delegation, so we can't
-    // tell if it was already delegated. Assume it wasn't, which overcharges
-    // only re-delegations.
-    if (setsDelegation) {
+    if (setsDelegation && !isDelegated) {
         authGas += EIP8037_AUTH_BASE_STATE_GAS
     }
 
@@ -163,17 +171,38 @@ async function getEip8037RefundDepositGas({
     return EIP8037_NEW_SLOT_STATE_GAS
 }
 
-// Calculate the execution gas component of preVerificationGas
-export async function calcExecutionPvgComponent({
+// The part of the execution PVG component that depends on onchain state
+// rather than the userOp's gas limits. Callers that know the sender, auth and
+// paymaster before gas estimation finishes can start it early so its RPC
+// reads run alongside simulation.
+export async function calcStatePvgComponent({
     userOp,
     entryPoint,
-    supportsEip7623,
     config
 }: {
     userOp: UserOperation
     entryPoint: Address
-    supportsEip7623: boolean
     config: AltoConfig
+}): Promise<bigint> {
+    const [eip7702AuthGas, eip8037RefundDepositGas] = await Promise.all([
+        getEip7702AuthGas({ userOp, config }),
+        getEip8037RefundDepositGas({ userOp, entryPoint, config })
+    ])
+    return eip7702AuthGas + eip8037RefundDepositGas
+}
+
+// Calculate the execution gas component of preVerificationGas
+export async function calcExecutionPvgComponent({
+    userOp,
+    entryPoint,
+    config,
+    statePvgComponent
+}: {
+    userOp: UserOperation
+    entryPoint: Address
+    config: AltoConfig
+    // Precomputed calcStatePvgComponent result, computed here if omitted
+    statePvgComponent?: bigint
 }): Promise<bigint> {
     const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
@@ -191,11 +220,9 @@ export async function calcExecutionPvgComponent({
 
     let callDataOverhead = 0n
     let perUserOpOverhead = oh.perUserOp
-    const [eip7702AuthGas, eip8037RefundDepositGas] = await Promise.all([
-        getEip7702AuthGas({ userOp, config }),
-        getEip8037RefundDepositGas({ userOp, entryPoint, config })
-    ])
-    perUserOpOverhead += eip7702AuthGas + eip8037RefundDepositGas
+    perUserOpOverhead +=
+        statePvgComponent ??
+        (await calcStatePvgComponent({ userOp, entryPoint, config }))
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
@@ -215,7 +242,7 @@ export async function calcExecutionPvgComponent({
     const userOpShareOfStipend =
         oh.transactionGasStipend / oh.expectedBundleSize
 
-    if (supportsEip7623 || config.supportsEip7976) {
+    if (config.supportsEip7623 || config.supportsEip7976) {
         const calculatedGasUsed = getUserOpGasUsed({
             userOp,
             config
