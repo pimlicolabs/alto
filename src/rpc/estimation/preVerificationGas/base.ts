@@ -133,12 +133,14 @@ async function getEip7702Overhead({
     return authGas
 }
 
+// EIP-8037 state gas for the refund into the userOp's deposit.
+//
 // The EntryPoint refunds unused prefund into the refund address's deposit
 // after the userOp's gas cost is fixed, so that write is never charged to the
 // userOp. Under EIP-8037, if the deposit slot was empty when the bundle
 // started, the refund creates it and costs new-slot state gas. Validation
 // creating and clearing the same slot refills gasleft() and doesn't offset it.
-async function getEip8037RefundDepositOverhead({
+async function getEip8037Overhead({
     userOp,
     entryPoint,
     config
@@ -188,11 +190,11 @@ export async function getDynamicPvgComponent({
     entryPoint: Address
     config: AltoConfig
 }): Promise<bigint> {
-    const [eip7702Overhead, eip8037RefundDepositOverhead] = await Promise.all([
+    const [eip7702Overhead, eip8037Overhead] = await Promise.all([
         getEip7702Overhead({ userOp, config }),
-        getEip8037RefundDepositOverhead({ userOp, entryPoint, config })
+        getEip8037Overhead({ userOp, entryPoint, config })
     ])
-    return eip7702Overhead + eip8037RefundDepositOverhead
+    return eip7702Overhead + eip8037Overhead
 }
 
 // Calculate the base component of preVerificationGas: everything except the
