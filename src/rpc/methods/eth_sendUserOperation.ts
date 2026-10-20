@@ -124,7 +124,7 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const [eip8037PvgComponent, l2GasComponent] = await Promise.all([
+        const [eip8037PvgComponent, l2PvgComponent] = await Promise.all([
             calcEip8037PvgComponent({
                 userOp,
                 entryPoint,
@@ -138,12 +138,12 @@ const validatePvg = async ({
                 validate: true
             })
         ])
-        const executionGasComponent = calcExecutionPvgComponent({
+        const executionPvgComponent = calcExecutionPvgComponent({
             userOp,
             config: rpcHandler.config,
             eip8037PvgComponent
         })
-        requiredPvg = executionGasComponent + l2GasComponent
+        requiredPvg = executionPvgComponent + l2PvgComponent
     }
 
     if (requiredPvg > userOp.preVerificationGas) {

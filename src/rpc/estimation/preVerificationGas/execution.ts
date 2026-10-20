@@ -149,7 +149,7 @@ async function getEip7702AuthStateGas({
 // userOp. Under EIP-8037, if the deposit slot was empty when the bundle
 // started, the refund creates it and costs new-slot state gas. Validation
 // creating and clearing the same slot refills gasleft() and doesn't offset it.
-async function getEip8037RefundDepositGas({
+async function getRefundDepositStateGas({
     userOp,
     entryPoint,
     config
@@ -200,7 +200,7 @@ export async function calcEip8037PvgComponent({
 }): Promise<bigint> {
     const [eip7702AuthStateGas, refundDepositStateGas] = await Promise.all([
         getEip7702AuthStateGas({ userOp, config }),
-        getEip8037RefundDepositGas({ userOp, entryPoint, config })
+        getRefundDepositStateGas({ userOp, entryPoint, config })
     ])
     return eip7702AuthStateGas + refundDepositStateGas
 }

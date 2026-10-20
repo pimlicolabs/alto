@@ -298,7 +298,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
-            l2GasComponent,
+            l2PvgComponent,
             eip8037PvgComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
@@ -344,14 +344,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             ...gasEstimateResult.estimates
         }
 
-        const executionGasComponent = calcExecutionPvgComponent({
+        const executionPvgComponent = calcExecutionPvgComponent({
             userOp: userOpWithEstimatedGas,
             config: rpcHandler.config,
             eip8037PvgComponent
         })
 
         // Calculate total preVerificationGas by summing both components
-        let preVerificationGas = executionGasComponent + l2GasComponent
+        let preVerificationGas = executionPvgComponent + l2PvgComponent
 
         // Add multipliers to pvg
         if (isVersion07(userOp)) {
