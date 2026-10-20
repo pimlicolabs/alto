@@ -51,7 +51,7 @@ export async function getArbitrumL1GasEstimate({
     return { gasForL1, l2BaseFee, l1BaseFeeEstimate }
 }
 
-export async function calcArbitrumPvg(
+export async function getArbitrumPvg(
     publicClient: PublicClient<Transport, Chain | undefined>,
     userOp: UserOperation,
     entryPoint: Address,

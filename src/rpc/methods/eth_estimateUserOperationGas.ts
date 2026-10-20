@@ -16,10 +16,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcMonadPvg,
     getBasePvgComponent,
     getDynamicPvgComponent,
-    getL2PvgComponent
+    getL2PvgComponent,
+    getMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -40,7 +40,7 @@ type GasEstimateResult =
           code?: number
       }
 
-function calcVerificationGasAndCallGasLimit(
+function getVerificationGasAndCallGasLimit(
     userOp: UserOperation,
     executionResult: {
         preOpGas: bigint
@@ -186,7 +186,7 @@ const getGasEstimates = async ({
     const successResult = executionResult
 
     let { verificationGasLimit, callGasLimit, paymasterVerificationGasLimit } =
-        calcVerificationGasAndCallGasLimit(
+        getVerificationGasAndCallGasLimit(
             simulationUserOp,
             successResult.data.executionResult,
             successResult.data
@@ -388,7 +388,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         } = finalGasLimits
 
         if (chainType === "monad") {
-            preVerificationGas = await calcMonadPvg({
+            preVerificationGas = await getMonadPvg({
                 config: rpcHandler.config,
                 userOp: {
                     ...userOp,

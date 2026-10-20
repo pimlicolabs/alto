@@ -2,11 +2,11 @@ import type { GasPriceManager } from "@alto/handlers"
 import type { Address, UserOperation } from "@alto/types"
 import { isVersion07, randomBigInt } from "@alto/utils"
 import type { AltoConfig } from "../../../../createConfig"
-import { calcArbitrumPvg } from "./arbitrum"
-import { calcCitreaPvg } from "./citrea"
-import { calcEtherlinkPvg } from "./etherlink"
-import { calcMantlePvg } from "./mantle"
-import { calcOptimismPvg } from "./optimism"
+import { getArbitrumPvg } from "./arbitrum"
+import { getCitreaPvg } from "./citrea"
+import { getEtherlinkPvg } from "./etherlink"
+import { getMantlePvg } from "./mantle"
+import { getOptimismPvg } from "./optimism"
 
 // Calculate the L2-specific gas component of preVerificationGas
 export async function getL2PvgComponent({
@@ -50,7 +50,7 @@ export async function getL2PvgComponent({
 
     switch (config.chainType) {
         case "op-stack":
-            return await calcOptimismPvg(
+            return await getOptimismPvg(
                 config.publicClient,
                 simulationUserOp,
                 entryPoint,
@@ -58,7 +58,7 @@ export async function getL2PvgComponent({
                 validate
             )
         case "arbitrum":
-            return await calcArbitrumPvg(
+            return await getArbitrumPvg(
                 config.publicClient,
                 simulationUserOp,
                 entryPoint,
@@ -66,7 +66,7 @@ export async function getL2PvgComponent({
                 validate
             )
         case "mantle":
-            return await calcMantlePvg(
+            return await getMantlePvg(
                 config.publicClient,
                 simulationUserOp,
                 entryPoint,
@@ -74,14 +74,14 @@ export async function getL2PvgComponent({
                 validate
             )
         case "etherlink":
-            return await calcEtherlinkPvg(
+            return await getEtherlinkPvg(
                 simulationUserOp,
                 entryPoint,
                 gasPriceManager,
                 validate
             )
         case "citrea":
-            return await calcCitreaPvg(config, gasPriceManager, validate)
+            return await getCitreaPvg(config, gasPriceManager, validate)
         default:
             return 0n
     }

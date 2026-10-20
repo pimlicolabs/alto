@@ -9,7 +9,7 @@ import {
 } from "viem"
 import { getSerializedHandleOpsTx } from "../serializedHandleOpsTx"
 
-export async function calcOptimismPvg(
+export async function getOptimismPvg(
     publicClient: PublicClient<Transport, Chain>,
     userOp: UserOperation,
     entryPoint: Address,

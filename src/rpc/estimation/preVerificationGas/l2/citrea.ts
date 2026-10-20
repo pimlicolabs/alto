@@ -4,7 +4,7 @@ import type { AltoConfig } from "../../../../createConfig"
 
 // Based on: https://docs.citrea.xyz/advanced/fee-model#how-l1-fee-is-calculated
 // l1_fee = l1_fee_rate × diff_size
-export async function calcCitreaPvg(
+export async function getCitreaPvg(
     config: AltoConfig,
     gasPriceManager: GasPriceManager,
     validate: boolean
