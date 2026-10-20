@@ -9,7 +9,7 @@ import { calcMantlePvg } from "./mantle"
 import { calcOptimismPvg } from "./optimism"
 
 // Calculate the L2-specific gas component of preVerificationGas
-export async function calcL2PvgComponent({
+export async function getL2PvgComponent({
     config,
     userOp,
     entryPoint,

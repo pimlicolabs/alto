@@ -21,9 +21,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcExecutionPvgComponent,
-    calcL2PvgComponent,
-    calcMonadPvg
+    calcMonadPvg,
+    getBasePvgComponent,
+    getDynamicPvgComponent,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -123,20 +124,26 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const executionGasComponent = await calcExecutionPvgComponent({
+        const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
+            getDynamicPvgComponent({
+                userOp,
+                entryPoint,
+                config: rpcHandler.config
+            }),
+            getL2PvgComponent({
+                config: rpcHandler.config,
+                userOp,
+                entryPoint,
+                gasPriceManager: rpcHandler.gasPriceManager,
+                validate: true
+            })
+        ])
+        const basePvgComponent = getBasePvgComponent({
             userOp,
-            entryPoint,
-            supportsEip7623: rpcHandler.config.supportsEip7623,
-            config: rpcHandler.config
-        })
-        const l2GasComponent = await calcL2PvgComponent({
             config: rpcHandler.config,
-            userOp,
-            entryPoint,
-            gasPriceManager: rpcHandler.gasPriceManager,
-            validate: true
+            dynamicPvgComponent
         })
-        requiredPvg = executionGasComponent + l2GasComponent
+        requiredPvg = basePvgComponent + l2PvgComponent
     }
 
     if (requiredPvg > userOp.preVerificationGas) {

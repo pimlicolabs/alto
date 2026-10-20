@@ -16,9 +16,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcExecutionPvgComponent,
-    calcL2PvgComponent,
-    calcMonadPvg
+    calcMonadPvg,
+    getBasePvgComponent,
+    getDynamicPvgComponent,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -278,7 +279,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         // Extract all config values at the beginning
         const {
-            supportsEip7623,
             v7PreVerificationGasLimitMultiplier,
             v6PreVerificationGasLimitMultiplier,
             chainType
@@ -298,7 +298,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const [
             [validEip7702Auth, validEip7702AuthError],
             gasEstimateResult,
-            l2GasComponent
+            l2PvgComponent,
+            dynamicPvgComponent
         ] = await Promise.all([
             rpcHandler.validateEip7702Auth({
                 userOp,
@@ -310,12 +311,17 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 entryPoint,
                 stateOverrides
             }),
-            calcL2PvgComponent({
+            getL2PvgComponent({
                 config: rpcHandler.config,
                 userOp,
                 entryPoint,
                 gasPriceManager: rpcHandler.gasPriceManager,
                 validate: false
+            }),
+            getDynamicPvgComponent({
+                userOp,
+                entryPoint,
+                config: rpcHandler.config
             })
         ])
 
@@ -338,15 +344,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             ...gasEstimateResult.estimates
         }
 
-        const executionGasComponent = await calcExecutionPvgComponent({
+        const basePvgComponent = getBasePvgComponent({
             userOp: userOpWithEstimatedGas,
-            entryPoint,
-            supportsEip7623,
-            config: rpcHandler.config
+            config: rpcHandler.config,
+            dynamicPvgComponent
         })
 
         // Calculate total preVerificationGas by summing both components
-        let preVerificationGas = executionGasComponent + l2GasComponent
+        let preVerificationGas = basePvgComponent + l2PvgComponent
 
         // Add multipliers to pvg
         if (isVersion07(userOp)) {
