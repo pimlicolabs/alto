@@ -1,6 +1,6 @@
 export {
     getBasePvgComponent,
-    getOnchainStateGas,
+    getEip7702AndRefundGas,
     type GasOverheads
 } from "./base"
 export { calcL2PvgComponent } from "./l2"
