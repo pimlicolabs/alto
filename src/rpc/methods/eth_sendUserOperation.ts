@@ -23,7 +23,8 @@ import { createMethodHandler } from "../createMethodHandler"
 import {
     calcExecutionPvgComponent,
     calcL2PvgComponent,
-    calcMonadPvg
+    calcMonadPvg,
+    calcStatePvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -123,8 +124,8 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const [executionGasComponent, l2GasComponent] = await Promise.all([
-            calcExecutionPvgComponent({
+        const [statePvgComponent, l2GasComponent] = await Promise.all([
+            calcStatePvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -137,6 +138,11 @@ const validatePvg = async ({
                 validate: true
             })
         ])
+        const executionGasComponent = calcExecutionPvgComponent({
+            userOp,
+            config: rpcHandler.config,
+            statePvgComponent
+        })
         requiredPvg = executionGasComponent + l2GasComponent
     }
 

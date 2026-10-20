@@ -90,38 +90,44 @@ async function getEip7702AuthGas({
     const setsDelegation =
         getEip7702AuthAddress(userOp.eip7702Auth) !== zeroAddress
 
-    // validateEip7702Auth rejects auths whose nonce doesn't match the
-    // authority's onchain nonce, so we can trust it here. Deploying a contract
-    // or setting a delegation bumps the nonce, so a zero nonce means the
-    // authority has no code and exists only if it holds a balance, and a
-    // non-zero nonce means it exists but may already be delegated. Either way
-    // a single read settles it.
-    let accountExists = true
-    let isDelegated = false
-
-    if (userOp.eip7702Auth.nonce === 0) {
-        const balance = await publicClient.getBalance({
-            address: userOp.sender
-        })
-        accountExists = balance > 0n
-    } else {
-        const code = await publicClient.getCode({ address: userOp.sender })
-        isDelegated =
-            code !== undefined &&
-            size(code) > 0 &&
-            slice(code, 0, 3) === "0xef0100"
-    }
-
     // The authority is never tx.sender or tx.to of the bundle, so the first
     // write to it is always charged
     let authGas = EIP2780_EXECUTION_PER_AUTH_BASE_COST + EIP2780_ACCOUNT_WRITE
 
-    if (!accountExists) {
-        authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+    // validateEip7702Auth checks the auth nonce against the onchain nonce, so
+    // we can use it instead of an RPC call. Deploying a contract or setting a
+    // delegation bumps the nonce.
+
+    // Zero nonce: the authority has no code, so it isn't delegated and exists
+    // only if it holds a balance
+    if (userOp.eip7702Auth.nonce === 0) {
+        const balance = await publicClient.getBalance({
+            address: userOp.sender
+        })
+
+        if (balance === 0n) {
+            authGas += EIP8037_NEW_ACCOUNT_STATE_GAS
+        }
+
+        if (setsDelegation) {
+            authGas += EIP8037_AUTH_BASE_STATE_GAS
+        }
+
+        return authGas
     }
 
-    if (setsDelegation && !isDelegated) {
-        authGas += EIP8037_AUTH_BASE_STATE_GAS
+    // Non-zero nonce: the authority exists, but may already be delegated, in
+    // which case no new delegation indicator is created
+    if (setsDelegation) {
+        const code = await publicClient.getCode({ address: userOp.sender })
+        const isDelegated =
+            code !== undefined &&
+            size(code) > 0 &&
+            slice(code, 0, 3) === "0xef0100"
+
+        if (!isDelegated) {
+            authGas += EIP8037_AUTH_BASE_STATE_GAS
+        }
     }
 
     return authGas
@@ -171,10 +177,9 @@ async function getEip8037RefundDepositGas({
     return EIP8037_NEW_SLOT_STATE_GAS
 }
 
-// The part of the execution PVG component that depends on onchain state
-// rather than the userOp's gas limits. Callers that know the sender, auth and
-// paymaster before gas estimation finishes can start it early so its RPC
-// reads run alongside simulation.
+// State gas the userOp is charged depending on onchain state. It doesn't
+// depend on the userOp's gas limits, so estimation fetches it alongside
+// simulation.
 export async function calcStatePvgComponent({
     userOp,
     entryPoint,
@@ -192,18 +197,15 @@ export async function calcStatePvgComponent({
 }
 
 // Calculate the execution gas component of preVerificationGas
-export async function calcExecutionPvgComponent({
+export function calcExecutionPvgComponent({
     userOp,
-    entryPoint,
     config,
     statePvgComponent
 }: {
     userOp: UserOperation
-    entryPoint: Address
     config: AltoConfig
-    // Precomputed calcStatePvgComponent result, computed here if omitted
-    statePvgComponent?: bigint
-}): Promise<bigint> {
+    statePvgComponent: bigint
+}): bigint {
     const oh = getGasOverheads(config)
     const packed = encodeUserOp(userOp)
 
@@ -219,10 +221,7 @@ export async function calcExecutionPvgComponent({
     const userOpWordsLength = BigInt(Math.floor((size(packed) + 31) / 32))
 
     let callDataOverhead = 0n
-    let perUserOpOverhead = oh.perUserOp
-    perUserOpOverhead +=
-        statePvgComponent ??
-        (await calcStatePvgComponent({ userOp, entryPoint, config }))
+    let perUserOpOverhead = oh.perUserOp + statePvgComponent
 
     // If callData starts with executeUserOp method selector
     if (slice(userOp.callData, 0, 4) === "0x8dd7712f") {
