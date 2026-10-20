@@ -92,7 +92,7 @@ function getEip7702AuthGas({
 
 // Under EIP-2780, creating the authority's account and setting a new
 // delegation indicator are charged as EIP-8037 state gas
-async function getEip7702AuthStateGas({
+async function getEip7702StateGas({
     userOp,
     config
 }: {
@@ -198,11 +198,11 @@ export async function calcEip8037PvgComponent({
     entryPoint: Address
     config: AltoConfig
 }): Promise<bigint> {
-    const [eip7702AuthStateGas, refundDepositStateGas] = await Promise.all([
-        getEip7702AuthStateGas({ userOp, config }),
+    const [eip7702StateGas, refundDepositStateGas] = await Promise.all([
+        getEip7702StateGas({ userOp, config }),
         getRefundDepositStateGas({ userOp, entryPoint, config })
     ])
-    return eip7702AuthStateGas + refundDepositStateGas
+    return eip7702StateGas + refundDepositStateGas
 }
 
 // Calculate the execution gas component of preVerificationGas
