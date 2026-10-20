@@ -10,7 +10,7 @@ import type { AltoConfig } from "../../../createConfig"
 
 // Monad consumes the entire gasLimit set by TX. To account for this, we need to know the gasLimit
 // the bundler sets for this userOp.
-export async function calcMonadPvg({
+export async function getMonadPvg({
     userOp,
     config,
     entryPoint,

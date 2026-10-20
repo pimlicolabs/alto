@@ -3,7 +3,7 @@ import type { Address, UserOperation } from "@alto/types"
 import { parseEther, size } from "viem"
 import { getSerializedHandleOpsTx } from "../serializedHandleOpsTx"
 
-export async function calcEtherlinkPvg(
+export async function getEtherlinkPvg(
     userOp: UserOperation,
     entryPoint: Address,
     gasPriceManager: GasPriceManager,

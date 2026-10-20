@@ -7,7 +7,7 @@ import {
 import type { Chain, PublicClient, Transport } from "viem"
 import { getSerializedHandleOpsTx } from "../serializedHandleOpsTx"
 
-export async function calcMantlePvg(
+export async function getMantlePvg(
     publicClient: PublicClient<Transport, Chain>,
     userOp: UserOperation,
     entryPoint: Address,

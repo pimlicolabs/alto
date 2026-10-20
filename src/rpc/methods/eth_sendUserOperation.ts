@@ -21,10 +21,10 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcMonadPvg,
     getBasePvgComponent,
     getDynamicPvgComponent,
-    getL2PvgComponent
+    getL2PvgComponent,
+    getMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -117,7 +117,7 @@ const validatePvg = async ({
 
     if (config.chainType === "monad") {
         // Monad consumes the entire gasLimit, so PVG is calculated differently
-        requiredPvg = await calcMonadPvg({
+        requiredPvg = await getMonadPvg({
             userOp,
             config,
             entryPoint,
