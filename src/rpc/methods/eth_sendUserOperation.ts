@@ -21,7 +21,7 @@ import {
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
-    calcEip8037StatePvgComponent,
+    calcEip8037PvgComponent,
     calcExecutionPvgComponent,
     calcL2PvgComponent,
     calcMonadPvg
@@ -124,8 +124,8 @@ const validatePvg = async ({
             validate: true
         })
     } else {
-        const [eip8037StatePvgComponent, l2GasComponent] = await Promise.all([
-            calcEip8037StatePvgComponent({
+        const [eip8037PvgComponent, l2GasComponent] = await Promise.all([
+            calcEip8037PvgComponent({
                 userOp,
                 entryPoint,
                 config: rpcHandler.config
@@ -141,7 +141,7 @@ const validatePvg = async ({
         const executionGasComponent = calcExecutionPvgComponent({
             userOp,
             config: rpcHandler.config,
-            eip8037StatePvgComponent
+            eip8037PvgComponent
         })
         requiredPvg = executionGasComponent + l2GasComponent
     }
