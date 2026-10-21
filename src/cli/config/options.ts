@@ -480,7 +480,7 @@ export const glamsterdamOptions: CliCommandOptions<IGlamsterdamArgsInput> = {
     },
     "max-reservoir-gas": {
         description:
-            "Maximum EIP-8037 state gas reservoir for a single userOp. Simulations run at 2^24 plus this value, so the node's eth_call gas cap must allow it",
+            "Maximum EIP-8037 state gas reservoir for a single userOp. Simulations run at 16,777,216 plus this value, so the node's eth_call gas cap must allow it",
         type: "string",
         require: false,
         default: "32000000"
