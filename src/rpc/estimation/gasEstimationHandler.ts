@@ -120,17 +120,30 @@ export class GasEstimationHandler {
         stateOverrides?: StateOverrides
         maxReservoirGas: bigint
     }): Promise<bigint | undefined> {
+        // The v0.6 estimation override runs the call phase with gasleft(),
+        // which pays state gas that doesn't fit in callGasLimit from the rest
+        // of the frame's gas
         const passes = async (reservoirGas: bigint) => {
-            const result = await this.withSimulationGasLimit(
+            const handler = this.withSimulationGasLimit(
                 TX_MAX_GAS_LIMIT + reservoirGas
-            ).validateHandleOp({
-                userOp,
-                queuedUserOps,
-                entryPoint,
-                targetAddress: zeroAddress,
-                targetCallData: "0x",
-                stateOverrides
-            })
+            )
+            const result = isVersion06(userOp)
+                ? await handler.gasEstimator06.simulateHandleOp06({
+                      userOp,
+                      entryPoint,
+                      targetAddress: zeroAddress,
+                      targetCallData: "0x",
+                      useCallGasLimit: true,
+                      userStateOverrides: stateOverrides
+                  })
+                : await handler.validateHandleOp({
+                      userOp,
+                      queuedUserOps,
+                      entryPoint,
+                      targetAddress: zeroAddress,
+                      targetCallData: "0x",
+                      stateOverrides
+                  })
             return result.result === "execution"
         }
 

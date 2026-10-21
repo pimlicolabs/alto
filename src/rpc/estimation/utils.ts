@@ -283,12 +283,14 @@ export async function prepareSimulationOverrides06({
     entryPoint,
     userStateOverrides = {},
     useCodeOverride,
+    useCallGasLimit = false,
     config
 }: {
     userOp: UserOperation06
     entryPoint: Address
     userStateOverrides?: StateOverrides
     useCodeOverride: boolean
+    useCallGasLimit?: boolean
     config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
 }): Promise<StateOverride | undefined> {
     const mergedStateOverrides = { ...userStateOverrides }
@@ -301,7 +303,14 @@ export async function prepareSimulationOverrides06({
             ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
             stateDiff: {
                 ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
-                [senderCreatorOverride.slot]: senderCreatorOverride.value
+                [senderCreatorOverride.slot]: senderCreatorOverride.value,
+                ...(useCallGasLimit
+                    ? {
+                          [keccak256(toHex("USE_CALL_GAS_LIMIT"))]: toHex(1, {
+                              size: 32
+                          })
+                      }
+                    : {})
             },
             code: entryPointOverride.deployedBytecode.object as Hex
         }

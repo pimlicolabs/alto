@@ -66,7 +66,10 @@ beforeAll(async () => {
         port: GLAMSTERDAM_ALTO_PORT,
         flags: {
             "glamsterdam-enabled": true,
-            "transaction-gas-stipend": "15000"
+            "transaction-gas-stipend": "15000",
+            // v0.6 callGasLimit is derived from the gas a simulation used,
+            // which leaves no room for the 63/64 rule in nested calls
+            "v6-call-gas-limit-multiplier": "120"
         }
     })
     lowCapAlto = await startAltoWithFlags({
@@ -231,8 +234,7 @@ describe.each([
         test("Boosted userOp over TX_MAX_GAS_LIMIT is mined with a state gas reservoir", async ({
             skip
         }) => {
-            // v0.6 boosted userOps don't get a reservoir yet
-            if (!hasReservoir || entryPointVersion === "0.6") skip()
+            if (!hasReservoir) skip()
 
             const publicClient = getPublicClient(chain.anvilRpc)
             const smartAccountClient = await getSmartAccountClient({

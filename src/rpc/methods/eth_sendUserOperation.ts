@@ -18,8 +18,7 @@ import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
-    getViemEntryPointVersion,
-    isVersion06
+    getViemEntryPointVersion
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -202,15 +201,8 @@ const getUserOpValidationResult = async ({
     // gas reservoir for one that needs more than TX_MAX_GAS_LIMIT. Unused
     // reservoir gas isn't charged, so the buffer only absorbs state that
     // changes before inclusion.
-    //
-    // TODO: support v0.6. Its simulation override runs the call with
-    // gasleft() instead of callGasLimit, so it undersizes the reservoir.
     let reservoirGas: bigint | undefined
-    if (
-        isBoosted &&
-        rpcHandler.config.supportsEip8037 &&
-        !isVersion06(userOp)
-    ) {
+    if (isBoosted && rpcHandler.config.supportsEip8037) {
         const minReservoirGas = await rpcHandler.validator.findReservoirGas({
             userOp,
             entryPoint,

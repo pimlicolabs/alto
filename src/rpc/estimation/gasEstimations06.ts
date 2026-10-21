@@ -32,6 +32,7 @@ export class GasEstimator06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
+        useCallGasLimit = false,
         userStateOverrides = undefined
     }: {
         userOp: UserOperation06
@@ -39,6 +40,8 @@ export class GasEstimator06 {
         targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
+        // Run the call phase with callGasLimit instead of gasleft()
+        useCallGasLimit?: boolean
         userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const {
@@ -53,6 +56,7 @@ export class GasEstimator06 {
             entryPoint,
             userStateOverrides,
             useCodeOverride,
+            useCallGasLimit,
             config: this.config
         })
 
