@@ -41,6 +41,17 @@ jobs:
           # for receipts instead of relying on synchronous automine.
           version: nightly-f14e39d2a14d2ba9e9132b0aa7e10a3932a054fc
 
+      # Upstream anvil gives calls and transactions no EIP-8037 state gas
+      # reservoir. The Glamsterdam tests run on an anvil built from
+      # pimlicolabs/foundry's anvil-eip8037-reservoir branch, which has one.
+      - name: Set up anvil with the EIP-8037 state gas reservoir
+        run: |
+          gh release download anvil-eip8037-4cfb645fe -R pimlicolabs/foundry -p anvil -D "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/anvil"
+          echo "ANVIL_BINARY_PATH=$RUNNER_TEMP/anvil" >> "$GITHUB_ENV"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       - name: Install dependencies
         uses: ./.github/actions/install-dependencies
 
