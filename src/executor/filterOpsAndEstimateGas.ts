@@ -419,8 +419,12 @@ export async function filterOpsAndEstimateGas({
             bundleGasUsed = bundleGasLimit
         } else {
             // Find overhead that can't be calculated onchain.
+            // filterOps can't see gas paid from the EIP-8037 reservoir
             bundleGasUsed =
-                filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
+                filterOpsResult.gasUsed +
+                21_000n +
+                offChainOverhead.gasUsed +
+                reservoirGas
         }
 
         return {

@@ -274,6 +274,66 @@ describe.each([
             )
         })
 
+        test("Paid userOp over TX_MAX_GAS_LIMIT is mined with a state gas reservoir", async ({
+            skip
+        }) => {
+            if (!hasReservoir) skip()
+
+            const publicClient = getPublicClient(chain.anvilRpc)
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc: chain.anvilRpc,
+                altoRpc: glamsterdamAlto.altoRpc
+            })
+
+            const hash = await smartAccountClient.sendUserOperation({
+                calls: stateCreatorCalls()
+            })
+            const userOpReceipt =
+                await smartAccountClient.waitForUserOperationReceipt({ hash })
+            expect(userOpReceipt.success).toBe(true)
+
+            const bundleTx = await publicClient.getTransaction({
+                hash: userOpReceipt.receipt.transactionHash
+            })
+            expect(bundleTx.gas).toBeGreaterThan(TX_MAX_GAS_LIMIT)
+
+            // preVerificationGas paid for the reservoir gas the bundle used
+            expect(userOpReceipt.actualGasUsed).toBeGreaterThanOrEqual(
+                userOpReceipt.receipt.gasUsed
+            )
+        })
+
+        test("Paid userOp that doesn't pay for its state gas reservoir is rejected", async ({
+            skip
+        }) => {
+            if (!hasReservoir) skip()
+
+            const smartAccountClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc: chain.anvilRpc,
+                altoRpc: glamsterdamAlto.altoRpc
+            })
+
+            const userOp = (await smartAccountClient.prepareUserOperation({
+                calls: stateCreatorCalls()
+            })) as UserOperation
+            userOp.preVerificationGas -=
+                STATE_CREATOR_SLOTS * NEW_SLOT_STATE_GAS
+            userOp.signature =
+                await smartAccountClient.account.signUserOperation(userOp)
+
+            await expect(
+                smartAccountClient.request({
+                    method: "eth_sendUserOperation",
+                    params: [
+                        deepHexlify(userOp),
+                        smartAccountClient.account.entryPoint.address
+                    ]
+                })
+            ).rejects.toThrow("EIP-8037 state gas reservoir")
+        })
+
         // Without a reservoir in eth_call, state gas can't be estimated
         // above TX_MAX_GAS_LIMIT
         test("Estimation falls back to metered without a reservoir in eth_call", async ({
