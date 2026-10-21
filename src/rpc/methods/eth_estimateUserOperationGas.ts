@@ -23,6 +23,7 @@ import {
     getL2PvgComponent,
     getMonadPvg
 } from "../estimation/preVerificationGas"
+import type { SimulateHandleOpResult } from "../estimation/types"
 import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
@@ -40,7 +41,6 @@ type GasEstimateResult =
           status: "failed"
           error: string
           code?: number
-          cause?: unknown
       }
 
 function getVerificationGasAndCallGasLimit(
@@ -172,13 +172,23 @@ const getGasEstimates = async ({
             simulationPaymasterPostOpGasLimit
     }
 
-    const executionResult = await rpcHandler.validator.getExecutionResult({
-        userOp: simulationUserOp,
-        queuedUserOps,
-        entryPoint,
-        stateOverrides: deepHexlify(mutableStateOverrides),
-        gasLimit: simulationGasLimit
-    })
+    let executionResult: SimulateHandleOpResult
+    try {
+        executionResult = await rpcHandler.validator.getExecutionResult({
+            userOp: simulationUserOp,
+            queuedUserOps,
+            entryPoint,
+            stateOverrides: deepHexlify(mutableStateOverrides),
+            gasLimit: simulationGasLimit
+        })
+    } catch (err) {
+        // e.g. a binary search that keeps running out of gas
+        return {
+            status: "failed",
+            error: err instanceof Error ? err.message : String(err),
+            code: err instanceof RpcError ? err.code : undefined
+        }
+    }
 
     if (executionResult.result === "failed") {
         return {
@@ -276,16 +286,6 @@ const getGasEstimates = async ({
     }
 }
 
-const settleGasEstimates = async (
-    estimates: Promise<GasEstimateResult>
-): Promise<GasEstimateResult> => {
-    try {
-        return await estimates
-    } catch (err) {
-        return { status: "failed", error: String(err), cause: err }
-    }
-}
-
 const fitsMaxGasPerUserOp = ({
     rpcHandler,
     userOp
@@ -334,7 +334,7 @@ const needsReservoir = ({
 
     if (meteredResult.status === "failed") {
         return (
-            meteredResult.cause !== undefined ||
+            meteredResult.code === undefined ||
             meteredResult.code === ERC7769Errors.UserOperationReverted
         )
     }
@@ -381,14 +381,12 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 userOp,
                 validateSignature: false
             }),
-            settleGasEstimates(
-                getGasEstimates({
-                    rpcHandler,
-                    userOp,
-                    entryPoint,
-                    stateOverrides
-                })
-            ),
+            getGasEstimates({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                stateOverrides
+            }),
             getL2PvgComponent({
                 config: rpcHandler.config,
                 userOp,
@@ -416,15 +414,13 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         if (needsReservoir({ rpcHandler, userOp, meteredResult })) {
             const simulationGasLimit = TX_MAX_GAS_LIMIT + maxReservoirGas
-            const reservoirResult = await settleGasEstimates(
-                getGasEstimates({
-                    rpcHandler,
-                    userOp,
-                    entryPoint,
-                    stateOverrides,
-                    simulationGasLimit
-                })
-            )
+            const reservoirResult = await getGasEstimates({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                stateOverrides,
+                simulationGasLimit
+            })
 
             if (reservoirResult.status === "success") {
                 gasEstimateResult = reservoirResult
@@ -434,9 +430,6 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
 
         // Validate gas estimation result first
         if (gasEstimateResult.status === "failed") {
-            if (gasEstimateResult.cause !== undefined) {
-                throw gasEstimateResult.cause
-            }
             throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
         }
 
