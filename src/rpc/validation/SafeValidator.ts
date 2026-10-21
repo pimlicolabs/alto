@@ -72,6 +72,15 @@ export class SafeValidator
         this.senderManager = senderManager
     }
 
+    withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
+        return new SafeValidator({
+            config: { ...this.config, fixedGasLimitForEstimation: gasLimit },
+            senderManager: this.senderManager,
+            metrics: this.metrics,
+            gasPriceManager: this.gasPriceManager
+        })
+    }
+
     async validateUserOp(args: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]

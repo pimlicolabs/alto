@@ -2,6 +2,7 @@ import { calculateAA95GasFloor } from "@alto/executor"
 import {
     type Address,
     ERC7769Errors,
+    type InterfaceValidator,
     RpcError,
     type StateOverrides,
     type UserOperation,
@@ -85,13 +86,13 @@ const getGasEstimates = async ({
     userOp,
     entryPoint,
     stateOverrides,
-    simulationGasLimit
+    validator = rpcHandler.validator
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     stateOverrides?: StateOverrides
-    simulationGasLimit?: bigint
+    validator?: InterfaceValidator
 }): Promise<GasEstimateResult> => {
     // Prepare userOperation for simulation.
     const {
@@ -174,12 +175,11 @@ const getGasEstimates = async ({
 
     let executionResult: SimulateHandleOpResult
     try {
-        executionResult = await rpcHandler.validator.getExecutionResult({
+        executionResult = await validator.getExecutionResult({
             userOp: simulationUserOp,
             queuedUserOps,
             entryPoint,
-            stateOverrides: deepHexlify(mutableStateOverrides),
-            gasLimit: simulationGasLimit
+            stateOverrides: deepHexlify(mutableStateOverrides)
         })
     } catch (err) {
         // e.g. a binary search that keeps running out of gas
@@ -410,21 +410,26 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         }
 
         let gasEstimateResult = meteredResult
-        let reservoirSimulationGasLimit: bigint | undefined
+        let isReservoirMode = false
+        let validator = rpcHandler.validator
 
         if (needsReservoir({ rpcHandler, userOp, meteredResult })) {
-            const simulationGasLimit = TX_MAX_GAS_LIMIT + maxReservoirGas
+            const reservoirValidator =
+                rpcHandler.validator.withSimulationGasLimit(
+                    TX_MAX_GAS_LIMIT + maxReservoirGas
+                )
             const reservoirResult = await getGasEstimates({
                 rpcHandler,
                 userOp,
                 entryPoint,
                 stateOverrides,
-                simulationGasLimit
+                validator: reservoirValidator
             })
 
             if (reservoirResult.status === "success") {
                 gasEstimateResult = reservoirResult
-                reservoirSimulationGasLimit = simulationGasLimit
+                isReservoirMode = true
+                validator = reservoirValidator
             }
         }
 
@@ -468,7 +473,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         // EntryPoint never charges reservoir gas to the userOp, so it goes in
         // preVerificationGas. Boosted userOps pay nothing, so the bundler
         // sizes their reservoir itself.
-        if (reservoirSimulationGasLimit !== undefined) {
+        if (isReservoirMode) {
             const reservoirUserOp = {
                 ...userOp,
                 ...gasEstimateResult.estimates,
@@ -503,11 +508,13 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 }
 
                 preVerificationGas += reservoirGas
-                reservoirSimulationGasLimit = TX_MAX_GAS_LIMIT + reservoirGas
+                validator = rpcHandler.validator.withSimulationGasLimit(
+                    TX_MAX_GAS_LIMIT + reservoirGas
+                )
             }
         }
 
-        const finalGasLimits = await rpcHandler.validator.validateHandleOp({
+        const finalGasLimits = await validator.validateHandleOp({
             userOp: {
                 ...userOp,
                 ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
@@ -515,8 +522,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             },
             queuedUserOps: gasEstimateResult.queuedUserOps,
             entryPoint,
-            stateOverrides: deepHexlify(stateOverrides),
-            gasLimit: reservoirSimulationGasLimit
+            stateOverrides: deepHexlify(stateOverrides)
         })
 
         // Extrace values for returning

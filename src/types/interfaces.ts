@@ -10,12 +10,22 @@ import type {
 import type * as validation from "./validation"
 
 export interface InterfaceValidator {
+    // Same validator, with simulations run at gasLimit
+    withSimulationGasLimit(gasLimit: bigint): InterfaceValidator
+
+    findReservoirGas(args: {
+        userOp: UserOperation
+        entryPoint: Address
+        queuedUserOps: UserOperation[]
+        stateOverrides?: StateOverrides
+        maxReservoirGas: bigint
+    }): Promise<bigint | undefined>
+
     validateHandleOp(args: {
         userOp: UserOperation
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<{
         callGasLimit: bigint
         verificationGasLimit: bigint
@@ -28,16 +38,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult>
-
-    findReservoirGas(args: {
-        userOp: UserOperation
-        entryPoint: Address
-        queuedUserOps: UserOperation[]
-        stateOverrides?: StateOverrides
-        maxReservoirGas: bigint
-    }): Promise<bigint | undefined>
 
     getValidationResult06(args: {
         userOp: UserOperation06

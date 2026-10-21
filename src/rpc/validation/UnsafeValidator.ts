@@ -70,6 +70,24 @@ export class UnsafeValidator implements InterfaceValidator {
         )
     }
 
+    withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
+        return new UnsafeValidator({
+            config: { ...this.config, fixedGasLimitForEstimation: gasLimit },
+            metrics: this.metrics,
+            gasPriceManager: this.gasPriceManager
+        })
+    }
+
+    findReservoirGas(args: {
+        userOp: UserOperation
+        entryPoint: Address
+        queuedUserOps: UserOperation[]
+        stateOverrides?: StateOverrides
+        maxReservoirGas: bigint
+    }): Promise<bigint | undefined> {
+        return this.gasEstimationHandler.findReservoirGas(args)
+    }
+
     async getSimulationResult06(
         errorResult: unknown,
         logger: Logger,
@@ -152,18 +170,15 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }) {
-        const { userOp, entryPoint, queuedUserOps, stateOverrides, gasLimit } =
-            args
+        const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
         const error = await this.gasEstimationHandler.validateHandleOp({
             userOp,
             queuedUserOps,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
-            stateOverrides,
-            gasLimit
+            stateOverrides
         })
 
         let { callGasLimit, verificationGasLimit } = userOp
@@ -240,18 +255,15 @@ export class UnsafeValidator implements InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
-        const { userOp, entryPoint, queuedUserOps, stateOverrides, gasLimit } =
-            args
+        const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
         const error = await this.gasEstimationHandler.simulateHandleOp({
             userOp,
             queuedUserOps,
             entryPoint,
             targetAddress: zeroAddress,
             targetCallData: "0x",
-            stateOverrides,
-            gasLimit
+            stateOverrides
         })
 
         if (error.result === "failed") {
@@ -263,16 +275,6 @@ export class UnsafeValidator implements InterfaceValidator {
         }
 
         return error
-    }
-
-    findReservoirGas(args: {
-        userOp: UserOperation
-        entryPoint: Address
-        queuedUserOps: UserOperation[]
-        stateOverrides?: StateOverrides
-        maxReservoirGas: bigint
-    }): Promise<bigint | undefined> {
-        return this.gasEstimationHandler.findReservoirGas(args)
     }
 
     async getValidationResult06(args: {

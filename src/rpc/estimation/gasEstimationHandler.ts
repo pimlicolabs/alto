@@ -18,10 +18,22 @@ import type { SimulateHandleOpResult } from "./types"
 export class GasEstimationHandler {
     gasEstimator06: GasEstimator06
     gasEstimator07: GasEstimator07
+    private readonly config: AltoConfig
+    private readonly gasPriceManager: GasPriceManager
 
     constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
+        this.config = config
+        this.gasPriceManager = gasPriceManager
         this.gasEstimator06 = new GasEstimator06(config)
         this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
+    }
+
+    // Same handler, with simulations run at gasLimit
+    withSimulationGasLimit(gasLimit: bigint): GasEstimationHandler {
+        return new GasEstimationHandler(
+            { ...this.config, fixedGasLimitForEstimation: gasLimit },
+            this.gasPriceManager
+        )
     }
 
     validateHandleOp({
@@ -30,8 +42,7 @@ export class GasEstimationHandler {
         entryPoint,
         targetAddress,
         targetCallData,
-        stateOverrides = {},
-        gasLimit
+        stateOverrides = {}
     }: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]
@@ -39,7 +50,6 @@ export class GasEstimationHandler {
         targetAddress: Address
         targetCallData: Hex
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         if (isVersion06(userOp)) {
             return this.gasEstimator06.simulateHandleOp06({
@@ -47,8 +57,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                userStateOverrides: stateOverrides,
-                gasLimit
+                userStateOverrides: stateOverrides
             })
         }
 
@@ -56,8 +65,7 @@ export class GasEstimationHandler {
             userOp: userOp as UserOperation07,
             queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint,
-            stateOverrides,
-            gasLimit
+            stateOverrides
         })
     }
 
@@ -67,8 +75,7 @@ export class GasEstimationHandler {
         entryPoint,
         targetAddress,
         targetCallData,
-        stateOverrides = {},
-        gasLimit
+        stateOverrides = {}
     }: {
         userOp: UserOperation
         queuedUserOps: UserOperation[]
@@ -76,7 +83,6 @@ export class GasEstimationHandler {
         targetAddress: Address
         targetCallData: Hex
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         if (isVersion06(userOp)) {
             return this.gasEstimator06.simulateHandleOp06({
@@ -84,8 +90,7 @@ export class GasEstimationHandler {
                 entryPoint,
                 targetAddress,
                 targetCallData,
-                userStateOverrides: stateOverrides,
-                gasLimit
+                userStateOverrides: stateOverrides
             })
         }
 
@@ -93,8 +98,7 @@ export class GasEstimationHandler {
             userOp: userOp as UserOperation07,
             queuedUserOps: queuedUserOps as UserOperation07[],
             entryPoint,
-            userStateOverrides: stateOverrides,
-            gasLimit
+            userStateOverrides: stateOverrides
         })
     }
 
@@ -116,14 +120,15 @@ export class GasEstimationHandler {
         maxReservoirGas: bigint
     }): Promise<bigint | undefined> {
         const passes = async (reservoirGas: bigint) => {
-            const result = await this.validateHandleOp({
+            const result = await this.withSimulationGasLimit(
+                TX_MAX_GAS_LIMIT + reservoirGas
+            ).validateHandleOp({
                 userOp,
                 queuedUserOps,
                 entryPoint,
                 targetAddress: zeroAddress,
                 targetCallData: "0x",
-                stateOverrides,
-                gasLimit: TX_MAX_GAS_LIMIT + reservoirGas
+                stateOverrides
             })
             return result.result === "execution"
         }

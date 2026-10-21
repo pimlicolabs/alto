@@ -98,8 +98,7 @@ export class GasEstimator07 {
         stateOverride,
         retryCount = 0,
         initialMinGas = 9_000n,
-        gasAllowance,
-        gasLimit
+        gasAllowance
     }: {
         entryPoint: Address
         methodName:
@@ -112,7 +111,6 @@ export class GasEstimator07 {
         retryCount?: number
         initialMinGas?: bigint
         gasAllowance?: bigint
-        gasLimit?: bigint
     }): Promise<SimulateBinarySearchResult> {
         const { pimlicoSimulation, epSimulationsAddress } =
             this.getSimulationContracts(entryPoint, targetUserOp)
@@ -142,7 +140,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: gasLimit ?? this.config.fixedGasLimitForEstimation
+                    gas: this.config.fixedGasLimitForEstimation
                 }
             )
 
@@ -159,8 +157,7 @@ export class GasEstimator07 {
                     stateOverride,
                     retryCount: retryCount + 1,
                     initialMinGas: minGas,
-                    gasAllowance: newGasAllowance,
-                    gasLimit
+                    gasAllowance: newGasAllowance
                 })
             }
 
@@ -206,14 +203,12 @@ export class GasEstimator07 {
         entryPoint,
         queuedUserOps,
         targetUserOp,
-        stateOverride,
-        gasLimit
+        stateOverride
     }: {
         entryPoint: Address
         queuedUserOps: UserOperation07[]
         targetUserOp: UserOperation07
         stateOverride?: StateOverride
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         const { pimlicoSimulation, epSimulationsAddress } =
             this.getSimulationContracts(entryPoint, targetUserOp)
@@ -231,7 +226,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: gasLimit ?? this.config.fixedGasLimitForEstimation
+                    gas: this.config.fixedGasLimitForEstimation
                 }
             )
             return {
@@ -250,15 +245,13 @@ export class GasEstimator07 {
         queuedUserOps,
         targetUserOp,
         stateOverride,
-        retryCount = 0,
-        gasLimit
+        retryCount = 0
     }: {
         entryPoint: Address
         queuedUserOps: UserOperation07[]
         targetUserOp: UserOperation07
         stateOverride?: StateOverride
         retryCount?: number
-        gasLimit?: bigint
     }): Promise<
         | {
               result: "success"
@@ -292,7 +285,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride,
-                        gas: gasLimit ?? this.config.fixedGasLimitForEstimation
+                        gas: this.config.fixedGasLimitForEstimation
                     }
                 )
 
@@ -318,8 +311,7 @@ export class GasEstimator07 {
                     initialMinGas: verificationGasLimit.outOfGasData.minGas,
                     gasAllowance:
                         verificationGasLimit.outOfGasData.optimalGas -
-                        verificationGasLimit.outOfGasData.minGas,
-                    gasLimit
+                        verificationGasLimit.outOfGasData.minGas
                 })
 
                 if (binarySearchResult.result === "failed") {
@@ -357,8 +349,7 @@ export class GasEstimator07 {
                         paymasterVerificationGasLimit.outOfGasData.minGas,
                     gasAllowance:
                         paymasterVerificationGasLimit.outOfGasData.optimalGas -
-                        paymasterVerificationGasLimit.outOfGasData.minGas,
-                    gasLimit
+                        paymasterVerificationGasLimit.outOfGasData.minGas
                 })
 
                 if (binarySearchResult.result === "failed") {
@@ -442,14 +433,12 @@ export class GasEstimator07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        stateOverrides = {},
-        gasLimit
+        stateOverrides = {}
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         const { epSimulationsAddress, pimlicoSimulation } =
             this.getSimulationContracts(entryPoint, userOp)
@@ -474,7 +463,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: viemStateOverride,
-                        gas: gasLimit ?? this.config.fixedGasLimitForEstimation
+                        gas: this.config.fixedGasLimitForEstimation
                     }
                 )
 
@@ -496,14 +485,12 @@ export class GasEstimator07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        userStateOverrides = {},
-        gasLimit
+        userStateOverrides = {}
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         userStateOverrides?: StateOverrides
-        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         const viemStateOverride = await prepareSimulationOverrides07({
             userOp,
@@ -520,32 +507,28 @@ export class GasEstimator07 {
                     entryPoint,
                     queuedUserOps,
                     targetUserOp: userOp,
-                    stateOverride: viemStateOverride,
-                    gasLimit
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchVerificationGas",
                     queuedUserOps,
                     targetUserOp: userOp,
-                    stateOverride: viemStateOverride,
-                    gasLimit
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchPaymasterVerificationGas",
                     queuedUserOps,
                     targetUserOp: userOp,
-                    stateOverride: viemStateOverride,
-                    gasLimit
+                    stateOverride: viemStateOverride
                 }),
                 this.performBinarySearch({
                     entryPoint,
                     methodName: "binarySearchCallGas",
                     queuedUserOps,
                     targetUserOp: userOp,
-                    stateOverride: viemStateOverride,
-                    gasLimit
+                    stateOverride: viemStateOverride
                 })
             ])
 
@@ -581,16 +564,14 @@ export class GasEstimator07 {
                 entryPoint,
                 queuedUserOps,
                 targetUserOp: userOp,
-                stateOverride: viemStateOverride,
-                gasLimit
+                stateOverride: viemStateOverride
             }),
             this.performBinarySearch({
                 entryPoint,
                 methodName: "binarySearchCallGas",
                 queuedUserOps,
                 targetUserOp: userOp,
-                stateOverride: viemStateOverride,
-                gasLimit
+                stateOverride: viemStateOverride
             })
         ])
 
