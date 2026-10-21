@@ -32,7 +32,8 @@ export class GasEstimator06 {
         targetCallData,
         entryPoint,
         useCodeOverride = true,
-        userStateOverrides = undefined
+        userStateOverrides = undefined,
+        gasLimit
     }: {
         userOp: UserOperation06
         targetAddress: Address
@@ -40,6 +41,7 @@ export class GasEstimator06 {
         entryPoint: Address
         useCodeOverride?: boolean
         userStateOverrides?: StateOverrides
+        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult> {
         const {
             publicClient,
@@ -67,7 +69,7 @@ export class GasEstimator06 {
                 [userOp, targetAddress, targetCallData],
                 {
                     account: utilityWalletAddress,
-                    gas: fixedGasLimitForEstimation,
+                    gas: gasLimit ?? fixedGasLimitForEstimation,
                     stateOverride: viemStateOverride
                 }
             )

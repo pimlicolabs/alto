@@ -15,6 +15,7 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
+        gasLimit?: bigint
     }): Promise<{
         callGasLimit: bigint
         verificationGasLimit: bigint
@@ -27,7 +28,16 @@ export interface InterfaceValidator {
         entryPoint: Address
         queuedUserOps: UserOperation[]
         stateOverrides?: StateOverrides
+        gasLimit?: bigint
     }): Promise<SimulateHandleOpResult>
+
+    findReservoirGas(args: {
+        userOp: UserOperation
+        entryPoint: Address
+        queuedUserOps: UserOperation[]
+        stateOverrides?: StateOverrides
+        maxReservoirGas: bigint
+    }): Promise<bigint | undefined>
 
     getValidationResult06(args: {
         userOp: UserOperation06

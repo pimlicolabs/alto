@@ -1,3 +1,4 @@
+import { calculateAA95GasFloor } from "@alto/executor"
 import {
     type Address,
     ERC7769Errors,
@@ -8,6 +9,7 @@ import {
 } from "@alto/types"
 import { parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
+import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import {
     deepHexlify,
     getUserOpHash,
@@ -38,6 +40,7 @@ type GasEstimateResult =
           status: "failed"
           error: string
           code?: number
+          cause?: unknown
       }
 
 function getVerificationGasAndCallGasLimit(
@@ -81,12 +84,14 @@ const getGasEstimates = async ({
     rpcHandler,
     userOp,
     entryPoint,
-    stateOverrides
+    stateOverrides,
+    simulationGasLimit
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     stateOverrides?: StateOverrides
+    simulationGasLimit?: bigint
 }): Promise<GasEstimateResult> => {
     // Prepare userOperation for simulation.
     const {
@@ -171,7 +176,8 @@ const getGasEstimates = async ({
         userOp: simulationUserOp,
         queuedUserOps,
         entryPoint,
-        stateOverrides: deepHexlify(mutableStateOverrides)
+        stateOverrides: deepHexlify(mutableStateOverrides),
+        gasLimit: simulationGasLimit
     })
 
     if (executionResult.result === "failed") {
@@ -270,6 +276,75 @@ const getGasEstimates = async ({
     }
 }
 
+const settleGasEstimates = async (
+    estimates: Promise<GasEstimateResult>
+): Promise<GasEstimateResult> => {
+    try {
+        return await estimates
+    } catch (err) {
+        return { status: "failed", error: String(err), cause: err }
+    }
+}
+
+const fitsMaxGasPerUserOp = ({
+    rpcHandler,
+    userOp
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+}): boolean => {
+    const gasFloor = calculateAA95GasFloor({
+        userOps: [userOp],
+        beneficiary: rpcHandler.config.utilityWalletAddress
+    })
+
+    return (
+        scaleBigIntByPercent(
+            gasFloor,
+            rpcHandler.config.executorGasMultiplier
+        ) <= rpcHandler.config.maxGasPerUserOp
+    )
+}
+
+// Under EIP-8037, simulations capped at TX_MAX_GAS_LIMIT pay state gas from
+// gas_left, so a userOp whose regular and state gas don't fit under the cap
+// runs out of gas. Gas above the cap is the state gas reservoir, which
+// gasleft() can't see, so simulating above it gives limits for regular gas
+// only.
+const needsReservoir = ({
+    rpcHandler,
+    userOp,
+    meteredResult
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    meteredResult: GasEstimateResult
+}): boolean => {
+    const { supportsEip8037, fixedGasLimitForEstimation, chainType } =
+        rpcHandler.config
+
+    // A lower simulation cap is the operator's choice, not a sign of state gas
+    const simulatesAtCap =
+        fixedGasLimitForEstimation === undefined ||
+        fixedGasLimitForEstimation >= TX_MAX_GAS_LIMIT
+
+    if (!supportsEip8037 || !simulatesAtCap || chainType === "monad") {
+        return false
+    }
+
+    if (meteredResult.status === "failed") {
+        return (
+            meteredResult.cause !== undefined ||
+            meteredResult.code === ERC7769Errors.UserOperationReverted
+        )
+    }
+
+    return !fitsMaxGasPerUserOp({
+        rpcHandler,
+        userOp: { ...userOp, ...meteredResult.estimates }
+    })
+}
+
 export const ethEstimateUserOperationGasHandler = createMethodHandler({
     method: "eth_estimateUserOperationGas",
     schema: estimateUserOperationGasSchema,
@@ -281,7 +356,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const {
             v7PreVerificationGasLimitMultiplier,
             v6PreVerificationGasLimitMultiplier,
-            chainType
+            chainType,
+            maxReservoirGas
         } = rpcHandler.config
 
         // Validate userOp fields (sync - fail fast before async checks)
@@ -297,7 +373,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         // Execute multiple async operations in parallel
         const [
             [validEip7702Auth, validEip7702AuthError],
-            gasEstimateResult,
+            meteredResult,
             l2PvgComponent,
             dynamicPvgComponent
         ] = await Promise.all([
@@ -305,12 +381,14 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 userOp,
                 validateSignature: false
             }),
-            getGasEstimates({
-                rpcHandler,
-                userOp,
-                entryPoint,
-                stateOverrides
-            }),
+            settleGasEstimates(
+                getGasEstimates({
+                    rpcHandler,
+                    userOp,
+                    entryPoint,
+                    stateOverrides
+                })
+            ),
             getL2PvgComponent({
                 config: rpcHandler.config,
                 userOp,
@@ -333,8 +411,32 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
+        let gasEstimateResult = meteredResult
+        let reservoirSimulationGasLimit: bigint | undefined
+
+        if (needsReservoir({ rpcHandler, userOp, meteredResult })) {
+            const simulationGasLimit = TX_MAX_GAS_LIMIT + maxReservoirGas
+            const reservoirResult = await settleGasEstimates(
+                getGasEstimates({
+                    rpcHandler,
+                    userOp,
+                    entryPoint,
+                    stateOverrides,
+                    simulationGasLimit
+                })
+            )
+
+            if (reservoirResult.status === "success") {
+                gasEstimateResult = reservoirResult
+                reservoirSimulationGasLimit = simulationGasLimit
+            }
+        }
+
         // Validate gas estimation result first
         if (gasEstimateResult.status === "failed") {
+            if (gasEstimateResult.cause !== undefined) {
+                throw gasEstimateResult.cause
+            }
             throw new RpcError(gasEstimateResult.error, gasEstimateResult.code)
         }
 
@@ -368,6 +470,50 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
+        // In reservoir mode the limits only cover regular gas and the bundle
+        // pays the state gas from a reservoir above TX_MAX_GAS_LIMIT. The
+        // EntryPoint never charges reservoir gas to the userOp, so it goes in
+        // preVerificationGas. Boosted userOps pay nothing, so the bundler
+        // sizes their reservoir itself.
+        if (reservoirSimulationGasLimit !== undefined) {
+            const reservoirUserOp = {
+                ...userOp,
+                ...gasEstimateResult.estimates,
+                preVerificationGas
+            }
+
+            if (!fitsMaxGasPerUserOp({ rpcHandler, userOp: reservoirUserOp })) {
+                throw new RpcError(
+                    `UserOperation needs more than ${rpcHandler.config.maxGasPerUserOp} gas excluding EIP-8037 state gas`,
+                    ERC7769Errors.InvalidFields
+                )
+            }
+
+            const isBoosted =
+                userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+
+            if (!isBoosted) {
+                const reservoirGas =
+                    await rpcHandler.validator.findReservoirGas({
+                        userOp: reservoirUserOp,
+                        queuedUserOps: gasEstimateResult.queuedUserOps,
+                        entryPoint,
+                        stateOverrides: deepHexlify(stateOverrides),
+                        maxReservoirGas
+                    })
+
+                if (reservoirGas === undefined) {
+                    throw new RpcError(
+                        `UserOperation needs more than ${maxReservoirGas} EIP-8037 state gas`,
+                        ERC7769Errors.UserOperationReverted
+                    )
+                }
+
+                preVerificationGas += reservoirGas
+                reservoirSimulationGasLimit = TX_MAX_GAS_LIMIT + reservoirGas
+            }
+        }
+
         const finalGasLimits = await rpcHandler.validator.validateHandleOp({
             userOp: {
                 ...userOp,
@@ -376,7 +522,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             },
             queuedUserOps: gasEstimateResult.queuedUserOps,
             entryPoint,
-            stateOverrides: deepHexlify(stateOverrides)
+            stateOverrides: deepHexlify(stateOverrides),
+            gasLimit: reservoirSimulationGasLimit
         })
 
         // Extrace values for returning
