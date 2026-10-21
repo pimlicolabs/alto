@@ -222,6 +222,15 @@ export function calculateAA95GasFloor({
     return gasFloor
 }
 
+// EIP-8037 state gas reservoir the bundle must provide above TX_MAX_GAS_LIMIT
+export const getBundleReservoirGas = (userOpInfos: UserOpInfo[]): bigint => {
+    return userOpInfos.reduce(
+        (reservoirGas, userOpInfo) =>
+            reservoirGas + (userOpInfo.reservoirGas ?? 0n),
+        0n
+    )
+}
+
 export const getUserOpHashes = (userOpInfos: UserOpInfo[]) => {
     return userOpInfos.map(({ userOpHash }) => userOpHash)
 }

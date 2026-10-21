@@ -102,8 +102,9 @@ export class GasEstimationHandler {
         })
     }
 
-    // Smallest EIP-8037 state gas reservoir the userOp passes with, or
-    // undefined if it fails even with maxReservoirGas. Searching on
+    // Smallest EIP-8037 state gas reservoir the userOp passes with (0 if it
+    // passes without one), or undefined if it fails even with
+    // maxReservoirGas. Searching on
     // pass/fail covers the userOp's peak state gas, which is above its net
     // state gas when it clears state it created earlier.
     async findReservoirGas({
@@ -131,6 +132,10 @@ export class GasEstimationHandler {
                 stateOverrides
             })
             return result.result === "execution"
+        }
+
+        if (await passes(0n)) {
+            return 0n
         }
 
         if (!(await passes(maxReservoirGas))) {

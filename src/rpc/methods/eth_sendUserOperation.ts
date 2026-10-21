@@ -10,14 +10,16 @@ import {
     type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
-import { getAAError } from "@alto/utils"
+import { getAAError, scaleBigIntByPercent } from "@alto/utils"
 import { type Hex, slice } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
+import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
-    getViemEntryPointVersion
+    getViemEntryPointVersion,
+    isVersion06
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -27,6 +29,9 @@ import {
     getMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
+
+// Buffer on a boosted userOp's EIP-8037 state gas reservoir
+const BOOSTED_RESERVOIR_GAS_MULTIPLIER = 120n
 
 const validateChainRules = async ({
     rpcHandler,
@@ -159,17 +164,20 @@ const validatePvg = async ({
 const getUserOpValidationResult = async ({
     rpcHandler,
     userOp,
-    entryPoint
+    entryPoint,
+    isBoosted
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
+    isBoosted: boolean
 }): Promise<{
     queuedUserOps: UserOperation[]
     validationResult: ValidationResult & {
         storageMap: StorageMap
         referencedContracts?: ReferencedCodeHashes
     }
+    reservoirGas?: bigint
 }> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
@@ -190,13 +198,47 @@ const getUserOpValidationResult = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
-    const validationResult = await rpcHandler.validator.validateUserOp({
+    // Boosted userOps pay nothing, so the bundler fronts the EIP-8037 state
+    // gas reservoir for one that needs more than TX_MAX_GAS_LIMIT. Unused
+    // reservoir gas isn't charged, so the buffer only absorbs state that
+    // changes before inclusion.
+    //
+    // TODO: support v0.6. Its simulation override runs the call with
+    // gasleft() instead of callGasLimit, so it undersizes the reservoir.
+    let reservoirGas: bigint | undefined
+    if (
+        isBoosted &&
+        rpcHandler.config.supportsEip8037 &&
+        !isVersion06(userOp)
+    ) {
+        const minReservoirGas = await rpcHandler.validator.findReservoirGas({
+            userOp,
+            entryPoint,
+            queuedUserOps,
+            maxReservoirGas: rpcHandler.config.maxReservoirGas
+        })
+
+        if (minReservoirGas) {
+            reservoirGas = scaleBigIntByPercent(
+                minReservoirGas,
+                BOOSTED_RESERVOIR_GAS_MULTIPLIER
+            )
+        }
+    }
+
+    const validator = reservoirGas
+        ? rpcHandler.validator.withSimulationGasLimit(
+              TX_MAX_GAS_LIMIT + reservoirGas
+          )
+        : rpcHandler.validator
+    const validationResult = await validator.validateUserOp({
         userOp,
         queuedUserOps,
         entryPoint
     })
 
     return {
+        reservoirGas,
         queuedUserOps,
         validationResult
     }
@@ -244,14 +286,19 @@ export async function addToMempoolIfValid({
 
     // Execute multiple async operations in parallel
     const [
-        { queuedUserOps, validationResult },
+        { queuedUserOps, validationResult, reservoirGas },
         currentNonceSeq,
         [isPvgValid, pvgError],
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
         [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
-        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        getUserOpValidationResult({
+            rpcHandler,
+            userOp,
+            entryPoint,
+            isBoosted
+        }),
         rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
@@ -353,6 +400,8 @@ export async function addToMempoolIfValid({
         entryPoint,
         userOp
     )
+
+    userOpInfo.reservoirGas = reservoirGas
 
     // Finally, add to mempool
     const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
