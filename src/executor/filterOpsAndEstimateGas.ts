@@ -422,7 +422,7 @@ export async function filterOpsAndEstimateGas({
             // filterOps can't see gas paid from the EIP-8037 reservoir
             bundleGasUsed =
                 filterOpsResult.gasUsed +
-                21_000n +
+                config.transactionGasStipend +
                 offChainOverhead.gasUsed +
                 reservoirGas
         }
