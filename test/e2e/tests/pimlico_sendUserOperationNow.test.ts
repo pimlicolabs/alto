@@ -1,7 +1,18 @@
 import { type Server, createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { deepHexlify } from "permissionless"
-import { http, type Hex, createClient, keccak256, parseEther } from "viem"
+import {
+    http,
+    type Hex,
+    type TransactionSerialized,
+    createClient,
+    hexToBigInt,
+    keccak256,
+    parseEther,
+    parseTransaction,
+    recoverTransactionAddress,
+    toHex
+} from "viem"
 import {
     type EntryPointVersion,
     type UserOperation,
@@ -32,13 +43,43 @@ const HASH_REGEX = /^0x[0-9a-fA-F]{64}$/
 
 type JsonRpcRequest = { id: number; method: string; params?: unknown[] }
 
+const rpcResult = async ({
+    url,
+    method,
+    params
+}: {
+    url: string
+    method: string
+    params: unknown[]
+}) => {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
+    })
+    return ((await res.json()) as { result: Hex }).result
+}
+
 // JSON-RPC proxy in front of anvil that records the methods it receives.
-// With dropSends set, transactions are acknowledged but never forwarded, so
-// they never land: eth_sendRawTransactionSync answers the EIP-7966 timeout
-// (code 4) and eth_sendRawTransaction answers the transaction hash.
+// - dropSends: transactions are acknowledged but never forwarded, so they
+//   never land. eth_sendRawTransactionSync answers the EIP-7966 timeout
+//   (code 4) and eth_sendRawTransaction answers the transaction hash.
+// - inflateNextNonce: the next eth_getTransactionCount answer is one too
+//   high, so the next bundle is signed with a nonce gap.
+// eth_sendRawTransactionSync rejects transactions with a nonce gap like an
+// EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
-    const state: { dropSends: boolean; methods: string[] } = {
+    const state: {
+        dropSends: boolean
+        inflateNextNonce: boolean
+        nonceGapCode: 5 | 6
+        nonceGapRejections: number
+        methods: string[]
+    } = {
         dropSends: false,
+        inflateNextNonce: false,
+        nonceGapCode: 6,
+        nonceGapRejections: 0,
         methods: []
     }
 
@@ -53,6 +94,62 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         state.methods.push(...requests.map(({ method }) => method))
 
         res.setHeader("content-type", "application/json")
+
+        if (
+            !Array.isArray(parsed) &&
+            parsed.method === "eth_getTransactionCount" &&
+            state.inflateNextNonce
+        ) {
+            state.inflateNextNonce = false
+            const nonce = await rpcResult({
+                url: upstream,
+                method: parsed.method,
+                params: parsed.params ?? []
+            })
+            const result = toHex(hexToBigInt(nonce) + 1n)
+            res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result }))
+            return
+        }
+
+        if (
+            !Array.isArray(parsed) &&
+            parsed.method === "eth_sendRawTransactionSync" &&
+            !state.dropSends
+        ) {
+            const serializedTransaction = parsed.params?.[0] as Hex
+            const { nonce } = parseTransaction(serializedTransaction)
+            const from = await recoverTransactionAddress({
+                serializedTransaction:
+                    serializedTransaction as TransactionSerialized
+            })
+            const expectedNonce = hexToBigInt(
+                await rpcResult({
+                    url: upstream,
+                    method: "eth_getTransactionCount",
+                    params: [from, "pending"]
+                })
+            )
+
+            if (nonce !== undefined && BigInt(nonce) > expectedNonce) {
+                state.nonceGapRejections++
+                const error =
+                    state.nonceGapCode === 6
+                        ? {
+                              code: 6,
+                              message: "nonce gap",
+                              data: toHex(expectedNonce)
+                          }
+                        : {
+                              code: 5,
+                              message: "transaction not ready for execution",
+                              data: keccak256(serializedTransaction)
+                          }
+                res.end(
+                    JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error })
+                )
+                return
+            }
+        }
 
         if (state.dropSends && !Array.isArray(parsed)) {
             if (parsed.method === "eth_sendRawTransactionSync") {
@@ -256,6 +353,8 @@ describe.each([
         beforeEach(async () => {
             await beforeEachCleanUp({ anvilRpc, altoRpc })
             proxy.state.dropSends = false
+            proxy.state.inflateNextNonce = false
+            proxy.state.nonceGapRejections = 0
             proxy.state.methods = []
         })
 
@@ -286,6 +385,30 @@ describe.each([
             })
             expect(txReceipt.status).toEqual("success")
         })
+
+        test.skipIf(!supportsEip7966).each([6, 5] as const)(
+            "Retries with the node's nonce on an EIP-7966 code %i rejection",
+            async (nonceGapCode) => {
+                const op = await prepareSignedUserOp({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc: proxiedAlto.altoRpc
+                })
+                proxy.state.nonceGapCode = nonceGapCode
+                proxy.state.inflateNextNonce = true
+
+                const { result, error } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_sendUserOperationNow",
+                    params: [deepHexlify(op), entryPoint]
+                })
+
+                expect(error).toBeUndefined()
+                const receipt = result as UserOperationReceipt
+                expect(receipt.success).toEqual(true)
+                expect(proxy.state.nonceGapRejections).toEqual(1)
+            }
+        )
 
         // Keep last: the dropped bundle stays tracked by the proxied instance.
         test("Returns a timeout error with the hashes when not included", async () => {

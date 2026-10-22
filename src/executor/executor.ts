@@ -52,7 +52,8 @@ import {
     isFeeCapTooLowError,
     isTransactionPendingError,
     isTransactionUnderpricedError,
-    parseNonceFromError
+    parseNonceFromError,
+    parseSyncSendNonceError
 } from "./utils"
 
 type HandleOpsTxParams = {
@@ -426,7 +427,27 @@ export class Executor {
 
                 const error = e as SendTransactionErrorType
 
-                if (error instanceof TransactionExecutionError) {
+                const syncSendNonceError =
+                    e instanceof BaseError
+                        ? parseSyncSendNonceError(e)
+                        : undefined
+
+                if (syncSendNonceError) {
+                    // Not added to the pool, so resending can't duplicate the
+                    // bundle. Use the nonce the node expects, or its pending
+                    // nonce when it didn't say.
+                    const expectedNonce =
+                        syncSendNonceError.expectedNonce ??
+                        (await publicClient.getTransactionCount({
+                            address: account.address,
+                            blockTag: "pending"
+                        }))
+                    childLogger.warn(
+                        { txNonce: request.nonce, expectedNonce },
+                        "eth_sendRawTransactionSync rejected the nonce, retrying"
+                    )
+                    request.nonce = expectedNonce
+                } else if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
                     // Prefer the nonce the node reported in its error;
