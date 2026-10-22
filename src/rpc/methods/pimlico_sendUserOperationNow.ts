@@ -9,7 +9,6 @@ import {
 } from "@alto/types"
 import {
     type InstantOutcome,
-    type InstantStage,
     getUserOpHash,
     getViemEntryPointVersion,
     observeDurationMs,
@@ -168,23 +167,13 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
         const { metrics } = rpcHandler
 
-        const observeStage = ({
-            stage,
-            startMs
-        }: {
-            stage: InstantStage
-            startMs: number
-        }) => {
-            observeDurationMs({
-                histogram: metrics.instantDuration.labels({ stage }),
-                startMs,
-                endMs: Date.now()
-            })
-        }
-
         const recordOutcome = (outcome: InstantOutcome) => {
             metrics.instantOutcome.labels({ outcome }).inc()
-            observeStage({ stage: "total", startMs: requestStart })
+            observeDurationMs({
+                histogram: metrics.instantDuration.labels({ stage: "total" }),
+                startMs: requestStart,
+                endMs: Date.now()
+            })
         }
 
         const reject = (message: string): never => {
@@ -243,7 +232,11 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         const sendStart = Date.now()
         const result = await rpcHandler.executorManager.sendBundleNow(bundle)
-        observeStage({ stage: "send", startMs: sendStart })
+        observeDurationMs({
+            histogram: metrics.instantDuration.labels({ stage: "send" }),
+            startMs: sendStart,
+            endMs: Date.now()
+        })
 
         // Failures on our side are server errors: the RPC server reports
         // non-RpcErrors to Sentry and logs them, and the client only gets a
@@ -270,7 +263,11 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             send,
             timeoutMs: deadline - receiptStart
         })
-        observeStage({ stage: "receipt", startMs: receiptStart })
+        observeDurationMs({
+            histogram: metrics.instantDuration.labels({ stage: "receipt" }),
+            startMs: receiptStart,
+            endMs: Date.now()
+        })
 
         if (receiptResult.status === "timeout") {
             recordOutcome("timeout")

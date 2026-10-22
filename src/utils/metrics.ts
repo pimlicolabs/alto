@@ -334,8 +334,6 @@ export function createMetrics(registry: Registry, register = true) {
     }
 }
 
-export type InstantStage = "send" | "receipt" | "total"
-
 export type InstantOutcome = "included" | "reverted" | "timeout" | "rejected"
 
 export type UserOpStage =
