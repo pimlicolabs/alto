@@ -446,6 +446,18 @@ export class Executor {
                             address: account.address,
                             blockTag: "pending"
                         }))
+
+                    // Already at the expected nonce, so the nonce isn't the
+                    // problem and resending the same transaction would get
+                    // the same answer.
+                    if (expectedNonce === request.nonce) {
+                        childLogger.warn(
+                            { txNonce: request.nonce },
+                            "eth_sendRawTransactionSync rejected the transaction at the expected nonce, not retrying"
+                        )
+                        throw error
+                    }
+
                     childLogger.warn(
                         { txNonce: request.nonce, expectedNonce },
                         "eth_sendRawTransactionSync rejected the nonce, retrying"

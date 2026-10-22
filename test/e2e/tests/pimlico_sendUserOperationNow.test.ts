@@ -66,20 +66,24 @@ const rpcResult = async ({
 //   (code 4) and eth_sendRawTransaction answers the transaction hash.
 // - inflateNextNonce: the next eth_getTransactionCount answer is one too
 //   high, so the next bundle is signed with a nonce gap.
+// - rejectSyncSends: eth_sendRawTransactionSync rejects every transaction,
+//   even at the expected nonce.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
     const state: {
         dropSends: boolean
         inflateNextNonce: boolean
+        rejectSyncSends: boolean
         nonceGapCode: 5 | 6
-        nonceGapRejections: number
+        nonceRejections: number
         methods: string[]
     } = {
         dropSends: false,
         inflateNextNonce: false,
+        rejectSyncSends: false,
         nonceGapCode: 6,
-        nonceGapRejections: 0,
+        nonceRejections: 0,
         methods: []
     }
 
@@ -130,8 +134,10 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
                 })
             )
 
-            if (nonce !== undefined && BigInt(nonce) > expectedNonce) {
-                state.nonceGapRejections++
+            const hasNonceGap =
+                nonce !== undefined && BigInt(nonce) > expectedNonce
+            if (hasNonceGap || state.rejectSyncSends) {
+                state.nonceRejections++
                 const error =
                     state.nonceGapCode === 6
                         ? {
@@ -354,7 +360,8 @@ describe.each([
             await beforeEachCleanUp({ anvilRpc, altoRpc })
             proxy.state.dropSends = false
             proxy.state.inflateNextNonce = false
-            proxy.state.nonceGapRejections = 0
+            proxy.state.rejectSyncSends = false
+            proxy.state.nonceRejections = 0
             proxy.state.methods = []
         })
 
@@ -406,7 +413,30 @@ describe.each([
                 expect(error).toBeUndefined()
                 const receipt = result as UserOperationReceipt
                 expect(receipt.success).toEqual(true)
-                expect(proxy.state.nonceGapRejections).toEqual(1)
+                expect(proxy.state.nonceRejections).toEqual(1)
+            }
+        )
+
+        test.skipIf(!supportsEip7966).each([6, 5] as const)(
+            "Fails without retrying on an EIP-7966 code %i rejection at the expected nonce",
+            async (nonceGapCode) => {
+                const op = await prepareSignedUserOp({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc: proxiedAlto.altoRpc
+                })
+                proxy.state.nonceGapCode = nonceGapCode
+                proxy.state.rejectSyncSends = true
+
+                const { result, error } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_sendUserOperationNow",
+                    params: [deepHexlify(op), entryPoint]
+                })
+
+                expect(result).toBeUndefined()
+                expect(error?.message).toContain("bundle submission failed")
+                expect(proxy.state.nonceRejections).toEqual(1)
             }
         )
 
