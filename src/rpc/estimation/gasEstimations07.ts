@@ -22,6 +22,7 @@ import {
 } from "./types"
 import {
     decodeSimulateHandleOpError,
+    isEstimateGasRevert,
     prepareSimulationOverrides07,
     prepareStateOverride,
     simulationErrors
@@ -384,6 +385,51 @@ export class GasEstimator07 {
                 data: string
                 code: number
             }
+        }
+    }
+
+    // Smallest transaction gas limit at which the userOp passes, or undefined
+    // if it fails even at gasCap
+    async estimateHandleOpGas07({
+        entryPoint,
+        userOp,
+        queuedUserOps,
+        userStateOverrides = {},
+        gasCap
+    }: {
+        entryPoint: Address
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
+        userStateOverrides?: StateOverrides
+        gasCap: bigint
+    }): Promise<bigint | undefined> {
+        const { pimlicoSimulation, epSimulationsAddress } =
+            this.getSimulationContracts(entryPoint, userOp)
+
+        const stateOverride = await prepareSimulationOverrides07({
+            userOp,
+            queuedUserOps,
+            entryPoint,
+            gasPriceManager: this.gasPriceManager,
+            userStateOverrides,
+            config: this.config
+        })
+
+        try {
+            return await pimlicoSimulation.estimateGas.simulateHandleOp(
+                [
+                    epSimulationsAddress,
+                    entryPoint,
+                    packUserOps(queuedUserOps),
+                    toPackedUserOp(userOp)
+                ],
+                { stateOverride, gas: gasCap }
+            )
+        } catch (err) {
+            if (isEstimateGasRevert(err)) {
+                return undefined
+            }
+            throw err
         }
     }
 

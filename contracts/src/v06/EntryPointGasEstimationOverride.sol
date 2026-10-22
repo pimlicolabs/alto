@@ -30,6 +30,7 @@ import "../SimulationOverrideHelper.sol";
 // - Renamed to EntryPointGasEstimationOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
 // - Run the call phase with callGasLimit instead of gasleft() if USE_CALL_GAS_LIMIT is set
+// - Add simulateHandleOpNoRevert
 contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
@@ -234,6 +235,20 @@ contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceMa
             (targetSuccess, targetResult) = target.call(targetCallData);
         }
         revert ExecutionResult(opInfo.preOpGas, paid, data.validAfter, data.validUntil, targetSuccess, targetResult);
+    }
+
+    // Returns instead of reverting with ExecutionResult when the userOp succeeds, so eth_estimateGas can find the
+    // gas it needs.
+    function simulateHandleOpNoRevert(UserOperation calldata op) external {
+        try this.simulateHandleOp(op, address(0), "") {}
+        catch (bytes memory reason) {
+            if (bytes4(reason) == ExecutionResult.selector) {
+                return;
+            }
+            assembly {
+                revert(add(reason, 32), mload(reason))
+            }
+        }
     }
 
     // A memory copy of UserOp static fields only.

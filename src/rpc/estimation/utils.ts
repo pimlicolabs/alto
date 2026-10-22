@@ -14,6 +14,7 @@ import {
     BaseError,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
+    ExecutionRevertedError,
     type Hex,
     type StateOverride,
     decodeErrorResult,
@@ -365,4 +366,18 @@ export async function prepareSimulationOverrides07({
         stateOverrides: mergedStateOverrides,
         config
     })
+}
+
+// Whether eth_estimateGas failed because the call reverts at every gas limit
+// up to its cap, rather than an RPC failure
+export function isEstimateGasRevert(err: unknown): boolean {
+    if (!(err instanceof BaseError)) {
+        return false
+    }
+    return (
+        err.walk((e) => e instanceof ExecutionRevertedError) !== null ||
+        err.walk((e) =>
+            (e as BaseError).details?.includes("gas required exceeds")
+        ) !== null
+    )
 }

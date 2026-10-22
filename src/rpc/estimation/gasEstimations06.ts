@@ -1,11 +1,21 @@
 import type { StateOverrides, UserOperation06 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { type Address, type Hex, getContract } from "viem"
+import {
+    type Abi,
+    type Address,
+    type Hex,
+    encodeFunctionData,
+    getContract
+} from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
+import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.sol/EntryPointGasEstimationOverride06.json" with {
+    type: "json"
+}
 import type { AltoConfig } from "../../createConfig"
 import type { SimulateHandleOpResult } from "./types"
 import {
     decodeSimulateHandleOpError,
+    isEstimateGasRevert,
     prepareSimulationOverrides06,
     simulationErrors
 } from "./utils"
@@ -26,13 +36,54 @@ export class GasEstimator06 {
         )
     }
 
+    // Smallest transaction gas limit at which the userOp passes, with the call
+    // phase capped at callGasLimit, or undefined if it fails even at gasCap
+    async estimateHandleOpGas06({
+        userOp,
+        entryPoint,
+        userStateOverrides,
+        gasCap
+    }: {
+        userOp: UserOperation06
+        entryPoint: Address
+        userStateOverrides?: StateOverrides
+        gasCap: bigint
+    }): Promise<bigint | undefined> {
+        const stateOverride = await prepareSimulationOverrides06({
+            userOp,
+            entryPoint,
+            userStateOverrides,
+            useCodeOverride: true,
+            useCallGasLimit: true,
+            config: this.config
+        })
+
+        try {
+            return await this.config.publicClient.estimateGas({
+                account: this.config.utilityWalletAddress,
+                to: entryPoint,
+                data: encodeFunctionData({
+                    abi: entryPointOverride.abi as Abi,
+                    functionName: "simulateHandleOpNoRevert",
+                    args: [userOp]
+                }),
+                gas: gasCap,
+                stateOverride
+            })
+        } catch (err) {
+            if (isEstimateGasRevert(err)) {
+                return undefined
+            }
+            throw err
+        }
+    }
+
     async simulateHandleOp06({
         userOp,
         targetAddress,
         targetCallData,
         entryPoint,
         useCodeOverride = true,
-        useCallGasLimit = false,
         userStateOverrides = undefined
     }: {
         userOp: UserOperation06
@@ -40,8 +91,6 @@ export class GasEstimator06 {
         targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
-        // Run the call phase with callGasLimit instead of gasleft()
-        useCallGasLimit?: boolean
         userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const {
@@ -56,7 +105,6 @@ export class GasEstimator06 {
             entryPoint,
             userStateOverrides,
             useCodeOverride,
-            useCallGasLimit,
             config: this.config
         })
 
