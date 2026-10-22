@@ -440,13 +440,14 @@ export class Executor {
 
                 if (syncSendNonceError) {
                     // Not added to the pool, so resending can't duplicate the
-                    // bundle. Use the nonce the node expects, or its pending
-                    // nonce when it didn't say.
+                    // bundle. Use the nonce the node expects, or its latest
+                    // nonce when it didn't say. An executor only has one
+                    // bundle in flight, so nothing of ours is pending.
                     const expectedNonce =
                         syncSendNonceError.expectedNonce ??
                         (await publicClient.getTransactionCount({
                             address: account.address,
-                            blockTag: "pending"
+                            blockTag: "latest"
                         }))
 
                     // Already at the expected nonce, so the nonce isn't the
