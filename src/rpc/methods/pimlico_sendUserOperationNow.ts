@@ -8,8 +8,10 @@ import {
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
 import {
+    type InstantOutcome,
     getUserOpHash,
     getViemEntryPointVersion,
+    observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
 import {
@@ -161,7 +163,23 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        const deadline = Date.now() + rpcHandler.config.instantBundlingTimeout
+        const requestStart = Date.now()
+        const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
+        const { metrics } = rpcHandler
+
+        const recordOutcome = (outcome: InstantOutcome) => {
+            metrics.instantOutcome.labels({ outcome }).inc()
+            observeDurationMs({
+                histogram: metrics.instantDuration.labels({ stage: "total" }),
+                startMs: requestStart,
+                endMs: Date.now()
+            })
+        }
+
+        const reject = (message: string): never => {
+            recordOutcome("rejected")
+            throw new RpcError(message, ERC7769Errors.InvalidFields)
+        }
 
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
@@ -172,7 +190,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             entryPoint
         })
         if (!fieldsValid) {
-            throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+            return reject(fieldsError)
         }
 
         const userOpHash = getUserOpHash({
@@ -185,7 +203,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [gasPriceValid, gasPriceError] =
             await rpcHandler.validateUserOpGasPrice({ userOp, apiVersion })
         if (!gasPriceValid) {
-            throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
+            return reject(gasPriceError)
         }
 
         // Prepare bundle
@@ -212,12 +230,19 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             userOpInfos: [userOpInfo]
         })
 
+        const sendStart = Date.now()
         const result = await rpcHandler.executorManager.sendBundleNow(bundle)
+        observeDurationMs({
+            histogram: metrics.instantDuration.labels({ stage: "send" }),
+            startMs: sendStart,
+            endMs: Date.now()
+        })
 
         // Failures on our side are server errors: the RPC server reports
         // non-RpcErrors to Sentry and logs them, and the client only gets a
         // generic message.
         if (!result || (!result.success && result.status === "error")) {
+            recordOutcome("failed")
             rpcHandler.logger.error(
                 { userOpHash, reason: result?.reason ?? "no bundle to send" },
                 "pimlico_sendUserOperationNow failed to submit the bundle"
@@ -226,23 +251,27 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         if (!result.success) {
-            throw new RpcError(
-                `bundle submission failed: ${result.reason}`,
-                ERC7769Errors.InvalidFields
-            )
+            return reject(`bundle submission failed: ${result.reason}`)
         }
 
         const { transactionHash, send } = result
 
+        const receiptStart = Date.now()
         const receiptResult = await waitForReceipt({
             rpcHandler,
             userOpHash,
             transactionHash,
             send,
-            timeoutMs: deadline - Date.now()
+            timeoutMs: deadline - receiptStart
+        })
+        observeDurationMs({
+            histogram: metrics.instantDuration.labels({ stage: "receipt" }),
+            startMs: receiptStart,
+            endMs: Date.now()
         })
 
         if (receiptResult.status === "timeout") {
+            recordOutcome("timeout")
             rpcHandler.logger.warn(
                 { userOpHash, txHash: transactionHash },
                 "pimlico_sendUserOperationNow timed out waiting for inclusion"
@@ -255,6 +284,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         if (receiptResult.status === "reverted") {
+            recordOutcome("reverted")
             rpcHandler.logger.warn(
                 { userOpHash, txHash: receiptResult.transactionHash },
                 "pimlico_sendUserOperationNow bundle reverted"
@@ -269,6 +299,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
+        recordOutcome("included")
         return receiptResult.userOpReceipt
     }
 })

@@ -271,6 +271,22 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
+    // === pimlico_sendUserOperationNow === //
+    const instantDuration = new Histogram({
+        name: "alto_instant_duration_seconds",
+        help: "Duration of pimlico_sendUserOperationNow stages: bundle send, wait for the receipt, and the whole request",
+        labelNames: ["stage"] as const,
+        registers,
+        buckets: [0.15, 0.25, 0.5, 0.75, 1, 2]
+    })
+
+    const instantOutcome = new Counter({
+        name: "alto_instant_outcome_total",
+        help: "Outcome of pimlico_sendUserOperationNow requests",
+        labelNames: ["outcome"] as const,
+        registers
+    })
+
     const altoSecondValidationFailed = new Counter({
         name: "alto_second_validation_failed",
         help: "Number of times alto's second estimation failed during eth_estimateUserOperationGas and we returned 2x gas limits",
@@ -310,9 +326,19 @@ export function createMetrics(registry: Registry, register = true) {
         userOpStageDuration,
         handleBlockDuration,
         handleBlockSkipped,
+        instantDuration,
+        instantOutcome,
         altoSecondValidationFailed
     }
 }
+
+// rejected: the userOp was invalid. failed: we couldn't send the bundle.
+export type InstantOutcome =
+    | "included"
+    | "reverted"
+    | "timeout"
+    | "rejected"
+    | "failed"
 
 export type UserOpStage =
     | "validation"
