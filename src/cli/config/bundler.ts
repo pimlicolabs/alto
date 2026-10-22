@@ -107,7 +107,6 @@ export const bundlerArgsSchema = z.object({
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
     "instant-bundling-timeout": z.number().int().positive(),
-    "instant-bundling-send-raw-transaction-sync": z.boolean(),
     "instant-bundling-min-send-wait": z.number().int().positive(),
     "skip-local-gas-calculations": z.boolean(),
     "flashblocks-preconfirmation-time": z.number().optional(),
@@ -185,6 +184,7 @@ export const compatibilityArgsSchema = z.object({
         "tempo"
     ]),
     "legacy-transactions": z.boolean(),
+    "supports-eip7966": z.boolean(),
     "api-version": z
         .string()
         .regex(/^(v1,v2|v2,v1|v1|v2)$/)

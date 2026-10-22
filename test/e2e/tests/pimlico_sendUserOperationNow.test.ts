@@ -214,20 +214,20 @@ describe.each([
 
 describe.each([
     {
-        sendRawTransactionSync: true,
+        supportsEip7966: true,
         port: 8094,
         sendMethod: "eth_sendRawTransactionSync",
         otherMethod: "eth_sendRawTransaction"
     },
     {
-        sendRawTransactionSync: false,
+        supportsEip7966: false,
         port: 8095,
         sendMethod: "eth_sendRawTransaction",
         otherMethod: "eth_sendRawTransactionSync"
     }
 ])(
-    "pimlico_sendUserOperationNow with instant-bundling-send-raw-transaction-sync=$sendRawTransactionSync",
-    ({ sendRawTransactionSync, port, sendMethod, otherMethod }) => {
+    "pimlico_sendUserOperationNow with supports-eip7966=$supportsEip7966",
+    ({ supportsEip7966, port, sendMethod, otherMethod }) => {
         const anvilRpc = inject("anvilRpc")
         const altoRpc = inject("altoRpc")
         const entryPoint = entryPoint07Address
@@ -243,8 +243,7 @@ describe.each([
                 port,
                 flags: {
                     "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
-                    "instant-bundling-send-raw-transaction-sync":
-                        sendRawTransactionSync
+                    "supports-eip7966": supportsEip7966
                 }
             })
         })

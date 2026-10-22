@@ -508,7 +508,7 @@ export class Executor {
 
     // Sends a bundle for pimlico_sendUserOperationNow and waits up to one
     // block (at least instantBundlingMinSendWait) for its receipt. With
-    // instantBundlingSendRawTransactionSync it is sent with
+    // supportsEip7966 it is sent with
     // eth_sendRawTransactionSync (EIP-7966) and the wait covers the node's
     // response, so rejections still reach the caller's retry handling.
     // Otherwise it is sent with eth_sendRawTransaction and the receipt is
@@ -531,12 +531,12 @@ export class Executor {
         const {
             blockTime,
             instantBundlingMinSendWait,
-            instantBundlingSendRawTransactionSync,
-            publicClient
+            publicClient,
+            supportsEip7966
         } = this.config
         const waitMs = Math.max(blockTime, instantBundlingMinSendWait)
 
-        if (!instantBundlingSendRawTransactionSync) {
+        if (!supportsEip7966) {
             const transactionHash = await walletClient.sendTransaction(request)
             const receipt = await publicClient
                 .waitForTransactionReceipt({

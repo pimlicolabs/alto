@@ -155,12 +155,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 25000
     },
-    "instant-bundling-send-raw-transaction-sync": {
-        description:
-            "Send pimlico_sendUserOperationNow bundles with eth_sendRawTransactionSync (EIP-7966). Only enable when the RPC supports it, otherwise bundles are sent with eth_sendRawTransaction and the receipt is polled",
-        type: "boolean",
-        default: false
-    },
     "instant-bundling-min-send-wait": {
         description:
             "Minimum time in ms a pimlico_sendUserOperationNow send waits for the receipt (at least block-time) before the bundle is tracked as pending. A sync send rejection arriving after this wait is not retried",
@@ -658,6 +652,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "Send a legacy transactions instead of an EIP-1559 transactions",
             type: "boolean",
             require: true,
+            default: false
+        },
+        "supports-eip7966": {
+            description:
+                "Whether the RPC supports EIP-7966 (eth_sendRawTransactionSync). When set, pimlico_sendUserOperationNow bundles are sent with it, otherwise with eth_sendRawTransaction and the receipt is polled",
+            type: "boolean",
+            require: false,
             default: false
         },
         "balance-override": {
