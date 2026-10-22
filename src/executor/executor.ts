@@ -311,6 +311,7 @@ export class Executor {
                     attributes: {
                         "bundle.send.attempt": attempts,
                         "bundle.send.is_private": Boolean(usePrivateEndpoint),
+                        "bundle.send.sync": useSyncSend,
                         "bundle.nonce": request.nonce
                     },
                     fn: async () => {
