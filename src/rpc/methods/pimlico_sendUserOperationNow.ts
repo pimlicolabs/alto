@@ -22,6 +22,7 @@ import {
 } from "viem"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
+import { getBoostedUserOpError } from "./boost_sendUserOperation"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -184,10 +185,22 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
+        // Zero gas fees make the userOp boosted: the bundler pays its gas, as
+        // with boost_sendUserOperation.
+        const isBoosted =
+            userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+        if (isBoosted) {
+            const boostedUserOpError = getBoostedUserOpError({ userOp })
+            if (boostedUserOpError) {
+                return reject(boostedUserOpError)
+            }
+        }
+
         // Validate userOp fields (sync - fail fast before expensive async checks)
         const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
             userOp,
-            entryPoint
+            entryPoint,
+            isBoosted
         })
         if (!fieldsValid) {
             return reject(fieldsError)
@@ -201,7 +214,11 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         // Validate gas price (async)
         const [gasPriceValid, gasPriceError] =
-            await rpcHandler.validateUserOpGasPrice({ userOp, apiVersion })
+            await rpcHandler.validateUserOpGasPrice({
+                userOp,
+                apiVersion,
+                isBoosted
+            })
         if (!gasPriceValid) {
             return reject(gasPriceError)
         }

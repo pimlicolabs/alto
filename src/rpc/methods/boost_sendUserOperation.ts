@@ -7,18 +7,19 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
 
-const validateUserOp = ({ userOp }: { userOp: UserOperation }) => {
+// Why the userOp can't be boosted (the bundler pays its gas), or undefined.
+export const getBoostedUserOpError = ({
+    userOp
+}: {
+    userOp: UserOperation
+}): string | undefined => {
     if (userOp.maxFeePerGas !== 0n || userOp.maxPriorityFeePerGas !== 0n) {
-        throw new RpcError(
-            "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
-        )
+        return "maxFeePerGas and maxPriorityFeePerGas must be 0 for a boosted user operation"
     }
 
     if (isVersion06(userOp)) {
         if (userOp.paymasterAndData !== "0x") {
-            throw new RpcError(
-                "Paymaster is not supported for boosted user operations. paymasterAndData must be '0x'"
-            )
+            return "Paymaster is not supported for boosted user operations. paymasterAndData must be '0x'"
         }
     }
 
@@ -29,11 +30,11 @@ const validateUserOp = ({ userOp }: { userOp: UserOperation }) => {
             userOp.paymasterPostOpGasLimit ||
             userOp.paymasterVerificationGasLimit
         ) {
-            throw new RpcError(
-                "Paymaster is not supported for boosted user operations. All paymaster fields must be empty"
-            )
+            return "Paymaster is not supported for boosted user operations. All paymaster fields must be empty"
         }
     }
+
+    return undefined
 }
 
 export const boostSendUserOperationHandler = createMethodHandler({
@@ -42,7 +43,10 @@ export const boostSendUserOperationHandler = createMethodHandler({
     handler: async ({ rpcHandler, params, apiVersion }) => {
         const [userOp, entryPoint] = params
 
-        validateUserOp({ userOp })
+        const boostedUserOpError = getBoostedUserOpError({ userOp })
+        if (boostedUserOpError) {
+            throw new RpcError(boostedUserOpError)
+        }
 
         let status: "added" | "queued" | "rejected" = "rejected"
         try {
