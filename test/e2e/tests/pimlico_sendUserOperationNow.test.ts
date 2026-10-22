@@ -245,11 +245,14 @@ const rawRpc = async ({
 const prepareSignedUserOp = async ({
     entryPointVersion,
     anvilRpc,
-    altoRpc
+    altoRpc,
+    boosted = false
 }: {
     entryPointVersion: EntryPointVersion
     anvilRpc: string
     altoRpc: string
+    // Zero gas fees, the bundler pays the gas.
+    boosted?: boolean
 }) => {
     const smartAccountClient = await getSmartAccountClient({
         entryPointVersion,
@@ -266,6 +269,10 @@ const prepareSignedUserOp = async ({
             }
         ]
     })) as UserOperation
+    if (boosted) {
+        op.maxFeePerGas = 0n
+        op.maxPriorityFeePerGas = 0n
+    }
     op.signature = await smartAccountClient.account.signUserOperation(op)
 
     return op
@@ -325,6 +332,64 @@ describe.each([
                 hash: receipt.receipt.transactionHash
             })
             expect(txReceipt.status).toEqual("success")
+        })
+
+        test("Send boosted instant userOperation", async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                boosted: true
+            })
+
+            // v2: v1 skips the gas price check, so zero fees pass there
+            // either way.
+            const { result, error } = await rawRpc({
+                url: `${altoRpc}/v2/rpc`,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+
+            expect(error).toBeUndefined()
+            const receipt = result as UserOperationReceipt
+            expect(receipt.success).toEqual(true)
+            // The bundler paid the gas.
+            expect(BigInt(receipt.actualGasCost)).toEqual(0n)
+        })
+
+        test("Rejects a boosted userOperation with a paymaster", async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                boosted: true
+            })
+            const paymaster = "0x1111111111111111111111111111111111111111"
+            Object.assign(
+                op,
+                entryPointVersion === "0.6"
+                    ? { paymasterAndData: paymaster }
+                    : {
+                          paymaster,
+                          paymasterData: "0x",
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 0n
+                      }
+            )
+
+            // v2: v1 skips the gas price check, so zero fees pass there
+            // either way.
+            const { result, error } = await rawRpc({
+                url: `${altoRpc}/v2/rpc`,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+
+            expect(result).toBeUndefined()
+            expect(error?.code).toEqual(-32602)
+            expect(error?.message).toContain(
+                "Paymaster is not supported for boosted user operations"
+            )
         })
     }
 )
@@ -504,6 +569,30 @@ describe.each([
             expect(result).toBeUndefined()
             expect(error?.code).toEqual(-32602)
             expect(error?.message).toMatch(/^bundle submission failed: .*AA2\d/)
+        })
+
+        test(`Sends a boosted userOperation with ${sendMethod}`, async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc,
+                boosted: true
+            })
+            proxy.state.methods = []
+
+            // v2: v1 skips the gas price check, so zero fees pass there
+            // either way.
+            const { result, error } = await rawRpc({
+                url: `${proxiedAlto.altoRpc}/v2/rpc`,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+
+            expect(error).toBeUndefined()
+            const receipt = result as UserOperationReceipt
+            expect(receipt.success).toEqual(true)
+            expect(BigInt(receipt.actualGasCost)).toEqual(0n)
+            expect(proxy.state.methods).toContain(sendMethod)
         })
 
         // Keep last: the dropped bundle stays tracked by the proxied instance.
