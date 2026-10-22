@@ -277,9 +277,7 @@ export function createMetrics(registry: Registry, register = true) {
         help: "Duration of pimlico_sendUserOperationNow stages: bundle send, wait for the receipt, and the whole request",
         labelNames: ["stage"] as const,
         registers,
-        buckets: [
-            0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5, 7.5, 10, 15, 20, 25, 30
-        ]
+        buckets: [0.15, 0.25, 0.5, 0.75, 1, 2]
     })
 
     const instantOutcome = new Counter({
