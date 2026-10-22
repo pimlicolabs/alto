@@ -1,4 +1,5 @@
 import {
+    type BundleSend,
     ERC7769Errors,
     RpcError,
     type UserOpInfo,
@@ -25,21 +26,21 @@ type ReceiptWaitResult =
     | { status: "reverted"; transactionHash: Hex }
     | { status: "timeout" }
 
-// Resolves with whichever comes first: the receipt seen while sending, a
-// receipt found by polling, or the deadline. Polling checks the
+// Resolves with whichever comes first: the eth_sendRawTransactionSync
+// receipt, a receipt found by polling, or the deadline. Polling checks the
 // receipt cache too, as the block loop may replace the transaction (gas
 // bump) and the original hash never lands.
 const waitForReceipt = ({
     rpcHandler,
     userOpHash,
     transactionHash,
-    sendReceipt,
+    send,
     timeoutMs
 }: {
     rpcHandler: RpcHandler
     userOpHash: Hex
     transactionHash: Hex
-    sendReceipt: Promise<TransactionReceipt | undefined>
+    send: BundleSend
     timeoutMs: number
 }): Promise<ReceiptWaitResult> => {
     const { publicClient, blockTime } = rpcHandler.config
@@ -79,20 +80,22 @@ const waitForReceipt = ({
             Math.max(0, timeoutMs)
         )
 
-        // sendReceipt never rejects, but parsing the receipt can throw.
-        // Polling keeps going either way.
-        sendReceipt
-            .then((receipt) => {
-                if (receipt) {
-                    settle(fromTransactionReceipt(receipt))
-                }
-            })
-            .catch((err: unknown) => {
-                rpcHandler.logger.debug(
-                    { err, userOpHash, txHash: transactionHash },
-                    "failed to parse pimlico_sendUserOperationNow send receipt"
-                )
-            })
+        // The sync receipt never rejects, but parsing it can throw. Polling
+        // keeps going either way.
+        if (send.method === "eth_sendRawTransactionSync") {
+            send.receipt
+                .then((receipt) => {
+                    if (receipt) {
+                        settle(fromTransactionReceipt(receipt))
+                    }
+                })
+                .catch((err: unknown) => {
+                    rpcHandler.logger.debug(
+                        { err, userOpHash, txHash: transactionHash },
+                        "failed to parse eth_sendRawTransactionSync receipt"
+                    )
+                })
+        }
 
         const poll = async () => {
             if (settled) {
@@ -225,13 +228,13 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        const { transactionHash, receipt } = result
+        const { transactionHash, send } = result
 
         const receiptResult = await waitForReceipt({
             rpcHandler,
             userOpHash,
             transactionHash,
-            sendReceipt: receipt,
+            send,
             timeoutMs: deadline - Date.now()
         })
 

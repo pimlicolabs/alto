@@ -2,6 +2,7 @@ import type { EventManager } from "@alto/handlers"
 import type {
     Address,
     BundleResult,
+    BundleSend,
     GasPriceParameters,
     HexData32,
     UserOpInfo,
@@ -247,7 +248,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
-        receipt?: Promise<TransactionReceipt | undefined>
+        send: BundleSend
     }> {
         const {
             sendHandleOpsRetryCount,
@@ -288,7 +289,7 @@ export class Executor {
 
         let attempts = 0
         let transactionHash: Hex | undefined
-        let receipt: Promise<TransactionReceipt | undefined> | undefined
+        let send: BundleSend = { method: "eth_sendRawTransaction" }
         const maxAttempts = sendHandleOpsRetryCount
 
         // Replacements keep the regular path: they are sent from the block
@@ -322,7 +323,10 @@ export class Executor {
                             account,
                             request
                         })
-                        receipt = result.receipt
+                        send = {
+                            method: "eth_sendRawTransactionSync",
+                            receipt: result.receipt
+                        }
                         return result.transactionHash
                     }
                 })
@@ -523,7 +527,7 @@ export class Executor {
                 ...gasFees,
                 nonce: request.nonce
             },
-            receipt
+            send
         }
     }
 
@@ -645,8 +649,8 @@ export class Executor {
         // When set, this bundle replaces a previous transaction.
         isReplacement?: boolean
         // When set and the RPC supports EIP-7966, send with
-        // eth_sendRawTransactionSync and return the pending receipt as
-        // receipt. Ignored for replacements.
+        // eth_sendRawTransactionSync and return its pending receipt in send.
+        // Ignored for replacements.
         sendSync?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
@@ -729,7 +733,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
-        let receipt: Promise<TransactionReceipt | undefined> | undefined
+        let send: BundleSend
 
         try {
             const isLegacyTransaction = this.config.legacyTransactions
@@ -774,7 +778,7 @@ export class Executor {
             })
             transactionHash = sendResult.transactionHash
             transactionRequest = sendResult.transactionRequest
-            receipt = sendResult.receipt
+            send = sendResult.send
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -857,7 +861,7 @@ export class Executor {
             rejectedUserOps,
             transactionHash,
             transactionRequest,
-            receipt
+            send
         }
 
         return bundleResult

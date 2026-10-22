@@ -1,6 +1,7 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
 import type {
+    BundleSend,
     BundlingMode,
     GasPriceParameters,
     SubmittedBundleInfo,
@@ -20,12 +21,7 @@ import {
 } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import {
-    type Hex,
-    type TransactionReceipt,
-    type WatchBlocksReturnType,
-    toHex
-} from "viem"
+import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -39,29 +35,16 @@ const EMERGENCY_WALLET_RELEASE_DELAY_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
 
-type SendBundleResult =
+export type SendBundleResult =
     | {
           success: true
           transactionHash: Hex
-          receipt?: Promise<TransactionReceipt | undefined>
+          send: BundleSend
       }
     | {
           success: false
           // Why no transaction was sent, the first rejected userOp's reason
           // when filterOps dropped it.
-          reason: string
-      }
-
-export type SendBundleNowResult =
-    | {
-          success: true
-          transactionHash: Hex
-          // Receipt from eth_sendRawTransactionSync, resolves to undefined
-          // when the node didn't return one. Never rejects.
-          receipt: Promise<TransactionReceipt | undefined>
-      }
-    | {
-          success: false
           reason: string
       }
 
@@ -348,21 +331,11 @@ export class ExecutorManager {
     // resubmission are left to the block loop as usual.
     async sendBundleNow(
         userOpBundle: UserOperationBundle
-    ): Promise<SendBundleNowResult | undefined> {
-        const result = await this.sendBundleWithSpan({
+    ): Promise<SendBundleResult | undefined> {
+        return await this.sendBundleWithSpan({
             userOpBundle,
             sendSync: true
         })
-
-        if (!result?.success) {
-            return result
-        }
-
-        return {
-            success: true,
-            transactionHash: result.transactionHash,
-            receipt: result.receipt ?? Promise.resolve(undefined)
-        }
     }
 
     private async sendBundleWithSpan({
@@ -540,7 +513,7 @@ export class ExecutorManager {
             rejectedUserOps,
             transactionRequest,
             transactionHash,
-            receipt
+            send
         } = bundleResult
 
         span.setAttributes({
@@ -610,7 +583,7 @@ export class ExecutorManager {
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
-        return { success: true, transactionHash, receipt }
+        return { success: true, transactionHash, send }
     }
 
     stopWatchingBlocks(): void {

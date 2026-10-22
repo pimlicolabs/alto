@@ -53,6 +53,16 @@ export type RejectedUserOp = Prettify<
     }
 >
 
+// How a bundle transaction was sent. Only eth_sendRawTransactionSync
+// (EIP-7966) responds with the receipt: it resolves to the receipt, or to
+// undefined when the node didn't return one, and never rejects.
+export type BundleSend =
+    | { method: "eth_sendRawTransaction" }
+    | {
+          method: "eth_sendRawTransactionSync"
+          receipt: Promise<TransactionReceipt | undefined>
+      }
+
 export type BundleResult =
     | {
           success: true
@@ -64,10 +74,7 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
-          // Set when the bundle was sent with eth_sendRawTransactionSync.
-          // Resolves to the receipt the node returned, or undefined. Never
-          // rejects.
-          receipt?: Promise<TransactionReceipt | undefined>
+          send: BundleSend
       }
     | {
           success: false
