@@ -79,12 +79,20 @@ const waitForReceipt = ({
             Math.max(0, timeoutMs)
         )
 
-        // Never rejects.
-        sendReceipt.then((receipt) => {
-            if (receipt) {
-                settle(fromTransactionReceipt(receipt))
-            }
-        })
+        // sendReceipt never rejects, but parsing the receipt can throw.
+        // Polling keeps going either way.
+        sendReceipt
+            .then((receipt) => {
+                if (receipt) {
+                    settle(fromTransactionReceipt(receipt))
+                }
+            })
+            .catch((err: unknown) => {
+                rpcHandler.logger.debug(
+                    { err, userOpHash, txHash: transactionHash },
+                    "failed to parse pimlico_sendUserOperationNow send receipt"
+                )
+            })
 
         const poll = async () => {
             if (settled) {
@@ -233,7 +241,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 "pimlico_sendUserOperationNow timed out waiting for inclusion"
             )
             throw new RpcError(
-                "userOperation was submitted but is not yet included, do not resend it. Track it with eth_getUserOperationReceipt",
+                "userOperation was submitted but is not yet included. Track it with eth_getUserOperationReceipt",
                 ERC7769Errors.InvalidFields,
                 { userOpHash, transactionHash }
             )
