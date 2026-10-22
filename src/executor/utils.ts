@@ -21,8 +21,11 @@ import {
     type BaseError,
     FeeCapTooLowError,
     type Hex,
+    RpcRequestError,
     type SignedAuthorizationList,
     encodeFunctionData,
+    hexToNumber,
+    isHex,
     toBytes
 } from "viem"
 import type { AltoConfig } from "../createConfig"
@@ -132,6 +135,65 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
 // cause chain rather than as the thrown value.
 export const isFeeCapTooLowError = (e: BaseError) => {
     return e.walk((err) => err instanceof FeeCapTooLowError) !== null
+}
+
+// eth_sendRawTransactionSync error codes (EIP-7966).
+const SYNC_SEND_TIMEOUT_CODE = 4
+const SYNC_SEND_NOT_READY_CODE = 5
+const SYNC_SEND_NONCE_GAP_CODE = 6
+
+const findRpcRequestError = (
+    e: BaseError,
+    code: number
+): RpcRequestError | undefined => {
+    const rpcError = e.walk(
+        (err) => err instanceof RpcRequestError && err.code === code
+    )
+    return rpcError instanceof RpcRequestError ? rpcError : undefined
+}
+
+// eth_sendRawTransactionSync errors that still mean the transaction is in the
+// pool: the node timed out waiting for inclusion (EIP-7966 code 4), or it
+// already has the same signed transaction.
+export const isTransactionPendingError = (e: BaseError) => {
+    const pendingError = e.walk((err) => {
+        if (
+            err instanceof RpcRequestError &&
+            err.code === SYNC_SEND_TIMEOUT_CODE
+        ) {
+            return true
+        }
+        return (err as Error).message?.toLowerCase().includes("already known")
+    })
+    return pendingError !== null
+}
+
+// eth_sendRawTransactionSync rejections that left the transaction out of the
+// pool because it can't execute at its nonce (EIP-7966): code 5 when it isn't
+// ready for execution, code 6 on a nonce gap, with the nonce the node expects
+// as data. Undefined for any other error.
+export const parseSyncSendNonceError = (
+    e: BaseError
+): { expectedNonce: number | undefined } | undefined => {
+    const nonceGapError = findRpcRequestError(e, SYNC_SEND_NONCE_GAP_CODE)
+    if (nonceGapError) {
+        const { data } = nonceGapError
+        const expectedNonce =
+            typeof data === "string" && isHex(data)
+                ? hexToNumber(data)
+                : undefined
+        return {
+            expectedNonce: Number.isSafeInteger(expectedNonce)
+                ? expectedNonce
+                : undefined
+        }
+    }
+
+    if (findRpcRequestError(e, SYNC_SEND_NOT_READY_CODE)) {
+        return { expectedNonce: undefined }
+    }
+
+    return undefined
 }
 
 // Some nodes report the account's actual nonce in their "nonce too low" /

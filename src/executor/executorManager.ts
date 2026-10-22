@@ -1,9 +1,12 @@
 import type { GasPriceManager } from "@alto/handlers"
 import type { Mempool } from "@alto/mempool"
 import type {
+    Address,
+    BundleSend,
     BundlingMode,
     GasPriceParameters,
     SubmittedBundleInfo,
+    UserOpInfo,
     UserOperationBundle
 } from "@alto/types"
 import {
@@ -33,6 +36,27 @@ import { getUserOpHashes } from "./utils"
 const EMERGENCY_WALLET_RELEASE_DELAY_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
+
+export type SendBundleResult =
+    | {
+          success: true
+          transactionHash: Hex
+          send: BundleSend
+      }
+    | {
+          success: false
+          // The userOp failed simulation, reason is why filterOps dropped
+          // it. The sender's problem.
+          status: "rejected"
+          reason: string
+      }
+    | {
+          success: false
+          // No bundle was sent for a reason on our side: gas or nonce lookup,
+          // simulation error, executor funds or the send itself.
+          status: "error"
+          reason: string
+      }
 
 export class ExecutorManager {
     private readonly senderManager: SenderManager
@@ -303,6 +327,38 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
+        const result = await this.sendBundleWithSpan({
+            userOpBundle,
+            instant: false
+        })
+        return result?.success ? result.transactionHash : undefined
+    }
+
+    // Sends a bundle for pimlico_sendUserOperationNow. Same as
+    // sendBundleToExecutor, except:
+    // - with --supports-eip7966 the transaction is sent with
+    //   eth_sendRawTransactionSync so the caller can answer with the receipt
+    //   as soon as the node returns it.
+    // - if no bundle is sent, the userOps are dropped instead of resubmitted:
+    //   the caller answers with an error, so they must not land later.
+    // Once sent, tracking, inclusion and resubmission are left to the block
+    // loop as usual.
+    async sendBundleNow(
+        userOpBundle: UserOperationBundle
+    ): Promise<SendBundleResult | undefined> {
+        return await this.sendBundleWithSpan({
+            userOpBundle,
+            instant: true
+        })
+    }
+
+    private async sendBundleWithSpan({
+        userOpBundle,
+        instant
+    }: {
+        userOpBundle: UserOperationBundle
+        instant: boolean
+    }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
             return undefined
@@ -315,17 +371,44 @@ export class ExecutorManager {
                 "bundle.user_op_count": userOps.length,
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
-            fn: (span) => this.sendBundle({ userOpBundle, span })
+            fn: (span) => this.sendBundle({ userOpBundle, span, instant })
         })
+    }
+
+    // Puts userOps back in the mempool when no bundle was sent. Instant
+    // userOps are dropped instead, see sendBundleNow.
+    private async recoverUnsentUserOps({
+        userOps,
+        entryPoint,
+        reason,
+        instant
+    }: {
+        userOps: UserOpInfo[]
+        entryPoint: Address
+        reason: string
+        instant: boolean
+    }) {
+        if (instant) {
+            await this.mempool.dropUserOps(
+                entryPoint,
+                userOps.map((userOpInfo) => ({ ...userOpInfo, reason }))
+            )
+            return
+        }
+
+        await this.mempool.resubmitUserOps({ userOps, entryPoint, reason })
     }
 
     private async sendBundle({
         userOpBundle,
-        span
+        span,
+        instant
     }: {
         userOpBundle: UserOperationBundle
         span: Span
-    }): Promise<Hex | undefined> {
+        // pimlico_sendUserOperationNow bundle, see sendBundleNow.
+        instant: boolean
+    }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
         const wallet = await withSpan({
@@ -347,7 +430,11 @@ export class ExecutorManager {
                         blockTag: "latest"
                     })
                 ])
-        }).catch((_) => {
+        }).catch((err: unknown) => {
+            this.logger.error(
+                { err, executor: wallet.address },
+                "failed to get nonce and gas parameters for bundling"
+            )
             return []
         })
 
@@ -356,12 +443,17 @@ export class ExecutorManager {
             span.setStatus({ code: SpanStatusCode.ERROR })
             // Free executor if failed to get initial params.
             await this.senderManager.markWalletProcessed(wallet)
-            await this.mempool.resubmitUserOps({
+            await this.recoverUnsentUserOps({
                 userOps,
                 entryPoint,
-                reason: "Failed to get nonce and gas parameters for bundling"
+                reason: "Failed to get nonce and gas parameters for bundling",
+                instant
             })
-            return undefined
+            return {
+                success: false,
+                status: "error",
+                reason: "failed to get nonce and gas parameters for bundling"
+            }
         }
 
         const bundleResult = await this.executor.bundle({
@@ -369,7 +461,8 @@ export class ExecutorManager {
             userOpBundle,
             networkGasPrice: gasPriceParams,
             networkBaseFee: baseFee,
-            nonce
+            nonce,
+            sendSync: instant
         })
 
         if (!bundleResult.success) {
@@ -384,10 +477,11 @@ export class ExecutorManager {
             span.setStatus({ code: SpanStatusCode.ERROR, message: reason })
 
             // Recover any userOps that can be resubmitted.
-            await this.mempool.resubmitUserOps({
+            await this.recoverUnsentUserOps({
                 userOps: recoverableOps,
                 entryPoint,
-                reason
+                reason,
+                instant
             })
 
             // For rejected userOps, we need to check for frontruns
@@ -448,11 +542,25 @@ export class ExecutorManager {
                 .labels({ status: "failed" })
                 .inc(rejectedUserOps.length)
 
-            if (reason === "filterops_failed" || reason === "generic_error") {
+            if (
+                reason === "filterops_failed" ||
+                reason === "filterops_unhandled_error" ||
+                reason === "generic_error"
+            ) {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
 
-            return undefined
+            // Only filterops_failed means the simulation rejected the userOps,
+            // every other reason is on our side.
+            if (reason === "filterops_failed") {
+                return {
+                    success: false,
+                    status: "rejected",
+                    reason: rejectedUserOps[0]?.reason ?? reason
+                }
+            }
+
+            return { success: false, status: "error", reason }
         }
 
         // Success case
@@ -460,7 +568,8 @@ export class ExecutorManager {
             userOpsBundled,
             rejectedUserOps,
             transactionRequest,
-            transactionHash
+            transactionHash,
+            send
         } = bundleResult
 
         span.setAttributes({
@@ -530,7 +639,7 @@ export class ExecutorManager {
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
-        return transactionHash
+        return { success: true, transactionHash, send }
     }
 
     stopWatchingBlocks(): void {

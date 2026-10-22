@@ -149,6 +149,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "boolean",
         default: false
     },
+    "instant-bundling-timeout": {
+        description:
+            "Maximum time in ms pimlico_sendUserOperationNow waits for the userOperation to be included before returning a timeout error",
+        type: "number",
+        default: 25000
+    },
+    "instant-bundling-min-send-wait": {
+        description:
+            "Minimum time in ms a pimlico_sendUserOperationNow eth_sendRawTransactionSync send is awaited (at least block-time) before the bundle is tracked as pending. A rejection arriving after this wait is not retried",
+        type: "number",
+        default: 1000
+    },
     "skip-local-gas-calculations": {
         description:
             "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",
@@ -640,6 +652,13 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
                 "Send a legacy transactions instead of an EIP-1559 transactions",
             type: "boolean",
             require: true,
+            default: false
+        },
+        "supports-eip7966": {
+            description:
+                "Whether the RPC supports EIP-7966 (eth_sendRawTransactionSync). When set, pimlico_sendUserOperationNow bundles are sent with it, otherwise with eth_sendRawTransaction",
+            type: "boolean",
+            require: false,
             default: false
         },
         "balance-override": {

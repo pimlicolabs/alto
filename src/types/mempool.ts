@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
-import type { Address, Hex, Prettify } from "viem"
+import type { Address, Hex, Prettify, TransactionReceipt } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
@@ -53,6 +53,16 @@ export type RejectedUserOp = Prettify<
     }
 >
 
+// How a bundle transaction was sent. Only eth_sendRawTransactionSync
+// (EIP-7966) responds with the receipt: it resolves to the receipt, or to
+// undefined when the node didn't return one, and never rejects.
+export type BundleSend =
+    | { method: "eth_sendRawTransaction" }
+    | {
+          method: "eth_sendRawTransactionSync"
+          receipt: Promise<TransactionReceipt | undefined>
+      }
+
 export type BundleResult =
     | {
           success: true
@@ -64,11 +74,13 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
+          send: BundleSend
       }
     | {
           success: false
           reason:
               | "filterops_failed"
+              | "filterops_unhandled_error"
               | "insufficient_funds"
               | "generic_error"
               | "nonce_conflict"

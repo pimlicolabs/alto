@@ -2,6 +2,7 @@ import type { EventManager } from "@alto/handlers"
 import type {
     Address,
     BundleResult,
+    BundleSend,
     GasPriceParameters,
     HexData32,
     UserOpInfo,
@@ -20,6 +21,7 @@ import * as sentry from "@sentry/node"
 import {
     type Account,
     BaseError,
+    type Chain,
     ContractFunctionExecutionError,
     type Hex,
     InsufficientFundsError,
@@ -27,9 +29,19 @@ import {
     NonceTooHighError,
     NonceTooLowError,
     type SendTransactionErrorType,
+    type SendTransactionParameters,
     type SignedAuthorizationList,
-    TransactionExecutionError
+    TransactionExecutionError,
+    type TransactionReceipt,
+    type TransactionSerializable,
+    type Transport,
+    type WalletClient,
+    keccak256
 } from "viem"
+import {
+    type GetTransactionErrorParameters,
+    getTransactionError
+} from "viem/utils"
 import type { AltoConfig } from "../createConfig"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { withSpan } from "./tracing"
@@ -39,8 +51,10 @@ import {
     getAuthorizationListFromUserOps,
     getUserOpHashes,
     isFeeCapTooLowError,
+    isTransactionPendingError,
     isTransactionUnderpricedError,
-    parseNonceFromError
+    parseNonceFromError,
+    parseSyncSendNonceError
 } from "./utils"
 
 type HandleOpsTxParams = {
@@ -214,7 +228,8 @@ export class Executor {
         gasOpts,
         childLogger,
         submissionAttempts,
-        isReplacement
+        isReplacement,
+        sendSync
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
@@ -223,6 +238,9 @@ export class Executor {
         // When set, this send replaces a previous transaction and must keep
         // the same nonce.
         isReplacement?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync, see sendTransactionSync.
+        sendSync?: boolean
     }): Promise<{
         transactionHash: Hex
         transactionRequest: {
@@ -230,6 +248,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
+        send: BundleSend
     }> {
         const {
             sendHandleOpsRetryCount,
@@ -270,7 +289,13 @@ export class Executor {
 
         let attempts = 0
         let transactionHash: Hex | undefined
+        let send: BundleSend = { method: "eth_sendRawTransaction" }
         const maxAttempts = sendHandleOpsRetryCount
+
+        // Replacements keep the regular path: they are sent from the block
+        // loop, where nothing waits on the receipt.
+        const useSyncSend =
+            Boolean(sendSync) && this.config.supportsEip7966 && !isReplacement
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
@@ -288,7 +313,22 @@ export class Executor {
                         "bundle.send.is_private": Boolean(usePrivateEndpoint),
                         "bundle.nonce": request.nonce
                     },
-                    fn: () => walletClient.sendTransaction(request)
+                    fn: async () => {
+                        if (!useSyncSend) {
+                            return await walletClient.sendTransaction(request)
+                        }
+
+                        const result = await this.sendTransactionSync({
+                            walletClient,
+                            account,
+                            request
+                        })
+                        send = {
+                            method: "eth_sendRawTransactionSync",
+                            receipt: result.receipt
+                        }
+                        return result.transactionHash
+                    }
                 })
 
                 childLogger.info(
@@ -391,7 +431,42 @@ export class Executor {
 
                 const error = e as SendTransactionErrorType
 
-                if (error instanceof TransactionExecutionError) {
+                // The EIP-7966 codes only mean this for
+                // eth_sendRawTransactionSync.
+                const syncSendNonceError =
+                    useSyncSend && e instanceof BaseError
+                        ? parseSyncSendNonceError(e)
+                        : undefined
+
+                if (syncSendNonceError) {
+                    // Not added to the pool, so resending can't duplicate the
+                    // bundle. Use the nonce the node expects, or its latest
+                    // nonce when it didn't say. An executor only has one
+                    // bundle in flight, so nothing of ours is pending.
+                    const expectedNonce =
+                        syncSendNonceError.expectedNonce ??
+                        (await publicClient.getTransactionCount({
+                            address: account.address,
+                            blockTag: "latest"
+                        }))
+
+                    // Already at the expected nonce, so the nonce isn't the
+                    // problem and resending the same transaction would get
+                    // the same answer.
+                    if (expectedNonce === request.nonce) {
+                        childLogger.warn(
+                            { txNonce: request.nonce },
+                            "eth_sendRawTransactionSync rejected the transaction at the expected nonce, not retrying"
+                        )
+                        throw error
+                    }
+
+                    childLogger.warn(
+                        { txNonce: request.nonce, expectedNonce },
+                        "eth_sendRawTransactionSync rejected the nonce, retrying"
+                    )
+                    request.nonce = expectedNonce
+                } else if (error instanceof TransactionExecutionError) {
                     const cause = error.cause
 
                     // Prefer the nonce the node reported in its error;
@@ -466,7 +541,109 @@ export class Executor {
             transactionRequest: {
                 ...gasFees,
                 nonce: request.nonce
+            },
+            send
+        }
+    }
+
+    // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
+    // the receipt once the transaction is included. Waits up to one block
+    // (at least instantBundlingMinSendWait) for the response so rejections
+    // still reach the caller's retry handling, then returns with receipt
+    // still pending so the bundle is tracked (and can be replaced) while it
+    // waits for inclusion. receipt resolves to undefined if no receipt comes
+    // back and never rejects.
+    async sendTransactionSync({
+        walletClient,
+        account,
+        request
+    }: {
+        walletClient: WalletClient<Transport, Chain>
+        account: Account
+        request: SendTransactionParameters<Chain>
+    }): Promise<{
+        transactionHash: Hex
+        receipt: Promise<TransactionReceipt | undefined>
+    }> {
+        const { blockTime, instantBundlingMinSendWait } = this.config
+        const waitMs = Math.max(blockTime, instantBundlingMinSendWait)
+
+        // Executor wallets are always local accounts.
+        if (account.type !== "local") {
+            throw new Error(
+                `executor ${account.address} is not a local account, can't sign for eth_sendRawTransactionSync`
+            )
+        }
+
+        try {
+            const preparedRequest =
+                await walletClient.prepareTransactionRequest(request)
+            const serializedTransaction = await account.signTransaction(
+                preparedRequest as TransactionSerializable,
+                { serializer: walletClient.chain.serializers?.transaction }
+            )
+            const transactionHash = keccak256(serializedTransaction)
+
+            // No timeout param: clients disagree on its encoding (anvil
+            // rejects hex), so the node's default applies.
+            const send = walletClient
+                .sendRawTransactionSync({ serializedTransaction })
+                .then(
+                    (receipt) => ({ receipt, err: undefined }),
+                    (err: unknown) => ({ receipt: undefined, err })
+                )
+
+            let waitTimer: ReturnType<typeof setTimeout> | undefined
+            const response = await Promise.race([
+                send,
+                new Promise<undefined>((resolve) => {
+                    waitTimer = setTimeout(() => resolve(undefined), waitMs)
+                })
+            ])
+            clearTimeout(waitTimer)
+
+            // Still waiting for inclusion.
+            if (!response) {
+                return {
+                    transactionHash,
+                    receipt: send.then(({ receipt, err }) => {
+                        if (err) {
+                            // Timeouts are expected while the transaction is
+                            // stuck, the block loop handles it either way.
+                            this.logger.debug(
+                                { err, txHash: transactionHash },
+                                "no receipt from eth_sendRawTransactionSync"
+                            )
+                        }
+                        return receipt
+                    })
+                }
             }
+
+            const { receipt, err } = response
+            if (!err) {
+                return { transactionHash, receipt: Promise.resolve(receipt) }
+            }
+
+            if (err instanceof BaseError && isTransactionPendingError(err)) {
+                return {
+                    transactionHash,
+                    receipt: Promise.resolve(undefined)
+                }
+            }
+
+            throw err
+        } catch (err) {
+            // Wrap like sendTransaction so the caller's nonce and gas retry
+            // handling applies.
+            throw getTransactionError(
+                err as BaseError,
+                {
+                    ...request,
+                    account,
+                    chain: walletClient.chain
+                } as GetTransactionErrorParameters
+            )
         }
     }
 
@@ -476,7 +653,8 @@ export class Executor {
         networkGasPrice,
         networkBaseFee,
         nonce,
-        isReplacement
+        isReplacement,
+        sendSync
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
@@ -485,6 +663,10 @@ export class Executor {
         nonce: number
         // When set, this bundle replaces a previous transaction.
         isReplacement?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync and return its pending receipt in send.
+        // Ignored for replacements.
+        sendSync?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -521,7 +703,7 @@ export class Executor {
             )
             return {
                 success: false,
-                reason: "filterops_failed",
+                reason: "filterops_unhandled_error",
                 rejectedUserOps: filterOpsResult.rejectedUserOps,
                 recoverableOps: []
             }
@@ -566,6 +748,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
+        let send: BundleSend
 
         try {
             const isLegacyTransaction = this.config.legacyTransactions
@@ -605,10 +788,12 @@ export class Executor {
                 childLogger,
                 gasOpts,
                 submissionAttempts: userOpBundle.submissionAttempts,
-                isReplacement
+                isReplacement,
+                sendSync
             })
             transactionHash = sendResult.transactionHash
             transactionRequest = sendResult.transactionRequest
+            send = sendResult.send
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -690,7 +875,8 @@ export class Executor {
             userOpsBundled,
             rejectedUserOps,
             transactionHash,
-            transactionRequest
+            transactionRequest,
+            send
         }
 
         return bundleResult
