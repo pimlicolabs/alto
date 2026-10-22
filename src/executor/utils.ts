@@ -21,6 +21,9 @@ import {
     type BaseError,
     FeeCapTooLowError,
     type Hex,
+    MethodNotFoundRpcError,
+    MethodNotSupportedRpcError,
+    RpcRequestError,
     type SignedAuthorizationList,
     encodeFunctionData,
     toBytes
@@ -132,6 +135,29 @@ export const isTransactionUnderpricedError = (e: BaseError) => {
 // cause chain rather than as the thrown value.
 export const isFeeCapTooLowError = (e: BaseError) => {
     return e.walk((err) => err instanceof FeeCapTooLowError) !== null
+}
+
+// eth_sendRawTransactionSync errors that still mean the transaction is in the
+// pool: the node timed out waiting for inclusion (EIP-7966 code 4), or a
+// fallback endpoint already has the same signed transaction.
+export const isTransactionPendingError = (e: BaseError) => {
+    const pendingError = e.walk((err) => {
+        if (err instanceof RpcRequestError && err.code === 4) {
+            return true
+        }
+        return (err as Error).message?.toLowerCase().includes("already known")
+    })
+    return pendingError !== null
+}
+
+// The endpoint doesn't implement the method (e.g. no EIP-7966 support).
+export const isMethodUnsupportedError = (e: BaseError) => {
+    const unsupportedError = e.walk(
+        (err) =>
+            err instanceof MethodNotFoundRpcError ||
+            err instanceof MethodNotSupportedRpcError
+    )
+    return unsupportedError !== null
 }
 
 // Some nodes report the account's actual nonce in their "nonce too low" /

@@ -3,14 +3,144 @@ import {
     RpcError,
     type UserOpInfo,
     type UserOperationBundle,
+    type UserOperationReceipt,
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
 import {
+    type InstantOutcome,
+    type InstantStage,
     getUserOpHash,
     getViemEntryPointVersion,
+    observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
+import {
+    BaseError,
+    type Hex,
+    type TransactionReceipt,
+    TransactionReceiptNotFoundError
+} from "viem"
 import { createMethodHandler } from "../createMethodHandler"
+import type { RpcHandler } from "../rpcHandler"
+
+type ReceiptWaitResult =
+    | { status: "included"; userOpReceipt: UserOperationReceipt }
+    | { status: "reverted"; transactionHash: Hex }
+    | { status: "timeout" }
+
+// Resolves with whichever comes first: the eth_sendRawTransactionSync
+// receipt, a receipt found by polling, or the deadline. Polling checks the
+// receipt cache too, as the block loop may replace the transaction (gas
+// bump) and the original hash never lands.
+const waitForReceipt = ({
+    rpcHandler,
+    userOpHash,
+    transactionHash,
+    syncReceipt,
+    timeoutMs
+}: {
+    rpcHandler: RpcHandler
+    userOpHash: Hex
+    transactionHash: Hex
+    syncReceipt: Promise<TransactionReceipt | undefined>
+    timeoutMs: number
+}): Promise<ReceiptWaitResult> => {
+    const { publicClient, blockTime } = rpcHandler.config
+    const pollingInterval = Math.max(50, Math.min(100, blockTime / 4))
+
+    const fromTransactionReceipt = (
+        receipt: TransactionReceipt
+    ): ReceiptWaitResult => {
+        if (receipt.status === "reverted") {
+            return {
+                status: "reverted",
+                transactionHash: receipt.transactionHash
+            }
+        }
+        return {
+            status: "included",
+            userOpReceipt: parseUserOpReceipt(userOpHash, receipt)
+        }
+    }
+
+    return new Promise((resolve) => {
+        let settled = false
+        let pollTimer: ReturnType<typeof setTimeout> | undefined
+
+        const settle = (result: ReceiptWaitResult) => {
+            if (settled) {
+                return
+            }
+            settled = true
+            clearTimeout(pollTimer)
+            clearTimeout(deadlineTimer)
+            resolve(result)
+        }
+
+        const deadlineTimer = setTimeout(
+            () => settle({ status: "timeout" }),
+            Math.max(0, timeoutMs)
+        )
+
+        // Never rejects.
+        syncReceipt.then((receipt) => {
+            if (receipt) {
+                settle(fromTransactionReceipt(receipt))
+            }
+        })
+
+        const poll = async () => {
+            if (settled) {
+                return
+            }
+
+            try {
+                const cachedUserOpReceipt =
+                    await rpcHandler.bundleManager.getCachedUserOpReceipt(
+                        userOpHash
+                    )
+                if (cachedUserOpReceipt) {
+                    settle({
+                        status: "included",
+                        userOpReceipt: cachedUserOpReceipt
+                    })
+                    return
+                }
+
+                const receipt = await publicClient
+                    .getTransactionReceipt({ hash: transactionHash })
+                    .catch((err: unknown) => {
+                        // Not mined yet.
+                        if (
+                            err instanceof BaseError &&
+                            err.walk(
+                                (e) =>
+                                    e instanceof TransactionReceiptNotFoundError
+                            )
+                        ) {
+                            return undefined
+                        }
+                        throw err
+                    })
+                if (receipt) {
+                    settle(fromTransactionReceipt(receipt))
+                    return
+                }
+            } catch (err) {
+                rpcHandler.logger.debug(
+                    { err, userOpHash, txHash: transactionHash },
+                    "failed to poll for pimlico_sendUserOperationNow receipt"
+                )
+            }
+
+            if (!settled) {
+                pollTimer = setTimeout(poll, pollingInterval)
+            }
+        }
+
+        pollTimer = setTimeout(poll, pollingInterval)
+    })
+}
 
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
@@ -23,6 +153,34 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
+        const requestStart = Date.now()
+        const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
+        const { metrics } = rpcHandler
+
+        const observeStage = ({
+            stage,
+            startMs
+        }: {
+            stage: InstantStage
+            startMs: number
+        }) => {
+            observeDurationMs({
+                histogram: metrics.instantDuration.labels({ stage }),
+                startMs,
+                endMs: Date.now()
+            })
+        }
+
+        const recordOutcome = (outcome: InstantOutcome) => {
+            metrics.instantOutcome.labels({ outcome }).inc()
+            observeStage({ stage: "total", startMs: requestStart })
+        }
+
+        const reject = (message: string): never => {
+            recordOutcome("rejected")
+            throw new RpcError(message, ERC7769Errors.InvalidFields)
+        }
+
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
@@ -32,7 +190,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             entryPoint
         })
         if (!fieldsValid) {
-            throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
+            return reject(fieldsError)
         }
 
         const userOpHash = getUserOpHash({
@@ -45,7 +203,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [gasPriceValid, gasPriceError] =
             await rpcHandler.validateUserOpGasPrice({ userOp, apiVersion })
         if (!gasPriceValid) {
-            throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
+            return reject(gasPriceError)
         }
 
         // Prepare bundle
@@ -71,23 +229,62 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             entryPoint,
             userOpInfos: [userOpInfo]
         })
-        const result =
-            await rpcHandler.executorManager.sendBundleToExecutor(bundle)
+
+        const sendStart = Date.now()
+        const result = await rpcHandler.executorManager.sendBundleNow(bundle)
+        observeStage({ stage: "send", startMs: sendStart })
 
         if (!result) {
+            return reject("unhandled error during bundle submission")
+        }
+
+        if (!result.success) {
+            return reject(`bundle submission failed: ${result.reason}`)
+        }
+
+        const { transactionHash, syncReceipt, sendPath } = result
+        metrics.instantSendPath.labels({ path: sendPath }).inc()
+
+        const receiptStart = Date.now()
+        const receiptResult = await waitForReceipt({
+            rpcHandler,
+            userOpHash,
+            transactionHash,
+            syncReceipt,
+            timeoutMs: deadline - receiptStart
+        })
+        observeStage({ stage: "receipt", startMs: receiptStart })
+
+        if (receiptResult.status === "timeout") {
+            recordOutcome("timeout")
+            rpcHandler.logger.warn(
+                { userOpHash, txHash: transactionHash },
+                "pimlico_sendUserOperationNow timed out waiting for inclusion"
+            )
             throw new RpcError(
-                "unhandled error during bundle submission",
-                ERC7769Errors.InvalidFields
+                "userOperation was submitted but is not yet included, do not resend it. Track it with eth_getUserOperationReceipt",
+                ERC7769Errors.InvalidFields,
+                { userOpHash, transactionHash }
             )
         }
 
-        // Wait for receipt.
-        const receipt =
-            await rpcHandler.config.publicClient.waitForTransactionReceipt({
-                hash: result,
-                pollingInterval: 100
-            })
+        if (receiptResult.status === "reverted") {
+            recordOutcome("reverted")
+            rpcHandler.logger.warn(
+                { userOpHash, txHash: receiptResult.transactionHash },
+                "pimlico_sendUserOperationNow bundle reverted"
+            )
+            throw new RpcError(
+                `bundle transaction ${receiptResult.transactionHash} reverted onchain`,
+                ERC7769Errors.UserOperationReverted,
+                {
+                    userOpHash,
+                    transactionHash: receiptResult.transactionHash
+                }
+            )
+        }
 
-        return parseUserOpReceipt(userOpHash, receipt)
+        recordOutcome("included")
+        return receiptResult.userOpReceipt
     }
 })

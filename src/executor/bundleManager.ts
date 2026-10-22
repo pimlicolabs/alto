@@ -905,6 +905,14 @@ export class BundleManager {
         }
     }
 
+    // Receipt cache lookup only, no log query. The cache is filled when the
+    // block loop processes an included bundle, including replacements.
+    getCachedUserOpReceipt(
+        userOpHash: HexData32
+    ): Promise<UserOperationReceipt | undefined> {
+        return this.receiptCache.get(userOpHash)
+    }
+
     async getUserOpReceipt(userOpHash: HexData32) {
         // Check cache first
         const cached = await this.receiptCache.get(userOpHash)

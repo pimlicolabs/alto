@@ -1,5 +1,5 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
-import type { Address, Hex, Prettify } from "viem"
+import type { Address, Hex, Prettify, TransactionReceipt } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { Account } from "viem/accounts"
 
@@ -53,6 +53,10 @@ export type RejectedUserOp = Prettify<
     }
 >
 
+// How a sync send reached the node: eth_sendRawTransactionSync, or
+// eth_sendRawTransaction when the endpoint doesn't support it.
+export type SendPath = "sync" | "fallback"
+
 export type BundleResult =
     | {
           success: true
@@ -64,6 +68,11 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
+          // Set when the bundle was sent with eth_sendRawTransactionSync.
+          // Resolves to the receipt the node returned, or undefined. Never
+          // rejects.
+          syncReceipt?: Promise<TransactionReceipt | undefined>
+          sendPath?: SendPath
       }
     | {
           success: false

@@ -3,6 +3,7 @@ import type { Mempool } from "@alto/mempool"
 import type {
     BundlingMode,
     GasPriceParameters,
+    SendPath,
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
@@ -20,7 +21,12 @@ import {
 } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
+import {
+    type Hex,
+    type TransactionReceipt,
+    type WatchBlocksReturnType,
+    toHex
+} from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -33,6 +39,34 @@ import { getUserOpHashes } from "./utils"
 const EMERGENCY_WALLET_RELEASE_DELAY_MS = 1000
 const SCALE_FACTOR = 10 // Interval increases by 10ms per task per minute
 const RPM_WINDOW = 60000 // 1 minute window in ms
+
+type SendBundleResult =
+    | {
+          success: true
+          transactionHash: Hex
+          syncReceipt?: Promise<TransactionReceipt | undefined>
+          sendPath?: SendPath
+      }
+    | {
+          success: false
+          // Why no transaction was sent, the first rejected userOp's reason
+          // when filterOps dropped it.
+          reason: string
+      }
+
+export type SendBundleNowResult =
+    | {
+          success: true
+          transactionHash: Hex
+          // Receipt from eth_sendRawTransactionSync, resolves to undefined
+          // when the node didn't return one. Never rejects.
+          syncReceipt: Promise<TransactionReceipt | undefined>
+          sendPath: SendPath
+      }
+    | {
+          success: false
+          reason: string
+      }
 
 export class ExecutorManager {
     private readonly senderManager: SenderManager
@@ -303,6 +337,45 @@ export class ExecutorManager {
     async sendBundleToExecutor(
         userOpBundle: UserOperationBundle
     ): Promise<Hex | undefined> {
+        const result = await this.sendBundleWithSpan({
+            userOpBundle,
+            sendSync: false
+        })
+        return result?.success ? result.transactionHash : undefined
+    }
+
+    // Sends a bundle for pimlico_sendUserOperationNow. Same as
+    // sendBundleToExecutor, but the transaction is sent with
+    // eth_sendRawTransactionSync so the caller can answer with the receipt
+    // as soon as the node returns it. Tracking, inclusion and resubmission
+    // are left to the block loop as usual.
+    async sendBundleNow(
+        userOpBundle: UserOperationBundle
+    ): Promise<SendBundleNowResult | undefined> {
+        const result = await this.sendBundleWithSpan({
+            userOpBundle,
+            sendSync: true
+        })
+
+        if (!result?.success) {
+            return result
+        }
+
+        return {
+            success: true,
+            transactionHash: result.transactionHash,
+            syncReceipt: result.syncReceipt ?? Promise.resolve(undefined),
+            sendPath: result.sendPath ?? "fallback"
+        }
+    }
+
+    private async sendBundleWithSpan({
+        userOpBundle,
+        sendSync
+    }: {
+        userOpBundle: UserOperationBundle
+        sendSync: boolean
+    }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
             return undefined
@@ -315,17 +388,20 @@ export class ExecutorManager {
                 "bundle.user_op_count": userOps.length,
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
-            fn: (span) => this.sendBundle({ userOpBundle, span })
+            fn: (span) => this.sendBundle({ userOpBundle, span, sendSync })
         })
     }
 
     private async sendBundle({
         userOpBundle,
-        span
+        span,
+        sendSync
     }: {
         userOpBundle: UserOperationBundle
         span: Span
-    }): Promise<Hex | undefined> {
+        // Send with eth_sendRawTransactionSync, see sendBundleNow.
+        sendSync: boolean
+    }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
         const wallet = await withSpan({
@@ -361,7 +437,10 @@ export class ExecutorManager {
                 entryPoint,
                 reason: "Failed to get nonce and gas parameters for bundling"
             })
-            return undefined
+            return {
+                success: false,
+                reason: "failed to get nonce and gas parameters for bundling"
+            }
         }
 
         const bundleResult = await this.executor.bundle({
@@ -369,7 +448,8 @@ export class ExecutorManager {
             userOpBundle,
             networkGasPrice: gasPriceParams,
             networkBaseFee: baseFee,
-            nonce
+            nonce,
+            sendSync
         })
 
         if (!bundleResult.success) {
@@ -452,7 +532,10 @@ export class ExecutorManager {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
 
-            return undefined
+            return {
+                success: false,
+                reason: rejectedUserOps[0]?.reason ?? reason
+            }
         }
 
         // Success case
@@ -460,7 +543,9 @@ export class ExecutorManager {
             userOpsBundled,
             rejectedUserOps,
             transactionRequest,
-            transactionHash
+            transactionHash,
+            syncReceipt,
+            sendPath
         } = bundleResult
 
         span.setAttributes({
@@ -530,7 +615,7 @@ export class ExecutorManager {
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
-        return transactionHash
+        return { success: true, transactionHash, syncReceipt, sendPath }
     }
 
     stopWatchingBlocks(): void {

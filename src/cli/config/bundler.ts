@@ -106,6 +106,7 @@ export const bundlerArgsSchema = z.object({
             )}`
         ),
     "enable-instant-bundling-endpoint": z.boolean(),
+    "instant-bundling-timeout": z.number().int().positive(),
     "skip-local-gas-calculations": z.boolean(),
     "flashblocks-preconfirmation-time": z.number().optional(),
     "receipt-cache-ttl": z.number().int().min(0).optional().default(60000) // Default to 1 minute
