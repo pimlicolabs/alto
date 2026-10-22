@@ -34,6 +34,7 @@ import {
 import { startAltoWithFlags } from "../src/utils/altoInstance.js"
 import {
     beforeEachCleanUp,
+    clearBundlerState,
     getPublicClient,
     getSmartAccountClient
 } from "../src/utils/index.js"
@@ -66,22 +67,23 @@ const rpcResult = async ({
 //   (code 4) and eth_sendRawTransaction answers the transaction hash.
 // - inflateNextNonce: the next eth_getTransactionCount answer is one too
 //   high, so the next bundle is signed with a nonce gap.
-// - rejectSyncSends: eth_sendRawTransactionSync rejects every transaction,
-//   even at the expected nonce.
+// - rejectSends: every send is rejected with nonceGapCode, even at the
+//   expected nonce, for both eth_sendRawTransactionSync and
+//   eth_sendRawTransaction.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
     const state: {
         dropSends: boolean
         inflateNextNonce: boolean
-        rejectSyncSends: boolean
+        rejectSends: boolean
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
     } = {
         dropSends: false,
         inflateNextNonce: false,
-        rejectSyncSends: false,
+        rejectSends: false,
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -115,9 +117,17 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
             return
         }
 
+        const isSyncSend =
+            !Array.isArray(parsed) &&
+            parsed.method === "eth_sendRawTransactionSync"
+        const isRejectedSend =
+            !Array.isArray(parsed) &&
+            parsed.method === "eth_sendRawTransaction" &&
+            state.rejectSends
+
         if (
             !Array.isArray(parsed) &&
-            parsed.method === "eth_sendRawTransactionSync" &&
+            (isSyncSend || isRejectedSend) &&
             !state.dropSends
         ) {
             const serializedTransaction = parsed.params?.[0] as Hex
@@ -135,8 +145,10 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
             )
 
             const hasNonceGap =
-                nonce !== undefined && BigInt(nonce) > expectedNonce
-            if (hasNonceGap || state.rejectSyncSends) {
+                isSyncSend &&
+                nonce !== undefined &&
+                BigInt(nonce) > expectedNonce
+            if (hasNonceGap || state.rejectSends) {
                 state.nonceRejections++
                 const error =
                     state.nonceGapCode === 6
@@ -357,10 +369,13 @@ describe.each([
         })
 
         beforeEach(async () => {
-            await beforeEachCleanUp({ anvilRpc, altoRpc })
             proxy.state.dropSends = false
             proxy.state.inflateNextNonce = false
-            proxy.state.rejectSyncSends = false
+            proxy.state.rejectSends = false
+            // A failed send puts its userOp back in the proxied instance's
+            // mempool, clear it so it isn't resent during the next test.
+            await clearBundlerState({ altoRpc: proxiedAlto.altoRpc })
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
             proxy.state.nonceRejections = 0
             proxy.state.methods = []
         })
@@ -417,8 +432,8 @@ describe.each([
             }
         )
 
-        test.skipIf(!supportsEip7966).each([6, 5] as const)(
-            "Fails without retrying on an EIP-7966 code %i rejection at the expected nonce",
+        test.each([6, 5] as const)(
+            `Handles code %i on ${sendMethod} at the expected nonce`,
             async (nonceGapCode) => {
                 const op = await prepareSignedUserOp({
                     entryPointVersion,
@@ -426,7 +441,7 @@ describe.each([
                     altoRpc: proxiedAlto.altoRpc
                 })
                 proxy.state.nonceGapCode = nonceGapCode
-                proxy.state.rejectSyncSends = true
+                proxy.state.rejectSends = true
 
                 const { result, error } = await rawRpc({
                     url: proxiedAlto.altoRpc,
@@ -436,7 +451,12 @@ describe.each([
 
                 expect(result).toBeUndefined()
                 expect(error?.message).toContain("bundle submission failed")
-                expect(proxy.state.nonceRejections).toEqual(1)
+                // eth_sendRawTransactionSync gives up on the first EIP-7966
+                // rejection. eth_sendRawTransaction ignores the codes and
+                // uses every retry (send-handle-ops-retry-count, 3).
+                expect(proxy.state.nonceRejections).toEqual(
+                    supportsEip7966 ? 1 : 3
+                )
             }
         )
 

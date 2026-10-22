@@ -431,8 +431,10 @@ export class Executor {
 
                 const error = e as SendTransactionErrorType
 
+                // The EIP-7966 codes only mean this for
+                // eth_sendRawTransactionSync.
                 const syncSendNonceError =
-                    e instanceof BaseError
+                    useSyncSend && e instanceof BaseError
                         ? parseSyncSendNonceError(e)
                         : undefined
 
