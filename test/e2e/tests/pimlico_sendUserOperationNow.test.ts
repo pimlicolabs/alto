@@ -20,8 +20,10 @@ import {
     entryPoint06Address,
     entryPoint07Address,
     entryPoint08Address,
-    entryPoint09Address
+    entryPoint09Address,
+    getUserOperationHash
 } from "viem/account-abstraction"
+import { foundry } from "viem/chains"
 import {
     afterAll,
     beforeAll,
@@ -372,8 +374,8 @@ describe.each([
             proxy.state.dropSends = false
             proxy.state.inflateNextNonce = false
             proxy.state.rejectSends = false
-            // A failed send puts its userOp back in the proxied instance's
-            // mempool, clear it so it isn't resent during the next test.
+            // Clear the proxied instance so nothing left from the previous
+            // test is sent during this one.
             await clearBundlerState({ altoRpc: proxiedAlto.altoRpc })
             await beforeEachCleanUp({ anvilRpc, altoRpc })
             proxy.state.nonceRejections = 0
@@ -461,6 +463,27 @@ describe.each([
                 expect(proxy.state.nonceRejections).toEqual(
                     supportsEip7966 ? 1 : 3
                 )
+
+                // The userOp is dropped, not put back in the mempool, so it
+                // isn't sent again once sends go through.
+                const { result: status } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_getUserOperationStatus",
+                    params: [
+                        getUserOperationHash({
+                            userOperation: op,
+                            chainId: foundry.id,
+                            entryPointAddress: entryPoint,
+                            entryPointVersion
+                        })
+                    ]
+                })
+                expect(status).toMatchObject({ status: "rejected" })
+
+                proxy.state.rejectSends = false
+                proxy.state.methods = []
+                await new Promise((resolve) => setTimeout(resolve, 1_500))
+                expect(proxy.state.methods).not.toContain(sendMethod)
             }
         )
 
