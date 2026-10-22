@@ -332,7 +332,13 @@ export function createMetrics(registry: Registry, register = true) {
     }
 }
 
-export type InstantOutcome = "included" | "reverted" | "timeout" | "rejected"
+// rejected: the userOp was invalid. failed: we couldn't send the bundle.
+export type InstantOutcome =
+    | "included"
+    | "reverted"
+    | "timeout"
+    | "rejected"
+    | "failed"
 
 export type UserOpStage =
     | "validation"

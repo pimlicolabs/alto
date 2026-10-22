@@ -242,6 +242,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         // non-RpcErrors to Sentry and logs them, and the client only gets a
         // generic message.
         if (!result || (!result.success && result.status === "error")) {
+            recordOutcome("failed")
             rpcHandler.logger.error(
                 { userOpHash, reason: result?.reason ?? "no bundle to send" },
                 "pimlico_sendUserOperationNow failed to submit the bundle"
