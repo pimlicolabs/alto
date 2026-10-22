@@ -703,7 +703,7 @@ export class Executor {
             )
             return {
                 success: false,
-                reason: "filterops_failed",
+                reason: "filterops_unhandled_error",
                 rejectedUserOps: filterOpsResult.rejectedUserOps,
                 recoverableOps: []
             }

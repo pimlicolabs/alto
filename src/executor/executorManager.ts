@@ -43,8 +43,16 @@ export type SendBundleResult =
       }
     | {
           success: false
-          // Why no transaction was sent, the first rejected userOp's reason
-          // when filterOps dropped it.
+          // The userOp failed simulation, reason is why filterOps dropped
+          // it. The sender's problem.
+          status: "rejected"
+          reason: string
+      }
+    | {
+          success: false
+          // No bundle was sent for a reason on our side: gas or nonce lookup,
+          // simulation error, executor funds or the send itself.
+          status: "error"
           reason: string
       }
 
@@ -392,7 +400,11 @@ export class ExecutorManager {
                         blockTag: "latest"
                     })
                 ])
-        }).catch((_) => {
+        }).catch((err: unknown) => {
+            this.logger.error(
+                { err, executor: wallet.address },
+                "failed to get nonce and gas parameters for bundling"
+            )
             return []
         })
 
@@ -408,6 +420,7 @@ export class ExecutorManager {
             })
             return {
                 success: false,
+                status: "error",
                 reason: "failed to get nonce and gas parameters for bundling"
             }
         }
@@ -497,14 +510,25 @@ export class ExecutorManager {
                 .labels({ status: "failed" })
                 .inc(rejectedUserOps.length)
 
-            if (reason === "filterops_failed" || reason === "generic_error") {
+            if (
+                reason === "filterops_failed" ||
+                reason === "filterops_unhandled_error" ||
+                reason === "generic_error"
+            ) {
                 this.metrics.bundlesSubmitted.labels({ status: "failed" }).inc()
             }
 
-            return {
-                success: false,
-                reason: rejectedUserOps[0]?.reason ?? reason
+            // Only filterops_failed means the simulation rejected the userOps,
+            // every other reason is on our side.
+            if (reason === "filterops_failed") {
+                return {
+                    success: false,
+                    status: "rejected",
+                    reason: rejectedUserOps[0]?.reason ?? reason
+                }
             }
+
+            return { success: false, status: "error", reason }
         }
 
         // Success case

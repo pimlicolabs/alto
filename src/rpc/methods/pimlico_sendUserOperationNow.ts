@@ -214,11 +214,15 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
 
         const result = await rpcHandler.executorManager.sendBundleNow(bundle)
 
-        if (!result) {
-            throw new RpcError(
-                "unhandled error during bundle submission",
-                ERC7769Errors.InvalidFields
+        // Failures on our side are server errors: the RPC server reports
+        // non-RpcErrors to Sentry and logs them, and the client only gets a
+        // generic message.
+        if (!result || (!result.success && result.status === "error")) {
+            rpcHandler.logger.error(
+                { userOpHash, reason: result?.reason ?? "no bundle to send" },
+                "pimlico_sendUserOperationNow failed to submit the bundle"
             )
+            throw new Error("internal error while submitting the userOperation")
         }
 
         if (!result.success) {

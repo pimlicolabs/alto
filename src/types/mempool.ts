@@ -80,6 +80,7 @@ export type BundleResult =
           success: false
           reason:
               | "filterops_failed"
+              | "filterops_unhandled_error"
               | "insufficient_funds"
               | "generic_error"
               | "nonce_conflict"

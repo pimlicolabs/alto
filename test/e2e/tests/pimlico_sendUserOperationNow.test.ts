@@ -449,8 +449,12 @@ describe.each([
                     params: [deepHexlify(op), entryPoint]
                 })
 
+                // A failed send is a server error with a generic message.
                 expect(result).toBeUndefined()
-                expect(error?.message).toContain("bundle submission failed")
+                expect(error?.code).toBeUndefined()
+                expect(error?.message).toEqual(
+                    "internal error while submitting the userOperation"
+                )
                 // eth_sendRawTransactionSync gives up on the first EIP-7966
                 // rejection. eth_sendRawTransaction ignores the codes and
                 // uses every retry (send-handle-ops-retry-count, 3).
@@ -459,6 +463,25 @@ describe.each([
                 )
             }
         )
+
+        test("Returns the simulation error when the userOp is rejected", async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            })
+            op.signature = `0x${"11".repeat(65)}`
+
+            const { result, error } = await rawRpc({
+                url: proxiedAlto.altoRpc,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+
+            expect(result).toBeUndefined()
+            expect(error?.code).toEqual(-32602)
+            expect(error?.message).toMatch(/^bundle submission failed: .*AA2\d/)
+        })
 
         // Keep last: the dropped bundle stays tracked by the proxied instance.
         test("Returns a timeout error with the hashes when not included", async () => {
