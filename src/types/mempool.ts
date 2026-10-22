@@ -64,8 +64,8 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
-          // Set when the send waited for the receipt (awaitReceipt).
-          // Resolves to the receipt, or undefined if none arrived. Never
+          // Set when the bundle was sent with eth_sendRawTransactionSync.
+          // Resolves to the receipt the node returned, or undefined. Never
           // rejects.
           receipt?: Promise<TransactionReceipt | undefined>
       }

@@ -227,7 +227,7 @@ export class Executor {
         childLogger,
         submissionAttempts,
         isReplacement,
-        awaitReceipt
+        sendSync
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
@@ -236,9 +236,9 @@ export class Executor {
         // When set, this send replaces a previous transaction and must keep
         // the same nonce.
         isReplacement?: boolean
-        // When set, wait briefly for the receipt after sending, see
-        // sendTransactionAndWaitForReceipt.
-        awaitReceipt?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync, see sendTransactionSync.
+        sendSync?: boolean
     }): Promise<{
         transactionHash: Hex
         transactionRequest: {
@@ -292,7 +292,8 @@ export class Executor {
 
         // Replacements keep the regular path: they are sent from the block
         // loop, where nothing waits on the receipt.
-        const useAwaitReceipt = Boolean(awaitReceipt) && !isReplacement
+        const useSyncSend =
+            Boolean(sendSync) && this.config.supportsEip7966 && !isReplacement
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
@@ -311,16 +312,15 @@ export class Executor {
                         "bundle.nonce": request.nonce
                     },
                     fn: async () => {
-                        if (!useAwaitReceipt) {
+                        if (!useSyncSend) {
                             return await walletClient.sendTransaction(request)
                         }
 
-                        const result =
-                            await this.sendTransactionAndWaitForReceipt({
-                                walletClient,
-                                account,
-                                request
-                            })
+                        const result = await this.sendTransactionSync({
+                            walletClient,
+                            account,
+                            request
+                        })
                         receipt = result.receipt
                         return result.transactionHash
                     }
@@ -506,17 +506,14 @@ export class Executor {
         }
     }
 
-    // Sends a bundle for pimlico_sendUserOperationNow and waits up to one
-    // block (at least instantBundlingMinSendWait) for its receipt. With
-    // supportsEip7966 it is sent with
-    // eth_sendRawTransactionSync (EIP-7966) and the wait covers the node's
-    // response, so rejections still reach the caller's retry handling.
-    // Otherwise it is sent with eth_sendRawTransaction and the receipt is
-    // polled. If no receipt arrives in time, returns with receipt still
-    // pending so the bundle is tracked (and can be replaced) while it waits
-    // for inclusion. receipt resolves to undefined if no receipt comes back
-    // and never rejects.
-    async sendTransactionAndWaitForReceipt({
+    // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
+    // the receipt once the transaction is included. Waits up to one block
+    // (at least instantBundlingMinSendWait) for the response so rejections
+    // still reach the caller's retry handling, then returns with receipt
+    // still pending so the bundle is tracked (and can be replaced) while it
+    // waits for inclusion. receipt resolves to undefined if no receipt comes
+    // back and never rejects.
+    async sendTransactionSync({
         walletClient,
         account,
         request
@@ -528,26 +525,8 @@ export class Executor {
         transactionHash: Hex
         receipt: Promise<TransactionReceipt | undefined>
     }> {
-        const {
-            blockTime,
-            instantBundlingMinSendWait,
-            publicClient,
-            supportsEip7966
-        } = this.config
+        const { blockTime, instantBundlingMinSendWait } = this.config
         const waitMs = Math.max(blockTime, instantBundlingMinSendWait)
-
-        if (!supportsEip7966) {
-            const transactionHash = await walletClient.sendTransaction(request)
-            const receipt = await publicClient
-                .waitForTransactionReceipt({
-                    hash: transactionHash,
-                    pollingInterval: Math.max(50, Math.min(100, blockTime / 4)),
-                    timeout: waitMs
-                })
-                // Not included within the wait, the caller keeps polling.
-                .catch(() => undefined)
-            return { transactionHash, receipt: Promise.resolve(receipt) }
-        }
 
         // Executor wallets are always local accounts.
         if (account.type !== "local") {
@@ -635,7 +614,7 @@ export class Executor {
         networkBaseFee,
         nonce,
         isReplacement,
-        awaitReceipt
+        sendSync
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
@@ -644,10 +623,10 @@ export class Executor {
         nonce: number
         // When set, this bundle replaces a previous transaction.
         isReplacement?: boolean
-        // When set, wait briefly for the receipt after sending and return it
-        // as receipt, see sendTransactionAndWaitForReceipt. Ignored for
-        // replacements.
-        awaitReceipt?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync and return the pending receipt as
+        // receipt. Ignored for replacements.
+        sendSync?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -770,7 +749,7 @@ export class Executor {
                 gasOpts,
                 submissionAttempts: userOpBundle.submissionAttempts,
                 isReplacement,
-                awaitReceipt
+                sendSync
             })
             transactionHash = sendResult.transactionHash
             transactionRequest = sendResult.transactionRequest
