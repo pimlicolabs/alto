@@ -110,12 +110,14 @@ const validatePvg = async ({
     entryPoint: Address
     config: AltoConfig
     isBoosted?: boolean
-}): Promise<[boolean, string, bigint]> => {
+}): Promise<
+    { valid: true; requiredPvg: bigint } | { valid: false; error: string }
+> => {
     // PVG validation is skipped for v1 and boosted userOperations, and in
     // emergency mode where the L2 fee inputs come from RPC reads that may be
     // stale, slow, or replaced by the emergency fallback.
     if (apiVersion === "v1" || isBoosted || config.emergencyMode) {
-        return [true, "", 0n]
+        return { valid: true, requiredPvg: 0n }
     }
 
     let requiredPvg: bigint
@@ -152,14 +154,13 @@ const validatePvg = async ({
     }
 
     if (requiredPvg > userOp.preVerificationGas) {
-        return [
-            false,
-            `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`,
-            requiredPvg
-        ]
+        return {
+            valid: false,
+            error: `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
+        }
     }
 
-    return [true, "", requiredPvg]
+    return { valid: true, requiredPvg }
 }
 
 const getUserOpValidationResult = async ({
@@ -292,7 +293,7 @@ export async function addToMempoolIfValid({
     const [
         { queuedUserOps, validationResult, minReservoirGas, reservoirGas },
         currentNonceSeq,
-        [isPvgValid, pvgError, requiredPvg],
+        pvgResult,
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
         chainRulesResult
@@ -341,10 +342,14 @@ export async function addToMempoolIfValid({
     }
 
     // PreVerificationGas validation
-    if (!isPvgValid) {
-        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgError)
-        throw new RpcError(pvgError, ERC7769Errors.SimulateValidation)
+    if (!pvgResult.valid) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            pvgResult.error
+        )
+        throw new RpcError(pvgResult.error, ERC7769Errors.SimulateValidation)
     }
+    const { requiredPvg } = pvgResult
 
     // The EntryPoint never charges reservoir gas to the userOp, so a userOp
     // that pays must cover the reservoir in preVerificationGas
