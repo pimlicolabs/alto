@@ -3,7 +3,6 @@ import type { Mempool } from "@alto/mempool"
 import type {
     BundlingMode,
     GasPriceParameters,
-    SendPath,
     SubmittedBundleInfo,
     UserOperationBundle
 } from "@alto/types"
@@ -44,8 +43,7 @@ type SendBundleResult =
     | {
           success: true
           transactionHash: Hex
-          syncReceipt?: Promise<TransactionReceipt | undefined>
-          sendPath?: SendPath
+          receipt?: Promise<TransactionReceipt | undefined>
       }
     | {
           success: false
@@ -58,10 +56,9 @@ export type SendBundleNowResult =
     | {
           success: true
           transactionHash: Hex
-          // Receipt from eth_sendRawTransactionSync, resolves to undefined
-          // when the node didn't return one. Never rejects.
-          syncReceipt: Promise<TransactionReceipt | undefined>
-          sendPath: SendPath
+          // Receipt seen while sending, resolves to undefined when none
+          // arrived. Never rejects.
+          receipt: Promise<TransactionReceipt | undefined>
       }
     | {
           success: false
@@ -339,22 +336,22 @@ export class ExecutorManager {
     ): Promise<Hex | undefined> {
         const result = await this.sendBundleWithSpan({
             userOpBundle,
-            sendSync: false
+            awaitReceipt: false
         })
         return result?.success ? result.transactionHash : undefined
     }
 
     // Sends a bundle for pimlico_sendUserOperationNow. Same as
-    // sendBundleToExecutor, but the transaction is sent with
-    // eth_sendRawTransactionSync so the caller can answer with the receipt
-    // as soon as the node returns it. Tracking, inclusion and resubmission
+    // sendBundleToExecutor, but also returns the receipt seen while sending
+    // (see Executor.sendTransactionAndWaitForReceipt) so the caller can
+    // answer as soon as it's available. Tracking, inclusion and resubmission
     // are left to the block loop as usual.
     async sendBundleNow(
         userOpBundle: UserOperationBundle
     ): Promise<SendBundleNowResult | undefined> {
         const result = await this.sendBundleWithSpan({
             userOpBundle,
-            sendSync: true
+            awaitReceipt: true
         })
 
         if (!result?.success) {
@@ -364,17 +361,16 @@ export class ExecutorManager {
         return {
             success: true,
             transactionHash: result.transactionHash,
-            syncReceipt: result.syncReceipt ?? Promise.resolve(undefined),
-            sendPath: result.sendPath ?? "fallback"
+            receipt: result.receipt ?? Promise.resolve(undefined)
         }
     }
 
     private async sendBundleWithSpan({
         userOpBundle,
-        sendSync
+        awaitReceipt
     }: {
         userOpBundle: UserOperationBundle
-        sendSync: boolean
+        awaitReceipt: boolean
     }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
@@ -388,19 +384,19 @@ export class ExecutorManager {
                 "bundle.user_op_count": userOps.length,
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
-            fn: (span) => this.sendBundle({ userOpBundle, span, sendSync })
+            fn: (span) => this.sendBundle({ userOpBundle, span, awaitReceipt })
         })
     }
 
     private async sendBundle({
         userOpBundle,
         span,
-        sendSync
+        awaitReceipt
     }: {
         userOpBundle: UserOperationBundle
         span: Span
-        // Send with eth_sendRawTransactionSync, see sendBundleNow.
-        sendSync: boolean
+        // Wait briefly for the receipt after sending, see sendBundleNow.
+        awaitReceipt: boolean
     }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
@@ -449,7 +445,7 @@ export class ExecutorManager {
             networkGasPrice: gasPriceParams,
             networkBaseFee: baseFee,
             nonce,
-            sendSync
+            awaitReceipt
         })
 
         if (!bundleResult.success) {
@@ -544,8 +540,7 @@ export class ExecutorManager {
             rejectedUserOps,
             transactionRequest,
             transactionHash,
-            syncReceipt,
-            sendPath
+            receipt
         } = bundleResult
 
         span.setAttributes({
@@ -615,7 +610,7 @@ export class ExecutorManager {
         await this.mempool.dropUserOps(entryPoint, rejectedUserOps)
         this.metrics.bundlesSubmitted.labels({ status: "success" }).inc()
 
-        return { success: true, transactionHash, syncReceipt, sendPath }
+        return { success: true, transactionHash, receipt }
     }
 
     stopWatchingBlocks(): void {

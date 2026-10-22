@@ -155,6 +155,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 25000
     },
+    "instant-bundling-send-raw-transaction-sync": {
+        description:
+            "Send pimlico_sendUserOperationNow bundles with eth_sendRawTransactionSync (EIP-7966). Only enable when the RPC supports it, otherwise bundles are sent with eth_sendRawTransaction and the receipt is polled",
+        type: "boolean",
+        default: false
+    },
+    "instant-bundling-min-send-wait": {
+        description:
+            "Minimum time in ms a pimlico_sendUserOperationNow send waits for the receipt (at least block-time) before the bundle is tracked as pending. A sync send rejection arriving after this wait is not retried",
+        type: "number",
+        default: 1000
+    },
     "skip-local-gas-calculations": {
         description:
             "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",

@@ -4,7 +4,6 @@ import type {
     BundleResult,
     GasPriceParameters,
     HexData32,
-    SendPath,
     UserOpInfo,
     UserOperationBundle
 } from "@alto/types"
@@ -51,16 +50,10 @@ import {
     getAuthorizationListFromUserOps,
     getUserOpHashes,
     isFeeCapTooLowError,
-    isMethodUnsupportedError,
     isTransactionPendingError,
     isTransactionUnderpricedError,
     parseNonceFromError
 } from "./utils"
-
-// Floor on how long a sync send is awaited before the bundle is tracked as
-// pending. Fast chains set block-time below the send round trip, and a
-// rejection that arrives after the wait is never retried.
-const MIN_SYNC_SEND_WAIT_MS = 1_000
 
 type HandleOpsTxParams = {
     gas: bigint
@@ -234,7 +227,7 @@ export class Executor {
         childLogger,
         submissionAttempts,
         isReplacement,
-        sendSync
+        awaitReceipt
     }: {
         txParam: HandleOpsTxParams
         gasOpts: HandleOpsGasParams
@@ -243,8 +236,9 @@ export class Executor {
         // When set, this send replaces a previous transaction and must keep
         // the same nonce.
         isReplacement?: boolean
-        // When set, send with eth_sendRawTransactionSync (EIP-7966).
-        sendSync?: boolean
+        // When set, wait briefly for the receipt after sending, see
+        // sendTransactionAndWaitForReceipt.
+        awaitReceipt?: boolean
     }): Promise<{
         transactionHash: Hex
         transactionRequest: {
@@ -252,8 +246,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
-        syncReceipt?: Promise<TransactionReceipt | undefined>
-        sendPath?: SendPath
+        receipt?: Promise<TransactionReceipt | undefined>
     }> {
         const {
             sendHandleOpsRetryCount,
@@ -294,13 +287,12 @@ export class Executor {
 
         let attempts = 0
         let transactionHash: Hex | undefined
-        let syncReceipt: Promise<TransactionReceipt | undefined> | undefined
-        let sendPath: SendPath | undefined
+        let receipt: Promise<TransactionReceipt | undefined> | undefined
         const maxAttempts = sendHandleOpsRetryCount
 
         // Replacements keep the regular path: they are sent from the block
         // loop, where nothing waits on the receipt.
-        const useSyncSend = Boolean(sendSync) && !isReplacement
+        const useAwaitReceipt = Boolean(awaitReceipt) && !isReplacement
 
         // Try sending the transaction and updating relevant fields if there is an error.
         while (attempts < maxAttempts) {
@@ -316,22 +308,20 @@ export class Executor {
                     attributes: {
                         "bundle.send.attempt": attempts,
                         "bundle.send.is_private": Boolean(usePrivateEndpoint),
-                        "bundle.send.sync": useSyncSend,
                         "bundle.nonce": request.nonce
                     },
-                    fn: async (span) => {
-                        if (!useSyncSend) {
+                    fn: async () => {
+                        if (!useAwaitReceipt) {
                             return await walletClient.sendTransaction(request)
                         }
 
-                        const result = await this.sendTransactionSync({
-                            walletClient,
-                            account,
-                            request
-                        })
-                        syncReceipt = result.syncReceipt
-                        sendPath = result.sendPath
-                        span.setAttribute("bundle.send.path", result.sendPath)
+                        const result =
+                            await this.sendTransactionAndWaitForReceipt({
+                                walletClient,
+                                account,
+                                request
+                            })
+                        receipt = result.receipt
                         return result.transactionHash
                     }
                 })
@@ -345,8 +335,7 @@ export class Executor {
                             nonce: request.nonce
                         },
                         txHash: transactionHash,
-                        isPrivate: usePrivateEndpoint,
-                        sendPath
+                        isPrivate: usePrivateEndpoint
                     },
                     "submitted bundle transaction"
                 )
@@ -513,19 +502,21 @@ export class Executor {
                 ...gasFees,
                 nonce: request.nonce
             },
-            syncReceipt,
-            sendPath
+            receipt
         }
     }
 
-    // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
-    // the receipt once the transaction is included. Waits up to one block
-    // (at least MIN_SYNC_SEND_WAIT_MS) for the response so rejections still
-    // reach the caller's retry handling, then returns with syncReceipt still
+    // Sends a bundle for pimlico_sendUserOperationNow and waits up to one
+    // block (at least instantBundlingMinSendWait) for its receipt. With
+    // instantBundlingSendRawTransactionSync it is sent with
+    // eth_sendRawTransactionSync (EIP-7966) and the wait covers the node's
+    // response, so rejections still reach the caller's retry handling.
+    // Otherwise it is sent with eth_sendRawTransaction and the receipt is
+    // polled. If no receipt arrives in time, returns with receipt still
     // pending so the bundle is tracked (and can be replaced) while it waits
-    // for inclusion. syncReceipt resolves to undefined if no receipt comes
-    // back and never rejects.
-    async sendTransactionSync({
+    // for inclusion. receipt resolves to undefined if no receipt comes back
+    // and never rejects.
+    async sendTransactionAndWaitForReceipt({
         walletClient,
         account,
         request
@@ -535,17 +526,34 @@ export class Executor {
         request: SendTransactionParameters<Chain>
     }): Promise<{
         transactionHash: Hex
-        syncReceipt: Promise<TransactionReceipt | undefined>
-        sendPath: SendPath
+        receipt: Promise<TransactionReceipt | undefined>
     }> {
-        // Executor wallets are local accounts, anything else can't be signed
-        // here.
+        const {
+            blockTime,
+            instantBundlingMinSendWait,
+            instantBundlingSendRawTransactionSync,
+            publicClient
+        } = this.config
+        const waitMs = Math.max(blockTime, instantBundlingMinSendWait)
+
+        if (!instantBundlingSendRawTransactionSync) {
+            const transactionHash = await walletClient.sendTransaction(request)
+            const receipt = await publicClient
+                .waitForTransactionReceipt({
+                    hash: transactionHash,
+                    pollingInterval: Math.max(50, Math.min(100, blockTime / 4)),
+                    timeout: waitMs
+                })
+                // Not included within the wait, the caller keeps polling.
+                .catch(() => undefined)
+            return { transactionHash, receipt: Promise.resolve(receipt) }
+        }
+
+        // Executor wallets are always local accounts.
         if (account.type !== "local") {
-            return {
-                transactionHash: await walletClient.sendTransaction(request),
-                syncReceipt: Promise.resolve(undefined),
-                sendPath: "fallback"
-            }
+            throw new Error(
+                `executor ${account.address} is not a local account, can't sign for eth_sendRawTransactionSync`
+            )
         }
 
         try {
@@ -570,10 +578,7 @@ export class Executor {
             const response = await Promise.race([
                 send,
                 new Promise<undefined>((resolve) => {
-                    waitTimer = setTimeout(
-                        () => resolve(undefined),
-                        Math.max(this.config.blockTime, MIN_SYNC_SEND_WAIT_MS)
-                    )
+                    waitTimer = setTimeout(() => resolve(undefined), waitMs)
                 })
             ])
             clearTimeout(waitTimer)
@@ -582,7 +587,7 @@ export class Executor {
             if (!response) {
                 return {
                     transactionHash,
-                    syncReceipt: send.then(({ receipt, err }) => {
+                    receipt: send.then(({ receipt, err }) => {
                         if (err) {
                             // Timeouts are expected while the transaction is
                             // stuck, the block loop handles it either way.
@@ -592,43 +597,19 @@ export class Executor {
                             )
                         }
                         return receipt
-                    }),
-                    sendPath: "sync"
+                    })
                 }
             }
 
             const { receipt, err } = response
             if (!err) {
-                return {
-                    transactionHash,
-                    syncReceipt: Promise.resolve(receipt),
-                    sendPath: "sync"
-                }
+                return { transactionHash, receipt: Promise.resolve(receipt) }
             }
 
-            if (!(err instanceof BaseError)) {
-                throw err
-            }
-
-            if (isTransactionPendingError(err)) {
+            if (err instanceof BaseError && isTransactionPendingError(err)) {
                 return {
                     transactionHash,
-                    syncReceipt: Promise.resolve(undefined),
-                    sendPath: "sync"
-                }
-            }
-
-            // Endpoint without EIP-7966 support, send it the usual way.
-            if (isMethodUnsupportedError(err)) {
-                this.logger.warn(
-                    { err },
-                    "eth_sendRawTransactionSync unsupported, falling back to eth_sendRawTransaction"
-                )
-                await walletClient.sendRawTransaction({ serializedTransaction })
-                return {
-                    transactionHash,
-                    syncReceipt: Promise.resolve(undefined),
-                    sendPath: "fallback"
+                    receipt: Promise.resolve(undefined)
                 }
             }
 
@@ -654,7 +635,7 @@ export class Executor {
         networkBaseFee,
         nonce,
         isReplacement,
-        sendSync
+        awaitReceipt
     }: {
         executor: Account
         userOpBundle: UserOperationBundle
@@ -663,10 +644,10 @@ export class Executor {
         nonce: number
         // When set, this bundle replaces a previous transaction.
         isReplacement?: boolean
-        // When set, send with eth_sendRawTransactionSync (EIP-7966) and
-        // return the pending receipt as syncReceipt. Ignored for
+        // When set, wait briefly for the receipt after sending and return it
+        // as receipt, see sendTransactionAndWaitForReceipt. Ignored for
         // replacements.
-        sendSync?: boolean
+        awaitReceipt?: boolean
     }): Promise<BundleResult> {
         const { entryPoint, userOps } = userOpBundle
 
@@ -748,8 +729,7 @@ export class Executor {
             maxPriorityFeePerGas: bigint
             nonce: number
         }
-        let syncReceipt: Promise<TransactionReceipt | undefined> | undefined
-        let sendPath: SendPath | undefined
+        let receipt: Promise<TransactionReceipt | undefined> | undefined
 
         try {
             const isLegacyTransaction = this.config.legacyTransactions
@@ -790,12 +770,11 @@ export class Executor {
                 gasOpts,
                 submissionAttempts: userOpBundle.submissionAttempts,
                 isReplacement,
-                sendSync
+                awaitReceipt
             })
             transactionHash = sendResult.transactionHash
             transactionRequest = sendResult.transactionRequest
-            syncReceipt = sendResult.syncReceipt
-            sendPath = sendResult.sendPath
+            receipt = sendResult.receipt
 
             this.eventManager.emitSubmitted({
                 userOpHashes: getUserOpHashes(userOpsToBundle),
@@ -878,8 +857,7 @@ export class Executor {
             rejectedUserOps,
             transactionHash,
             transactionRequest,
-            syncReceipt,
-            sendPath
+            receipt
         }
 
         return bundleResult

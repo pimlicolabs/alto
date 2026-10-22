@@ -7,11 +7,8 @@ import {
     pimlicoSendUserOperationNowSchema
 } from "@alto/types"
 import {
-    type InstantOutcome,
-    type InstantStage,
     getUserOpHash,
     getViemEntryPointVersion,
-    observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
 import {
@@ -28,21 +25,21 @@ type ReceiptWaitResult =
     | { status: "reverted"; transactionHash: Hex }
     | { status: "timeout" }
 
-// Resolves with whichever comes first: the eth_sendRawTransactionSync
-// receipt, a receipt found by polling, or the deadline. Polling checks the
+// Resolves with whichever comes first: the receipt seen while sending, a
+// receipt found by polling, or the deadline. Polling checks the
 // receipt cache too, as the block loop may replace the transaction (gas
 // bump) and the original hash never lands.
 const waitForReceipt = ({
     rpcHandler,
     userOpHash,
     transactionHash,
-    syncReceipt,
+    sendReceipt,
     timeoutMs
 }: {
     rpcHandler: RpcHandler
     userOpHash: Hex
     transactionHash: Hex
-    syncReceipt: Promise<TransactionReceipt | undefined>
+    sendReceipt: Promise<TransactionReceipt | undefined>
     timeoutMs: number
 }): Promise<ReceiptWaitResult> => {
     const { publicClient, blockTime } = rpcHandler.config
@@ -83,7 +80,7 @@ const waitForReceipt = ({
         )
 
         // Never rejects.
-        syncReceipt.then((receipt) => {
+        sendReceipt.then((receipt) => {
             if (receipt) {
                 settle(fromTransactionReceipt(receipt))
             }
@@ -153,33 +150,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        const requestStart = Date.now()
-        const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
-        const { metrics } = rpcHandler
-
-        const observeStage = ({
-            stage,
-            startMs
-        }: {
-            stage: InstantStage
-            startMs: number
-        }) => {
-            observeDurationMs({
-                histogram: metrics.instantDuration.labels({ stage }),
-                startMs,
-                endMs: Date.now()
-            })
-        }
-
-        const recordOutcome = (outcome: InstantOutcome) => {
-            metrics.instantOutcome.labels({ outcome }).inc()
-            observeStage({ stage: "total", startMs: requestStart })
-        }
-
-        const reject = (message: string): never => {
-            recordOutcome("rejected")
-            throw new RpcError(message, ERC7769Errors.InvalidFields)
-        }
+        const deadline = Date.now() + rpcHandler.config.instantBundlingTimeout
 
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
@@ -190,7 +161,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             entryPoint
         })
         if (!fieldsValid) {
-            return reject(fieldsError)
+            throw new RpcError(fieldsError, ERC7769Errors.InvalidFields)
         }
 
         const userOpHash = getUserOpHash({
@@ -203,7 +174,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         const [gasPriceValid, gasPriceError] =
             await rpcHandler.validateUserOpGasPrice({ userOp, apiVersion })
         if (!gasPriceValid) {
-            return reject(gasPriceError)
+            throw new RpcError(gasPriceError, ERC7769Errors.InvalidFields)
         }
 
         // Prepare bundle
@@ -230,33 +201,33 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             userOpInfos: [userOpInfo]
         })
 
-        const sendStart = Date.now()
         const result = await rpcHandler.executorManager.sendBundleNow(bundle)
-        observeStage({ stage: "send", startMs: sendStart })
 
         if (!result) {
-            return reject("unhandled error during bundle submission")
+            throw new RpcError(
+                "unhandled error during bundle submission",
+                ERC7769Errors.InvalidFields
+            )
         }
 
         if (!result.success) {
-            return reject(`bundle submission failed: ${result.reason}`)
+            throw new RpcError(
+                `bundle submission failed: ${result.reason}`,
+                ERC7769Errors.InvalidFields
+            )
         }
 
-        const { transactionHash, syncReceipt, sendPath } = result
-        metrics.instantSendPath.labels({ path: sendPath }).inc()
+        const { transactionHash, receipt } = result
 
-        const receiptStart = Date.now()
         const receiptResult = await waitForReceipt({
             rpcHandler,
             userOpHash,
             transactionHash,
-            syncReceipt,
-            timeoutMs: deadline - receiptStart
+            sendReceipt: receipt,
+            timeoutMs: deadline - Date.now()
         })
-        observeStage({ stage: "receipt", startMs: receiptStart })
 
         if (receiptResult.status === "timeout") {
-            recordOutcome("timeout")
             rpcHandler.logger.warn(
                 { userOpHash, txHash: transactionHash },
                 "pimlico_sendUserOperationNow timed out waiting for inclusion"
@@ -269,7 +240,6 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         if (receiptResult.status === "reverted") {
-            recordOutcome("reverted")
             rpcHandler.logger.warn(
                 { userOpHash, txHash: receiptResult.transactionHash },
                 "pimlico_sendUserOperationNow bundle reverted"
@@ -284,7 +254,6 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        recordOutcome("included")
         return receiptResult.userOpReceipt
     }
 })

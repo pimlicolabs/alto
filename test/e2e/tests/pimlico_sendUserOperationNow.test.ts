@@ -1,7 +1,7 @@
 import { type Server, createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { deepHexlify } from "permissionless"
-import { http, type Hex, createClient, parseEther } from "viem"
+import { http, type Hex, createClient, keccak256, parseEther } from "viem"
 import {
     type EntryPointVersion,
     type UserOperation,
@@ -27,23 +27,18 @@ import {
     getSmartAccountClient
 } from "../src/utils/index.js"
 
-const PROXIED_ALTO_PORT = 8093
 const PROXIED_ALTO_INSTANT_TIMEOUT_MS = 3_000
 const HASH_REGEX = /^0x[0-9a-fA-F]{64}$/
 
-// How the proxy answers eth_sendRawTransactionSync:
-// - passthrough: forwards it to anvil (EIP-7966 supported).
-// - unsupported: answers -32601 like an endpoint without EIP-7966.
-// - pending: answers the EIP-7966 timeout (code 4) without forwarding, so
-//   the transaction never lands.
-type SyncMode = "passthrough" | "unsupported" | "pending"
-
-type JsonRpcRequest = { id: number; method: string }
+type JsonRpcRequest = { id: number; method: string; params?: unknown[] }
 
 // JSON-RPC proxy in front of anvil that records the methods it receives.
+// With dropSends set, transactions are acknowledged but never forwarded, so
+// they never land: eth_sendRawTransactionSync answers the EIP-7966 timeout
+// (code 4) and eth_sendRawTransaction answers the transaction hash.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
-    const state: { syncMode: SyncMode; methods: string[] } = {
-        syncMode: "passthrough",
+    const state: { dropSends: boolean; methods: string[] } = {
+        dropSends: false,
         methods: []
     }
 
@@ -59,21 +54,26 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
 
         res.setHeader("content-type", "application/json")
 
-        if (
-            !Array.isArray(parsed) &&
-            parsed.method === "eth_sendRawTransactionSync" &&
-            state.syncMode !== "passthrough"
-        ) {
-            const error =
-                state.syncMode === "unsupported"
-                    ? { code: -32601, message: "Method not found" }
-                    : {
-                          code: 4,
-                          message:
-                              "The transaction was added to the transaction pool but wasn't processed in time"
-                      }
-            res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error }))
-            return
+        if (state.dropSends && !Array.isArray(parsed)) {
+            if (parsed.method === "eth_sendRawTransactionSync") {
+                const error = {
+                    code: 4,
+                    message:
+                        "The transaction was added to the transaction pool but wasn't processed in time"
+                }
+                res.end(
+                    JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error })
+                )
+                return
+            }
+
+            if (parsed.method === "eth_sendRawTransaction") {
+                const result = keccak256(parsed.params?.[0] as Hex)
+                res.end(
+                    JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result })
+                )
+                return
+            }
         }
 
         const upstreamRes = await fetch(upstream, {
@@ -212,110 +212,111 @@ describe.each([
     }
 )
 
-describe("pimlico_sendUserOperationNow send paths", () => {
-    const anvilRpc = inject("anvilRpc")
-    const altoRpc = inject("altoRpc")
-    const entryPoint = entryPoint07Address
-    const entryPointVersion = "0.7" as EntryPointVersion
+describe.each([
+    {
+        sendRawTransactionSync: true,
+        port: 8094,
+        sendMethod: "eth_sendRawTransactionSync",
+        otherMethod: "eth_sendRawTransaction"
+    },
+    {
+        sendRawTransactionSync: false,
+        port: 8095,
+        sendMethod: "eth_sendRawTransaction",
+        otherMethod: "eth_sendRawTransactionSync"
+    }
+])(
+    "pimlico_sendUserOperationNow with instant-bundling-send-raw-transaction-sync=$sendRawTransactionSync",
+    ({ sendRawTransactionSync, port, sendMethod, otherMethod }) => {
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+        const entryPoint = entryPoint07Address
+        const entryPointVersion = "0.7" as EntryPointVersion
 
-    let proxy: Awaited<ReturnType<typeof startRpcProxy>>
-    let proxiedAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+        let proxy: Awaited<ReturnType<typeof startRpcProxy>>
+        let proxiedAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
 
-    beforeAll(async () => {
-        proxy = await startRpcProxy({ upstream: anvilRpc })
-        proxiedAlto = await startAltoWithFlags({
-            anvilRpc: proxy.url,
-            port: PROXIED_ALTO_PORT,
-            flags: {
-                "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS
-            }
-        })
-    })
-
-    afterAll(async () => {
-        await proxiedAlto?.stop()
-        await proxy?.stop()
-    })
-
-    beforeEach(async () => {
-        await beforeEachCleanUp({ anvilRpc, altoRpc })
-        proxy.state.syncMode = "passthrough"
-        proxy.state.methods = []
-    })
-
-    test("Sends with eth_sendRawTransactionSync when supported", async () => {
-        const op = await prepareSignedUserOp({
-            entryPointVersion,
-            anvilRpc,
-            altoRpc: proxiedAlto.altoRpc
-        })
-        proxy.state.methods = []
-
-        const { result, error } = await rawRpc({
-            url: proxiedAlto.altoRpc,
-            method: "pimlico_sendUserOperationNow",
-            params: [deepHexlify(op), entryPoint]
+        beforeAll(async () => {
+            proxy = await startRpcProxy({ upstream: anvilRpc })
+            proxiedAlto = await startAltoWithFlags({
+                anvilRpc: proxy.url,
+                port,
+                flags: {
+                    "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                    "instant-bundling-send-raw-transaction-sync":
+                        sendRawTransactionSync
+                }
+            })
         })
 
-        expect(error).toBeUndefined()
-        const receipt = result as UserOperationReceipt
-        expect(receipt.success).toEqual(true)
-        expect(proxy.state.methods).toContain("eth_sendRawTransactionSync")
-        expect(proxy.state.methods).not.toContain("eth_sendRawTransaction")
-    })
-
-    test("Falls back to eth_sendRawTransaction when unsupported", async () => {
-        const op = await prepareSignedUserOp({
-            entryPointVersion,
-            anvilRpc,
-            altoRpc: proxiedAlto.altoRpc
-        })
-        proxy.state.syncMode = "unsupported"
-        proxy.state.methods = []
-
-        const { result, error } = await rawRpc({
-            url: proxiedAlto.altoRpc,
-            method: "pimlico_sendUserOperationNow",
-            params: [deepHexlify(op), entryPoint]
+        afterAll(async () => {
+            await proxiedAlto?.stop()
+            await proxy?.stop()
         })
 
-        expect(error).toBeUndefined()
-        const receipt = result as UserOperationReceipt
-        expect(receipt.success).toEqual(true)
-        expect(proxy.state.methods).toContain("eth_sendRawTransactionSync")
-        expect(proxy.state.methods).toContain("eth_sendRawTransaction")
+        beforeEach(async () => {
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
+            proxy.state.dropSends = false
+            proxy.state.methods = []
+        })
 
-        const txReceipt = await getPublicClient(anvilRpc).getTransactionReceipt(
-            {
+        test(`Sends with ${sendMethod}`, async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            })
+            proxy.state.methods = []
+
+            const { result, error } = await rawRpc({
+                url: proxiedAlto.altoRpc,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+
+            expect(error).toBeUndefined()
+            const receipt = result as UserOperationReceipt
+            expect(receipt.success).toEqual(true)
+            expect(proxy.state.methods).toContain(sendMethod)
+            expect(proxy.state.methods).not.toContain(otherMethod)
+
+            const txReceipt = await getPublicClient(
+                anvilRpc
+            ).getTransactionReceipt({
                 hash: receipt.receipt.transactionHash
+            })
+            expect(txReceipt.status).toEqual("success")
+        })
+
+        // Keep last: the dropped bundle stays tracked by the proxied instance.
+        test("Returns a timeout error with the hashes when not included", async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            })
+            proxy.state.dropSends = true
+
+            const start = Date.now()
+            const { result, error } = await rawRpc({
+                url: proxiedAlto.altoRpc,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+            const elapsed = Date.now() - start
+
+            expect(result).toBeUndefined()
+            expect(error?.code).toEqual(-32602)
+            expect(error?.message).toContain("not yet included")
+            const data = error?.data as {
+                userOpHash: Hex
+                transactionHash: Hex
             }
-        )
-        expect(txReceipt.status).toEqual("success")
-    })
-
-    // Keep last: the dropped bundle stays tracked by the proxied instance.
-    test("Returns a timeout error with the hashes when not included", async () => {
-        const op = await prepareSignedUserOp({
-            entryPointVersion,
-            anvilRpc,
-            altoRpc: proxiedAlto.altoRpc
+            expect(data.userOpHash).toMatch(HASH_REGEX)
+            expect(data.transactionHash).toMatch(HASH_REGEX)
+            expect(elapsed).toBeLessThan(
+                PROXIED_ALTO_INSTANT_TIMEOUT_MS + 2_000
+            )
         })
-        proxy.state.syncMode = "pending"
-
-        const start = Date.now()
-        const { result, error } = await rawRpc({
-            url: proxiedAlto.altoRpc,
-            method: "pimlico_sendUserOperationNow",
-            params: [deepHexlify(op), entryPoint]
-        })
-        const elapsed = Date.now() - start
-
-        expect(result).toBeUndefined()
-        expect(error?.code).toEqual(-32602)
-        expect(error?.message).toContain("not yet included")
-        const data = error?.data as { userOpHash: Hex; transactionHash: Hex }
-        expect(data.userOpHash).toMatch(HASH_REGEX)
-        expect(data.transactionHash).toMatch(HASH_REGEX)
-        expect(elapsed).toBeLessThan(PROXIED_ALTO_INSTANT_TIMEOUT_MS + 2_000)
-    })
-})
+    }
+)

@@ -53,10 +53,6 @@ export type RejectedUserOp = Prettify<
     }
 >
 
-// How a sync send reached the node: eth_sendRawTransactionSync, or
-// eth_sendRawTransaction when the endpoint doesn't support it.
-export type SendPath = "sync" | "fallback"
-
 export type BundleResult =
     | {
           success: true
@@ -68,11 +64,10 @@ export type BundleResult =
           }
           userOpsBundled: UserOpInfo[]
           rejectedUserOps: RejectedUserOp[]
-          // Set when the bundle was sent with eth_sendRawTransactionSync.
-          // Resolves to the receipt the node returned, or undefined. Never
+          // Set when the send waited for the receipt (awaitReceipt).
+          // Resolves to the receipt, or undefined if none arrived. Never
           // rejects.
-          syncReceipt?: Promise<TransactionReceipt | undefined>
-          sendPath?: SendPath
+          receipt?: Promise<TransactionReceipt | undefined>
       }
     | {
           success: false
