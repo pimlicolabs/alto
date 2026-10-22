@@ -43,7 +43,7 @@ const validateChainRules = async ({
     userOp: UserOperation
     entryPoint: Address
     config: AltoConfig
-}): Promise<[boolean, string]> => {
+}): Promise<{ valid: true } | { valid: false; error: string }> => {
     // Monad-specific validation
     if (config.chainType === "monad") {
         const { gasPriceManager } = rpcHandler
@@ -83,17 +83,17 @@ const validateChainRules = async ({
                     beneficiary: utilityWalletAddress
                 })
             } catch {
-                return [
-                    false,
-                    "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
-                ]
+                return {
+                    valid: false,
+                    error: "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
+                }
             }
         }
     }
 
     // Add more chain-specific validations here in the future
 
-    return [true, ""]
+    return { valid: true }
 }
 
 const validatePvg = async ({
@@ -295,7 +295,7 @@ export async function addToMempoolIfValid({
         [isPvgValid, pvgError, requiredPvg],
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
-        [isChainRulesValid, chainRulesError]
+        chainRulesResult
     ] = await Promise.all([
         getUserOpValidationResult({
             rpcHandler,
@@ -383,12 +383,12 @@ export async function addToMempoolIfValid({
     }
 
     // Chain rules validation
-    if (!isChainRulesValid) {
+    if (!chainRulesResult.valid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            chainRulesError
+            chainRulesResult.error
         )
-        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
+        throw new RpcError(chainRulesResult.error, ERC7769Errors.InvalidFields)
     }
 
     // userOp validation
