@@ -16,6 +16,7 @@ import {
 import {
     type Address,
     type GetContractReturnType,
+    type PublicClient,
     type Hex,
     type StateOverride,
     getContract
@@ -42,7 +43,7 @@ const pimlicoSimulationAbi = [
 
 type PimlicoSimulation = GetContractReturnType<
     typeof pimlicoSimulationAbi,
-    AltoConfig["publicClient"]
+    PublicClient
 >
 
 const getPimlicoSimulation = (config: AltoConfig): PimlicoSimulation => {
@@ -66,8 +67,8 @@ type SimulationParams = {
     pimlicoSimulation: PimlicoSimulation
     epSimulationsAddress: Address
     entryPoint: Address
-    packedQueuedOps: PackedUserOperation[]
-    packedTargetOp: PackedUserOperation
+    queuedUserOps: PackedUserOperation[]
+    targetUserOp: PackedUserOperation
     stateOverride?: StateOverride
 }
 
@@ -138,8 +139,8 @@ export class GasEstimator07 {
             pimlicoSimulation: getPimlicoSimulation(this.config),
             epSimulationsAddress,
             entryPoint,
-            packedQueuedOps: packUserOps(queuedUserOps),
-            packedTargetOp: toPackedUserOp(userOp),
+            queuedUserOps: packUserOps(queuedUserOps),
+            targetUserOp: toPackedUserOp(userOp),
             stateOverride
         }
     }
@@ -175,8 +176,8 @@ export class GasEstimator07 {
                     [
                         simulationParams.epSimulationsAddress,
                         simulationParams.entryPoint,
-                        simulationParams.packedQueuedOps,
-                        simulationParams.packedTargetOp,
+                        simulationParams.queuedUserOps,
+                        simulationParams.targetUserOp,
                         initialMinGas,
                         this.config.binarySearchToleranceDelta,
                         gasAllowance ?? this.config.binarySearchGasAllowance
@@ -248,8 +249,8 @@ export class GasEstimator07 {
                     [
                         simulationParams.epSimulationsAddress,
                         simulationParams.entryPoint,
-                        simulationParams.packedQueuedOps,
-                        simulationParams.packedTargetOp
+                        simulationParams.queuedUserOps,
+                        simulationParams.targetUserOp
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
@@ -292,8 +293,8 @@ export class GasEstimator07 {
                     [
                         simulationParams.epSimulationsAddress,
                         simulationParams.entryPoint,
-                        simulationParams.packedQueuedOps,
-                        simulationParams.packedTargetOp,
+                        simulationParams.queuedUserOps,
+                        simulationParams.targetUserOp,
                         9_000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
@@ -430,8 +431,8 @@ export class GasEstimator07 {
                 [
                     simulationParams.epSimulationsAddress,
                     simulationParams.entryPoint,
-                    simulationParams.packedQueuedOps,
-                    simulationParams.packedTargetOp
+                    simulationParams.queuedUserOps,
+                    simulationParams.targetUserOp
                 ],
                 { stateOverride: simulationParams.stateOverride, gas: gasCap }
             )
@@ -469,8 +470,8 @@ export class GasEstimator07 {
                     [
                         simulationParams.epSimulationsAddress,
                         simulationParams.entryPoint,
-                        simulationParams.packedQueuedOps,
-                        simulationParams.packedTargetOp
+                        simulationParams.queuedUserOps,
+                        simulationParams.targetUserOp
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
