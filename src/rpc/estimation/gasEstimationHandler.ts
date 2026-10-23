@@ -16,9 +16,17 @@ export class GasEstimationHandler {
     gasEstimator06: GasEstimator06
     gasEstimator07: GasEstimator07
 
-    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
-        this.gasEstimator06 = new GasEstimator06(config)
-        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
+    constructor(
+        config: AltoConfig,
+        gasPriceManager: GasPriceManager,
+        simulationGasLimit = config.fixedGasLimitForEstimation
+    ) {
+        this.gasEstimator06 = new GasEstimator06(config, simulationGasLimit)
+        this.gasEstimator07 = new GasEstimator07(
+            config,
+            gasPriceManager,
+            simulationGasLimit
+        )
     }
 
     validateHandleOp({

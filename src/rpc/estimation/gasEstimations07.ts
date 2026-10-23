@@ -43,10 +43,16 @@ export class GasEstimator07 {
     private readonly config: AltoConfig
     private readonly logger: Logger
     private readonly gasPriceManager: GasPriceManager
+    private readonly simulationGasLimit: bigint | undefined
 
-    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
+    constructor(
+        config: AltoConfig,
+        gasPriceManager: GasPriceManager,
+        simulationGasLimit = config.fixedGasLimitForEstimation
+    ) {
         this.config = config
         this.gasPriceManager = gasPriceManager
+        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             {
                 module: "gas-estimator-v07"
@@ -141,7 +147,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
+                    gas: this.simulationGasLimit
                 }
             )
 
@@ -227,7 +233,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
+                    gas: this.simulationGasLimit
                 }
             )
             return {
@@ -286,7 +292,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 
@@ -462,7 +468,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: viemStateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 
@@ -509,7 +515,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: viemStateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 
