@@ -1,6 +1,6 @@
 import type { Logger, Metrics } from "@alto/utils"
 import Redis from "ioredis"
-import type { Account } from "viem"
+import type { Account, Address } from "viem"
 import { getAvailableWallets } from "."
 import type { AltoConfig } from "../../createConfig"
 import type { SenderManager } from "../senderManager"
@@ -28,9 +28,39 @@ end
 return addedWallets
 `
 
+// Lua script to acquire a wallet: pops it from the available set together
+// with the next nonce stored when it was released. The nonce is removed so
+// it is only ever handed to one leaseholder.
+//
+// params:
+// KEYS[1] = available set redis key
+// KEYS[2] = next nonce hash redis key
+const POP_WALLET_SCRIPT = `
+local wallet = redis.call('SPOP', KEYS[1])
+if not wallet then
+    return false
+end
+
+local nonce = redis.call('HGET', KEYS[2], wallet)
+redis.call('HDEL', KEYS[2], wallet)
+
+return {wallet, nonce}
+`
+
+const parseNonce = (value: unknown): number | undefined => {
+    if (typeof value !== "string") {
+        return undefined
+    }
+    const nonce = Number(value)
+    return Number.isSafeInteger(nonce) && nonce >= 0 ? nonce : undefined
+}
+
 // Uses two Redis Sets:
 // - "available" set: wallets currently available for use (SPOP to acquire, SADD to release)
 // - "registered" set: all wallets ever registered (prevents re-adding in-use wallets)
+// And a hash of the next nonce of available wallets, written when a wallet
+// is released and taken when it is acquired, so the nonce moves between
+// instances with the wallet.
 async function createRedisWalletPool({
     redis,
     config,
@@ -45,6 +75,7 @@ async function createRedisWalletPool({
     const keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:wallet-pool`
     const availableKey = `${keyPrefix}:available`
     const registeredKey = `${keyPrefix}:registered`
+    const nextNonceKey = `${keyPrefix}:next-nonce`
 
     // Register all wallets atomically in a single call
     const addedWallets = (await redis.eval(
@@ -62,8 +93,41 @@ async function createRedisWalletPool({
 
     return {
         size: () => redis.scard(availableKey),
-        pop: () => redis.spop(availableKey),
-        push: (entry: string) => redis.sadd(availableKey, entry)
+        pop: async (): Promise<
+            { address: string; nextNonce: number | undefined } | undefined
+        > => {
+            const result = (await redis.eval(
+                POP_WALLET_SCRIPT,
+                2,
+                availableKey,
+                nextNonceKey
+            )) as [string, string | null] | null
+
+            if (!result) {
+                return undefined
+            }
+
+            const [address, nonce] = result
+            return { address, nextNonce: parseNonce(nonce) }
+        },
+        // Stores the nonce (or clears a stale one) and releases the wallet
+        // atomically, so whoever acquires it next sees the nonce.
+        push: async ({
+            address,
+            nextNonce
+        }: {
+            address: string
+            nextNonce: number | undefined
+        }) => {
+            const transaction = redis.multi()
+            if (nextNonce === undefined) {
+                transaction.hdel(nextNonceKey, address)
+            } else {
+                transaction.hset(nextNonceKey, address, nextNonce.toString())
+            }
+            await transaction.sadd(availableKey, address).exec()
+        },
+        clearNextNonce: (address: string) => redis.hdel(nextNonceKey, address)
     }
 }
 
@@ -100,6 +164,8 @@ export const createRedisSenderManager = async ({
 
     // Track active wallets for this instance
     const activeWallets = new Set<Account>()
+    // Next nonce of the wallets leased by this instance.
+    const nextNonces = new Map<Address, number>()
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
@@ -108,21 +174,25 @@ export const createRedisSenderManager = async ({
             let wallet: Account | undefined
 
             while (!wallet) {
-                const walletAddress = await walletPool.pop()
+                const popped = await walletPool.pop()
 
-                if (walletAddress) {
-                    wallet = wallets.find((w) => w.address === walletAddress)
+                if (popped) {
+                    wallet = wallets.find((w) => w.address === popped.address)
 
                     // Can happen during a rolling deploy when a newer
                     // instance registered wallets this instance doesn't
                     // have a key for. Return it so it isn't lost from the
                     // pool and keep waiting for a wallet we can use.
                     if (!wallet) {
-                        await walletPool.push(walletAddress)
+                        await walletPool.push(popped)
                         logger.warn(
-                            { executor: walletAddress },
+                            { executor: popped.address },
                             "popped unknown wallet from pool, returning it"
                         )
+                    } else if (popped.nextNonce === undefined) {
+                        nextNonces.delete(wallet.address)
+                    } else {
+                        nextNonces.set(wallet.address, popped.nextNonce)
                     }
                 }
 
@@ -147,7 +217,9 @@ export const createRedisSenderManager = async ({
         },
         markWalletProcessed: async (wallet: Account) => {
             if (activeWallets.delete(wallet)) {
-                await walletPool.push(wallet.address)
+                const nextNonce = nextNonces.get(wallet.address)
+                nextNonces.delete(wallet.address)
+                await walletPool.push({ address: wallet.address, nextNonce })
                 const len = await walletPool.size()
                 metrics.walletsAvailable.set(len)
             } else {
@@ -159,6 +231,30 @@ export const createRedisSenderManager = async ({
         },
         getActiveWallets: () => {
             return [...activeWallets]
+        },
+        getNextNonce: (wallet) => nextNonces.get(wallet.address),
+        setNextNonce: (wallet, nonce) => {
+            // Only the leaseholder may change the nonce, it is stored on
+            // release.
+            if (!activeWallets.has(wallet)) {
+                logger.warn(
+                    { executor: wallet.address },
+                    "Attempted to set the nonce of a wallet that isn't active"
+                )
+                return
+            }
+            if (nonce === undefined) {
+                nextNonces.delete(wallet.address)
+                return
+            }
+            nextNonces.set(wallet.address, nonce)
+        },
+        invalidateNextNonce: async (address) => {
+            nextNonces.delete(address)
+            // Clears the nonce stored for the wallet if it is in the pool. If
+            // another instance holds it, it took the nonce with the lease and
+            // stores a fresh one on release.
+            await walletPool.clearNextNonce(address)
         }
     }
 }

@@ -27,6 +27,7 @@ import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
+import { sentTransaction } from "./executorNonce"
 import type { SenderManager } from "./senderManager"
 import { withSpan } from "./tracing"
 import { getUserOpHashes } from "./utils"
@@ -417,18 +418,29 @@ export class ExecutorManager {
         })
         span.setAttribute("bundle.executor", wallet.address)
 
+        // The nonce known from the wallet's last mined bundle, see
+        // BundleManager.freeSubmittedBundle. Read from the chain otherwise.
+        const trackedNonce = this.config.trackExecutorNonces
+            ? this.senderManager.getNextNonce(wallet)
+            : undefined
+
         const [gasPriceParams, baseFee, nonce] = await withSpan({
             name: "bundle.gas_and_nonce_fetch",
+            attributes: {
+                "bundle.nonce_source":
+                    trackedNonce === undefined ? "rpc" : "tracker"
+            },
             fn: () =>
                 Promise.all([
                     this.gasPriceManager.tryGetNetworkGasPrice({
                         forExecutor: true
                     }),
                     this.getBaseFee(),
-                    this.config.publicClient.getTransactionCount({
-                        address: wallet.address,
-                        blockTag: "latest"
-                    })
+                    trackedNonce ??
+                        this.config.publicClient.getTransactionCount({
+                            address: wallet.address,
+                            blockTag: "latest"
+                        })
                 ])
         }).catch((err: unknown) => {
             this.logger.error(
@@ -464,6 +476,12 @@ export class ExecutorManager {
             nonce,
             sendSync: instant
         })
+
+        // Once a transaction was sent (or may have been), the nonce is unknown
+        // until its bundle is mined, see BundleManager.freeSubmittedBundle.
+        if (sentTransaction(bundleResult)) {
+            this.senderManager.setNextNonce(wallet, undefined)
+        }
 
         if (!bundleResult.success) {
             const { rejectedUserOps, recoverableOps, reason } = bundleResult

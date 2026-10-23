@@ -596,6 +596,13 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "number",
         require: false,
         default: 0
+    },
+    "track-executor-nonces": {
+        description:
+            "Use the executor nonce known from its last mined bundle instead of reading it from the chain for every bundle. The nonce is read from the chain when it isn't known",
+        type: "boolean",
+        require: false,
+        default: true
     }
 }
 

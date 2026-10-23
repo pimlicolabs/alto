@@ -1,6 +1,6 @@
 import type { Metrics } from "@alto/utils"
 import { Semaphore } from "async-mutex"
-import type { Account } from "viem"
+import type { Account, Address } from "viem"
 import { type SenderManager, getAvailableWallets } from "."
 import type { AltoConfig } from "../../createConfig"
 
@@ -16,6 +16,10 @@ export const createMemorySenderManager = ({
         { module: "sender-manager" },
         { level: config.executorLogLevel || config.logLevel }
     )
+
+    // Next nonce per wallet. Wallets are only leased within this process,
+    // so it is kept across leases.
+    const nextNonces = new Map<Address, number>()
 
     metrics.walletsTotal.set(wallets.length)
     metrics.walletsAvailable.set(wallets.length)
@@ -90,6 +94,17 @@ export const createMemorySenderManager = ({
                         (available) => available.address === wallet.address
                     )
             )
+        },
+        getNextNonce: (wallet) => nextNonces.get(wallet.address),
+        setNextNonce: (wallet, nonce) => {
+            if (nonce === undefined) {
+                nextNonces.delete(wallet.address)
+                return
+            }
+            nextNonces.set(wallet.address, nonce)
+        },
+        invalidateNextNonce: async (address) => {
+            nextNonces.delete(address)
         }
     }
 }

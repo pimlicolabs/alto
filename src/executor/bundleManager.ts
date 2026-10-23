@@ -39,6 +39,7 @@ import {
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../createConfig"
+import { getNextNonceAfterMinedBundle } from "./executorNonce"
 import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
 import { type BundleStatus, getBundleStatus } from "./getBundleStatus"
 import { executorTracer, getShortErrorMessage } from "./tracing"
@@ -149,6 +150,7 @@ export class BundleManager {
         if (this.config.reorgConfirmationDepth > 0) {
             this.includedBundles.set(uid, {
                 uid,
+                executor: submittedBundle.executor.address,
                 userOpBundle: bundle,
                 transactionHash,
                 blockNumber,
@@ -160,6 +162,7 @@ export class BundleManager {
         await this.freeSubmittedBundle({
             submittedBundle,
             outcome: "included",
+            minedTransactionHash: transactionHash,
             attributes: {
                 "bundle.included_tx_hash": transactionHash,
                 "bundle.block_number": Number(blockNumber)
@@ -326,7 +329,8 @@ export class BundleManager {
         includedBundle: IncludedBundleInfo
         blockReceivedTimestamp: number
     }) {
-        const { userOpBundle, transactionHash, blockNumber } = includedBundle
+        const { userOpBundle, transactionHash, blockNumber, executor } =
+            includedBundle
         const { entryPoint, userOps } = userOpBundle
 
         this.logger.warn(
@@ -337,6 +341,10 @@ export class BundleManager {
             },
             "included bundle orphaned by reorg, recovering"
         )
+
+        // The orphaned transaction's nonce may be free again, so the nonce
+        // tracked from its inclusion could leave a gap.
+        await this.senderManager.invalidateNextNonce(executor)
 
         // Drop stale receipts so the probes below read the canonical chain.
         await this.receiptCache.remove(getUserOpHashes(userOps))
@@ -430,6 +438,7 @@ export class BundleManager {
         await this.freeSubmittedBundle({
             submittedBundle,
             outcome: "reverted",
+            minedTransactionHash: transactionHash,
             attributes: {
                 "bundle.included_tx_hash": transactionHash,
                 "bundle.block_number": Number(blockNumber)
@@ -677,10 +686,13 @@ export class BundleManager {
     private async freeSubmittedBundle({
         submittedBundle,
         outcome,
+        minedTransactionHash,
         attributes
     }: {
         submittedBundle: SubmittedBundleInfo
         outcome: string
+        // The bundle transaction that was mined (included or reverted).
+        minedTransactionHash?: Hex
         attributes?: Attributes
     }) {
         const { executor, bundle, uid } = submittedBundle
@@ -688,6 +700,18 @@ export class BundleManager {
 
         this.stopTrackingBundle(submittedBundle)
         this.endInclusionSpan({ uid, outcome, attributes })
+
+        // A mined transaction tells the executor's next nonce, handed over
+        // with the wallet so its next bundle doesn't read it from the chain
+        // (where "latest" can lag behind preconfirmations). Unknown otherwise.
+        const nextNonce =
+            minedTransactionHash === undefined
+                ? undefined
+                : getNextNonceAfterMinedBundle({
+                      submittedBundle,
+                      minedTransactionHash
+                  })
+        this.senderManager.setNextNonce(executor, nextNonce)
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeProcessing({ entryPoint, userOps })
     }

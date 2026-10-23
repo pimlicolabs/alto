@@ -51,6 +51,10 @@ export const flushOnStartUp = async ({
         } catch (err) {
             logger.error({ err }, "error flushing stuck transaction")
         }
+
+        // Bundles sent while flushing may have tracked a nonce the flush
+        // transactions then used.
+        await senderManager.invalidateNextNonce(wallet.address)
     })
 
     await Promise.all(promises)

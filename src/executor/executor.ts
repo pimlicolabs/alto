@@ -482,7 +482,19 @@ export class Executor {
                             throw new ReplacementNonceConflictError()
                         }
 
-                        const nodeNonce = parseNonceFromError(error)
+                        // Without the node's nonce, the chain's can still
+                        // be further ahead than one step, e.g. when the
+                        // executor was used outside the bundler since its
+                        // nonce was tracked. On chains where "latest" lags,
+                        // stepping by one still makes progress.
+                        const nodeNonce =
+                            parseNonceFromError(error) ??
+                            (await publicClient
+                                .getTransactionCount({
+                                    address: account.address,
+                                    blockTag: "latest"
+                                })
+                                .catch(() => undefined))
                         childLogger.warn(
                             { txNonce: request.nonce, nodeNonce },
                             "Nonce too low, retrying"

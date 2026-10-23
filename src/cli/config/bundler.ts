@@ -157,7 +157,8 @@ export const executorArgsSchema = z.object({
         .string()
         .transform(BigInt)
         .default("10"),
-    "reorg-confirmation-depth": z.number().int().min(0).default(0)
+    "reorg-confirmation-depth": z.number().int().min(0).default(0),
+    "track-executor-nonces": z.boolean().default(true)
 })
 
 export const utilityArgsSchema = z.object({

@@ -41,6 +41,7 @@ export type UserOperationBundle = {
 // resubmits through the mempool instead of re-broadcasting.
 export type IncludedBundleInfo = {
     uid: string
+    executor: Address
     userOpBundle: UserOperationBundle
     transactionHash: Hex
     blockNumber: bigint

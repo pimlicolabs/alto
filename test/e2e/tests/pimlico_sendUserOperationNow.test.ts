@@ -435,7 +435,10 @@ describe.each([
                 port,
                 flags: {
                     "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
-                    "supports-eip7966": supportsEip7966
+                    "supports-eip7966": supportsEip7966,
+                    // inflateNextNonce works on the nonce read from the RPC,
+                    // so read it for every bundle.
+                    "track-executor-nonces": false
                 }
             })
         })
