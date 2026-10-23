@@ -440,8 +440,8 @@ export class GasEstimator07 {
         const {
             pimlicoSimulation,
             epSimulationsAddress,
-            queuedUserOps: packedQueuedUserOps,
-            targetUserOp,
+            packedQueuedUserOps,
+            packedTargetUserOp,
             stateOverride
         } = this.getSimulationParams({
             entryPoint,
@@ -463,7 +463,7 @@ export class GasEstimator07 {
                     epSimulationsAddress,
                     entryPoint,
                     packedQueuedUserOps,
-                    targetUserOp
+                    packedTargetUserOp
                 ],
                 { stateOverride, gas: gasCap }
             )
