@@ -431,8 +431,8 @@ export class GasEstimator07 {
                 [
                     simulationParams.epSimulationsAddress,
                     simulationParams.entryPoint,
-                    simulationParams.packedQueuedOps,
-                    simulationParams.packedTargetOp
+                    simulationParams.queuedUserOps,
+                    simulationParams.targetUserOp
                 ],
                 { stateOverride: simulationParams.stateOverride, gas: gasCap }
             )
