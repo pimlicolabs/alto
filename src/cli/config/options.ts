@@ -811,7 +811,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "send-transaction-sync-rpc-url": {
         description:
-            "Comma separated list of RPC urls to send eth_sendRawTransactionSync (EIP-7966) transactions to, in parallel. Use when an endpoint in send-transaction-rpc-url doesn't support it (e.g. a sequencer). Defaults to send-transaction-rpc-url",
+            "Comma separated list of RPC urls to send eth_sendRawTransactionSync (EIP-7966) transactions to, in parallel, without falling back to rpc-url. Use when an endpoint in send-transaction-rpc-url doesn't support it (e.g. a sequencer). Defaults to send-transaction-rpc-url",
         type: "string",
         require: false
     },
