@@ -369,13 +369,16 @@ export async function prepareSimulationOverrides07({
 }
 
 // Whether eth_estimateGas failed because the call reverts at every gas limit
-// up to its cap, rather than an RPC failure
+// up to its cap, rather than an RPC failure. viem replaces a revert that
+// carries data with a ContractFunctionRevertedError that drops the
+// ExecutionRevertedError cause.
 export function isEstimateGasRevert(err: unknown): boolean {
     if (!(err instanceof BaseError)) {
         return false
     }
     return (
         err.walk((e) => e instanceof ExecutionRevertedError) !== null ||
+        err.walk((e) => e instanceof ContractFunctionRevertedError) !== null ||
         err.walk((e) =>
             (e as BaseError).details?.includes("gas required exceeds")
         ) !== null
