@@ -32,7 +32,6 @@ import {
 import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
-import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import { GasEstimator06 } from "../estimation/gasEstimations06"
 import { GasEstimator07 } from "../estimation/gasEstimations07"
 import type {
@@ -102,28 +101,22 @@ export class UnsafeValidator implements InterfaceValidator {
         stateOverrides?: StateOverrides
         maxReservoirGas: bigint
     }): Promise<bigint | undefined> {
-        const gasCap = TX_MAX_GAS_LIMIT + maxReservoirGas
-        const gas = isVersion06(userOp)
-            ? await this.gasEstimator06.estimateHandleOpGas06({
-                  userOp,
-                  entryPoint,
-                  userStateOverrides: stateOverrides,
-                  gasCap
-              })
-            : await this.gasEstimator07.estimateHandleOpGas07({
-                  userOp: userOp as UserOperation07,
-                  queuedUserOps: queuedUserOps as UserOperation07[],
-                  entryPoint,
-                  userStateOverrides: stateOverrides,
-                  gasCap
-              })
-
-        if (gas === undefined) {
-            return undefined
+        if (isVersion06(userOp)) {
+            return await this.gasEstimator06.findReservoirGas06({
+                userOp,
+                entryPoint,
+                userStateOverrides: stateOverrides,
+                maxReservoirGas
+            })
         }
 
-        // The reservoir is the gas above TX_MAX_GAS_LIMIT (16,777,216)
-        return gas > TX_MAX_GAS_LIMIT ? gas - TX_MAX_GAS_LIMIT : 0n
+        return await this.gasEstimator07.findReservoirGas07({
+            userOp: userOp as UserOperation07,
+            queuedUserOps: queuedUserOps as UserOperation07[],
+            entryPoint,
+            userStateOverrides: stateOverrides,
+            maxReservoirGas
+        })
     }
 
     async getSimulationResult06(

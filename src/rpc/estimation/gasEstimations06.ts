@@ -12,6 +12,7 @@ import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.
     type: "json"
 }
 import type { AltoConfig } from "../../createConfig"
+import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import type { SimulateHandleOpResult } from "./types"
 import {
     decodeSimulateHandleOpError,
@@ -36,18 +37,19 @@ export class GasEstimator06 {
         )
     }
 
-    // Smallest transaction gas limit at which the userOp passes, with the call
-    // phase capped at callGasLimit, or undefined if it fails even at gasCap
-    async estimateHandleOpGas06({
+    // Smallest EIP-8037 state gas reservoir the userOp passes with, with the
+    // call phase capped at callGasLimit, or undefined if maxReservoirGas isn't
+    // enough
+    async findReservoirGas06({
         userOp,
         entryPoint,
         userStateOverrides,
-        gasCap
+        maxReservoirGas
     }: {
         userOp: UserOperation06
         entryPoint: Address
         userStateOverrides?: StateOverrides
-        gasCap: bigint
+        maxReservoirGas: bigint
     }): Promise<bigint | undefined> {
         const stateOverride = await prepareSimulationOverrides06({
             userOp,
@@ -59,7 +61,7 @@ export class GasEstimator06 {
         })
 
         try {
-            return await this.config.publicClient.estimateGas({
+            const gas = await this.config.publicClient.estimateGas({
                 account: this.config.utilityWalletAddress,
                 to: entryPoint,
                 data: encodeFunctionData({
@@ -67,9 +69,10 @@ export class GasEstimator06 {
                     functionName: "simulateHandleOpNoRevert",
                     args: [userOp]
                 }),
-                gas: gasCap,
+                gas: TX_MAX_GAS_LIMIT + maxReservoirGas,
                 stateOverride
             })
+            return getReservoirGas(gas)
         } catch (err) {
             if (isEstimateGasRevert(err)) {
                 return undefined
