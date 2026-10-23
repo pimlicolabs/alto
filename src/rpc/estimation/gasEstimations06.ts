@@ -23,18 +23,9 @@ import {
 export class GasEstimator06 {
     private readonly config: AltoConfig
     private readonly logger: Logger
-    // Gas limit for simulation calls, undefined uses the node's default
-    private readonly simulationGasLimit: bigint | undefined
 
-    constructor({
-        config,
-        simulationGasLimit
-    }: {
-        config: AltoConfig
-        simulationGasLimit: bigint | undefined
-    }) {
+    constructor(config: AltoConfig) {
         this.config = config
-        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             {
                 module: "gas-estimator-v06"
@@ -91,12 +82,15 @@ export class GasEstimator06 {
         userOp,
         entryPoint,
         useCodeOverride = true,
-        userStateOverrides = undefined
+        userStateOverrides = undefined,
+        simulationGasLimit
     }: {
         userOp: UserOperation06
         entryPoint: Address
         useCodeOverride?: boolean
         userStateOverrides?: StateOverrides
+        // Undefined uses the node's default
+        simulationGasLimit: bigint | undefined
     }): Promise<SimulateHandleOpResult> {
         const {
             publicClient,
@@ -123,7 +117,7 @@ export class GasEstimator06 {
                 [userOp, zeroAddress, "0x"],
                 {
                     account: utilityWalletAddress,
-                    gas: this.simulationGasLimit,
+                    gas: simulationGasLimit,
                     stateOverride: viemStateOverride
                 }
             )
