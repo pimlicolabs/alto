@@ -16,8 +16,8 @@ import {
 import {
     type Address,
     type GetContractReturnType,
-    type PublicClient,
     type Hex,
+    type PublicClient,
     type StateOverride,
     getContract
 } from "viem"
