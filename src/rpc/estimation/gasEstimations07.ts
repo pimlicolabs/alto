@@ -22,6 +22,7 @@ import {
     getContract
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import { packUserOps } from "../../executor/utils"
 import {
     BinarySearchResultType,
@@ -419,32 +420,33 @@ export class GasEstimator07 {
         }
     }
 
-    // Smallest transaction gas limit at which the userOp passes, or undefined
-    // if it fails even at gasCap
-    async estimateHandleOpGas07({
+    // Smallest EIP-8037 state gas reservoir the userOp passes with, or
+    // undefined if maxReservoirGas isn't enough
+    async findReservoirGas07({
         entryPoint,
         userOp,
         queuedUserOps,
         userStateOverrides = {},
-        gasCap
+        maxReservoirGas
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         userStateOverrides?: StateOverrides
-        gasCap: bigint
+        maxReservoirGas: bigint
     }): Promise<bigint | undefined> {
         const {
             pimlicoSimulation,
             entryPointSimulationsAddress,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            simulationGasLimit
         } = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
-            simulationGasLimit: gasCap,
+            simulationGasLimit: TX_MAX_GAS_LIMIT + maxReservoirGas,
             stateOverride: await prepareSimulationOverrides07({
                 userOp,
                 queuedUserOps,
@@ -456,15 +458,16 @@ export class GasEstimator07 {
         })
 
         try {
-            return await pimlicoSimulation.estimateGas.simulateHandleOp(
+            const gas = await pimlicoSimulation.estimateGas.simulateHandleOp(
                 [
                     entryPointSimulationsAddress,
                     entryPoint,
                     packedQueuedUserOps,
                     packedTargetUserOp
                 ],
-                { stateOverride, gas: gasCap }
+                { stateOverride, gas: simulationGasLimit }
             )
+            return getReservoirGas(gas)
         } catch (err) {
             if (isEstimateGasRevert(err)) {
                 return undefined
