@@ -66,8 +66,8 @@ type SimulationParams = {
     pimlicoSimulation: PimlicoSimulation
     epSimulationsAddress: Address
     entryPoint: Address
-    queuedUserOps: PackedUserOperation[]
-    targetUserOp: PackedUserOperation
+    packedQueuedUserOps: PackedUserOperation[]
+    packedTargetUserOp: PackedUserOperation
     stateOverride?: StateOverride
 }
 
@@ -127,8 +127,8 @@ export class GasEstimator07 {
             pimlicoSimulation: getPimlicoSimulation(this.config),
             epSimulationsAddress,
             entryPoint,
-            queuedUserOps: packUserOps(queuedUserOps),
-            targetUserOp: toPackedUserOp(userOp),
+            packedQueuedUserOps: packUserOps(queuedUserOps),
+            packedTargetUserOp: toPackedUserOp(userOp),
             stateOverride
         }
     }
@@ -162,8 +162,8 @@ export class GasEstimator07 {
             pimlicoSimulation,
             epSimulationsAddress,
             entryPoint,
-            queuedUserOps,
-            targetUserOp,
+            packedQueuedUserOps,
+            packedTargetUserOp,
             stateOverride
         } = simulationParams
 
@@ -172,8 +172,8 @@ export class GasEstimator07 {
                 [
                     epSimulationsAddress,
                     entryPoint,
-                    queuedUserOps,
-                    targetUserOp,
+                    packedQueuedUserOps,
+                    packedTargetUserOp,
                     initialMinGas,
                     this.config.binarySearchToleranceDelta,
                     gasAllowance ?? this.config.binarySearchGasAllowance
@@ -243,14 +243,19 @@ export class GasEstimator07 {
             pimlicoSimulation,
             epSimulationsAddress,
             entryPoint,
-            queuedUserOps,
-            targetUserOp,
+            packedQueuedUserOps,
+            packedTargetUserOp,
             stateOverride
         } = simulationParams
 
         try {
             const result = await pimlicoSimulation.simulate.simulateHandleOp(
-                [epSimulationsAddress, entryPoint, queuedUserOps, targetUserOp],
+                [
+                    epSimulationsAddress,
+                    entryPoint,
+                    packedQueuedUserOps,
+                    packedTargetUserOp
+                ],
                 {
                     stateOverride,
                     gas: this.config.fixedGasLimitForEstimation
@@ -290,8 +295,8 @@ export class GasEstimator07 {
             pimlicoSimulation,
             epSimulationsAddress,
             entryPoint,
-            queuedUserOps,
-            targetUserOp,
+            packedQueuedUserOps,
+            packedTargetUserOp,
             stateOverride
         } = simulationParams
 
@@ -301,8 +306,8 @@ export class GasEstimator07 {
                     [
                         epSimulationsAddress,
                         entryPoint,
-                        queuedUserOps,
-                        targetUserOp,
+                        packedQueuedUserOps,
+                        packedTargetUserOp,
                         9_000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
@@ -417,8 +422,8 @@ export class GasEstimator07 {
         const {
             pimlicoSimulation,
             epSimulationsAddress,
-            queuedUserOps: packedQueuedUserOps,
-            targetUserOp,
+            packedQueuedUserOps,
+            packedTargetUserOp,
             stateOverride
         } = this.getSimulationParams({
             entryPoint,
@@ -438,7 +443,7 @@ export class GasEstimator07 {
                         epSimulationsAddress,
                         entryPoint,
                         packedQueuedUserOps,
-                        targetUserOp
+                        packedTargetUserOp
                     ],
                     {
                         stateOverride,
