@@ -1,12 +1,25 @@
 import type { Logger } from "@alto/utils"
 import {
+    BaseError,
     type EIP1193RequestFn,
     type HttpTransportConfig,
+    MethodNotFoundRpcError,
+    MethodNotSupportedRpcError,
     type Transport,
     createTransport,
     numberToHex
 } from "viem"
 import { customTransport } from "./customTransport"
+
+const isUnsupportedMethodError = (err: unknown): boolean =>
+    err instanceof BaseError &&
+    Boolean(
+        err.walk(
+            (e) =>
+                e instanceof MethodNotFoundRpcError ||
+                e instanceof MethodNotSupportedRpcError
+        )
+    )
 
 // Fans out every request to all urls in parallel, resolving with the first
 // successful response and rejecting only if every endpoint fails. Fanning out
@@ -64,11 +77,18 @@ export function multiRpcTransport(
                 try {
                     return await Promise.any(sends)
                 } catch (err) {
-                    // Rethrow the first endpoint's error instead of the
+                    // Rethrow one endpoint's error instead of the
                     // AggregateError so viem's error classification (nonce
-                    // too low, underpriced, ...) keeps working.
+                    // too low, underpriced, ...) keeps working. Skip
+                    // endpoints that don't support the method (e.g. a
+                    // sequencer rejecting eth_sendRawTransactionSync), their
+                    // error says nothing about the transaction.
                     if (err instanceof AggregateError) {
-                        throw err.errors[0]
+                        throw (
+                            err.errors.find(
+                                (error) => !isUnsupportedMethodError(error)
+                            ) ?? err.errors[0]
+                        )
                     }
                     throw err
                 }

@@ -18,6 +18,8 @@ export type AltoConfig = Readonly<CamelCasedProperties<IOptions>> & {
     readonly walletClients: {
         readonly private?: WalletClient<Transport, Chain>
         readonly public: WalletClient<Transport, Chain>
+        // eth_sendRawTransactionSync sends, see send-transaction-sync-rpc-url.
+        readonly sync?: WalletClient<Transport, Chain>
     }
     readonly chainId: number
     readonly utilityWalletAddress: Address
@@ -30,6 +32,7 @@ export function createConfig(
         walletClients: {
             private?: WalletClient<Transport, Chain>
             public: WalletClient<Transport, Chain>
+            sync?: WalletClient<Transport, Chain>
         }
         enableCors: boolean
     }
