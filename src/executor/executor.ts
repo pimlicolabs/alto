@@ -320,7 +320,7 @@ export class Executor {
                         }
 
                         const result = await this.sendTransactionSync({
-                            walletClient,
+                            walletClient: walletClients.sync ?? walletClient,
                             account,
                             request
                         })

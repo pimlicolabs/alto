@@ -656,7 +656,7 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
         },
         "supports-eip7966": {
             description:
-                "Whether the RPC supports EIP-7966 (eth_sendRawTransactionSync). When set, pimlico_sendUserOperationNow bundles are sent with it, otherwise with eth_sendRawTransaction",
+                "Whether the RPC supports EIP-7966 (eth_sendRawTransactionSync). When set, pimlico_sendUserOperationNow bundles are sent with it (to send-transaction-sync-rpc-url if set), otherwise with eth_sendRawTransaction",
             type: "boolean",
             require: false,
             default: false
@@ -806,6 +806,12 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     "send-transaction-rpc-url": {
         description:
             "Comma separated list of RPC urls to send transactions to (e.g. sequencer + private relay). Transactions are sent to all endpoints in parallel",
+        type: "string",
+        require: false
+    },
+    "send-transaction-sync-rpc-url": {
+        description:
+            "Comma separated list of RPC urls to send eth_sendRawTransactionSync (EIP-7966) transactions to, in parallel. Use when an endpoint in send-transaction-rpc-url doesn't support it (e.g. a sequencer). Defaults to send-transaction-rpc-url",
         type: "string",
         require: false
     },

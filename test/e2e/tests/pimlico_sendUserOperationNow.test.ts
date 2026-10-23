@@ -72,6 +72,8 @@ const rpcResult = async ({
 // - rejectSends: every send is rejected with nonceGapCode, even at the
 //   expected nonce, for both eth_sendRawTransactionSync and
 //   eth_sendRawTransaction.
+// - rejectSyncMethod: eth_sendRawTransactionSync is rejected as not allowed,
+//   like a sequencer that only accepts eth_sendRawTransaction.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
@@ -79,6 +81,7 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         dropSends: boolean
         inflateNextNonce: boolean
         rejectSends: boolean
+        rejectSyncMethod: boolean
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
@@ -86,6 +89,7 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         dropSends: false,
         inflateNextNonce: false,
         rejectSends: false,
+        rejectSyncMethod: false,
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -122,6 +126,12 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         const isSyncSend =
             !Array.isArray(parsed) &&
             parsed.method === "eth_sendRawTransactionSync"
+
+        if (!Array.isArray(parsed) && isSyncSend && state.rejectSyncMethod) {
+            const error = { code: -32601, message: "rpc method is not allowed" }
+            res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error }))
+            return
+        }
         const isRejectedSend =
             !Array.isArray(parsed) &&
             parsed.method === "eth_sendRawTransaction" &&
@@ -627,3 +637,96 @@ describe.each([
         })
     }
 )
+
+describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    // sequencer only accepts eth_sendRawTransaction, syncRpc accepts both.
+    let sequencer: Awaited<ReturnType<typeof startRpcProxy>>
+    let syncRpc: Awaited<ReturnType<typeof startRpcProxy>>
+    let syncAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        sequencer = await startRpcProxy({ upstream: anvilRpc })
+        sequencer.state.rejectSyncMethod = true
+        syncRpc = await startRpcProxy({ upstream: anvilRpc })
+        syncAlto = await startAltoWithFlags({
+            anvilRpc,
+            port: 8096,
+            flags: {
+                "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                "supports-eip7966": true,
+                "send-transaction-rpc-url": sequencer.url,
+                "send-transaction-sync-rpc-url": syncRpc.url
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await syncAlto?.stop()
+        await syncRpc?.stop()
+        await sequencer?.stop()
+    })
+
+    beforeEach(async () => {
+        await clearBundlerState({ altoRpc: syncAlto.altoRpc })
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+        sequencer.state.methods = []
+        syncRpc.state.methods = []
+    })
+
+    test("Sends eth_sendRawTransactionSync to send-transaction-sync-rpc-url only", async () => {
+        const op = await prepareSignedUserOp({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: syncAlto.altoRpc
+        })
+        sequencer.state.methods = []
+        syncRpc.state.methods = []
+
+        const { result, error } = await rawRpc({
+            url: syncAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+
+        expect(error).toBeUndefined()
+        const receipt = result as UserOperationReceipt
+        expect(receipt.success).toEqual(true)
+        expect(syncRpc.state.methods).toContain("eth_sendRawTransactionSync")
+        expect(sequencer.state.methods).not.toContain(
+            "eth_sendRawTransactionSync"
+        )
+    })
+
+    test("Sends eth_sendUserOperation bundles to send-transaction-rpc-url", async () => {
+        const smartAccountClient = await getSmartAccountClient({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: syncAlto.altoRpc
+        })
+
+        const hash = await smartAccountClient.sendUserOperation({
+            calls: [
+                {
+                    to: "0x0000000000000000000000000000000000000000",
+                    value: parseEther("0.15"),
+                    data: "0x"
+                }
+            ]
+        })
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash
+        })
+
+        expect(receipt.success).toEqual(true)
+        expect(sequencer.state.methods).toContain("eth_sendRawTransaction")
+        expect(syncRpc.state.methods).not.toContain("eth_sendRawTransaction")
+        expect(syncRpc.state.methods).not.toContain(
+            "eth_sendRawTransactionSync"
+        )
+    })
+})
