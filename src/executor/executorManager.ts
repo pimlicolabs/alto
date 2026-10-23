@@ -417,6 +417,16 @@ export class ExecutorManager {
         })
         span.setAttribute("bundle.executor", wallet.address)
 
+        // The simulation only needs the base fee, so it runs alongside the
+        // gas price and nonce fetch instead of after it.
+        const networkBaseFee = this.getBaseFee()
+        const filterOpsResult = networkBaseFee.then((baseFee) =>
+            this.executor.filterOps({ userOpBundle, networkBaseFee: baseFee })
+        )
+        // Only awaited once gas and nonce are fetched, don't leave a
+        // rejection unhandled if we return before that.
+        filterOpsResult.catch(() => undefined)
+
         const [gasPriceParams, baseFee, nonce] = await withSpan({
             name: "bundle.gas_and_nonce_fetch",
             fn: () =>
@@ -424,7 +434,7 @@ export class ExecutorManager {
                     this.gasPriceManager.tryGetNetworkGasPrice({
                         forExecutor: true
                     }),
-                    this.getBaseFee(),
+                    networkBaseFee,
                     this.config.publicClient.getTransactionCount({
                         address: wallet.address,
                         blockTag: "latest"
@@ -459,6 +469,7 @@ export class ExecutorManager {
         const bundleResult = await this.executor.bundle({
             executor: wallet,
             userOpBundle,
+            filterOpsResult: await filterOpsResult,
             networkGasPrice: gasPriceParams,
             networkBaseFee: baseFee,
             nonce,
@@ -956,8 +967,14 @@ export class ExecutorManager {
 
         const { entryPoint } = bundle
 
+        const filterOpsResult = await this.executor.filterOps({
+            userOpBundle: bundle,
+            networkBaseFee
+        })
+
         const bundleResult = await this.executor.bundle({
             executor: executor,
+            filterOpsResult,
             networkGasPrice,
             networkBaseFee,
             userOpBundle: bundle,

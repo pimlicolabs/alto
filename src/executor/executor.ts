@@ -43,7 +43,10 @@ import {
     getTransactionError
 } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
+import {
+    type FilterOpsResult,
+    filterOpsAndEstimateGas
+} from "./filterOpsAndEstimateGas"
 import { withSpan } from "./tracing"
 import {
     ReplacementNonceConflictError,
@@ -648,36 +651,25 @@ export class Executor {
         }
     }
 
-    async bundle({
-        executor,
+    // Simulates the bundle with filterOps to drop failing userOps and
+    // estimate its gas. Only needs the base fee, so callers can run it
+    // alongside the gas price and nonce fetch.
+    async filterOps({
         userOpBundle,
-        networkGasPrice,
-        networkBaseFee,
-        nonce,
-        isReplacement,
-        sendSync
+        networkBaseFee
     }: {
-        executor: Account
         userOpBundle: UserOperationBundle
-        networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
-        nonce: number
-        // When set, this bundle replaces a previous transaction.
-        isReplacement?: boolean
-        // When set and the RPC supports EIP-7966, send with
-        // eth_sendRawTransactionSync and return its pending receipt in send.
-        // Ignored for replacements.
-        sendSync?: boolean
-    }): Promise<BundleResult> {
+    }): Promise<FilterOpsResult> {
         const { entryPoint, userOps } = userOpBundle
 
-        let childLogger = this.logger.child({
+        const childLogger = this.logger.child({
             submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
 
-        const filterOpsResult = await withSpan({
+        return await withSpan({
             name: "bundle.filter_ops_simulation",
             fn: async (span) => {
                 const result = await filterOpsAndEstimateGas({
@@ -696,6 +688,39 @@ export class Executor {
                 }
                 return result
             }
+        })
+    }
+
+    async bundle({
+        executor,
+        userOpBundle,
+        filterOpsResult,
+        networkGasPrice,
+        networkBaseFee,
+        nonce,
+        isReplacement,
+        sendSync
+    }: {
+        executor: Account
+        userOpBundle: UserOperationBundle
+        // Result of filterOps for this bundle.
+        filterOpsResult: FilterOpsResult
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
+        nonce: number
+        // When set, this bundle replaces a previous transaction.
+        isReplacement?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync and return its pending receipt in send.
+        // Ignored for replacements.
+        sendSync?: boolean
+    }): Promise<BundleResult> {
+        const { entryPoint, userOps } = userOpBundle
+
+        let childLogger = this.logger.child({
+            submissionAttempts: userOpBundle.submissionAttempts,
+            userOperations: getUserOpHashes(userOps),
+            entryPoint
         })
 
         if (filterOpsResult.status === "unhandled_error") {
