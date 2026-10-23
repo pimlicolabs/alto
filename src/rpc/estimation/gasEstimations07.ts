@@ -22,8 +22,8 @@ import {
     getContract
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
-import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import { packUserOps } from "../../executor/utils"
+import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import {
     BinarySearchResultType,
     type SimulateBinarySearchResult,
