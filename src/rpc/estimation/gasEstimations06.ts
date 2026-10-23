@@ -13,9 +13,14 @@ import {
 export class GasEstimator06 {
     private readonly config: AltoConfig
     private readonly logger: Logger
+    private readonly simulationGasLimit: bigint | undefined
 
-    constructor(config: AltoConfig) {
+    constructor(
+        config: AltoConfig,
+        simulationGasLimit = config.fixedGasLimitForEstimation
+    ) {
         this.config = config
+        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             {
                 module: "gas-estimator-v06"
@@ -44,8 +49,7 @@ export class GasEstimator06 {
         const {
             publicClient,
             //blockTagSupport,
-            utilityWalletAddress,
-            fixedGasLimitForEstimation
+            utilityWalletAddress
         } = this.config
 
         const viemStateOverride = await prepareSimulationOverrides06({
@@ -67,7 +71,7 @@ export class GasEstimator06 {
                 [userOp, targetAddress, targetCallData],
                 {
                     account: utilityWalletAddress,
-                    gas: fixedGasLimitForEstimation,
+                    gas: this.simulationGasLimit,
                     stateOverride: viemStateOverride
                 }
             )

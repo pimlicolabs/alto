@@ -45,19 +45,23 @@ export class UnsafeValidator implements InterfaceValidator {
     gasPriceManager: GasPriceManager
     logger: Logger
     gasEstimationHandler: GasEstimationHandler
+    simulationGasLimit: bigint | undefined
 
     constructor({
         config,
         metrics,
-        gasPriceManager
+        gasPriceManager,
+        simulationGasLimit = config.fixedGasLimitForEstimation
     }: {
         config: AltoConfig
         metrics: Metrics
         gasPriceManager: GasPriceManager
+        simulationGasLimit?: bigint
     }) {
         this.config = config
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
+        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             { module: "validator" },
             {
@@ -66,15 +70,17 @@ export class UnsafeValidator implements InterfaceValidator {
         )
         this.gasEstimationHandler = new GasEstimationHandler(
             config,
-            gasPriceManager
+            gasPriceManager,
+            simulationGasLimit
         )
     }
 
     withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
         return new UnsafeValidator({
-            config: { ...this.config, fixedGasLimitForEstimation: gasLimit },
+            config: this.config,
             metrics: this.metrics,
-            gasPriceManager: this.gasPriceManager
+            gasPriceManager: this.gasPriceManager,
+            simulationGasLimit: gasLimit
         })
     }
 
@@ -303,7 +309,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOp], {
-                gas: this.config.fixedGasLimitForEstimation,
+                gas: this.simulationGasLimit,
                 ...(eip7702Override ? { stateOverride: eip7702Override } : {})
             })
             .catch((e) => {
