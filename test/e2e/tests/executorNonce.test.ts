@@ -4,7 +4,7 @@ import { describe, expect, test } from "vitest"
 import type { AltoConfig } from "../../../src/createConfig"
 import {
     getNextNonceAfterMinedBundle,
-    sentTransaction
+    hasAttemptedSend
 } from "../../../src/executor/executorNonce"
 import type { SenderManager } from "../../../src/executor/senderManager"
 import { createMemorySenderManager } from "../../../src/executor/senderManager/createMemorySenderManager"
@@ -121,16 +121,16 @@ describe("executor nonce rules", () => {
             }) as unknown as BundleResult
 
         expect(
-            sentTransaction({ success: true } as unknown as BundleResult)
+            hasAttemptedSend({ success: true } as unknown as BundleResult)
         ).toEqual(true)
-        expect(sentTransaction(failure("filterops_failed"))).toEqual(false)
-        expect(sentTransaction(failure("filterops_unhandled_error"))).toEqual(
+        expect(hasAttemptedSend(failure("filterops_failed"))).toEqual(false)
+        expect(hasAttemptedSend(failure("filterops_unhandled_error"))).toEqual(
             false
         )
         // The send was attempted, it may have reached a node.
-        expect(sentTransaction(failure("generic_error"))).toEqual(true)
-        expect(sentTransaction(failure("insufficient_funds"))).toEqual(true)
-        expect(sentTransaction(failure("nonce_conflict"))).toEqual(true)
+        expect(hasAttemptedSend(failure("generic_error"))).toEqual(true)
+        expect(hasAttemptedSend(failure("insufficient_funds"))).toEqual(true)
+        expect(hasAttemptedSend(failure("nonce_conflict"))).toEqual(true)
     })
 })
 
@@ -153,7 +153,7 @@ describe.each([
         const [senderManager] = await createSenderManagers(1)
 
         const wallet = await senderManager.getWallet()
-        senderManager.setNextNonce(wallet, 7)
+        senderManager.setNextNonce({ wallet, nonce: 7 })
         expect(senderManager.getNextNonce(wallet)).toEqual(7)
         await senderManager.markWalletProcessed(wallet)
 
@@ -166,44 +166,38 @@ describe.each([
         const [senderManager] = await createSenderManagers(1)
 
         const wallet = await senderManager.getWallet()
-        senderManager.setNextNonce(wallet, 7)
-        senderManager.setNextNonce(wallet, undefined)
+        senderManager.setNextNonce({ wallet, nonce: 7 })
+        await senderManager.clearNextNonce(wallet.address)
         await senderManager.markWalletProcessed(wallet)
 
         const next = await senderManager.getWallet()
         expect(senderManager.getNextNonce(next)).toBeUndefined()
     })
 
-    test.skipIf(skip)(
-        "Invalidating a released wallet's nonce clears it",
-        async () => {
-            const [senderManager] = await createSenderManagers(1)
+    test.skipIf(skip)("A released wallet's nonce can be cleared", async () => {
+        const [senderManager] = await createSenderManagers(1)
 
-            const wallet = await senderManager.getWallet()
-            senderManager.setNextNonce(wallet, 7)
-            await senderManager.markWalletProcessed(wallet)
-            await senderManager.invalidateNextNonce(wallet.address)
+        const wallet = await senderManager.getWallet()
+        senderManager.setNextNonce({ wallet, nonce: 7 })
+        await senderManager.markWalletProcessed(wallet)
+        await senderManager.clearNextNonce(wallet.address)
 
-            const next = await senderManager.getWallet()
-            expect(senderManager.getNextNonce(next)).toBeUndefined()
-        }
-    )
+        const next = await senderManager.getWallet()
+        expect(senderManager.getNextNonce(next)).toBeUndefined()
+    })
 
-    test.skipIf(skip)(
-        "Invalidating a leased wallet's nonce clears it",
-        async () => {
-            const [senderManager] = await createSenderManagers(1)
+    test.skipIf(skip)("A leased wallet's nonce can be cleared", async () => {
+        const [senderManager] = await createSenderManagers(1)
 
-            const wallet = await senderManager.getWallet()
-            senderManager.setNextNonce(wallet, 7)
-            await senderManager.invalidateNextNonce(wallet.address)
-            expect(senderManager.getNextNonce(wallet)).toBeUndefined()
-            await senderManager.markWalletProcessed(wallet)
+        const wallet = await senderManager.getWallet()
+        senderManager.setNextNonce({ wallet, nonce: 7 })
+        await senderManager.clearNextNonce(wallet.address)
+        expect(senderManager.getNextNonce(wallet)).toBeUndefined()
+        await senderManager.markWalletProcessed(wallet)
 
-            const next = await senderManager.getWallet()
-            expect(senderManager.getNextNonce(next)).toBeUndefined()
-        }
-    )
+        const next = await senderManager.getWallet()
+        expect(senderManager.getNextNonce(next)).toBeUndefined()
+    })
 })
 
 describe("redis sender manager nonce handover between instances", () => {
@@ -213,7 +207,7 @@ describe("redis sender manager nonce handover between instances", () => {
             const [first, second] = await createRedisSenderManagers(2)
 
             const wallet = await first.getWallet()
-            first.setNextNonce(wallet, 7)
+            first.setNextNonce({ wallet, nonce: 7 })
             await first.markWalletProcessed(wallet)
             // Released, so no longer known locally.
             expect(first.getNextNonce(wallet)).toBeUndefined()
@@ -230,18 +224,18 @@ describe("redis sender manager nonce handover between instances", () => {
             const [first, second] = await createRedisSenderManagers(2)
 
             const wallet = await first.getWallet()
-            first.setNextNonce(wallet, 7)
+            first.setNextNonce({ wallet, nonce: 7 })
             await first.markWalletProcessed(wallet)
 
             const leased = await second.getWallet()
             // Not leased by the first instance anymore.
-            first.setNextNonce(wallet, 100)
-            // Taken with the lease: invalidating from elsewhere doesn't
+            first.setNextNonce({ wallet, nonce: 100 })
+            // Taken with the lease: clearing from elsewhere doesn't
             // change what the leaseholder knows.
-            await first.invalidateNextNonce(wallet.address)
+            await first.clearNextNonce(wallet.address)
             expect(second.getNextNonce(leased)).toEqual(7)
 
-            second.setNextNonce(leased, 8)
+            second.setNextNonce({ wallet: leased, nonce: 8 })
             await second.markWalletProcessed(leased)
 
             const again = await first.getWallet()
@@ -255,11 +249,11 @@ describe("redis sender manager nonce handover between instances", () => {
             const [first, second] = await createRedisSenderManagers(2)
 
             const wallet = await first.getWallet()
-            first.setNextNonce(wallet, 7)
+            first.setNextNonce({ wallet, nonce: 7 })
             await first.markWalletProcessed(wallet)
 
             const leased = await second.getWallet()
-            second.setNextNonce(leased, undefined)
+            await second.clearNextNonce(leased.address)
             await second.markWalletProcessed(leased)
 
             const again = await first.getWallet()

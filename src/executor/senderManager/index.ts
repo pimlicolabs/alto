@@ -36,11 +36,12 @@ export type SenderManager = {
     // Next nonce of a wallet leased with getWallet, or undefined when it has
     // to be read from the chain.
     getNextNonce: (wallet: Account) => number | undefined
-    // Records the next nonce of a leased wallet, undefined forgets it.
-    setNextNonce: (wallet: Account, nonce: number | undefined) => void
-    // Forgets the next nonce of a wallet whether it is leased or not, for
-    // when it may have moved without the leaseholder knowing (e.g. a reorg).
-    invalidateNextNonce: (address: Address) => Promise<void>
+    // Records the next nonce of a leased wallet.
+    setNextNonce: (args: { wallet: Account; nonce: number }) => void
+    // Forgets the next nonce of a wallet whether it is leased or not, so its
+    // next bundle reads it from the chain. For when the nonce may have moved,
+    // e.g. a bundle was sent or reorged out.
+    clearNextNonce: (address: Address) => Promise<void>
 }
 
 export const getSenderManager = async ({

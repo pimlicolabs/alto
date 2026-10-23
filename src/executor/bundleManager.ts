@@ -344,7 +344,7 @@ export class BundleManager {
 
         // The orphaned transaction's nonce may be free again, so the nonce
         // tracked from its inclusion could leave a gap.
-        await this.senderManager.invalidateNextNonce(executor)
+        await this.senderManager.clearNextNonce(executor)
 
         // Drop stale receipts so the probes below read the canonical chain.
         await this.receiptCache.remove(getUserOpHashes(userOps))
@@ -703,7 +703,8 @@ export class BundleManager {
 
         // A mined transaction tells the executor's next nonce, handed over
         // with the wallet so its next bundle doesn't read it from the chain
-        // (where "latest" can lag behind preconfirmations). Unknown otherwise.
+        // (where "latest" can lag behind preconfirmations). Otherwise it stays
+        // unknown, it was cleared when the bundle was sent.
         const nextNonce =
             minedTransactionHash === undefined
                 ? undefined
@@ -711,7 +712,12 @@ export class BundleManager {
                       submittedBundle,
                       minedTransactionHash
                   })
-        this.senderManager.setNextNonce(executor, nextNonce)
+        if (nextNonce !== undefined) {
+            this.senderManager.setNextNonce({
+                wallet: executor,
+                nonce: nextNonce
+            })
+        }
         await this.senderManager.markWalletProcessed(executor)
         await this.mempool.removeProcessing({ entryPoint, userOps })
     }

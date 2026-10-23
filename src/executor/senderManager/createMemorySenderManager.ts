@@ -96,14 +96,10 @@ export const createMemorySenderManager = ({
             )
         },
         getNextNonce: (wallet) => nextNonces.get(wallet.address),
-        setNextNonce: (wallet, nonce) => {
-            if (nonce === undefined) {
-                nextNonces.delete(wallet.address)
-                return
-            }
+        setNextNonce: ({ wallet, nonce }) => {
             nextNonces.set(wallet.address, nonce)
         },
-        invalidateNextNonce: async (address) => {
+        clearNextNonce: async (address) => {
             nextNonces.delete(address)
         }
     }

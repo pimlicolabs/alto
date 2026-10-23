@@ -233,7 +233,7 @@ export const createRedisSenderManager = async ({
             return [...activeWallets]
         },
         getNextNonce: (wallet) => nextNonces.get(wallet.address),
-        setNextNonce: (wallet, nonce) => {
+        setNextNonce: ({ wallet, nonce }) => {
             // Only the leaseholder may change the nonce, it is stored on
             // release.
             if (!activeWallets.has(wallet)) {
@@ -243,14 +243,18 @@ export const createRedisSenderManager = async ({
                 )
                 return
             }
-            if (nonce === undefined) {
-                nextNonces.delete(wallet.address)
-                return
-            }
             nextNonces.set(wallet.address, nonce)
         },
-        invalidateNextNonce: async (address) => {
+        clearNextNonce: async (address) => {
             nextNonces.delete(address)
+            // A leased wallet's nonce was taken from the pool with the lease,
+            // so it is only known here.
+            const isLeased = [...activeWallets].some(
+                (wallet) => wallet.address === address
+            )
+            if (isLeased) {
+                return
+            }
             // Clears the nonce stored for the wallet if it is in the pool. If
             // another instance holds it, it took the nonce with the lease and
             // stores a fresh one on release.

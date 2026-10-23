@@ -54,7 +54,7 @@ export const flushOnStartUp = async ({
 
         // Bundles sent while flushing may have tracked a nonce the flush
         // transactions then used.
-        await senderManager.invalidateNextNonce(wallet.address)
+        await senderManager.clearNextNonce(wallet.address)
     })
 
     await Promise.all(promises)

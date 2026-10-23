@@ -27,7 +27,7 @@ import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
-import { sentTransaction } from "./executorNonce"
+import { hasAttemptedSend } from "./executorNonce"
 import type { SenderManager } from "./senderManager"
 import { withSpan } from "./tracing"
 import { getUserOpHashes } from "./utils"
@@ -420,7 +420,7 @@ export class ExecutorManager {
 
         // The nonce known from the wallet's last mined bundle, see
         // BundleManager.freeSubmittedBundle. Read from the chain otherwise.
-        const trackedNonce = this.config.trackExecutorNonces
+        const trackedNonce = this.config.enableExecutorNonceTracking
             ? this.senderManager.getNextNonce(wallet)
             : undefined
 
@@ -479,8 +479,8 @@ export class ExecutorManager {
 
         // Once a transaction was sent (or may have been), the nonce is unknown
         // until its bundle is mined, see BundleManager.freeSubmittedBundle.
-        if (sentTransaction(bundleResult)) {
-            this.senderManager.setNextNonce(wallet, undefined)
+        if (hasAttemptedSend(bundleResult)) {
+            await this.senderManager.clearNextNonce(wallet.address)
         }
 
         if (!bundleResult.success) {

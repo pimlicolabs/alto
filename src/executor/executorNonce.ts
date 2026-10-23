@@ -6,10 +6,10 @@ import type { Hex } from "viem"
 // the executor may have used a nonce we can't account for, so the next bundle
 // reads it from the chain instead.
 
-// Whether a bundle attempt sent (or may have sent) a transaction, moving the
-// executor's nonce. Only the filterOps simulation failures return before
-// anything is sent.
-export const sentTransaction = (bundleResult: BundleResult): boolean => {
+// Whether a bundle attempt got as far as sending its transaction. A failed send
+// may still have reached a node and used the executor's nonce. Only the
+// filterOps simulation failures return before anything is sent.
+export const hasAttemptedSend = (bundleResult: BundleResult): boolean => {
     if (bundleResult.success) {
         return true
     }
