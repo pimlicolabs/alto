@@ -72,12 +72,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 level: config.logLevel
             }
         )
-        this.gasEstimator06 = new GasEstimator06({ config, simulationGasLimit })
-        this.gasEstimator07 = new GasEstimator07({
-            config,
-            gasPriceManager,
-            simulationGasLimit
-        })
+        this.gasEstimator06 = new GasEstimator06(config)
+        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
     }
 
     withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
@@ -218,13 +214,15 @@ export class UnsafeValidator implements InterfaceValidator {
             ? await this.gasEstimator06.simulateHandleOp06({
                   userOp,
                   entryPoint,
-                  userStateOverrides: stateOverrides
+                  userStateOverrides: stateOverrides,
+                  simulationGasLimit: this.simulationGasLimit
               })
             : await this.gasEstimator07.validateHandleOp07({
                   userOp: userOp as UserOperation07,
                   queuedUserOps: queuedUserOps as UserOperation07[],
                   entryPoint,
-                  stateOverrides
+                  stateOverrides,
+                  simulationGasLimit: this.simulationGasLimit
               })
 
         let { callGasLimit, verificationGasLimit } = userOp
@@ -307,13 +305,15 @@ export class UnsafeValidator implements InterfaceValidator {
             ? await this.gasEstimator06.simulateHandleOp06({
                   userOp,
                   entryPoint,
-                  userStateOverrides: stateOverrides
+                  userStateOverrides: stateOverrides,
+                  simulationGasLimit: this.simulationGasLimit
               })
             : await this.gasEstimator07.simulateHandleOp07({
                   userOp: userOp as UserOperation07,
                   queuedUserOps: queuedUserOps as UserOperation07[],
                   entryPoint,
-                  userStateOverrides: stateOverrides
+                  userStateOverrides: stateOverrides,
+                  simulationGasLimit: this.simulationGasLimit
               })
 
         if (error.result === "failed") {
@@ -367,7 +367,8 @@ export class UnsafeValidator implements InterfaceValidator {
             {
                 entryPoint,
                 userOp,
-                useCodeOverride: false // disable code override so that call phase reverts aren't caught
+                useCodeOverride: false, // disable code override so that call phase reverts aren't caught
+                simulationGasLimit: this.simulationGasLimit
             }
         )
 
@@ -514,7 +515,8 @@ export class UnsafeValidator implements InterfaceValidator {
             await this.gasEstimator07.simulateValidation({
                 entryPoint,
                 userOp,
-                queuedUserOps
+                queuedUserOps,
+                simulationGasLimit: this.simulationGasLimit
             })
 
         if (simulateValidationResult.result === "failed") {
