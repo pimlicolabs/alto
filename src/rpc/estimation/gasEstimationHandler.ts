@@ -21,18 +21,26 @@ export class GasEstimationHandler {
     private readonly config: AltoConfig
     private readonly gasPriceManager: GasPriceManager
 
-    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
+    constructor(
+        config: AltoConfig,
+        gasPriceManager: GasPriceManager,
+        simulationGasLimit = config.fixedGasLimitForEstimation
+    ) {
         this.config = config
         this.gasPriceManager = gasPriceManager
-        this.gasEstimator06 = new GasEstimator06(config)
-        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
+        this.gasEstimator06 = new GasEstimator06(config, simulationGasLimit)
+        this.gasEstimator07 = new GasEstimator07(
+            config,
+            gasPriceManager,
+            simulationGasLimit
+        )
     }
 
-    // Same handler, with simulations run at gasLimit
     withSimulationGasLimit(gasLimit: bigint): GasEstimationHandler {
         return new GasEstimationHandler(
-            { ...this.config, fixedGasLimitForEstimation: gasLimit },
-            this.gasPriceManager
+            this.config,
+            this.gasPriceManager,
+            gasLimit
         )
     }
 
