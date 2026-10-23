@@ -57,27 +57,31 @@ export class SafeValidator
         config,
         senderManager,
         metrics,
-        gasPriceManager
+        gasPriceManager,
+        simulationGasLimit
     }: {
         config: AltoConfig
         senderManager: SenderManager
         metrics: Metrics
         gasPriceManager: GasPriceManager
+        simulationGasLimit?: bigint
     }) {
         super({
             config,
             metrics,
-            gasPriceManager
+            gasPriceManager,
+            simulationGasLimit
         })
         this.senderManager = senderManager
     }
 
     withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
         return new SafeValidator({
-            config: { ...this.config, fixedGasLimitForEstimation: gasLimit },
+            config: this.config,
             senderManager: this.senderManager,
             metrics: this.metrics,
-            gasPriceManager: this.gasPriceManager
+            gasPriceManager: this.gasPriceManager,
+            simulationGasLimit: gasLimit
         })
     }
 
@@ -296,7 +300,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: entryPoint,
-                gas: this.config.fixedGasLimitForEstimation,
+                gas: this.simulationGasLimit,
                 data: encodeFunctionData({
                     abi: EntryPointV06Abi,
                     functionName: "simulateValidation",
@@ -473,7 +477,7 @@ export class SafeValidator
             {
                 from: zeroAddress,
                 to: pimlicoSimulationsAddress,
-                gas: this.config.fixedGasLimitForEstimation,
+                gas: this.simulationGasLimit,
                 data: entryPointSimulationsCallData
             },
             {
