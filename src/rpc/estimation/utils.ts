@@ -14,6 +14,7 @@ import {
     BaseError,
     ContractFunctionExecutionError,
     ContractFunctionRevertedError,
+    ExecutionRevertedError,
     type Hex,
     type StateOverride,
     decodeErrorResult,
@@ -283,12 +284,14 @@ export async function prepareSimulationOverrides06({
     entryPoint,
     userStateOverrides = {},
     useCodeOverride,
+    useCallGasLimit = false,
     config
 }: {
     userOp: UserOperation06
     entryPoint: Address
     userStateOverrides?: StateOverrides
     useCodeOverride: boolean
+    useCallGasLimit?: boolean
     config: Pick<AltoConfig, "codeOverrideSupport" | "balanceOverride">
 }): Promise<StateOverride | undefined> {
     const mergedStateOverrides = { ...userStateOverrides }
@@ -297,12 +300,19 @@ export async function prepareSimulationOverrides06({
     if (config.codeOverrideSupport && useCodeOverride) {
         const senderCreatorOverride = getSenderCreatorOverride(entryPoint)
 
+        const stateDiff: Record<Hex, Hex> = {
+            ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
+            [senderCreatorOverride.slot]: senderCreatorOverride.value
+        }
+
+        if (useCallGasLimit) {
+            const slot = keccak256(toHex("USE_CALL_GAS_LIMIT"))
+            stateDiff[slot] = toHex(1, { size: 32 })
+        }
+
         mergedStateOverrides[entryPoint] = {
             ...deepHexlify(mergedStateOverrides?.[entryPoint] || {}),
-            stateDiff: {
-                ...(mergedStateOverrides[entryPoint]?.stateDiff || {}),
-                [senderCreatorOverride.slot]: senderCreatorOverride.value
-            },
+            stateDiff,
             code: entryPointOverride.deployedBytecode.object as Hex
         }
     }
@@ -356,4 +366,18 @@ export async function prepareSimulationOverrides07({
         stateOverrides: mergedStateOverrides,
         config
     })
+}
+
+// Whether eth_estimateGas failed because the call reverts at every gas limit
+// up to its cap, rather than an RPC failure
+export function isEstimateGasRevert(err: unknown): boolean {
+    if (!(err instanceof BaseError)) {
+        return false
+    }
+    return (
+        err.walk((e) => e instanceof ExecutionRevertedError) !== null ||
+        err.walk((e) =>
+            (e as BaseError).details?.includes("gas required exceeds")
+        ) !== null
+    )
 }

@@ -29,6 +29,7 @@ import {
 } from "./types"
 import {
     decodeSimulateHandleOpError,
+    isEstimateGasRevert,
     prepareSimulationOverrides07,
     prepareStateOverride,
     simulationErrors
@@ -85,10 +86,21 @@ export class GasEstimator07 {
     private readonly config: AltoConfig
     private readonly logger: Logger
     private readonly gasPriceManager: GasPriceManager
+    // Gas limit for simulation calls, undefined uses the node's default
+    private readonly simulationGasLimit: bigint | undefined
 
-    constructor(config: AltoConfig, gasPriceManager: GasPriceManager) {
+    constructor({
+        config,
+        gasPriceManager,
+        simulationGasLimit
+    }: {
+        config: AltoConfig
+        gasPriceManager: GasPriceManager
+        simulationGasLimit: bigint | undefined
+    }) {
         this.config = config
         this.gasPriceManager = gasPriceManager
+        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             {
                 module: "gas-estimator-v07"
@@ -171,7 +183,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 
@@ -241,7 +253,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
             return {
@@ -288,7 +300,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 
@@ -384,6 +396,53 @@ export class GasEstimator07 {
         }
     }
 
+    // Smallest transaction gas limit at which the userOp passes, or undefined
+    // if it fails even at gasCap
+    async estimateHandleOpGas07({
+        entryPoint,
+        userOp,
+        queuedUserOps,
+        userStateOverrides = {},
+        gasCap
+    }: {
+        entryPoint: Address
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
+        userStateOverrides?: StateOverrides
+        gasCap: bigint
+    }): Promise<bigint | undefined> {
+        const simulationParams = this.getSimulationParams({
+            entryPoint,
+            userOp,
+            queuedUserOps,
+            stateOverride: await prepareSimulationOverrides07({
+                userOp,
+                queuedUserOps,
+                entryPoint,
+                gasPriceManager: this.gasPriceManager,
+                userStateOverrides,
+                config: this.config
+            })
+        })
+
+        try {
+            return await simulationParams.pimlicoSimulation.estimateGas.simulateHandleOp(
+                [
+                    simulationParams.epSimulationsAddress,
+                    simulationParams.entryPoint,
+                    simulationParams.packedQueuedOps,
+                    simulationParams.packedTargetOp
+                ],
+                { stateOverride: simulationParams.stateOverride, gas: gasCap }
+            )
+        } catch (err) {
+            if (isEstimateGasRevert(err)) {
+                return undefined
+            }
+            throw err
+        }
+    }
+
     async simulateValidation({
         entryPoint,
         userOp,
@@ -415,7 +474,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride: simulationParams.stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: this.simulationGasLimit
                     }
                 )
 

@@ -362,7 +362,8 @@ export const glamsterdamArgsSchema = z.object({
     "glamsterdam-enabled": z.boolean().default(false),
     "supports-eip7976": z.boolean().default(false),
     "supports-eip2780": z.boolean().default(false),
-    "supports-eip8037": z.boolean().default(false)
+    "supports-eip8037": z.boolean().default(false),
+    "max-reservoir-gas": z.string().transform(BigInt).default("32000000")
 })
 
 export const mempoolArgsSchema = z.object({

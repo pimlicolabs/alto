@@ -32,6 +32,7 @@ import {
 import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
+import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import { GasEstimator06 } from "../estimation/gasEstimations06"
 import { GasEstimator07 } from "../estimation/gasEstimations07"
 import type {
@@ -47,27 +48,86 @@ export class UnsafeValidator implements InterfaceValidator {
     logger: Logger
     gasEstimator06: GasEstimator06
     gasEstimator07: GasEstimator07
+    // Gas limit for simulation calls, undefined uses the node's default
+    simulationGasLimit: bigint | undefined
 
     constructor({
         config,
         metrics,
-        gasPriceManager
+        gasPriceManager,
+        simulationGasLimit = config.fixedGasLimitForEstimation
     }: {
         config: AltoConfig
         metrics: Metrics
         gasPriceManager: GasPriceManager
+        simulationGasLimit?: bigint
     }) {
         this.config = config
         this.metrics = metrics
         this.gasPriceManager = gasPriceManager
+        this.simulationGasLimit = simulationGasLimit
         this.logger = config.getLogger(
             { module: "validator" },
             {
                 level: config.logLevel
             }
         )
-        this.gasEstimator06 = new GasEstimator06(config)
-        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
+        this.gasEstimator06 = new GasEstimator06({ config, simulationGasLimit })
+        this.gasEstimator07 = new GasEstimator07({
+            config,
+            gasPriceManager,
+            simulationGasLimit
+        })
+    }
+
+    withSimulationGasLimit(gasLimit: bigint): InterfaceValidator {
+        return new UnsafeValidator({
+            config: this.config,
+            metrics: this.metrics,
+            gasPriceManager: this.gasPriceManager,
+            simulationGasLimit: gasLimit
+        })
+    }
+
+    // Smallest EIP-8037 state gas reservoir the userOp passes with, 0 if it
+    // needs none, or undefined if maxReservoirGas isn't enough. Searching on
+    // pass/fail covers peak state gas, not net. eth_estimateGas can overshoot
+    // by its tolerance (geth: 1.5%).
+    async findReservoirGas({
+        userOp,
+        queuedUserOps,
+        entryPoint,
+        stateOverrides,
+        maxReservoirGas
+    }: {
+        userOp: UserOperation
+        queuedUserOps: UserOperation[]
+        entryPoint: Address
+        stateOverrides?: StateOverrides
+        maxReservoirGas: bigint
+    }): Promise<bigint | undefined> {
+        const gasCap = TX_MAX_GAS_LIMIT + maxReservoirGas
+        const gas = isVersion06(userOp)
+            ? await this.gasEstimator06.estimateHandleOpGas06({
+                  userOp,
+                  entryPoint,
+                  userStateOverrides: stateOverrides,
+                  gasCap
+              })
+            : await this.gasEstimator07.estimateHandleOpGas07({
+                  userOp: userOp as UserOperation07,
+                  queuedUserOps: queuedUserOps as UserOperation07[],
+                  entryPoint,
+                  userStateOverrides: stateOverrides,
+                  gasCap
+              })
+
+        if (gas === undefined) {
+            return undefined
+        }
+
+        // The reservoir is the gas above TX_MAX_GAS_LIMIT (16,777,216)
+        return gas > TX_MAX_GAS_LIMIT ? gas - TX_MAX_GAS_LIMIT : 0n
     }
 
     async getSimulationResult06(
@@ -293,7 +353,7 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOp], {
-                gas: this.config.fixedGasLimitForEstimation,
+                gas: this.simulationGasLimit,
                 ...(eip7702Override ? { stateOverride: eip7702Override } : {})
             })
             .catch((e) => {
