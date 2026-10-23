@@ -64,7 +64,7 @@ const getPimlicoSimulation = (config: AltoConfig): PimlicoSimulation => {
 // every call that simulates the same userOp with the same state override
 type SimulationParams = {
     pimlicoSimulation: PimlicoSimulation
-    epSimulationsAddress: Address
+    entryPointSimulationsAddress: Address
     entryPoint: Address
     packedQueuedUserOps: PackedUserOperation[]
     packedTargetUserOp: PackedUserOperation
@@ -112,12 +112,12 @@ export class GasEstimator07 {
         stateOverride?: StateOverride
     }): SimulationParams {
         const version = getViemEntryPointVersion(userOp, entryPoint)
-        const epSimulationsAddress = getEntryPointSimulationsAddress({
+        const entryPointSimulationsAddress = getEntryPointSimulationsAddress({
             version,
             config: this.config
         })
 
-        if (!epSimulationsAddress) {
+        if (!entryPointSimulationsAddress) {
             const errorMsg = `Cannot find entryPointSimulations Address for version ${version}`
             this.logger.warn(errorMsg)
             throw new Error(errorMsg)
@@ -125,7 +125,7 @@ export class GasEstimator07 {
 
         return {
             pimlicoSimulation: getPimlicoSimulation(this.config),
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             entryPoint,
             packedQueuedUserOps: packUserOps(queuedUserOps),
             packedTargetUserOp: toPackedUserOp(userOp),
@@ -160,7 +160,7 @@ export class GasEstimator07 {
 
         const {
             pimlicoSimulation,
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
@@ -170,7 +170,7 @@ export class GasEstimator07 {
         try {
             const { result } = await pimlicoSimulation.simulate[methodName](
                 [
-                    epSimulationsAddress,
+                    entryPointSimulationsAddress,
                     entryPoint,
                     packedQueuedUserOps,
                     packedTargetUserOp,
@@ -241,7 +241,7 @@ export class GasEstimator07 {
     ): Promise<SimulateHandleOpResult> {
         const {
             pimlicoSimulation,
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
@@ -251,7 +251,7 @@ export class GasEstimator07 {
         try {
             const result = await pimlicoSimulation.simulate.simulateHandleOp(
                 [
-                    epSimulationsAddress,
+                    entryPointSimulationsAddress,
                     entryPoint,
                     packedQueuedUserOps,
                     packedTargetUserOp
@@ -293,7 +293,7 @@ export class GasEstimator07 {
     > {
         const {
             pimlicoSimulation,
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
@@ -304,7 +304,7 @@ export class GasEstimator07 {
             const { result } =
                 await pimlicoSimulation.simulate.simulateAndEstimateGas(
                     [
-                        epSimulationsAddress,
+                        entryPointSimulationsAddress,
                         entryPoint,
                         packedQueuedUserOps,
                         packedTargetUserOp,
@@ -421,7 +421,7 @@ export class GasEstimator07 {
     }) {
         const {
             pimlicoSimulation,
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride
@@ -440,7 +440,7 @@ export class GasEstimator07 {
             const { result } =
                 await pimlicoSimulation.simulate.simulateValidation(
                     [
-                        epSimulationsAddress,
+                        entryPointSimulationsAddress,
                         entryPoint,
                         packedQueuedUserOps,
                         packedTargetUserOp
