@@ -52,6 +52,7 @@ import {
     ReplacementNonceConflictError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
+    getExecutorNonce,
     getUserOpHashes,
     isFeeCapTooLowError,
     isTransactionPendingError,
@@ -355,10 +356,17 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         childLogger.warn("Transaction underpriced, retrying")
 
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
-                        })
+                        // A replacement keeps its nonce: moving past it
+                        // would resend the userOps of a transaction that
+                        // already landed. If the nonce was consumed, the
+                        // next attempt fails with nonce too low and is
+                        // reported as a ReplacementNonceConflictError.
+                        if (!isReplacement) {
+                            request.nonce = await getExecutorNonce({
+                                config: this.config,
+                                address: account.address
+                            })
+                        }
 
                         if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
@@ -444,14 +452,15 @@ export class Executor {
 
                 if (syncSendNonceError) {
                     // Not added to the pool, so resending can't duplicate the
-                    // bundle. Use the nonce the node expects, or its latest
-                    // nonce when it didn't say. An executor only has one
-                    // bundle in flight, so nothing of ours is pending.
+                    // bundle. Use the nonce the node expects, or the
+                    // executor's next nonce when it didn't say. An executor
+                    // only has one bundle in flight, so nothing of ours is
+                    // pending.
                     const expectedNonce =
                         syncSendNonceError.expectedNonce ??
-                        (await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
+                        (await getExecutorNonce({
+                            config: this.config,
+                            address: account.address
                         }))
 
                     // Already at the expected nonce, so the nonce isn't the

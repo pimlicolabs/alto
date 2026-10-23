@@ -29,7 +29,7 @@ import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
 import type { SenderManager } from "./senderManager"
 import { withSpan } from "./tracing"
-import { getUserOpHashes } from "./utils"
+import { getExecutorNonce, getUserOpHashes } from "./utils"
 
 // Delay before an emergency mode wallet is handed back after its bundle is
 // accepted, so the pending tx isn't raced by a reused nonce.
@@ -435,9 +435,9 @@ export class ExecutorManager {
                         forExecutor: true
                     }),
                     networkBaseFee,
-                    this.config.publicClient.getTransactionCount({
-                        address: wallet.address,
-                        blockTag: "latest"
+                    getExecutorNonce({
+                        config: this.config,
+                        address: wallet.address
                     })
                 ])
         }).catch((err: unknown) => {
