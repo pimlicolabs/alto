@@ -1,6 +1,7 @@
 import type { GasPriceManager } from "@alto/handlers"
 import {
     ERC7769Errors,
+    type PackedUserOperation,
     RpcError,
     type StateOverrides,
     type UserOperation07,
@@ -12,7 +13,13 @@ import {
     getViemEntryPointVersion,
     toPackedUserOp
 } from "@alto/utils"
-import { type Address, type Hex, type StateOverride, getContract } from "viem"
+import {
+    type Address,
+    type GetContractReturnType,
+    type Hex,
+    type StateOverride,
+    getContract
+} from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
 import {
@@ -27,7 +34,17 @@ import {
     simulationErrors
 } from "./utils"
 
-const getPimlicoSimulation = (config: AltoConfig) => {
+const pimlicoSimulationAbi = [
+    ...pimlicoSimulationsAbi,
+    ...simulationErrors
+] as const
+
+type PimlicoSimulation = GetContractReturnType<
+    typeof pimlicoSimulationAbi,
+    AltoConfig["publicClient"]
+>
+
+const getPimlicoSimulation = (config: AltoConfig): PimlicoSimulation => {
     if (!config.pimlicoSimulationContract) {
         throw new RpcError(
             "pimlicoSimulation must be provided",
@@ -36,20 +53,20 @@ const getPimlicoSimulation = (config: AltoConfig) => {
     }
 
     return getContract({
-        abi: [...pimlicoSimulationsAbi, ...simulationErrors],
+        abi: pimlicoSimulationAbi,
         address: config.pimlicoSimulationContract,
         client: config.publicClient
     })
 }
 
-// A userOp simulation through PimlicoSimulations, shared by every call that
-// simulates the same userOp with the same state override
-type Simulation = {
-    pimlicoSimulation: ReturnType<typeof getPimlicoSimulation>
+// Arguments for simulating a userOp through PimlicoSimulations, shared by
+// every call that simulates the same userOp with the same state override
+type SimulationParams = {
+    pimlicoSimulation: PimlicoSimulation
     epSimulationsAddress: Address
     entryPoint: Address
-    packedQueuedOps: ReturnType<typeof packUserOps>
-    packedTargetOp: ReturnType<typeof toPackedUserOp>
+    packedQueuedOps: PackedUserOperation[]
+    packedTargetOp: PackedUserOperation
     stateOverride?: StateOverride
 }
 
@@ -82,7 +99,7 @@ export class GasEstimator07 {
         )
     }
 
-    private getSimulation({
+    private getSimulationParams({
         entryPoint,
         userOp,
         queuedUserOps,
@@ -92,7 +109,7 @@ export class GasEstimator07 {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         stateOverride?: StateOverride
-    }): Simulation {
+    }): SimulationParams {
         const version = getViemEntryPointVersion(userOp, entryPoint)
         const epSimulationsAddress = getEntryPointSimulationsAddress({
             version,
@@ -116,13 +133,13 @@ export class GasEstimator07 {
     }
 
     private async performBinarySearch({
-        simulation,
+        simulationParams,
         methodName,
         retryCount = 0,
         initialMinGas = 9_000n,
         gasAllowance
     }: {
-        simulation: Simulation
+        simulationParams: SimulationParams
         methodName:
             | "binarySearchVerificationGas"
             | "binarySearchPaymasterVerificationGas"
@@ -141,23 +158,22 @@ export class GasEstimator07 {
         }
 
         try {
-            const { result } = await simulation.pimlicoSimulation.simulate[
-                methodName
-            ](
-                [
-                    simulation.epSimulationsAddress,
-                    simulation.entryPoint,
-                    simulation.packedQueuedOps,
-                    simulation.packedTargetOp,
-                    initialMinGas,
-                    this.config.binarySearchToleranceDelta,
-                    gasAllowance ?? this.config.binarySearchGasAllowance
-                ],
-                {
-                    stateOverride: simulation.stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
-                }
-            )
+            const { result } =
+                await simulationParams.pimlicoSimulation.simulate[methodName](
+                    [
+                        simulationParams.epSimulationsAddress,
+                        simulationParams.entryPoint,
+                        simulationParams.packedQueuedOps,
+                        simulationParams.packedTargetOp,
+                        initialMinGas,
+                        this.config.binarySearchToleranceDelta,
+                        gasAllowance ?? this.config.binarySearchGasAllowance
+                    ],
+                    {
+                        stateOverride: simulationParams.stateOverride,
+                        gas: this.config.fixedGasLimitForEstimation
+                    }
+                )
 
             // Check if simulation ran out of gas
             if (result.resultType === BinarySearchResultType.OutOfGas) {
@@ -165,7 +181,7 @@ export class GasEstimator07 {
                 const newGasAllowance = optimalGas - minGas
 
                 return await this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName,
                     retryCount: retryCount + 1,
                     initialMinGas: minGas,
@@ -212,19 +228,19 @@ export class GasEstimator07 {
     }
 
     private async simulateHandleOp(
-        simulation: Simulation
+        simulationParams: SimulationParams
     ): Promise<SimulateHandleOpResult> {
         try {
             const result =
-                await simulation.pimlicoSimulation.simulate.simulateHandleOp(
+                await simulationParams.pimlicoSimulation.simulate.simulateHandleOp(
                     [
-                        simulation.epSimulationsAddress,
-                        simulation.entryPoint,
-                        simulation.packedQueuedOps,
-                        simulation.packedTargetOp
+                        simulationParams.epSimulationsAddress,
+                        simulationParams.entryPoint,
+                        simulationParams.packedQueuedOps,
+                        simulationParams.packedTargetOp
                     ],
                     {
-                        stateOverride: simulation.stateOverride,
+                        stateOverride: simulationParams.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -240,10 +256,10 @@ export class GasEstimator07 {
     }
 
     private async simulateAndEstimateGasLimits({
-        simulation,
+        simulationParams,
         retryCount = 0
     }: {
-        simulation: Simulation
+        simulationParams: SimulationParams
         retryCount?: number
     }): Promise<
         | {
@@ -260,18 +276,18 @@ export class GasEstimator07 {
     > {
         try {
             const { result } =
-                await simulation.pimlicoSimulation.simulate.simulateAndEstimateGas(
+                await simulationParams.pimlicoSimulation.simulate.simulateAndEstimateGas(
                     [
-                        simulation.epSimulationsAddress,
-                        simulation.entryPoint,
-                        simulation.packedQueuedOps,
-                        simulation.packedTargetOp,
+                        simulationParams.epSimulationsAddress,
+                        simulationParams.entryPoint,
+                        simulationParams.packedQueuedOps,
+                        simulationParams.packedTargetOp,
                         9_000n,
                         this.config.binarySearchToleranceDelta,
                         this.config.binarySearchGasAllowance
                     ],
                     {
-                        stateOverride: simulation.stateOverride,
+                        stateOverride: simulationParams.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -289,7 +305,7 @@ export class GasEstimator07 {
                 BinarySearchResultType.OutOfGas
             ) {
                 const binarySearchResult = await this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName: "binarySearchVerificationGas",
                     retryCount: retryCount + 1,
                     initialMinGas: verificationGasLimit.outOfGasData.minGas,
@@ -323,7 +339,7 @@ export class GasEstimator07 {
                 BinarySearchResultType.OutOfGas
             ) {
                 const binarySearchResult = await this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName: "binarySearchPaymasterVerificationGas",
                     retryCount: retryCount + 1,
                     initialMinGas:
@@ -377,7 +393,7 @@ export class GasEstimator07 {
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
     }) {
-        const simulation = this.getSimulation({
+        const simulationParams = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
@@ -390,15 +406,15 @@ export class GasEstimator07 {
 
         try {
             const { result } =
-                await simulation.pimlicoSimulation.simulate.simulateValidation(
+                await simulationParams.pimlicoSimulation.simulate.simulateValidation(
                     [
-                        simulation.epSimulationsAddress,
-                        simulation.entryPoint,
-                        simulation.packedQueuedOps,
-                        simulation.packedTargetOp
+                        simulationParams.epSimulationsAddress,
+                        simulationParams.entryPoint,
+                        simulationParams.packedQueuedOps,
+                        simulationParams.packedTargetOp
                     ],
                     {
-                        stateOverride: simulation.stateOverride,
+                        stateOverride: simulationParams.stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
                 )
@@ -423,7 +439,7 @@ export class GasEstimator07 {
         queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        const simulation = this.getSimulation({
+        const simulationParams = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
@@ -437,7 +453,7 @@ export class GasEstimator07 {
             })
         })
 
-        const result = await this.simulateHandleOp(simulation)
+        const result = await this.simulateHandleOp(simulationParams)
         if (result.result === "failed") {
             return result
         }
@@ -464,7 +480,7 @@ export class GasEstimator07 {
         queuedUserOps: UserOperation07[]
         userStateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
-        const simulation = this.getSimulation({
+        const simulationParams = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
@@ -480,17 +496,17 @@ export class GasEstimator07 {
 
         if (this.config.splitSimulationCalls) {
             const [sho, bsvgl, bspvgl, bscgl] = await Promise.all([
-                this.simulateHandleOp(simulation),
+                this.simulateHandleOp(simulationParams),
                 this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName: "binarySearchVerificationGas"
                 }),
                 this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName: "binarySearchPaymasterVerificationGas"
                 }),
                 this.performBinarySearch({
-                    simulation,
+                    simulationParams,
                     methodName: "binarySearchCallGas"
                 })
             ])
@@ -522,9 +538,9 @@ export class GasEstimator07 {
         }
 
         const [saegl, focgl] = await Promise.all([
-            this.simulateAndEstimateGasLimits({ simulation }),
+            this.simulateAndEstimateGasLimits({ simulationParams }),
             this.performBinarySearch({
-                simulation,
+                simulationParams,
                 methodName: "binarySearchCallGas"
             })
         ])
