@@ -198,21 +198,22 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             )
         })
 
+    // Sends to every url in parallel.
+    const createMultiRpcTransport = (urls: string[]) =>
+        multiRpcTransport(urls, {
+            chainId,
+            logger: logger.child(
+                { module: "wallet_client" },
+                { level: args.walletClientLogLevel || args.logLevel }
+            )
+        })
+
     // Sends to every url in parallel, falling back to rpc-url if all fail.
     const createMultiRpcWalletClient = (urls: string[]) =>
         createWalletClient({
             transport: fallback(
                 [
-                    multiRpcTransport(urls, {
-                        chainId,
-                        logger: logger.child(
-                            { module: "wallet_client" },
-                            {
-                                level:
-                                    args.walletClientLogLevel || args.logLevel
-                            }
-                        )
-                    }),
+                    createMultiRpcTransport(urls),
                     createWalletTransport(args.rpcUrl)
                 ],
                 { rank: false }
@@ -228,8 +229,16 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             transport: createWalletTransport(args.rpcUrl),
             chain
         }),
+        // No rpc-url fallback: it would only resend the signed transaction
+        // every sync endpoint rejected, delaying the executor's retry by a
+        // round trip.
         sync: args.sendTransactionSyncRpcUrl
-            ? createMultiRpcWalletClient(args.sendTransactionSyncRpcUrl)
+            ? createWalletClient({
+                  transport: createMultiRpcTransport(
+                      args.sendTransactionSyncRpcUrl
+                  ),
+                  chain
+              })
             : undefined
     }
 
