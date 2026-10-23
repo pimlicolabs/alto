@@ -439,7 +439,7 @@ export class GasEstimator07 {
     }): Promise<bigint | undefined> {
         const {
             pimlicoSimulation,
-            epSimulationsAddress,
+            entryPointSimulationsAddress,
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride
@@ -460,7 +460,7 @@ export class GasEstimator07 {
         try {
             return await pimlicoSimulation.estimateGas.simulateHandleOp(
                 [
-                    epSimulationsAddress,
+                    entryPointSimulationsAddress,
                     entryPoint,
                     packedQueuedUserOps,
                     packedTargetUserOp
