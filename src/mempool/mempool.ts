@@ -889,6 +889,17 @@ export class Mempool {
                     continue
                 }
 
+                // Every userOp in a bundle draws state gas from the bundle's
+                // EIP-8037 reservoir first, so a userOp that needs the
+                // reservoir is bundled alone
+                if (
+                    currentUserOp.reservoirGas &&
+                    currentBundle.userOps.length > 0
+                ) {
+                    unusedUserOps.unshift(currentUserOp)
+                    break
+                }
+
                 gasUsed += calculateAA95GasFloor({
                     userOps: [userOp],
                     beneficiary: this.config.utilityWalletAddress
@@ -933,6 +944,10 @@ export class Mempool {
                     ...currentUserOp,
                     poppedFromMempoolAt
                 })
+
+                if (currentUserOp.reservoirGas) {
+                    break
+                }
 
                 // Try to fetch more userOps if we've exhausted this batch.
                 if (unusedUserOps.length === 0) {

@@ -24,8 +24,9 @@ import type { AltoConfig } from "../createConfig"
 import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGas"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
+import { TX_MAX_GAS_LIMIT } from "../utils/eip8037"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
-import { getBundleGasLimit } from "./utils"
+import { getBundleGasLimit, getBundleReservoirGas } from "./utils"
 
 export type FilterOpsResult =
     | {
@@ -178,9 +179,14 @@ export const getFilterOpsResult = async ({
         ...(simulationOverrides ?? [])
     ]
 
+    const reservoirGas = getBundleReservoirGas(userOps)
+
     const callResult = await publicClient.call({
         to: pimlicoSimulationContract,
-        gas: fixedGasLimitForEstimation,
+        gas:
+            reservoirGas > 0n
+                ? TX_MAX_GAS_LIMIT + reservoirGas
+                : fixedGasLimitForEstimation,
         data,
         ...(stateOverride.length > 0 ? { stateOverride } : {})
     })
@@ -394,13 +400,18 @@ export async function filterOpsAndEstimateGas({
             }
         }
 
-        // Find gasLimit needed for this bundle
-        const bundleGasLimit = await getBundleGasLimit({
-            config,
-            userOps: userOpsToBundle.map(({ userOp }) => userOp),
-            entryPoint,
-            executorAddress: beneficiary
-        })
+        // Find gasLimit needed for this bundle. Gas above TX_MAX_GAS_LIMIT
+        // is the EIP-8037 state gas reservoir, which reservoir userOps need.
+        const reservoirGas = getBundleReservoirGas(userOpsToBundle)
+        const bundleGasLimit =
+            reservoirGas > 0n
+                ? TX_MAX_GAS_LIMIT + reservoirGas
+                : await getBundleGasLimit({
+                      config,
+                      userOps: userOpsToBundle.map(({ userOp }) => userOp),
+                      entryPoint,
+                      executorAddress: beneficiary
+                  })
 
         let bundleGasUsed: bigint
         if (config.chainType === "monad") {
@@ -408,8 +419,12 @@ export async function filterOpsAndEstimateGas({
             bundleGasUsed = bundleGasLimit
         } else {
             // Find overhead that can't be calculated onchain.
+            // filterOps can't see gas paid from the EIP-8037 reservoir
             bundleGasUsed =
-                filterOpsResult.gasUsed + 21_000n + offChainOverhead.gasUsed
+                filterOpsResult.gasUsed +
+                config.transactionGasStipend +
+                offChainOverhead.gasUsed +
+                reservoirGas
         }
 
         return {

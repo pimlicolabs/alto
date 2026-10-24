@@ -10,10 +10,16 @@ import {
     type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
-import { getAAError } from "@alto/utils"
+import {
+    getAAError,
+    maxBigInt,
+    minBigInt,
+    scaleBigIntByPercent
+} from "@alto/utils"
 import { type Hex, slice } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
+import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
@@ -28,6 +34,22 @@ import {
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
+// Buffer on the EIP-8037 state gas reservoir the bundler fronts for a
+// boosted userOp
+const BOOSTED_RESERVOIR_GAS_MULTIPLIER = 120n
+
+// eth_estimateGas stops searching once its window is under 1.5% of the gas
+// it returns (geth), so the smallest gas a userOp passes with can be up to
+// 1.5% below it
+const ESTIMATE_GAS_ERROR_PER_MILLE = 15n
+
+// Smallest reservoir the userOp can need, given eth_estimateGas's tolerance
+const getLowestReservoirGas = (reservoirGas: bigint): bigint => {
+    const gas = TX_MAX_GAS_LIMIT + reservoirGas
+    const lowestGas = gas - (gas * ESTIMATE_GAS_ERROR_PER_MILLE) / 1000n
+    return maxBigInt(lowestGas - TX_MAX_GAS_LIMIT, 0n)
+}
+
 const validateChainRules = async ({
     rpcHandler,
     userOp,
@@ -38,7 +60,7 @@ const validateChainRules = async ({
     userOp: UserOperation
     entryPoint: Address
     config: AltoConfig
-}): Promise<[boolean, string]> => {
+}): Promise<{ valid: true } | { valid: false; error: string }> => {
     // Monad-specific validation
     if (config.chainType === "monad") {
         const { gasPriceManager } = rpcHandler
@@ -78,17 +100,17 @@ const validateChainRules = async ({
                     beneficiary: utilityWalletAddress
                 })
             } catch {
-                return [
-                    false,
-                    "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
-                ]
+                return {
+                    valid: false,
+                    error: "Balance reserve error: userOp.sender needs atleast 10 MON at the end of transaction."
+                }
             }
         }
     }
 
     // Add more chain-specific validations here in the future
 
-    return [true, ""]
+    return { valid: true }
 }
 
 const validatePvg = async ({
@@ -105,12 +127,14 @@ const validatePvg = async ({
     entryPoint: Address
     config: AltoConfig
     isBoosted?: boolean
-}): Promise<[boolean, string]> => {
+}): Promise<
+    { valid: true; requiredPvg: bigint } | { valid: false; error: string }
+> => {
     // PVG validation is skipped for v1 and boosted userOperations, and in
     // emergency mode where the L2 fee inputs come from RPC reads that may be
     // stale, slow, or replaced by the emergency fallback.
     if (apiVersion === "v1" || isBoosted || config.emergencyMode) {
-        return [true, ""]
+        return { valid: true, requiredPvg: 0n }
     }
 
     let requiredPvg: bigint
@@ -147,29 +171,33 @@ const validatePvg = async ({
     }
 
     if (requiredPvg > userOp.preVerificationGas) {
-        return [
-            false,
-            `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
-        ]
+        return {
+            valid: false,
+            error: `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
+        }
     }
 
-    return [true, ""]
+    return { valid: true, requiredPvg }
 }
 
 const getUserOpValidationResult = async ({
     rpcHandler,
     userOp,
-    entryPoint
+    entryPoint,
+    isBoosted
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
+    isBoosted: boolean
 }): Promise<{
     queuedUserOps: UserOperation[]
     validationResult: ValidationResult & {
         storageMap: StorageMap
         referencedContracts?: ReferencedCodeHashes
     }
+    minReservoirGas?: bigint
+    reservoirGas?: bigint
 }> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
@@ -190,13 +218,49 @@ const getUserOpValidationResult = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
-    const validationResult = await rpcHandler.validator.validateUserOp({
+    // A userOp that needs more than TX_MAX_GAS_LIMIT including EIP-8037
+    // state gas is bundled with a state gas reservoir.
+    //
+    // A userOp that pays gets exactly the reservoir it pays for: state gas is
+    // taken from the reservoir before gas_left, so a bigger reservoir would
+    // pay for state gas that would otherwise come out of its callGasLimit,
+    // which the EntryPoint charges. The bundler pays for boosted userOps, and
+    // unused reservoir gas isn't charged, so their buffer only absorbs state
+    // that changes before inclusion.
+    let minReservoirGas: bigint | undefined
+    let reservoirGas: bigint | undefined
+    if (rpcHandler.config.supportsEip8037) {
+        minReservoirGas = await rpcHandler.validator.findReservoirGas({
+            userOp,
+            entryPoint,
+            queuedUserOps,
+            maxReservoirGas: rpcHandler.config.maxReservoirGas
+        })
+
+        if (minReservoirGas) {
+            reservoirGas = isBoosted
+                ? scaleBigIntByPercent(
+                      minReservoirGas,
+                      BOOSTED_RESERVOIR_GAS_MULTIPLIER
+                  )
+                : minReservoirGas
+        }
+    }
+
+    const validator = reservoirGas
+        ? rpcHandler.validator.withSimulationGasLimit(
+              TX_MAX_GAS_LIMIT + reservoirGas
+          )
+        : rpcHandler.validator
+    const validationResult = await validator.validateUserOp({
         userOp,
         queuedUserOps,
         entryPoint
     })
 
     return {
+        minReservoirGas,
+        reservoirGas,
         queuedUserOps,
         validationResult
     }
@@ -244,14 +308,19 @@ export async function addToMempoolIfValid({
 
     // Execute multiple async operations in parallel
     const [
-        { queuedUserOps, validationResult },
+        { queuedUserOps, validationResult, minReservoirGas, reservoirGas },
         currentNonceSeq,
-        [isPvgValid, pvgError],
+        pvgResult,
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
-        [isChainRulesValid, chainRulesError]
+        chainRulesResult
     ] = await Promise.all([
-        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        getUserOpValidationResult({
+            rpcHandler,
+            userOp,
+            entryPoint,
+            isBoosted
+        }),
         rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
@@ -290,10 +359,33 @@ export async function addToMempoolIfValid({
     }
 
     // PreVerificationGas validation
-    if (!isPvgValid) {
-        rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgError)
-        throw new RpcError(pvgError, ERC7769Errors.SimulateValidation)
+    if (!pvgResult.valid) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            pvgResult.error
+        )
+        throw new RpcError(pvgResult.error, ERC7769Errors.SimulateValidation)
     }
+    const { requiredPvg } = pvgResult
+
+    // The EntryPoint never charges reservoir gas to the userOp, so a userOp
+    // that pays must cover the reservoir in preVerificationGas
+    const requiredReservoirPvg =
+        !isBoosted && minReservoirGas
+            ? requiredPvg + getLowestReservoirGas(minReservoirGas)
+            : 0n
+    if (userOp.preVerificationGas < requiredReservoirPvg) {
+        const reason = `preVerificationGas is not enough to pay for the EIP-8037 state gas reservoir, required: ${requiredReservoirPvg}, got: ${userOp.preVerificationGas}`
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, reason)
+        throw new RpcError(reason, ERC7769Errors.SimulateValidation)
+    }
+
+    // A paid userOp is bundled with the reservoir its preVerificationGas
+    // covers, so the bundler doesn't pay for reservoir gas it isn't paid for
+    userOpInfo.reservoirGas =
+        !isBoosted && reservoirGas
+            ? minBigInt(reservoirGas, userOp.preVerificationGas - requiredPvg)
+            : reservoirGas
 
     // Nonce validation
     const [, userOpNonceSeq] = getNonceKeyAndSequence(userOp.nonce)
@@ -318,12 +410,12 @@ export async function addToMempoolIfValid({
     }
 
     // Chain rules validation
-    if (!isChainRulesValid) {
+    if (!chainRulesResult.valid) {
         rpcHandler.eventManager.emitFailedValidation(
             userOpHash,
-            chainRulesError
+            chainRulesResult.error
         )
-        throw new RpcError(chainRulesError, ERC7769Errors.InvalidFields)
+        throw new RpcError(chainRulesResult.error, ERC7769Errors.InvalidFields)
     }
 
     // userOp validation
