@@ -1,6 +1,6 @@
 import type { StateOverrides, UserOperation06 } from "@alto/types"
 import type { Logger } from "@alto/utils"
-import { type Address, type Hex, getContract } from "viem"
+import { type Address, getContract, zeroAddress } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
 import type { SimulateHandleOpResult } from "./types"
@@ -28,15 +28,11 @@ export class GasEstimator06 {
 
     async simulateHandleOp06({
         userOp,
-        targetAddress,
-        targetCallData,
         entryPoint,
         useCodeOverride = true,
         userStateOverrides = undefined
     }: {
         userOp: UserOperation06
-        targetAddress: Address
-        targetCallData: Hex
         entryPoint: Address
         useCodeOverride?: boolean
         userStateOverrides?: StateOverrides
@@ -64,7 +60,7 @@ export class GasEstimator06 {
 
         try {
             await entryPointContract.simulate.simulateHandleOp(
-                [userOp, targetAddress, targetCallData],
+                [userOp, zeroAddress, "0x"],
                 {
                     account: utilityWalletAddress,
                     gas: fixedGasLimitForEstimation,
