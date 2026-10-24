@@ -23,6 +23,7 @@ import {
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { packUserOps } from "../../executor/utils"
+import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import {
     BinarySearchResultType,
     type SimulateBinarySearchResult,
@@ -30,6 +31,7 @@ import {
 } from "./types"
 import {
     decodeSimulateHandleOpError,
+    isEstimateGasRevert,
     prepareSimulationOverrides07,
     prepareStateOverride,
     simulationErrors
@@ -69,6 +71,8 @@ type SimulationParams = {
     packedQueuedUserOps: PackedUserOperation[]
     packedTargetUserOp: PackedUserOperation
     stateOverride?: StateOverride
+    // Gas limit for the simulation calls, undefined uses the node's default
+    simulationGasLimit: bigint | undefined
 }
 
 type SimulateHandleOpSuccessResult = {
@@ -104,12 +108,14 @@ export class GasEstimator07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        stateOverride
+        stateOverride,
+        simulationGasLimit
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         stateOverride?: StateOverride
+        simulationGasLimit: bigint | undefined
     }): SimulationParams {
         const version = getViemEntryPointVersion(userOp, entryPoint)
         const entryPointSimulationsAddress = getEntryPointSimulationsAddress({
@@ -129,7 +135,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps: packUserOps(queuedUserOps),
             packedTargetUserOp: toPackedUserOp(userOp),
-            stateOverride
+            stateOverride,
+            simulationGasLimit
         }
     }
 
@@ -164,7 +171,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            simulationGasLimit
         } = simulationParams
 
         try {
@@ -180,7 +188,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
+                    gas: simulationGasLimit
                 }
             )
 
@@ -245,7 +253,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            simulationGasLimit
         } = simulationParams
 
         try {
@@ -258,7 +267,7 @@ export class GasEstimator07 {
                 ],
                 {
                     stateOverride,
-                    gas: this.config.fixedGasLimitForEstimation
+                    gas: simulationGasLimit
                 }
             )
             return {
@@ -297,7 +306,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            simulationGasLimit
         } = simulationParams
 
         try {
@@ -314,7 +324,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: simulationGasLimit
                     }
                 )
 
@@ -410,14 +420,73 @@ export class GasEstimator07 {
         }
     }
 
-    async simulateValidation({
+    // Smallest EIP-8037 state gas reservoir the userOp passes with, or
+    // undefined if maxReservoirGas isn't enough
+    async findReservoirGas07({
         entryPoint,
         userOp,
-        queuedUserOps
+        queuedUserOps,
+        userStateOverrides = {},
+        maxReservoirGas
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
+        userStateOverrides?: StateOverrides
+        maxReservoirGas: bigint
+    }): Promise<bigint | undefined> {
+        const {
+            pimlicoSimulation,
+            entryPointSimulationsAddress,
+            packedQueuedUserOps,
+            packedTargetUserOp,
+            stateOverride,
+            simulationGasLimit
+        } = this.getSimulationParams({
+            entryPoint,
+            userOp,
+            queuedUserOps,
+            simulationGasLimit: TX_MAX_GAS_LIMIT + maxReservoirGas,
+            stateOverride: await prepareSimulationOverrides07({
+                userOp,
+                queuedUserOps,
+                entryPoint,
+                gasPriceManager: this.gasPriceManager,
+                userStateOverrides,
+                config: this.config
+            })
+        })
+
+        try {
+            const gas = await pimlicoSimulation.estimateGas.simulateHandleOp(
+                [
+                    entryPointSimulationsAddress,
+                    entryPoint,
+                    packedQueuedUserOps,
+                    packedTargetUserOp
+                ],
+                { stateOverride, gas: simulationGasLimit }
+            )
+            return getReservoirGas(gas)
+        } catch (err) {
+            if (isEstimateGasRevert(err)) {
+                return undefined
+            }
+            throw err
+        }
+    }
+
+    async simulateValidation({
+        entryPoint,
+        userOp,
+        queuedUserOps,
+        simulationGasLimit
+    }: {
+        entryPoint: Address
+        userOp: UserOperation07
+        queuedUserOps: UserOperation07[]
+        // Undefined uses the node's default
+        simulationGasLimit: bigint | undefined
     }) {
         const {
             pimlicoSimulation,
@@ -433,7 +502,8 @@ export class GasEstimator07 {
                 userOps: [userOp],
                 queuedUserOps,
                 config: this.config
-            })
+            }),
+            simulationGasLimit
         })
 
         try {
@@ -447,7 +517,7 @@ export class GasEstimator07 {
                     ],
                     {
                         stateOverride,
-                        gas: this.config.fixedGasLimitForEstimation
+                        gas: simulationGasLimit
                     }
                 )
 
@@ -464,17 +534,21 @@ export class GasEstimator07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        stateOverrides = {}
+        stateOverrides = {},
+        simulationGasLimit
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         stateOverrides?: StateOverrides
+        // Undefined uses the node's default
+        simulationGasLimit: bigint | undefined
     }): Promise<SimulateHandleOpResult> {
         const simulationParams = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
+            simulationGasLimit,
             stateOverride: await prepareSimulationOverrides07({
                 userOp,
                 queuedUserOps,
@@ -505,17 +579,21 @@ export class GasEstimator07 {
         entryPoint,
         userOp,
         queuedUserOps,
-        userStateOverrides = {}
+        userStateOverrides = {},
+        simulationGasLimit
     }: {
         entryPoint: Address
         userOp: UserOperation07
         queuedUserOps: UserOperation07[]
         userStateOverrides?: StateOverrides
+        // Undefined uses the node's default
+        simulationGasLimit: bigint | undefined
     }): Promise<SimulateHandleOpResult> {
         const simulationParams = this.getSimulationParams({
             entryPoint,
             userOp,
             queuedUserOps,
+            simulationGasLimit,
             stateOverride: await prepareSimulationOverrides07({
                 userOp,
                 queuedUserOps,

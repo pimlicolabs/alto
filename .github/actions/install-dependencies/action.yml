@@ -16,4 +16,4 @@ runs:
         # gas rules (EIP-2780, EIP-7976, EIP-8037), which no stable release
         # implements yet. anvil >=1.8.1 mines asynchronously, so tests wait
         # for receipts instead of relying on synchronous automine.
-        version: nightly-f14e39d2a14d2ba9e9132b0aa7e10a3932a054fc
+        version: nightly-4e8874b2bdc840929585ca73e170993c50a4a531

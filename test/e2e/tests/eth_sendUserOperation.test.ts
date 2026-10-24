@@ -1725,10 +1725,15 @@ describe.each([
                 chain: foundry
             })
             const block = await publicClient.getBlock()
-            const currentTimestamp = block.timestamp
 
-            // Set validUntil to expired (current timestamp - 1)
-            const expiredTimestamp = Number(currentTimestamp) - 1
+            // Expired by both the chain and alto, which checks validUntil
+            // against the wall clock. Anvil's clock runs ahead of the wall
+            // clock when it mines more than one block per second.
+            const expiredTimestamp =
+                Math.min(
+                    Number(block.timestamp),
+                    Math.floor(Date.now() / 1000)
+                ) - 1
 
             if (entryPointVersion === "0.6") {
                 op.paymasterAndData = concat([
