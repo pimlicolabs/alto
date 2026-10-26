@@ -23,7 +23,7 @@ import {
 } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import { type Account, type Hex, type WatchBlocksReturnType, toHex } from "viem"
+import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -358,34 +358,21 @@ export class ExecutorManager {
         userOpBundle: UserOperationBundle
         walletTimeoutMs: number
     }): Promise<SendBundleResult | undefined> {
-        if (userOpBundle.userOps.length === 0) {
-            return undefined
-        }
-
-        const wallet = await withSpan({
-            name: "bundle.wallet_acquire",
-            fn: () => this.senderManager.tryGetWallet(walletTimeoutMs)
-        })
-        if (!wallet) {
-            return { success: false, status: "no_executor" }
-        }
-
         return await this.sendBundleWithSpan({
             userOpBundle,
             instant: true,
-            wallet
+            walletTimeoutMs
         })
     }
 
     private async sendBundleWithSpan({
         userOpBundle,
         instant,
-        wallet
+        walletTimeoutMs
     }: {
         userOpBundle: UserOperationBundle
         instant: boolean
-        // Already acquired by the caller, otherwise waits for one.
-        wallet?: Account
+        walletTimeoutMs?: number
     }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
@@ -400,7 +387,12 @@ export class ExecutorManager {
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
             fn: (span) =>
-                this.sendBundle({ userOpBundle, span, instant, wallet })
+                this.sendBundle({
+                    userOpBundle,
+                    span,
+                    instant,
+                    walletTimeoutMs
+                })
         })
     }
 
@@ -432,22 +424,30 @@ export class ExecutorManager {
         userOpBundle,
         span,
         instant,
-        wallet: acquiredWallet
+        walletTimeoutMs
     }: {
         userOpBundle: UserOperationBundle
         span: Span
         // pimlico_sendUserOperationNow bundle, see sendBundleNow.
         instant: boolean
-        wallet?: Account
+        // How long an instant bundle waits for a free wallet.
+        walletTimeoutMs?: number
     }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
-        const wallet =
-            acquiredWallet ??
-            (await withSpan({
-                name: "bundle.wallet_acquire",
-                fn: () => this.senderManager.getWallet()
-            }))
+        const wallet = await withSpan({
+            name: "bundle.wallet_acquire",
+            fn: () =>
+                instant
+                    ? this.senderManager.tryGetWallet(walletTimeoutMs ?? 0)
+                    : this.senderManager.getWallet()
+        })
+        // Nothing was done with the userOps yet, the caller decides what
+        // happens to them.
+        if (!wallet) {
+            span.setAttribute("bundle.outcome", "no_executor")
+            return { success: false, status: "no_executor" }
+        }
         span.setAttribute("bundle.executor", wallet.address)
 
         // The simulation only needs the base fee, so it runs alongside the
