@@ -167,11 +167,11 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 50
     },
-    "instant-bundling-mempool-chains": {
+    "instant-bundling-mempool-only": {
         description:
-            "Comma separated chain IDs where pimlico_sendUserOperationNow always adds the userOperation to the mempool and returns an error with its hash, instead of sending it right away",
-        type: "string",
-        default: "1,143"
+            "Make pimlico_sendUserOperationNow always add the userOperation to the mempool and return an error with its hash, instead of sending it right away",
+        type: "boolean",
+        default: false
     },
     "skip-local-gas-calculations": {
         description:

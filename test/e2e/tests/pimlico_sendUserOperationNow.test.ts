@@ -851,7 +851,7 @@ describe("pimlico_sendUserOperationNow without a free executor", () => {
     })
 })
 
-describe("pimlico_sendUserOperationNow on an instant-bundling-mempool-chains chain", () => {
+describe("pimlico_sendUserOperationNow with instant-bundling-mempool-only", () => {
     const anvilRpc = inject("anvilRpc")
     const altoRpc = inject("altoRpc")
     const entryPoint = entryPoint07Address
@@ -864,7 +864,7 @@ describe("pimlico_sendUserOperationNow on an instant-bundling-mempool-chains cha
             anvilRpc,
             port: 8098,
             flags: {
-                "instant-bundling-mempool-chains": `1,${foundry.id}`
+                "instant-bundling-mempool-only": true
             }
         })
     })
