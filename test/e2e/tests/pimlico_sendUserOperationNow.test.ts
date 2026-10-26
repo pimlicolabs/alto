@@ -42,6 +42,9 @@ import {
 } from "../src/utils/index.js"
 
 const PROXIED_ALTO_INSTANT_TIMEOUT_MS = 3_000
+// Tests run back to back, so the previous test's executor may not be freed
+// by the block loop yet. Wait for it rather than fall back to the mempool.
+const PROXIED_ALTO_EXECUTOR_WAIT_MS = 1_000
 const HASH_REGEX = /^0x[0-9a-fA-F]{64}$/
 
 type JsonRpcRequest = { id: number; method: string; params?: unknown[] }
@@ -435,6 +438,8 @@ describe.each([
                 port,
                 flags: {
                     "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                    "instant-bundling-executor-wait":
+                        PROXIED_ALTO_EXECUTOR_WAIT_MS,
                     "supports-eip7966": supportsEip7966
                 }
             })
@@ -661,6 +666,7 @@ describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () =
             port: 8096,
             flags: {
                 "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                "instant-bundling-executor-wait": PROXIED_ALTO_EXECUTOR_WAIT_MS,
                 "supports-eip7966": true,
                 "send-transaction-rpc-url": sequencer.url,
                 "send-transaction-sync-rpc-url": syncRpc.url

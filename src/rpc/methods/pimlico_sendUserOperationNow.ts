@@ -249,13 +249,14 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         })
 
         const sendStart = Date.now()
-        // Executor wallets free up as the block loop processes blocks, so
-        // wait up to a block for one before falling back to the mempool.
         const result = await rpcHandler.executorManager.sendBundleNow({
             userOpBundle: bundle,
             walletTimeoutMs: Math.max(
                 0,
-                Math.min(rpcHandler.config.blockTime, deadline - sendStart)
+                Math.min(
+                    rpcHandler.config.instantBundlingExecutorWait,
+                    deadline - sendStart
+                )
             )
         })
         observeDurationMs({
@@ -297,7 +298,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 "pimlico_sendUserOperationNow found no free executor, added userOperation to the mempool"
             )
             throw new RpcError(
-                "no executor available to send the userOperation now, it was added to the mempool instead. Track it with eth_getUserOperationReceipt",
+                "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
                 ERC7769Errors.InvalidFields,
                 { userOpHash }
             )

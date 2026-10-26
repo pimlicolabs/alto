@@ -161,6 +161,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 1000
     },
+    "instant-bundling-executor-wait": {
+        description:
+            "Maximum time in ms pimlico_sendUserOperationNow waits for a free executor. If none frees up, the userOperation is added to the mempool and an error is returned",
+        type: "number",
+        default: 50
+    },
     "skip-local-gas-calculations": {
         description:
             "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",
