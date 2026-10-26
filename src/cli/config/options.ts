@@ -167,7 +167,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 50
     },
-    "instant-bundling-mempool-only": {
+    "skip-instant-bundling": {
         description:
             "Make pimlico_sendUserOperationNow always add the userOperation to the mempool and return an error with its hash, instead of sending it right away",
         type: "boolean",

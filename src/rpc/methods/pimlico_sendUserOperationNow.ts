@@ -230,8 +230,8 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             )
         }
 
-        if (rpcHandler.config.instantBundlingMempoolOnly) {
-            return await addToMempool("mempool only")
+        if (rpcHandler.config.skipInstantBundling) {
+            return await addToMempool("skip-instant-bundling")
         }
 
         // Validate userOp fields (sync - fail fast before expensive async checks)
