@@ -100,6 +100,43 @@ export const createRedisSenderManager = async ({
 
     // Track active wallets for this instance
     const activeWallets = new Set<Account>()
+
+    const popWallet = async (): Promise<Account | undefined> => {
+        const walletAddress = await walletPool.pop()
+        if (!walletAddress) {
+            return undefined
+        }
+
+        const wallet = wallets.find((w) => w.address === walletAddress)
+
+        // Can happen during a rolling deploy when a newer instance
+        // registered wallets this instance doesn't have a key for. Return it
+        // so it isn't lost from the pool.
+        if (!wallet) {
+            await walletPool.push(walletAddress)
+            logger.warn(
+                { executor: walletAddress },
+                "popped unknown wallet from pool, returning it"
+            )
+        }
+
+        return wallet
+    }
+
+    const activateWallet = async (wallet: Account): Promise<Account> => {
+        activeWallets.add(wallet)
+
+        logger.trace(
+            { executor: wallet.address },
+            "got wallet from sender manager"
+        )
+
+        await walletPool.size().then((len) => {
+            metrics.walletsAvailable.set(len)
+        })
+
+        return wallet
+    }
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
@@ -108,23 +145,7 @@ export const createRedisSenderManager = async ({
             let wallet: Account | undefined
 
             while (!wallet) {
-                const walletAddress = await walletPool.pop()
-
-                if (walletAddress) {
-                    wallet = wallets.find((w) => w.address === walletAddress)
-
-                    // Can happen during a rolling deploy when a newer
-                    // instance registered wallets this instance doesn't
-                    // have a key for. Return it so it isn't lost from the
-                    // pool and keep waiting for a wallet we can use.
-                    if (!wallet) {
-                        await walletPool.push(walletAddress)
-                        logger.warn(
-                            { executor: walletAddress },
-                            "popped unknown wallet from pool, returning it"
-                        )
-                    }
-                }
+                wallet = await popWallet()
 
                 // Pool empty or unknown wallet, small backoff then poll again
                 if (!wallet) {
@@ -132,18 +153,20 @@ export const createRedisSenderManager = async ({
                 }
             }
 
-            activeWallets.add(wallet)
+            return await activateWallet(wallet)
+        },
+        tryGetWallet: async (timeoutMs) => {
+            logger.trace({ timeoutMs }, "waiting for wallet ")
 
-            logger.trace(
-                { executor: wallet.address },
-                "got wallet from sender manager"
-            )
+            const deadline = Date.now() + timeoutMs
+            let wallet = await popWallet()
 
-            await walletPool.size().then((len) => {
-                metrics.walletsAvailable.set(len)
-            })
+            while (!wallet && Date.now() < deadline) {
+                await delay(Math.min(100, deadline - Date.now()))
+                wallet = await popWallet()
+            }
 
-            return wallet
+            return wallet ? await activateWallet(wallet) : undefined
         },
         markWalletProcessed: async (wallet: Account) => {
             if (activeWallets.delete(wallet)) {

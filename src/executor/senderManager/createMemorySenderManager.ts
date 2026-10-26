@@ -1,5 +1,5 @@
 import type { Metrics } from "@alto/utils"
-import { Semaphore } from "async-mutex"
+import { E_TIMEOUT, Semaphore, withTimeout } from "async-mutex"
 import type { Account } from "viem"
 import { type SenderManager, getAvailableWallets } from "."
 import type { AltoConfig } from "../../createConfig"
@@ -20,30 +20,47 @@ export const createMemorySenderManager = ({
     metrics.walletsTotal.set(wallets.length)
     metrics.walletsAvailable.set(wallets.length)
 
+    // Call after acquiring the semaphore.
+    const takeWallet = (): Account => {
+        const wallet = availableWallets.shift()
+
+        // should never happen because of semaphore
+        if (!wallet) {
+            semaphore.release()
+            logger.error("no more wallets")
+            throw new Error("no more wallets")
+        }
+
+        logger.trace(
+            { executor: wallet.address },
+            "got wallet from sender manager"
+        )
+
+        metrics.walletsAvailable.set(availableWallets.length)
+
+        return wallet
+    }
+
     logger.info("Created memory sender manager")
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
             logger.trace("waiting for semaphore ")
             await semaphore.acquire()
-
-            const wallet = availableWallets.shift()
-
-            // should never happen because of semaphore
-            if (!wallet) {
-                semaphore.release()
-                logger.error("no more wallets")
-                throw new Error("no more wallets")
+            return takeWallet()
+        },
+        tryGetWallet: async (timeoutMs) => {
+            logger.trace({ timeoutMs }, "waiting for semaphore ")
+            try {
+                // A permit acquired after the timeout is released again.
+                await withTimeout(semaphore, timeoutMs).acquire()
+            } catch (err) {
+                if (err === E_TIMEOUT) {
+                    return undefined
+                }
+                throw err
             }
-
-            logger.trace(
-                { executor: wallet.address },
-                "got wallet from sender manager"
-            )
-
-            metrics.walletsAvailable.set(availableWallets.length)
-
-            return wallet
+            return takeWallet()
         },
         lockWallet: async (wallet) => {
             logger.trace("waiting for semaphore ")

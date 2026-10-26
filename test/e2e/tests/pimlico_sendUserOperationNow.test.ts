@@ -42,6 +42,9 @@ import {
 } from "../src/utils/index.js"
 
 const PROXIED_ALTO_INSTANT_TIMEOUT_MS = 3_000
+// Tests run back to back, so the previous test's executor may not be freed
+// by the block loop yet. Wait for it rather than fall back to the mempool.
+const PROXIED_ALTO_EXECUTOR_WAIT_MS = 1_000
 const HASH_REGEX = /^0x[0-9a-fA-F]{64}$/
 
 type JsonRpcRequest = { id: number; method: string; params?: unknown[] }
@@ -435,6 +438,8 @@ describe.each([
                 port,
                 flags: {
                     "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                    "instant-bundling-executor-wait":
+                        PROXIED_ALTO_EXECUTOR_WAIT_MS,
                     "supports-eip7966": supportsEip7966
                 }
             })
@@ -661,6 +666,7 @@ describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () =
             port: 8096,
             flags: {
                 "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                "instant-bundling-executor-wait": PROXIED_ALTO_EXECUTOR_WAIT_MS,
                 "supports-eip7966": true,
                 "send-transaction-rpc-url": sequencer.url,
                 "send-transaction-sync-rpc-url": syncRpc.url
@@ -760,5 +766,152 @@ describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () =
         expect(syncRpc.state.methods).not.toContain(
             "eth_sendRawTransactionSync"
         )
+    })
+})
+
+describe("pimlico_sendUserOperationNow without a free executor", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    let proxy: Awaited<ReturnType<typeof startRpcProxy>>
+    let proxiedAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        proxy = await startRpcProxy({ upstream: anvilRpc })
+        proxiedAlto = await startAltoWithFlags({
+            anvilRpc: proxy.url,
+            port: 8097,
+            flags: {
+                "instant-bundling-timeout": 1_000,
+                "max-executors": 1
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await proxiedAlto?.stop()
+        await proxy?.stop()
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+    })
+
+    test("Adds the userOperation to the mempool", async () => {
+        const [busyOp, op] = await Promise.all([
+            prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            }),
+            prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            })
+        ])
+
+        // The dropped bundle keeps the only executor busy.
+        proxy.state.dropSends = true
+        const { error: timeoutError } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(busyOp), entryPoint]
+        })
+        expect(timeoutError?.message).toContain("not yet included")
+
+        proxy.state.methods = []
+        const { result, error } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+
+        expect(result).toBeUndefined()
+        expect(error?.code).toEqual(-32602)
+        expect(error?.message).toContain("added to the mempool")
+        const userOpHash = getUserOperationHash({
+            userOperation: op,
+            chainId: foundry.id,
+            entryPointAddress: entryPoint,
+            entryPointVersion
+        })
+        expect(error?.data).toEqual({ userOpHash })
+        // Nothing was sent for it.
+        expect(proxy.state.methods).not.toContain("eth_sendRawTransaction")
+
+        const { result: status } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_getUserOperationStatus",
+            params: [userOpHash]
+        })
+        expect(status).toMatchObject({ status: "not_submitted" })
+    })
+})
+
+describe("pimlico_sendUserOperationNow with skip-instant-bundling", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    let mempoolAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        mempoolAlto = await startAltoWithFlags({
+            anvilRpc,
+            port: 8098,
+            flags: {
+                "skip-instant-bundling": true
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await mempoolAlto?.stop()
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+    })
+
+    test("Adds the userOperation to the mempool", async () => {
+        const smartAccountClient = await getSmartAccountClient({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: mempoolAlto.altoRpc
+        })
+        const op = await prepareSignedUserOp({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: mempoolAlto.altoRpc
+        })
+
+        const { result, error } = await rawRpc({
+            url: mempoolAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+
+        expect(result).toBeUndefined()
+        expect(error?.code).toEqual(-32602)
+        expect(error?.message).toEqual(
+            "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt"
+        )
+        const userOpHash = getUserOperationHash({
+            userOperation: op,
+            chainId: foundry.id,
+            entryPointAddress: entryPoint,
+            entryPointVersion
+        })
+        expect(error?.data).toEqual({ userOpHash })
+
+        // The regular bundling loop picks it up.
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash: userOpHash
+        })
+        expect(receipt.success).toEqual(true)
     })
 })

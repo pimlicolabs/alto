@@ -57,6 +57,12 @@ export type SendBundleResult =
           status: "error"
           reason: string
       }
+    | {
+          success: false
+          // No executor wallet freed up in time, nothing was sent. Only
+          // returned by sendBundleNow.
+          status: "no_executor"
+      }
 
 export class ExecutorManager {
     private readonly senderManager: SenderManager
@@ -341,23 +347,32 @@ export class ExecutorManager {
     //   as soon as the node returns it.
     // - if no bundle is sent, the userOps are dropped instead of resubmitted:
     //   the caller answers with an error, so they must not land later.
+    // - it waits at most walletTimeoutMs for a free executor wallet, then
+    //   returns no_executor and leaves the userOp to the caller.
     // Once sent, tracking, inclusion and resubmission are left to the block
     // loop as usual.
-    async sendBundleNow(
+    async sendBundleNow({
+        userOpBundle,
+        walletTimeoutMs
+    }: {
         userOpBundle: UserOperationBundle
-    ): Promise<SendBundleResult | undefined> {
+        walletTimeoutMs: number
+    }): Promise<SendBundleResult | undefined> {
         return await this.sendBundleWithSpan({
             userOpBundle,
-            instant: true
+            instant: true,
+            walletTimeoutMs
         })
     }
 
     private async sendBundleWithSpan({
         userOpBundle,
-        instant
+        instant,
+        walletTimeoutMs
     }: {
         userOpBundle: UserOperationBundle
         instant: boolean
+        walletTimeoutMs?: number
     }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
@@ -371,7 +386,13 @@ export class ExecutorManager {
                 "bundle.user_op_count": userOps.length,
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
-            fn: (span) => this.sendBundle({ userOpBundle, span, instant })
+            fn: (span) =>
+                this.sendBundle({
+                    userOpBundle,
+                    span,
+                    instant,
+                    walletTimeoutMs
+                })
         })
     }
 
@@ -402,19 +423,31 @@ export class ExecutorManager {
     private async sendBundle({
         userOpBundle,
         span,
-        instant
+        instant,
+        walletTimeoutMs
     }: {
         userOpBundle: UserOperationBundle
         span: Span
         // pimlico_sendUserOperationNow bundle, see sendBundleNow.
         instant: boolean
+        // How long an instant bundle waits for a free wallet.
+        walletTimeoutMs?: number
     }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
         const wallet = await withSpan({
             name: "bundle.wallet_acquire",
-            fn: () => this.senderManager.getWallet()
+            fn: () =>
+                instant
+                    ? this.senderManager.tryGetWallet(walletTimeoutMs ?? 0)
+                    : this.senderManager.getWallet()
         })
+        // Nothing was done with the userOps yet, the caller decides what
+        // happens to them.
+        if (!wallet) {
+            span.setAttribute("bundle.outcome", "no_executor")
+            return { success: false, status: "no_executor" }
+        }
         span.setAttribute("bundle.executor", wallet.address)
 
         // The simulation only needs the base fee, so it runs alongside the
