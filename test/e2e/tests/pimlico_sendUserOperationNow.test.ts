@@ -850,3 +850,68 @@ describe("pimlico_sendUserOperationNow without a free executor", () => {
         expect(status).toMatchObject({ status: "not_submitted" })
     })
 })
+
+describe("pimlico_sendUserOperationNow on an instant-bundling-mempool-chains chain", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    let mempoolAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        mempoolAlto = await startAltoWithFlags({
+            anvilRpc,
+            port: 8098,
+            flags: {
+                "instant-bundling-mempool-chains": `1,${foundry.id}`
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await mempoolAlto?.stop()
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+    })
+
+    test("Adds the userOperation to the mempool", async () => {
+        const smartAccountClient = await getSmartAccountClient({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: mempoolAlto.altoRpc
+        })
+        const op = await prepareSignedUserOp({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: mempoolAlto.altoRpc
+        })
+
+        const { result, error } = await rawRpc({
+            url: mempoolAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+
+        expect(result).toBeUndefined()
+        expect(error?.code).toEqual(-32602)
+        expect(error?.message).toEqual(
+            "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt"
+        )
+        const userOpHash = getUserOperationHash({
+            userOperation: op,
+            chainId: foundry.id,
+            entryPointAddress: entryPoint,
+            entryPointVersion
+        })
+        expect(error?.data).toEqual({ userOpHash })
+
+        // The regular bundling loop picks it up.
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash: userOpHash
+        })
+        expect(receipt.success).toEqual(true)
+    })
+})

@@ -333,7 +333,8 @@ export function createMetrics(registry: Registry, register = true) {
 }
 
 // rejected: the userOp was invalid. failed: we couldn't send the bundle.
-// queued: no executor was free, the userOp went to the mempool instead.
+// queued: the userOp went to the mempool instead, as no executor was free or
+// the chain is in --instant-bundling-mempool-chains.
 export type InstantOutcome =
     | "included"
     | "reverted"

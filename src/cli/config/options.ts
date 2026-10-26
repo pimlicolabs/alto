@@ -167,6 +167,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 50
     },
+    "instant-bundling-mempool-chains": {
+        description:
+            "Comma separated chain IDs where pimlico_sendUserOperationNow always adds the userOperation to the mempool and returns an error with its hash, instead of sending it right away",
+        type: "string",
+        default: "1,143"
+    },
     "skip-local-gas-calculations": {
         description:
             "Skip break-even gas price calculation and use network gas price only. Enable on chains where eth_estimateGas must be called.",

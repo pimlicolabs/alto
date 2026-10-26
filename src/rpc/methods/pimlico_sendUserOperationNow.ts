@@ -197,6 +197,44 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             }
         }
 
+        // Adds the userOp to the mempool like eth_sendUserOperation (with
+        // full validation) and tells the client to track it.
+        const addToMempool = async (reason: string): Promise<never> => {
+            const { result, userOpHash } = await addToMempoolIfValid({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                apiVersion,
+                isBoosted
+            }).catch((err: unknown) => {
+                recordOutcome(err instanceof RpcError ? "rejected" : "failed")
+                throw err
+            })
+            rpcHandler.eventManager.emitReceived(userOpHash)
+            metrics.userOpsReceived
+                .labels({
+                    status: result,
+                    type: userOp.eip7702Auth ? "7702" : "regular"
+                })
+                .inc()
+
+            recordOutcome("queued")
+            rpcHandler.logger.info(
+                { userOpHash, reason },
+                "pimlico_sendUserOperationNow added userOperation to the mempool"
+            )
+            throw new RpcError(
+                "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
+                ERC7769Errors.InvalidFields,
+                { userOpHash }
+            )
+        }
+
+        const { chainId, instantBundlingMempoolChains } = rpcHandler.config
+        if (instantBundlingMempoolChains.includes(chainId)) {
+            return await addToMempool("mempool only chain")
+        }
+
         // Validate userOp fields (sync - fail fast before expensive async checks)
         const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
             userOp,
@@ -265,43 +303,13 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             endMs: Date.now()
         })
 
-        // No executor freed up in time. Hand the userOp to the mempool like
-        // eth_sendUserOperation (with full validation) and tell the client to
-        // track it.
+        // No executor freed up in time.
         if (result && !result.success && result.status === "no_executor") {
             await rpcHandler.mempool.store.removeProcessing({
                 entryPoint,
                 userOpInfos: [userOpInfo]
             })
-
-            const { result: mempoolResult } = await addToMempoolIfValid({
-                rpcHandler,
-                userOp,
-                entryPoint,
-                apiVersion,
-                isBoosted
-            }).catch((err: unknown) => {
-                recordOutcome(err instanceof RpcError ? "rejected" : "failed")
-                throw err
-            })
-            rpcHandler.eventManager.emitReceived(userOpHash)
-            metrics.userOpsReceived
-                .labels({
-                    status: mempoolResult,
-                    type: userOp.eip7702Auth ? "7702" : "regular"
-                })
-                .inc()
-
-            recordOutcome("queued")
-            rpcHandler.logger.warn(
-                { userOpHash },
-                "pimlico_sendUserOperationNow found no free executor, added userOperation to the mempool"
-            )
-            throw new RpcError(
-                "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
-                ERC7769Errors.InvalidFields,
-                { userOpHash }
-            )
+            return await addToMempool("no free executor")
         }
 
         // Failures on our side are server errors: the RPC server reports
