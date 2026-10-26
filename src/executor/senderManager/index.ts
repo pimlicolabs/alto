@@ -25,6 +25,9 @@ export const getAvailableWallets = (config: AltoConfig) => {
 export type SenderManager = {
     getAllWallets: () => Account[]
     getWallet: () => Promise<Account>
+    // Like getWallet, but gives up and returns undefined if no wallet frees
+    // up within timeoutMs.
+    tryGetWallet: (timeoutMs: number) => Promise<Account | undefined>
     lockWallet?: (wallet: Account) => Promise<void>
     markWalletProcessed: (wallet: Account) => Promise<void>
     getActiveWallets: () => Account[]

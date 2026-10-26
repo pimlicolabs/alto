@@ -23,6 +23,7 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
+import { addToMempoolIfValid } from "./eth_sendUserOperation"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -248,12 +249,59 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         })
 
         const sendStart = Date.now()
-        const result = await rpcHandler.executorManager.sendBundleNow(bundle)
+        // Executor wallets free up as the block loop processes blocks, so
+        // wait up to a block for one before falling back to the mempool.
+        const result = await rpcHandler.executorManager.sendBundleNow({
+            userOpBundle: bundle,
+            walletTimeoutMs: Math.max(
+                0,
+                Math.min(rpcHandler.config.blockTime, deadline - sendStart)
+            )
+        })
         observeDurationMs({
             histogram: metrics.instantDuration.labels({ stage: "send" }),
             startMs: sendStart,
             endMs: Date.now()
         })
+
+        // No executor freed up in time. Hand the userOp to the mempool like
+        // eth_sendUserOperation (with full validation) and tell the client to
+        // track it.
+        if (result && !result.success && result.status === "no_executor") {
+            await rpcHandler.mempool.store.removeProcessing({
+                entryPoint,
+                userOpInfos: [userOpInfo]
+            })
+
+            const { result: mempoolResult } = await addToMempoolIfValid({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                apiVersion,
+                isBoosted
+            }).catch((err: unknown) => {
+                recordOutcome(err instanceof RpcError ? "rejected" : "failed")
+                throw err
+            })
+            rpcHandler.eventManager.emitReceived(userOpHash)
+            metrics.userOpsReceived
+                .labels({
+                    status: mempoolResult,
+                    type: userOp.eip7702Auth ? "7702" : "regular"
+                })
+                .inc()
+
+            recordOutcome("queued")
+            rpcHandler.logger.warn(
+                { userOpHash },
+                "pimlico_sendUserOperationNow found no free executor, added userOperation to the mempool"
+            )
+            throw new RpcError(
+                "no executor available to send the userOperation now, it was added to the mempool instead. Track it with eth_getUserOperationReceipt",
+                ERC7769Errors.InvalidFields,
+                { userOpHash }
+            )
+        }
 
         // Failures on our side are server errors: the RPC server reports
         // non-RpcErrors to Sentry and logs them, and the client only gets a

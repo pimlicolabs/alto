@@ -333,12 +333,14 @@ export function createMetrics(registry: Registry, register = true) {
 }
 
 // rejected: the userOp was invalid. failed: we couldn't send the bundle.
+// queued: no executor was free, the userOp went to the mempool instead.
 export type InstantOutcome =
     | "included"
     | "reverted"
     | "timeout"
     | "rejected"
     | "failed"
+    | "queued"
 
 export type UserOpStage =
     | "validation"

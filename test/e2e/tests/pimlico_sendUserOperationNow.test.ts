@@ -627,3 +627,85 @@ describe.each([
         })
     }
 )
+
+describe("pimlico_sendUserOperationNow without a free executor", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    let proxy: Awaited<ReturnType<typeof startRpcProxy>>
+    let proxiedAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        proxy = await startRpcProxy({ upstream: anvilRpc })
+        proxiedAlto = await startAltoWithFlags({
+            anvilRpc: proxy.url,
+            port: 8096,
+            flags: {
+                "instant-bundling-timeout": 1_000,
+                "max-executors": 1
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await proxiedAlto?.stop()
+        await proxy?.stop()
+    })
+
+    beforeEach(async () => {
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+    })
+
+    test("Adds the userOperation to the mempool", async () => {
+        const [busyOp, op] = await Promise.all([
+            prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            }),
+            prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: proxiedAlto.altoRpc
+            })
+        ])
+
+        // The dropped bundle keeps the only executor busy.
+        proxy.state.dropSends = true
+        const { error: timeoutError } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(busyOp), entryPoint]
+        })
+        expect(timeoutError?.message).toContain("not yet included")
+
+        proxy.state.methods = []
+        const { result, error } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+
+        expect(result).toBeUndefined()
+        expect(error?.code).toEqual(-32602)
+        expect(error?.message).toContain("added to the mempool")
+        const userOpHash = getUserOperationHash({
+            userOperation: op,
+            chainId: foundry.id,
+            entryPointAddress: entryPoint,
+            entryPointVersion
+        })
+        expect(error?.data).toEqual({ userOpHash })
+        // Nothing was sent for it.
+        expect(proxy.state.methods).not.toContain("eth_sendRawTransaction")
+
+        const { result: status } = await rawRpc({
+            url: proxiedAlto.altoRpc,
+            method: "pimlico_getUserOperationStatus",
+            params: [userOpHash]
+        })
+        expect(status).toMatchObject({ status: "not_submitted" })
+    })
+})

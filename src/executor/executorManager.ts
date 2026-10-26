@@ -23,7 +23,7 @@ import {
 } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import Redis from "ioredis"
-import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
+import { type Account, type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
@@ -56,6 +56,12 @@ export type SendBundleResult =
           // simulation error, executor funds or the send itself.
           status: "error"
           reason: string
+      }
+    | {
+          success: false
+          // No executor wallet freed up in time, nothing was sent. Only
+          // returned by sendBundleNow.
+          status: "no_executor"
       }
 
 export class ExecutorManager {
@@ -341,23 +347,45 @@ export class ExecutorManager {
     //   as soon as the node returns it.
     // - if no bundle is sent, the userOps are dropped instead of resubmitted:
     //   the caller answers with an error, so they must not land later.
+    // - it waits at most walletTimeoutMs for a free executor wallet, then
+    //   returns no_executor and leaves the userOp to the caller.
     // Once sent, tracking, inclusion and resubmission are left to the block
     // loop as usual.
-    async sendBundleNow(
+    async sendBundleNow({
+        userOpBundle,
+        walletTimeoutMs
+    }: {
         userOpBundle: UserOperationBundle
-    ): Promise<SendBundleResult | undefined> {
+        walletTimeoutMs: number
+    }): Promise<SendBundleResult | undefined> {
+        if (userOpBundle.userOps.length === 0) {
+            return undefined
+        }
+
+        const wallet = await withSpan({
+            name: "bundle.wallet_acquire",
+            fn: () => this.senderManager.tryGetWallet(walletTimeoutMs)
+        })
+        if (!wallet) {
+            return { success: false, status: "no_executor" }
+        }
+
         return await this.sendBundleWithSpan({
             userOpBundle,
-            instant: true
+            instant: true,
+            wallet
         })
     }
 
     private async sendBundleWithSpan({
         userOpBundle,
-        instant
+        instant,
+        wallet
     }: {
         userOpBundle: UserOperationBundle
         instant: boolean
+        // Already acquired by the caller, otherwise waits for one.
+        wallet?: Account
     }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
@@ -371,7 +399,8 @@ export class ExecutorManager {
                 "bundle.user_op_count": userOps.length,
                 "bundle.user_op_hashes": getUserOpHashes(userOps)
             },
-            fn: (span) => this.sendBundle({ userOpBundle, span, instant })
+            fn: (span) =>
+                this.sendBundle({ userOpBundle, span, instant, wallet })
         })
     }
 
@@ -402,19 +431,23 @@ export class ExecutorManager {
     private async sendBundle({
         userOpBundle,
         span,
-        instant
+        instant,
+        wallet: acquiredWallet
     }: {
         userOpBundle: UserOperationBundle
         span: Span
         // pimlico_sendUserOperationNow bundle, see sendBundleNow.
         instant: boolean
+        wallet?: Account
     }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
-        const wallet = await withSpan({
-            name: "bundle.wallet_acquire",
-            fn: () => this.senderManager.getWallet()
-        })
+        const wallet =
+            acquiredWallet ??
+            (await withSpan({
+                name: "bundle.wallet_acquire",
+                fn: () => this.senderManager.getWallet()
+            }))
         span.setAttribute("bundle.executor", wallet.address)
 
         const [gasPriceParams, baseFee, nonce] = await withSpan({
