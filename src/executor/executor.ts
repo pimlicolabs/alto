@@ -43,12 +43,16 @@ import {
     getTransactionError
 } from "viem/utils"
 import type { AltoConfig } from "../createConfig"
-import { filterOpsAndEstimateGas } from "./filterOpsAndEstimateGas"
+import {
+    type FilterOpsResult,
+    filterOpsAndEstimateGas
+} from "./filterOpsAndEstimateGas"
 import { withSpan } from "./tracing"
 import {
     ReplacementNonceConflictError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
+    getExecutorNonce,
     getUserOpHashes,
     isFeeCapTooLowError,
     isTransactionPendingError,
@@ -320,7 +324,7 @@ export class Executor {
                         }
 
                         const result = await this.sendTransactionSync({
-                            walletClient,
+                            walletClient: walletClients.sync ?? walletClient,
                             account,
                             request
                         })
@@ -352,10 +356,17 @@ export class Executor {
                     if (isTransactionUnderpricedError(e)) {
                         childLogger.warn("Transaction underpriced, retrying")
 
-                        request.nonce = await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
-                        })
+                        // A replacement keeps its nonce: moving past it
+                        // would resend the userOps of a transaction that
+                        // already landed. If the nonce was consumed, the
+                        // next attempt fails with nonce too low and is
+                        // reported as a ReplacementNonceConflictError.
+                        if (!isReplacement) {
+                            request.nonce = await getExecutorNonce({
+                                config: this.config,
+                                address: account.address
+                            })
+                        }
 
                         if (request.maxFeePerGas) {
                             request.maxFeePerGas = scaleBigIntByPercent(
@@ -441,14 +452,15 @@ export class Executor {
 
                 if (syncSendNonceError) {
                     // Not added to the pool, so resending can't duplicate the
-                    // bundle. Use the nonce the node expects, or its latest
-                    // nonce when it didn't say. An executor only has one
-                    // bundle in flight, so nothing of ours is pending.
+                    // bundle. Use the nonce the node expects, or the
+                    // executor's next nonce when it didn't say. An executor
+                    // only has one bundle in flight, so nothing of ours is
+                    // pending.
                     const expectedNonce =
                         syncSendNonceError.expectedNonce ??
-                        (await publicClient.getTransactionCount({
-                            address: account.address,
-                            blockTag: "latest"
+                        (await getExecutorNonce({
+                            config: this.config,
+                            address: account.address
                         }))
 
                     // Already at the expected nonce, so the nonce isn't the
@@ -648,36 +660,25 @@ export class Executor {
         }
     }
 
-    async bundle({
-        executor,
+    // Simulates the bundle with filterOps to drop failing userOps and
+    // estimate its gas. Only needs the base fee, so callers can run it
+    // alongside the gas price and nonce fetch.
+    async filterOps({
         userOpBundle,
-        networkGasPrice,
-        networkBaseFee,
-        nonce,
-        isReplacement,
-        sendSync
+        networkBaseFee
     }: {
-        executor: Account
         userOpBundle: UserOperationBundle
-        networkGasPrice: GasPriceParameters
         networkBaseFee: bigint
-        nonce: number
-        // When set, this bundle replaces a previous transaction.
-        isReplacement?: boolean
-        // When set and the RPC supports EIP-7966, send with
-        // eth_sendRawTransactionSync and return its pending receipt in send.
-        // Ignored for replacements.
-        sendSync?: boolean
-    }): Promise<BundleResult> {
+    }): Promise<FilterOpsResult> {
         const { entryPoint, userOps } = userOpBundle
 
-        let childLogger = this.logger.child({
+        const childLogger = this.logger.child({
             submissionAttempts: userOpBundle.submissionAttempts,
             userOperations: getUserOpHashes(userOps),
             entryPoint
         })
 
-        const filterOpsResult = await withSpan({
+        return await withSpan({
             name: "bundle.filter_ops_simulation",
             fn: async (span) => {
                 const result = await filterOpsAndEstimateGas({
@@ -696,6 +697,39 @@ export class Executor {
                 }
                 return result
             }
+        })
+    }
+
+    async bundle({
+        executor,
+        userOpBundle,
+        filterOpsResult,
+        networkGasPrice,
+        networkBaseFee,
+        nonce,
+        isReplacement,
+        sendSync
+    }: {
+        executor: Account
+        userOpBundle: UserOperationBundle
+        // Result of filterOps for this bundle.
+        filterOpsResult: FilterOpsResult
+        networkGasPrice: GasPriceParameters
+        networkBaseFee: bigint
+        nonce: number
+        // When set, this bundle replaces a previous transaction.
+        isReplacement?: boolean
+        // When set and the RPC supports EIP-7966, send with
+        // eth_sendRawTransactionSync and return its pending receipt in send.
+        // Ignored for replacements.
+        sendSync?: boolean
+    }): Promise<BundleResult> {
+        const { entryPoint, userOps } = userOpBundle
+
+        let childLogger = this.logger.child({
+            submissionAttempts: userOpBundle.submissionAttempts,
+            userOperations: getUserOpHashes(userOps),
+            entryPoint
         })
 
         if (filterOpsResult.status === "unhandled_error") {
