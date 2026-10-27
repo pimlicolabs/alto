@@ -1,5 +1,5 @@
 # production ready dockerfile that runs pnpm start
-FROM node:20-alpine
+FROM node:24.22.1-alpine3.24
 
 # set working directory
 WORKDIR /app
