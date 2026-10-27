@@ -15,10 +15,12 @@ import {
     encodeFunctionData,
     getAddress,
     getContract,
+    keccak256,
     pad,
     parseEther,
     parseGwei,
     slice,
+    toHex,
     zeroAddress
 } from "viem"
 import {
@@ -52,6 +54,7 @@ import {
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
+    getPimlicoClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
@@ -1699,6 +1702,101 @@ describe.each([
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
                 expect(rpcError.code).toBe(ERC7769Errors.PaymasterDepositTooLow)
+            }
+        })
+
+        test("Should drop userOp if paymaster deposit is drained before bundling", async () => {
+            await setBundlingMode({ mode: "manual", altoRpc })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                fundAccount: false
+            })
+
+            // Fresh paymaster so draining it doesn't affect other tests
+            const drainedPaymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc,
+                salt: pad(privateKeyToAddress(generatePrivateKey()))
+            })
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ],
+                ...(entryPointVersion === "0.6"
+                    ? {
+                          paymasterAndData: concat([
+                              drainedPaymaster,
+                              encodePaymasterData()
+                          ])
+                      }
+                    : {
+                          paymaster: drainedPaymaster,
+                          paymasterData: encodePaymasterData(),
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 50_000n
+                      })
+            })
+
+            // StakeManager.deposits is the EntryPoint's first storage slot
+            await anvilClient.setStorageAt({
+                address: entryPoint,
+                index: keccak256(
+                    concat([pad(drainedPaymaster), pad(toHex(0))])
+                ),
+                value: pad(toHex(0))
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: { public: publicClient }
+            })
+            expect(
+                await entryPointContract.read.balanceOf([drainedPaymaster])
+            ).toBe(0n)
+
+            const blockBefore = await publicClient.getBlockNumber()
+
+            await sendBundleNow({ altoRpc })
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            const pimlicoClient = getPimlicoClient({
+                entryPointVersion,
+                altoRpc
+            })
+            const status = await pimlicoClient.getUserOperationStatus({
+                hash
+            })
+            expect(status.status).toBe("rejected")
+
+            await expect(
+                client.getUserOperationReceipt({ hash })
+            ).rejects.toThrow(UserOperationReceiptNotFoundError)
+
+            // No bundle was sent for the dropped userOp
+            const blockAfter = await publicClient.getBlockNumber()
+            for (
+                let blockNumber = blockBefore + 1n;
+                blockNumber <= blockAfter;
+                blockNumber++
+            ) {
+                const block = await publicClient.getBlock({
+                    blockNumber,
+                    includeTransactions: true
+                })
+                expect(
+                    block.transactions.filter(
+                        (tx) => tx.to && getAddress(tx.to) === entryPoint
+                    )
+                ).toEqual([])
             }
         })
 
