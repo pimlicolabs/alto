@@ -353,6 +353,29 @@ export const getAuthorizationListFromUserOps = (
     return authList.length > 0 ? authList : undefined
 }
 
+// The nonce for an executor's next bundle. Under flashblocks an executor is
+// freed once its transaction is preconfirmed, before the block including it
+// is sealed, so "latest" can still return the nonce that transaction used.
+// On a flashblocks node "pending" is the sealed nonce plus the sender's
+// preconfirmed transactions and leaves out the mempool, so a transaction
+// that isn't preconfirmed is never counted.
+//
+// ref
+// - https://github.com/base/base/blob/bcd96e/crates/execution/flashblocks/src/rpc/eth.rs#L316-L331
+// - https://github.com/base/base/blob/bcd96e/crates/execution/flashblocks/src/processor.rs#L664-L669
+export function getExecutorNonce({
+    config,
+    address
+}: {
+    config: AltoConfig
+    address: Address
+}): Promise<number> {
+    return config.publicClient.getTransactionCount({
+        address,
+        blockTag: config.flashblocksPreconfirmationTime ? "pending" : "latest"
+    })
+}
+
 export async function flushStuckTransaction({
     config,
     wallet,
