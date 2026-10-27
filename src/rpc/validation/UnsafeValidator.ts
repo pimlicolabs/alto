@@ -32,7 +32,8 @@ import {
 import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../../createConfig"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
-import { GasEstimationHandler } from "../estimation/gasEstimationHandler"
+import { GasEstimator06 } from "../estimation/gasEstimations06"
+import { GasEstimator07 } from "../estimation/gasEstimations07"
 import type {
     SimulateHandleOpFailResult,
     SimulateHandleOpResult
@@ -44,7 +45,8 @@ export class UnsafeValidator implements InterfaceValidator {
     metrics: Metrics
     gasPriceManager: GasPriceManager
     logger: Logger
-    gasEstimationHandler: GasEstimationHandler
+    gasEstimator06: GasEstimator06
+    gasEstimator07: GasEstimator07
 
     constructor({
         config,
@@ -64,10 +66,8 @@ export class UnsafeValidator implements InterfaceValidator {
                 level: config.logLevel
             }
         )
-        this.gasEstimationHandler = new GasEstimationHandler(
-            config,
-            gasPriceManager
-        )
+        this.gasEstimator06 = new GasEstimator06(config)
+        this.gasEstimator07 = new GasEstimator07(config, gasPriceManager)
     }
 
     async getSimulationResult06(
@@ -154,14 +154,18 @@ export class UnsafeValidator implements InterfaceValidator {
         stateOverrides?: StateOverrides
     }) {
         const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
-        const error = await this.gasEstimationHandler.validateHandleOp({
-            userOp,
-            queuedUserOps,
-            entryPoint,
-            targetAddress: zeroAddress,
-            targetCallData: "0x",
-            stateOverrides
-        })
+        const error = isVersion06(userOp)
+            ? await this.gasEstimator06.simulateHandleOp06({
+                  userOp,
+                  entryPoint,
+                  userStateOverrides: stateOverrides
+              })
+            : await this.gasEstimator07.validateHandleOp07({
+                  userOp: userOp as UserOperation07,
+                  queuedUserOps: queuedUserOps as UserOperation07[],
+                  entryPoint,
+                  stateOverrides
+              })
 
         let { callGasLimit, verificationGasLimit } = userOp
         let paymasterVerificationGasLimit =
@@ -239,14 +243,18 @@ export class UnsafeValidator implements InterfaceValidator {
         stateOverrides?: StateOverrides
     }): Promise<SimulateHandleOpResult> {
         const { userOp, entryPoint, queuedUserOps, stateOverrides } = args
-        const error = await this.gasEstimationHandler.simulateHandleOp({
-            userOp,
-            queuedUserOps,
-            entryPoint,
-            targetAddress: zeroAddress,
-            targetCallData: "0x",
-            stateOverrides
-        })
+        const error = isVersion06(userOp)
+            ? await this.gasEstimator06.simulateHandleOp06({
+                  userOp,
+                  entryPoint,
+                  userStateOverrides: stateOverrides
+              })
+            : await this.gasEstimator07.simulateHandleOp07({
+                  userOp: userOp as UserOperation07,
+                  queuedUserOps: queuedUserOps as UserOperation07[],
+                  entryPoint,
+                  userStateOverrides: stateOverrides
+              })
 
         if (error.result === "failed") {
             return {
@@ -295,14 +303,13 @@ export class UnsafeValidator implements InterfaceValidator {
                 throw e
             })
 
-        const runtimeValidationPromise =
-            this.gasEstimationHandler.gasEstimator06.simulateHandleOp06({
+        const runtimeValidationPromise = this.gasEstimator06.simulateHandleOp06(
+            {
                 entryPoint,
                 userOp,
-                useCodeOverride: false, // disable code override so that call phase reverts aren't caught
-                targetAddress: zeroAddress,
-                targetCallData: "0x"
-            })
+                useCodeOverride: false // disable code override so that call phase reverts aren't caught
+            }
+        )
 
         const [simulateValidationResult, runtimeValidation] = await Promise.all(
             [simulateValidationPromise, runtimeValidationPromise]
@@ -444,7 +451,7 @@ export class UnsafeValidator implements InterfaceValidator {
         const { userOp, queuedUserOps, entryPoint } = args
 
         const simulateValidationResult =
-            await this.gasEstimationHandler.gasEstimator07.simulateValidation({
+            await this.gasEstimator07.simulateValidation({
                 entryPoint,
                 userOp,
                 queuedUserOps
