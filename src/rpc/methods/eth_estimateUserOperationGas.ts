@@ -1,6 +1,8 @@
+import { calculateAA95GasFloor } from "@alto/executor"
 import {
     type Address,
     ERC7769Errors,
+    type InterfaceValidator,
     RpcError,
     type StateOverrides,
     type UserOperation,
@@ -8,6 +10,7 @@ import {
 } from "@alto/types"
 import { parseEther, toHex } from "viem"
 import { maxBigInt, scaleBigIntByPercent } from "../../utils/bigInt"
+import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
 import {
     deepHexlify,
     getUserOpHash,
@@ -21,6 +24,7 @@ import {
     getL2PvgComponent,
     getMonadPvg
 } from "../estimation/preVerificationGas"
+import type { SimulateHandleOpResult } from "../estimation/types"
 import type { RpcHandler } from "../rpcHandler"
 
 type GasEstimateResult =
@@ -81,12 +85,14 @@ const getGasEstimates = async ({
     rpcHandler,
     userOp,
     entryPoint,
-    stateOverrides
+    stateOverrides,
+    validator = rpcHandler.validator
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
     stateOverrides?: StateOverrides
+    validator?: InterfaceValidator
 }): Promise<GasEstimateResult> => {
     // Prepare userOperation for simulation.
     const {
@@ -167,12 +173,22 @@ const getGasEstimates = async ({
             simulationPaymasterPostOpGasLimit
     }
 
-    const executionResult = await rpcHandler.validator.getExecutionResult({
-        userOp: simulationUserOp,
-        queuedUserOps,
-        entryPoint,
-        stateOverrides: deepHexlify(mutableStateOverrides)
-    })
+    let executionResult: SimulateHandleOpResult
+    try {
+        executionResult = await validator.getExecutionResult({
+            userOp: simulationUserOp,
+            queuedUserOps,
+            entryPoint,
+            stateOverrides: deepHexlify(mutableStateOverrides)
+        })
+    } catch (err) {
+        // e.g. a binary search that keeps running out of gas
+        return {
+            status: "failed",
+            error: err instanceof Error ? err.message : String(err),
+            code: err instanceof RpcError ? err.code : undefined
+        }
+    }
 
     if (executionResult.result === "failed") {
         return {
@@ -270,6 +286,64 @@ const getGasEstimates = async ({
     }
 }
 
+const fitsMaxGasPerUserOp = ({
+    rpcHandler,
+    userOp
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+}): boolean => {
+    const gasFloor = calculateAA95GasFloor({
+        userOps: [userOp],
+        beneficiary: rpcHandler.config.utilityWalletAddress
+    })
+
+    return (
+        scaleBigIntByPercent(
+            gasFloor,
+            rpcHandler.config.executorGasMultiplier
+        ) <= rpcHandler.config.maxGasPerUserOp
+    )
+}
+
+// Under EIP-8037, simulations capped at TX_MAX_GAS_LIMIT pay state gas from
+// gas_left, so a userOp whose regular and state gas don't fit under the cap
+// runs out of gas. Gas above the cap is the state gas reservoir, which
+// gasleft() can't see, so simulating above it gives limits for regular gas
+// only.
+const needsEip8037Reservoir = ({
+    rpcHandler,
+    userOp,
+    meteredResult
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    meteredResult: GasEstimateResult
+}): boolean => {
+    const { supportsEip8037, fixedGasLimitForEstimation } = rpcHandler.config
+
+    // A lower simulation cap is the operator's choice, not a sign of state gas
+    const simulatesAtCap =
+        fixedGasLimitForEstimation === undefined ||
+        fixedGasLimitForEstimation >= TX_MAX_GAS_LIMIT
+
+    if (!supportsEip8037 || !simulatesAtCap) {
+        return false
+    }
+
+    if (meteredResult.status === "failed") {
+        return (
+            meteredResult.code === undefined ||
+            meteredResult.code === ERC7769Errors.UserOperationReverted
+        )
+    }
+
+    return !fitsMaxGasPerUserOp({
+        rpcHandler,
+        userOp: { ...userOp, ...meteredResult.estimates }
+    })
+}
+
 export const ethEstimateUserOperationGasHandler = createMethodHandler({
     method: "eth_estimateUserOperationGas",
     schema: estimateUserOperationGasSchema,
@@ -281,7 +355,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const {
             v7PreVerificationGasLimitMultiplier,
             v6PreVerificationGasLimitMultiplier,
-            chainType
+            chainType,
+            maxReservoirGas
         } = rpcHandler.config
 
         // Validate userOp fields (sync - fail fast before async checks)
@@ -297,7 +372,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         // Execute multiple async operations in parallel
         const [
             [validEip7702Auth, validEip7702AuthError],
-            gasEstimateResult,
+            meteredResult,
             l2PvgComponent,
             dynamicPvgComponent
         ] = await Promise.all([
@@ -331,6 +406,30 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
                 validEip7702AuthError,
                 ERC7769Errors.InvalidFields
             )
+        }
+
+        let gasEstimateResult = meteredResult
+        let isReservoirMode = false
+        const { validator } = rpcHandler
+        let finalValidator = validator
+
+        if (needsEip8037Reservoir({ rpcHandler, userOp, meteredResult })) {
+            const eip8037Validator = validator.withSimulationGasLimit(
+                TX_MAX_GAS_LIMIT + maxReservoirGas
+            )
+            const reservoirResult = await getGasEstimates({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                stateOverrides,
+                validator: eip8037Validator
+            })
+
+            if (reservoirResult.status === "success") {
+                gasEstimateResult = reservoirResult
+                isReservoirMode = true
+                finalValidator = eip8037Validator
+            }
         }
 
         // Validate gas estimation result first
@@ -368,7 +467,52 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             )
         }
 
-        const finalGasLimits = await rpcHandler.validator.validateHandleOp({
+        // In reservoir mode the limits only cover regular gas and the bundle
+        // pays the state gas from a reservoir above TX_MAX_GAS_LIMIT. The
+        // EntryPoint never charges reservoir gas to the userOp, so it goes in
+        // preVerificationGas. Boosted userOps pay nothing, so the bundler
+        // sizes their reservoir itself.
+        if (isReservoirMode) {
+            const reservoirUserOp = {
+                ...userOp,
+                ...gasEstimateResult.estimates,
+                preVerificationGas
+            }
+
+            if (!fitsMaxGasPerUserOp({ rpcHandler, userOp: reservoirUserOp })) {
+                throw new RpcError(
+                    `UserOperation needs more than ${rpcHandler.config.maxGasPerUserOp} gas excluding EIP-8037 state gas`,
+                    ERC7769Errors.InvalidFields
+                )
+            }
+
+            const isBoosted =
+                userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+
+            if (!isBoosted) {
+                const reservoirGas = await validator.findReservoirGas({
+                    userOp: reservoirUserOp,
+                    queuedUserOps: gasEstimateResult.queuedUserOps,
+                    entryPoint,
+                    stateOverrides: deepHexlify(stateOverrides),
+                    maxReservoirGas
+                })
+
+                if (reservoirGas === undefined) {
+                    throw new RpcError(
+                        `UserOperation needs more than ${maxReservoirGas} EIP-8037 state gas`,
+                        ERC7769Errors.UserOperationReverted
+                    )
+                }
+
+                preVerificationGas += reservoirGas
+                finalValidator = validator.withSimulationGasLimit(
+                    TX_MAX_GAS_LIMIT + reservoirGas
+                )
+            }
+        }
+
+        const finalGasLimits = await finalValidator.validateHandleOp({
             userOp: {
                 ...userOp,
                 ...gasEstimateResult.estimates, // use actual callGasLimit, verificationGasLimit, paymasterPostOpGasLimit, paymasterVerificationGasLimit
