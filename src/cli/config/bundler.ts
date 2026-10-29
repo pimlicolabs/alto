@@ -109,6 +109,7 @@ export const bundlerArgsSchema = z.object({
     "instant-bundling-timeout": z.number().int().positive(),
     "instant-bundling-min-send-wait": z.number().int().positive(),
     "instant-bundling-executor-wait": z.number().int().min(0),
+    "prepared-user-operation-ttl": z.number().int().positive(),
     "skip-instant-bundling": z.boolean(),
     "skip-local-gas-calculations": z.boolean(),
     "flashblocks-preconfirmation-time": z.number().optional(),

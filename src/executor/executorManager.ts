@@ -27,6 +27,7 @@ import { type Hex, type WatchBlocksReturnType, toHex } from "viem"
 import type { AltoConfig } from "../createConfig"
 import type { BundleManager } from "./bundleManager"
 import type { Executor } from "./executor"
+import type { FilterOpsResult } from "./filterOpsAndEstimateGas"
 import type { SenderManager } from "./senderManager"
 import { withSpan } from "./tracing"
 import { getExecutorNonce, getUserOpHashes } from "./utils"
@@ -349,30 +350,46 @@ export class ExecutorManager {
     //   the caller answers with an error, so they must not land later.
     // - it waits at most walletTimeoutMs for a free executor wallet, then
     //   returns no_executor and leaves the userOp to the caller.
+    // - with filterOpsResult (from simulateBundle) the bundle isn't simulated
+    //   again.
     // Once sent, tracking, inclusion and resubmission are left to the block
     // loop as usual.
     async sendBundleNow({
         userOpBundle,
-        walletTimeoutMs
+        walletTimeoutMs,
+        filterOpsResult
     }: {
         userOpBundle: UserOperationBundle
         walletTimeoutMs: number
+        filterOpsResult?: FilterOpsResult
     }): Promise<SendBundleResult | undefined> {
         return await this.sendBundleWithSpan({
             userOpBundle,
             instant: true,
-            walletTimeoutMs
+            walletTimeoutMs,
+            filterOpsResult
         })
+    }
+
+    // The simulation sendBundle runs before signing. It needs no executor
+    // wallet, so it can run ahead of sendBundleNow.
+    async simulateBundle(
+        userOpBundle: UserOperationBundle
+    ): Promise<FilterOpsResult> {
+        const networkBaseFee = await this.getBaseFee()
+        return await this.executor.filterOps({ userOpBundle, networkBaseFee })
     }
 
     private async sendBundleWithSpan({
         userOpBundle,
         instant,
-        walletTimeoutMs
+        walletTimeoutMs,
+        filterOpsResult
     }: {
         userOpBundle: UserOperationBundle
         instant: boolean
         walletTimeoutMs?: number
+        filterOpsResult?: FilterOpsResult
     }): Promise<SendBundleResult | undefined> {
         const { entryPoint, userOps } = userOpBundle
         if (userOps.length === 0) {
@@ -391,7 +408,8 @@ export class ExecutorManager {
                     userOpBundle,
                     span,
                     instant,
-                    walletTimeoutMs
+                    walletTimeoutMs,
+                    precomputedFilterOpsResult: filterOpsResult
                 })
         })
     }
@@ -424,7 +442,8 @@ export class ExecutorManager {
         userOpBundle,
         span,
         instant,
-        walletTimeoutMs
+        walletTimeoutMs,
+        precomputedFilterOpsResult
     }: {
         userOpBundle: UserOperationBundle
         span: Span
@@ -432,6 +451,8 @@ export class ExecutorManager {
         instant: boolean
         // How long an instant bundle waits for a free wallet.
         walletTimeoutMs?: number
+        // Skips the simulation, see sendBundleNow.
+        precomputedFilterOpsResult?: FilterOpsResult
     }): Promise<SendBundleResult> {
         const { entryPoint, userOps, version } = userOpBundle
 
@@ -453,9 +474,14 @@ export class ExecutorManager {
         // The simulation only needs the base fee, so it runs alongside the
         // gas price and nonce fetch instead of after it.
         const networkBaseFee = this.getBaseFee()
-        const filterOpsResult = networkBaseFee.then((baseFee) =>
-            this.executor.filterOps({ userOpBundle, networkBaseFee: baseFee })
-        )
+        const filterOpsResult = precomputedFilterOpsResult
+            ? Promise.resolve(precomputedFilterOpsResult)
+            : networkBaseFee.then((baseFee) =>
+                  this.executor.filterOps({
+                      userOpBundle,
+                      networkBaseFee: baseFee
+                  })
+              )
         // Only awaited once gas and nonce are fetched, don't leave a
         // rejection unhandled if we return before that.
         filterOpsResult.catch(() => undefined)

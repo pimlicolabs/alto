@@ -36,6 +36,7 @@ import type { BundleManager } from "../executor/bundleManager"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 import type { MethodHandler } from "./createMethodHandler"
 import { registerHandlers } from "./methods"
+import { PreparedUserOps } from "./preparedUserOps"
 
 export class RpcHandler {
     public readonly config: AltoConfig
@@ -50,6 +51,7 @@ export class RpcHandler {
     public readonly gasPriceManager: GasPriceManager
     public readonly bundleManager: BundleManager
     public readonly logger: Logger
+    public readonly preparedUserOps: PreparedUserOps
 
     private readonly methodHandlers: Map<string, MethodHandler>
     private readonly eip7702CodeCache: Map<Address, boolean>
@@ -97,6 +99,12 @@ export class RpcHandler {
                 level: config.rpcLogLevel || config.logLevel
             }
         )
+
+        this.preparedUserOps = new PreparedUserOps({
+            mempool,
+            logger: this.logger,
+            ttlMs: config.preparedUserOperationTtl
+        })
 
         this.methodHandlers = new Map()
         this.eip7702CodeCache = new Map()
