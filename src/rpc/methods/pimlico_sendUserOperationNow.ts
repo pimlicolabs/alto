@@ -14,6 +14,7 @@ import {
     observeDurationMs,
     parseUserOpReceipt
 } from "@alto/utils"
+import { trace } from "@opentelemetry/api"
 import {
     BaseError,
     type Hex,
@@ -24,6 +25,11 @@ import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
 import { addToMempoolIfValid } from "./eth_sendUserOperation"
+
+// Where the receipt came from, recorded on the request's span: the
+// eth_sendRawTransactionSync response, the block loop's receipt cache, or
+// polling eth_getTransactionReceipt.
+type ReceiptSource = "sync" | "cache" | "poll" | "timeout"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -65,22 +71,26 @@ const waitForReceipt = ({
         }
     }
 
+    // Captured now, the timers below run outside the request's context.
+    const span = trace.getActiveSpan()
+
     return new Promise((resolve) => {
         let settled = false
         let pollTimer: ReturnType<typeof setTimeout> | undefined
 
-        const settle = (result: ReceiptWaitResult) => {
+        const settle = (result: ReceiptWaitResult, source: ReceiptSource) => {
             if (settled) {
                 return
             }
             settled = true
             clearTimeout(pollTimer)
             clearTimeout(deadlineTimer)
+            span?.setAttribute("instant.receipt_source", source)
             resolve(result)
         }
 
         const deadlineTimer = setTimeout(
-            () => settle({ status: "timeout" }),
+            () => settle({ status: "timeout" }, "timeout"),
             Math.max(0, timeoutMs)
         )
 
@@ -90,7 +100,7 @@ const waitForReceipt = ({
             send.receipt
                 .then((receipt) => {
                     if (receipt) {
-                        settle(fromTransactionReceipt(receipt))
+                        settle(fromTransactionReceipt(receipt), "sync")
                     }
                 })
                 .catch((err: unknown) => {
@@ -112,10 +122,13 @@ const waitForReceipt = ({
                         userOpHash
                     )
                 if (cachedUserOpReceipt) {
-                    settle({
-                        status: "included",
-                        userOpReceipt: cachedUserOpReceipt
-                    })
+                    settle(
+                        {
+                            status: "included",
+                            userOpReceipt: cachedUserOpReceipt
+                        },
+                        "cache"
+                    )
                     return
                 }
 
@@ -135,7 +148,7 @@ const waitForReceipt = ({
                         throw err
                     })
                 if (receipt) {
-                    settle(fromTransactionReceipt(receipt))
+                    settle(fromTransactionReceipt(receipt), "poll")
                     return
                 }
             } catch (err) {

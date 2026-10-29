@@ -18,7 +18,7 @@ import * as sentry from "@sentry/node"
 import {
     type Account,
     type Address,
-    type BaseError,
+    BaseError,
     FeeCapTooLowError,
     type Hex,
     RpcRequestError,
@@ -166,6 +166,29 @@ export const isTransactionPendingError = (e: BaseError) => {
         return (err as Error).message?.toLowerCase().includes("already known")
     })
     return pendingError !== null
+}
+
+// An eth_sendRawTransactionSync fan-out (see multiRpcTransport) that ended as
+// soon as one endpoint answered that the transaction is pending (see
+// isTransactionPendingError). The other endpoints may still respond with the
+// receipt: receipt resolves to the first one's raw RPC receipt, or to
+// undefined when none returns one, and never rejects.
+export class SyncSendPendingError extends BaseError {
+    readonly receipt: Promise<unknown>
+
+    constructor({
+        cause,
+        receipt
+    }: {
+        cause: BaseError
+        receipt: Promise<unknown>
+    }) {
+        super("transaction is pending, waiting for its receipt", {
+            cause,
+            name: "SyncSendPendingError"
+        })
+        this.receipt = receipt
+    }
 }
 
 // eth_sendRawTransactionSync rejections that left the transaction out of the

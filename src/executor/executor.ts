@@ -28,6 +28,7 @@ import {
     IntrinsicGasTooLowError,
     NonceTooHighError,
     NonceTooLowError,
+    type RpcTransactionReceipt,
     type SendTransactionErrorType,
     type SendTransactionParameters,
     type SignedAuthorizationList,
@@ -36,6 +37,7 @@ import {
     type TransactionSerializable,
     type Transport,
     type WalletClient,
+    formatTransactionReceipt,
     keccak256
 } from "viem"
 import {
@@ -50,6 +52,7 @@ import {
 import { withSpan } from "./tracing"
 import {
     ReplacementNonceConflictError,
+    SyncSendPendingError,
     encodeHandleOpsCalldata,
     getAuthorizationListFromUserOps,
     getExecutorNonce,
@@ -559,6 +562,43 @@ export class Executor {
         }
     }
 
+    // The receipt the other endpoints of a pending sync send may still respond
+    // with (see SyncSendPendingError), or undefined. Never rejects.
+    async getPendingSyncSendReceipt({
+        err,
+        chain,
+        transactionHash
+    }: {
+        err: BaseError
+        chain: Chain
+        transactionHash: Hex
+    }): Promise<TransactionReceipt | undefined> {
+        const pendingSend = err.walk((e) => e instanceof SyncSendPendingError)
+        if (!(pendingSend instanceof SyncSendPendingError)) {
+            return undefined
+        }
+
+        const receipt = await pendingSend.receipt
+        if (!receipt) {
+            return undefined
+        }
+
+        try {
+            const format =
+                chain.formatters?.transactionReceipt?.format ??
+                formatTransactionReceipt
+            return format(
+                receipt as RpcTransactionReceipt
+            ) as TransactionReceipt
+        } catch (formatErr) {
+            this.logger.debug(
+                { err: formatErr, txHash: transactionHash },
+                "failed to format eth_sendRawTransactionSync receipt"
+            )
+            return undefined
+        }
+    }
+
     // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
     // the receipt once the transaction is included. Waits up to one block
     // (at least instantBundlingMinSendWait) for the response so rejections
@@ -641,7 +681,11 @@ export class Executor {
             if (err instanceof BaseError && isTransactionPendingError(err)) {
                 return {
                     transactionHash,
-                    receipt: Promise.resolve(undefined)
+                    receipt: this.getPendingSyncSendReceipt({
+                        err,
+                        chain: walletClient.chain,
+                        transactionHash
+                    })
                 }
             }
 
