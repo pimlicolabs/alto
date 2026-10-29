@@ -167,6 +167,12 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         type: "number",
         default: 50
     },
+    "prepared-user-operation-ttl": {
+        description:
+            "Time in ms a userOperation from pimlico_prepareUserOperation is kept for pimlico_sendPreparedUserOperation before it is dropped",
+        type: "number",
+        default: 30000
+    },
     "skip-instant-bundling": {
         description:
             "Make pimlico_sendUserOperationNow always add the userOperation to the mempool and return an error with its hash, instead of sending it right away",

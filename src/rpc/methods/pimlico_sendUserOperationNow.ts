@@ -1,8 +1,11 @@
 import {
+    type Address,
+    type ApiVersion,
     type BundleSend,
     ERC7769Errors,
     RpcError,
     type UserOpInfo,
+    type UserOperation,
     type UserOperationBundle,
     type UserOperationReceipt,
     pimlicoSendUserOperationNowSchema
@@ -20,6 +23,7 @@ import {
     type TransactionReceipt,
     TransactionReceiptNotFoundError
 } from "viem"
+import type { FilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
@@ -154,6 +158,265 @@ const waitForReceipt = ({
     })
 }
 
+// Records outcomes and rejects or queues the userOp for one instant send.
+// Shared with pimlico_sendPreparedUserOperation.
+export const createInstantSend = ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    apiVersion,
+    isBoosted,
+    requestStart
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    apiVersion: ApiVersion
+    isBoosted: boolean
+    requestStart: number
+}) => {
+    const { metrics } = rpcHandler
+
+    const recordOutcome = (outcome: InstantOutcome) => {
+        metrics.instantOutcome.labels({ outcome }).inc()
+        observeDurationMs({
+            histogram: metrics.instantDuration.labels({ stage: "total" }),
+            startMs: requestStart,
+            endMs: Date.now()
+        })
+    }
+
+    const reject = (message: string): never => {
+        recordOutcome("rejected")
+        throw new RpcError(message, ERC7769Errors.InvalidFields)
+    }
+
+    // Adds the userOp to the mempool like eth_sendUserOperation (with
+    // full validation) and tells the client to track it.
+    const addToMempool = async (reason: string): Promise<never> => {
+        const { result, userOpHash } = await addToMempoolIfValid({
+            rpcHandler,
+            userOp,
+            entryPoint,
+            apiVersion,
+            isBoosted
+        }).catch((err: unknown) => {
+            recordOutcome(err instanceof RpcError ? "rejected" : "failed")
+            throw err
+        })
+        rpcHandler.eventManager.emitReceived(userOpHash)
+        metrics.userOpsReceived
+            .labels({
+                status: result,
+                type: userOp.eip7702Auth ? "7702" : "regular"
+            })
+            .inc()
+
+        recordOutcome("queued")
+        rpcHandler.logger.info(
+            { userOpHash, reason },
+            "pimlico_sendUserOperationNow added userOperation to the mempool"
+        )
+        throw new RpcError(
+            "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
+            ERC7769Errors.InvalidFields,
+            { userOpHash }
+        )
+    }
+
+    return { recordOutcome, reject, addToMempool }
+}
+
+type InstantSend = ReturnType<typeof createInstantSend>
+
+// Zero gas fees make the userOp boosted: the bundler pays its gas, as with
+// boost_sendUserOperation.
+export const isBoostedUserOp = (userOp: UserOperation) =>
+    userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+
+// Checks the userOp's fields and gas price. Returns why it's invalid, if it
+// is.
+export const validateInstantUserOp = async ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    apiVersion,
+    isBoosted
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    apiVersion: ApiVersion
+    isBoosted: boolean
+}): Promise<string | undefined> => {
+    // Validate userOp fields (sync - fail fast before expensive async checks)
+    const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+        userOp,
+        entryPoint,
+        isBoosted
+    })
+    if (!fieldsValid) {
+        return fieldsError
+    }
+
+    // Validate gas price (async)
+    const [gasPriceValid, gasPriceError] =
+        await rpcHandler.validateUserOpGasPrice({
+            userOp,
+            apiVersion,
+            isBoosted
+        })
+    if (!gasPriceValid) {
+        return gasPriceError
+    }
+
+    return undefined
+}
+
+// A bundle with just this userOp.
+export const createInstantBundle = ({
+    rpcHandler,
+    userOp,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+}): UserOperationBundle => {
+    const receivedAt = Date.now()
+    const userOpInfo: UserOpInfo = {
+        userOp,
+        userOpHash: getUserOpHash({
+            userOp,
+            entryPointAddress: entryPoint,
+            chainId: rpcHandler.config.chainId
+        }),
+        receivedAt,
+        addedToMempool: receivedAt, // deprecated alias, see withReceivedAt
+        submissionAttempts: 0
+    }
+
+    return {
+        entryPoint,
+        userOps: [userOpInfo],
+        version: getViemEntryPointVersion(userOp, entryPoint),
+        submissionAttempts: 0
+    }
+}
+
+// Sends the bundle right away and waits for the userOp's receipt. The caller
+// marks the userOp as processing first. With filterOpsResult the bundle isn't
+// simulated again.
+export const sendInstantBundle = async ({
+    rpcHandler,
+    bundle,
+    filterOpsResult,
+    requestStart,
+    instantSend: { recordOutcome, reject, addToMempool }
+}: {
+    rpcHandler: RpcHandler
+    bundle: UserOperationBundle
+    filterOpsResult?: FilterOpsResult
+    requestStart: number
+    instantSend: InstantSend
+}): Promise<UserOperationReceipt> => {
+    const { metrics } = rpcHandler
+    const { entryPoint, userOps } = bundle
+    const { userOpHash } = userOps[0]
+    const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
+
+    const sendStart = Date.now()
+    const result = await rpcHandler.executorManager.sendBundleNow({
+        userOpBundle: bundle,
+        walletTimeoutMs: Math.max(
+            0,
+            Math.min(
+                rpcHandler.config.instantBundlingExecutorWait,
+                deadline - sendStart
+            )
+        ),
+        filterOpsResult
+    })
+    observeDurationMs({
+        histogram: metrics.instantDuration.labels({ stage: "send" }),
+        startMs: sendStart,
+        endMs: Date.now()
+    })
+
+    // No executor freed up in time.
+    if (result && !result.success && result.status === "no_executor") {
+        await rpcHandler.mempool.store.removeProcessing({
+            entryPoint,
+            userOpInfos: userOps
+        })
+        return await addToMempool("no free executor")
+    }
+
+    // Failures on our side are server errors: the RPC server reports
+    // non-RpcErrors to Sentry and logs them, and the client only gets a
+    // generic message.
+    if (!result || (!result.success && result.status === "error")) {
+        recordOutcome("failed")
+        rpcHandler.logger.error(
+            { userOpHash, reason: result?.reason ?? "no bundle to send" },
+            "pimlico_sendUserOperationNow failed to submit the bundle"
+        )
+        throw new Error("internal error while submitting the userOperation")
+    }
+
+    if (!result.success) {
+        return reject(`bundle submission failed: ${result.reason}`)
+    }
+
+    const { transactionHash, send } = result
+
+    const receiptStart = Date.now()
+    const receiptResult = await waitForReceipt({
+        rpcHandler,
+        userOpHash,
+        transactionHash,
+        send,
+        timeoutMs: deadline - receiptStart
+    })
+    observeDurationMs({
+        histogram: metrics.instantDuration.labels({ stage: "receipt" }),
+        startMs: receiptStart,
+        endMs: Date.now()
+    })
+
+    if (receiptResult.status === "timeout") {
+        recordOutcome("timeout")
+        rpcHandler.logger.warn(
+            { userOpHash, txHash: transactionHash },
+            "pimlico_sendUserOperationNow timed out waiting for inclusion"
+        )
+        throw new RpcError(
+            "userOperation was submitted but is not yet included. Track it with eth_getUserOperationReceipt",
+            ERC7769Errors.InvalidFields,
+            { userOpHash, transactionHash }
+        )
+    }
+
+    if (receiptResult.status === "reverted") {
+        recordOutcome("reverted")
+        rpcHandler.logger.warn(
+            { userOpHash, txHash: receiptResult.transactionHash },
+            "pimlico_sendUserOperationNow bundle reverted"
+        )
+        throw new RpcError(
+            `bundle transaction ${receiptResult.transactionHash} reverted onchain`,
+            ERC7769Errors.UserOperationReverted,
+            {
+                userOpHash,
+                transactionHash: receiptResult.transactionHash
+            }
+        )
+    }
+
+    recordOutcome("included")
+    return receiptResult.userOpReceipt
+}
+
 export const pimlicoSendUserOperationNowHandler = createMethodHandler({
     method: "pimlico_sendUserOperationNow",
     schema: pimlicoSendUserOperationNowSchema,
@@ -166,213 +429,52 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         }
 
         const requestStart = Date.now()
-        const deadline = requestStart + rpcHandler.config.instantBundlingTimeout
-        const { metrics } = rpcHandler
-
-        const recordOutcome = (outcome: InstantOutcome) => {
-            metrics.instantOutcome.labels({ outcome }).inc()
-            observeDurationMs({
-                histogram: metrics.instantDuration.labels({ stage: "total" }),
-                startMs: requestStart,
-                endMs: Date.now()
-            })
-        }
-
-        const reject = (message: string): never => {
-            recordOutcome("rejected")
-            throw new RpcError(message, ERC7769Errors.InvalidFields)
-        }
-
         const [userOp, entryPoint] = params
         rpcHandler.ensureEntryPointIsSupported(entryPoint)
 
-        // Zero gas fees make the userOp boosted: the bundler pays its gas, as
-        // with boost_sendUserOperation.
-        const isBoosted =
-            userOp.maxFeePerGas === 0n && userOp.maxPriorityFeePerGas === 0n
+        const isBoosted = isBoostedUserOp(userOp)
+        const instantSend = createInstantSend({
+            rpcHandler,
+            userOp,
+            entryPoint,
+            apiVersion,
+            isBoosted,
+            requestStart
+        })
+
         if (isBoosted) {
             const boostedUserOpError = getBoostedUserOpError({ userOp })
             if (boostedUserOpError) {
-                return reject(boostedUserOpError)
+                return instantSend.reject(boostedUserOpError)
             }
         }
 
-        // Adds the userOp to the mempool like eth_sendUserOperation (with
-        // full validation) and tells the client to track it.
-        const addToMempool = async (reason: string): Promise<never> => {
-            const { result, userOpHash } = await addToMempoolIfValid({
-                rpcHandler,
-                userOp,
-                entryPoint,
-                apiVersion,
-                isBoosted
-            }).catch((err: unknown) => {
-                recordOutcome(err instanceof RpcError ? "rejected" : "failed")
-                throw err
-            })
-            rpcHandler.eventManager.emitReceived(userOpHash)
-            metrics.userOpsReceived
-                .labels({
-                    status: result,
-                    type: userOp.eip7702Auth ? "7702" : "regular"
-                })
-                .inc()
-
-            recordOutcome("queued")
-            rpcHandler.logger.info(
-                { userOpHash, reason },
-                "pimlico_sendUserOperationNow added userOperation to the mempool"
-            )
-            throw new RpcError(
-                "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
-                ERC7769Errors.InvalidFields,
-                { userOpHash }
-            )
-        }
-
         if (rpcHandler.config.skipInstantBundling) {
-            return await addToMempool("skip-instant-bundling")
+            return await instantSend.addToMempool("skip-instant-bundling")
         }
 
-        // Validate userOp fields (sync - fail fast before expensive async checks)
-        const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
+        const userOpError = await validateInstantUserOp({
+            rpcHandler,
             userOp,
             entryPoint,
+            apiVersion,
             isBoosted
         })
-        if (!fieldsValid) {
-            return reject(fieldsError)
+        if (userOpError) {
+            return instantSend.reject(userOpError)
         }
 
-        const userOpHash = getUserOpHash({
-            userOp,
-            entryPointAddress: entryPoint,
-            chainId: rpcHandler.config.chainId
-        })
-
-        // Validate gas price (async)
-        const [gasPriceValid, gasPriceError] =
-            await rpcHandler.validateUserOpGasPrice({
-                userOp,
-                apiVersion,
-                isBoosted
-            })
-        if (!gasPriceValid) {
-            return reject(gasPriceError)
-        }
-
-        // Prepare bundle
-        const receivedAt = Date.now()
-        const userOpInfo: UserOpInfo = {
-            userOp,
-            userOpHash,
-            receivedAt,
-            addedToMempool: receivedAt, // deprecated alias, see withReceivedAt
-            submissionAttempts: 0
-        }
-
-        // Derive version.
-        const version = getViemEntryPointVersion(userOp, entryPoint)
-
-        const bundle: UserOperationBundle = {
-            entryPoint,
-            userOps: [userOpInfo],
-            version,
-            submissionAttempts: 0
-        }
+        const bundle = createInstantBundle({ rpcHandler, userOp, entryPoint })
         rpcHandler.mempool.store.addProcessing({
             entryPoint,
-            userOpInfos: [userOpInfo]
+            userOpInfos: bundle.userOps
         })
 
-        const sendStart = Date.now()
-        const result = await rpcHandler.executorManager.sendBundleNow({
-            userOpBundle: bundle,
-            walletTimeoutMs: Math.max(
-                0,
-                Math.min(
-                    rpcHandler.config.instantBundlingExecutorWait,
-                    deadline - sendStart
-                )
-            )
-        })
-        observeDurationMs({
-            histogram: metrics.instantDuration.labels({ stage: "send" }),
-            startMs: sendStart,
-            endMs: Date.now()
-        })
-
-        // No executor freed up in time.
-        if (result && !result.success && result.status === "no_executor") {
-            await rpcHandler.mempool.store.removeProcessing({
-                entryPoint,
-                userOpInfos: [userOpInfo]
-            })
-            return await addToMempool("no free executor")
-        }
-
-        // Failures on our side are server errors: the RPC server reports
-        // non-RpcErrors to Sentry and logs them, and the client only gets a
-        // generic message.
-        if (!result || (!result.success && result.status === "error")) {
-            recordOutcome("failed")
-            rpcHandler.logger.error(
-                { userOpHash, reason: result?.reason ?? "no bundle to send" },
-                "pimlico_sendUserOperationNow failed to submit the bundle"
-            )
-            throw new Error("internal error while submitting the userOperation")
-        }
-
-        if (!result.success) {
-            return reject(`bundle submission failed: ${result.reason}`)
-        }
-
-        const { transactionHash, send } = result
-
-        const receiptStart = Date.now()
-        const receiptResult = await waitForReceipt({
+        return await sendInstantBundle({
             rpcHandler,
-            userOpHash,
-            transactionHash,
-            send,
-            timeoutMs: deadline - receiptStart
+            bundle,
+            requestStart,
+            instantSend
         })
-        observeDurationMs({
-            histogram: metrics.instantDuration.labels({ stage: "receipt" }),
-            startMs: receiptStart,
-            endMs: Date.now()
-        })
-
-        if (receiptResult.status === "timeout") {
-            recordOutcome("timeout")
-            rpcHandler.logger.warn(
-                { userOpHash, txHash: transactionHash },
-                "pimlico_sendUserOperationNow timed out waiting for inclusion"
-            )
-            throw new RpcError(
-                "userOperation was submitted but is not yet included. Track it with eth_getUserOperationReceipt",
-                ERC7769Errors.InvalidFields,
-                { userOpHash, transactionHash }
-            )
-        }
-
-        if (receiptResult.status === "reverted") {
-            recordOutcome("reverted")
-            rpcHandler.logger.warn(
-                { userOpHash, txHash: receiptResult.transactionHash },
-                "pimlico_sendUserOperationNow bundle reverted"
-            )
-            throw new RpcError(
-                `bundle transaction ${receiptResult.transactionHash} reverted onchain`,
-                ERC7769Errors.UserOperationReverted,
-                {
-                    userOpHash,
-                    transactionHash: receiptResult.transactionHash
-                }
-            )
-        }
-
-        recordOutcome("included")
-        return receiptResult.userOpReceipt
     }
 })

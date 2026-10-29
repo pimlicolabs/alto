@@ -14,8 +14,11 @@ import { ethGetUserOperationByHashHandler } from "./eth_getUserOperationByHash"
 import { ethGetUserOperationReceiptHandler } from "./eth_getUserOperationReceipt"
 import { ethSendUserOperationHandler } from "./eth_sendUserOperation"
 import { ethSupportedEntryPointsHandler } from "./eth_supportedEntryPoints"
+import { pimlicoCancelPreparedUserOperationHandler } from "./pimlico_cancelPreparedUserOperation"
 import { pimlicoGetUserOperationGasPriceHandler } from "./pimlico_getUserOperationGasPrice"
 import { pimlicoGetUserOperationStatusHandler } from "./pimlico_getUserOperationStatus"
+import { pimlicoPrepareUserOperationHandler } from "./pimlico_prepareUserOperation"
+import { pimlicoSendPreparedUserOperationHandler } from "./pimlico_sendPreparedUserOperation"
 import { pimlicoSendUserOperationNowHandler } from "./pimlico_sendUserOperationNow"
 import { pimlicoSimulateAssetChangeHandler } from "./pimlico_simulateAssetChange"
 
@@ -42,6 +45,9 @@ export function registerHandlers(rpcHandler: RpcHandler) {
     rpcHandler.registerHandler(pimlicoGetUserOperationGasPriceHandler)
     rpcHandler.registerHandler(pimlicoGetUserOperationStatusHandler)
     rpcHandler.registerHandler(pimlicoSendUserOperationNowHandler)
+    rpcHandler.registerHandler(pimlicoPrepareUserOperationHandler)
+    rpcHandler.registerHandler(pimlicoSendPreparedUserOperationHandler)
+    rpcHandler.registerHandler(pimlicoCancelPreparedUserOperationHandler)
     rpcHandler.registerHandler(pimlicoSimulateAssetChangeHandler)
 
     // boost_* namespace
