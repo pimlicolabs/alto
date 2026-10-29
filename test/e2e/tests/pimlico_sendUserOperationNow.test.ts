@@ -77,6 +77,11 @@ const rpcResult = async ({
 //   eth_sendRawTransaction.
 // - rejectSyncMethod: eth_sendRawTransactionSync is rejected as not allowed,
 //   like a sequencer that only accepts eth_sendRawTransaction.
+// - alreadyKnownSyncSends: eth_sendRawTransactionSync forwards the
+//   transaction, then answers "already known", like a node another endpoint
+//   already forwarded it to.
+// - syncSendDelayMs: eth_sendRawTransactionSync answers with the receipt only
+//   after this long, like an endpoint that responds blocks late.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
@@ -85,6 +90,8 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         inflateNextNonce: boolean
         rejectSends: boolean
         rejectSyncMethod: boolean
+        alreadyKnownSyncSends: boolean
+        syncSendDelayMs: number
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
@@ -93,6 +100,8 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         inflateNextNonce: false,
         rejectSends: false,
         rejectSyncMethod: false,
+        alreadyKnownSyncSends: false,
+        syncSendDelayMs: 0,
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -129,6 +138,34 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         const isSyncSend =
             !Array.isArray(parsed) &&
             parsed.method === "eth_sendRawTransactionSync"
+
+        if (
+            !Array.isArray(parsed) &&
+            isSyncSend &&
+            state.alreadyKnownSyncSends
+        ) {
+            await rpcResult({
+                url: upstream,
+                method: "eth_sendRawTransaction",
+                params: parsed.params ?? []
+            })
+            const error = { code: -32000, message: "already known" }
+            res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error }))
+            return
+        }
+
+        if (!Array.isArray(parsed) && isSyncSend && state.syncSendDelayMs > 0) {
+            await new Promise((resolve) =>
+                setTimeout(resolve, state.syncSendDelayMs)
+            )
+            const result = await rpcResult({
+                url: upstream,
+                method: "eth_getTransactionReceipt",
+                params: [keccak256(parsed.params?.[0] as Hex)]
+            })
+            res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, result }))
+            return
+        }
 
         if (!Array.isArray(parsed) && isSyncSend && state.rejectSyncMethod) {
             const error = { code: -32601, message: "rpc method is not allowed" }
@@ -768,6 +805,98 @@ describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () =
         )
     })
 })
+
+// One sync endpoint already has the transaction (another forwarded it first)
+// and answers right away, the other responds with the receipt late. Without
+// waiting for the late one, the receipt comes from polling, well before
+// instant-bundling-min-send-wait. Sync sends go to
+// send-transaction-sync-rpc-url, or to send-transaction-rpc-url (with an
+// rpc-url fallback) when it isn't set.
+describe.each([
+    { syncUrlFlag: "send-transaction-sync-rpc-url", port: 8099 },
+    { syncUrlFlag: "send-transaction-rpc-url", port: 8100 }
+])(
+    "pimlico_sendUserOperationNow when a $syncUrlFlag endpoint already has the transaction",
+    ({ syncUrlFlag, port }) => {
+        const anvilRpc = inject("anvilRpc")
+        const altoRpc = inject("altoRpc")
+        const entryPoint = entryPoint07Address
+        const entryPointVersion = "0.7" as EntryPointVersion
+        const SLOW_SYNC_SEND_MS = 2_500
+        const MIN_SEND_WAIT_MS = 2_000
+
+        // rpc is the rpc-url.
+        let rpc: Awaited<ReturnType<typeof startRpcProxy>>
+        let knownRpc: Awaited<ReturnType<typeof startRpcProxy>>
+        let slowRpc: Awaited<ReturnType<typeof startRpcProxy>>
+        let pendingAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+        beforeAll(async () => {
+            rpc = await startRpcProxy({ upstream: anvilRpc })
+            knownRpc = await startRpcProxy({ upstream: anvilRpc })
+            knownRpc.state.alreadyKnownSyncSends = true
+            slowRpc = await startRpcProxy({ upstream: anvilRpc })
+            slowRpc.state.syncSendDelayMs = SLOW_SYNC_SEND_MS
+            pendingAlto = await startAltoWithFlags({
+                anvilRpc: rpc.url,
+                port,
+                flags: {
+                    "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                    "instant-bundling-executor-wait":
+                        PROXIED_ALTO_EXECUTOR_WAIT_MS,
+                    "instant-bundling-min-send-wait": MIN_SEND_WAIT_MS,
+                    "supports-eip7966": true,
+                    [syncUrlFlag]: `${knownRpc.url},${slowRpc.url}`
+                }
+            })
+        })
+
+        afterAll(async () => {
+            await pendingAlto?.stop()
+            await slowRpc?.stop()
+            await knownRpc?.stop()
+            await rpc?.stop()
+        })
+
+        beforeEach(async () => {
+            await clearBundlerState({ altoRpc: pendingAlto.altoRpc })
+            await beforeEachCleanUp({ anvilRpc, altoRpc })
+        })
+
+        test("Returns the receipt without waiting for the other endpoint", async () => {
+            const op = await prepareSignedUserOp({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc: pendingAlto.altoRpc
+            })
+            rpc.state.methods = []
+            knownRpc.state.methods = []
+            slowRpc.state.methods = []
+
+            const start = Date.now()
+            const { result, error } = await rawRpc({
+                url: pendingAlto.altoRpc,
+                method: "pimlico_sendUserOperationNow",
+                params: [deepHexlify(op), entryPoint]
+            })
+            const elapsed = Date.now() - start
+
+            expect(error).toBeUndefined()
+            expect((result as UserOperationReceipt).success).toEqual(true)
+            expect(knownRpc.state.methods).toContain(
+                "eth_sendRawTransactionSync"
+            )
+            expect(slowRpc.state.methods).toContain(
+                "eth_sendRawTransactionSync"
+            )
+            // Not resent to rpc-url, which would wait for another receipt.
+            expect(rpc.state.methods).not.toContain(
+                "eth_sendRawTransactionSync"
+            )
+            expect(elapsed).toBeLessThan(MIN_SEND_WAIT_MS - 500)
+        })
+    }
+)
 
 describe("pimlico_sendUserOperationNow without a free executor", () => {
     const anvilRpc = inject("anvilRpc")

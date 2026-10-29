@@ -9,6 +9,10 @@ import {
     createTransport,
     numberToHex
 } from "viem"
+import {
+    SyncSendPendingError,
+    isTransactionPendingError
+} from "../executor/utils"
 import { customTransport } from "./customTransport"
 
 const isUnsupportedMethodError = (err: unknown): boolean =>
@@ -22,7 +26,9 @@ const isUnsupportedMethodError = (err: unknown): boolean =>
     )
 
 // Fans out every request to all urls in parallel, resolving with the first
-// successful response and rejecting only if every endpoint fails. Fanning out
+// successful response and rejecting only if every endpoint fails, or, for
+// eth_sendRawTransactionSync, as soon as one says the transaction is pending
+// (see SyncSendPendingError). Fanning out
 // non-send methods too keeps a lagging or method-restricted endpoint (e.g. a
 // sequencer that only accepts eth_sendRawTransaction) from stalling requests.
 // eth_chainId is answered locally: viem calls it before every sendTransaction
@@ -74,8 +80,43 @@ export function multiRpcTransport(
                     return send
                 })
 
+                // An endpoint that already has the transaction (e.g. another
+                // endpoint forwarded it first) answers without waiting for
+                // its inclusion, while the others can take several blocks to
+                // respond with the receipt. Hand their sends to the caller,
+                // so it polls for the receipt meanwhile.
+                const pending =
+                    method === "eth_sendRawTransactionSync"
+                        ? new Promise<never>((_, reject) => {
+                              sends.forEach((send, index) => {
+                                  send.catch((err: unknown) => {
+                                      if (
+                                          !(err instanceof BaseError) ||
+                                          !isTransactionPendingError(err)
+                                      ) {
+                                          return
+                                      }
+                                      const others = sends.filter(
+                                          (_, i) => i !== index
+                                      )
+                                      reject(
+                                          new SyncSendPendingError({
+                                              cause: err,
+                                              receipt: Promise.any(
+                                                  others
+                                              ).catch(() => undefined)
+                                          })
+                                      )
+                                  })
+                              })
+                          })
+                        : undefined
+
                 try {
-                    return await Promise.any(sends)
+                    const response = Promise.any(sends)
+                    return await (pending
+                        ? Promise.race([response, pending])
+                        : response)
                 } catch (err) {
                     // Rethrow one endpoint's error instead of the
                     // AggregateError so viem's error classification (nonce

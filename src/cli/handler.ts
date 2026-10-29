@@ -7,16 +7,19 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    BaseError,
     type CallParameters,
     type Chain,
     createPublicClient,
     createWalletClient,
     fallback,
-    publicActions
+    publicActions,
+    shouldThrow
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
 import { getSenderManager } from "../executor/senderManager/index"
+import { SyncSendPendingError } from "../executor/utils"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
@@ -209,6 +212,8 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         })
 
     // Sends to every url in parallel, falling back to rpc-url if all fail.
+    // Not when the transaction is pending: resending it to rpc-url would wait
+    // for another receipt, and drop the urls' sends the caller waits on.
     const createMultiRpcWalletClient = (urls: string[]) =>
         createWalletClient({
             transport: fallback(
@@ -216,7 +221,15 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                     createMultiRpcTransport(urls),
                     createWalletTransport(args.rpcUrl)
                 ],
-                { rank: false }
+                {
+                    rank: false,
+                    shouldThrow: (err) =>
+                        (err instanceof BaseError &&
+                            err.walk(
+                                (e) => e instanceof SyncSendPendingError
+                            ) !== null) ||
+                        shouldThrow(err)
+                }
             ),
             chain
         })
