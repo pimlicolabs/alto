@@ -9,6 +9,7 @@ import {
     createTransport,
     numberToHex
 } from "viem"
+import { isTransactionPendingError } from "../executor/utils"
 import { customTransport } from "./customTransport"
 
 const isUnsupportedMethodError = (err: unknown): boolean =>
@@ -21,8 +22,18 @@ const isUnsupportedMethodError = (err: unknown): boolean =>
         )
     )
 
+// An endpoint that already has the transaction, or timed out waiting for its
+// inclusion, has accepted an eth_sendRawTransactionSync: the transaction is in
+// the pool, and the caller polls for the receipt from there. Another endpoint
+// can take much longer to respond with its receipt.
+const isAcceptedSyncSendError = (method: string, err: unknown): boolean =>
+    method === "eth_sendRawTransactionSync" &&
+    err instanceof BaseError &&
+    isTransactionPendingError(err)
+
 // Fans out every request to all urls in parallel, resolving with the first
-// successful response and rejecting only if every endpoint fails. Fanning out
+// successful response and rejecting only if every endpoint fails, or as soon
+// as one has accepted a sync send without a receipt. Fanning out
 // non-send methods too keeps a lagging or method-restricted endpoint (e.g. a
 // sequencer that only accepts eth_sendRawTransaction) from stalling requests.
 // eth_chainId is answered locally: viem calls it before every sendTransaction
@@ -74,8 +85,19 @@ export function multiRpcTransport(
                     return send
                 })
 
+                // Never resolves, rejects with the first accepted sync send
+                const accepted = new Promise<never>((_, reject) => {
+                    for (const send of sends) {
+                        send.catch((err: unknown) => {
+                            if (isAcceptedSyncSendError(method, err)) {
+                                reject(err)
+                            }
+                        })
+                    }
+                })
+
                 try {
-                    return await Promise.any(sends)
+                    return await Promise.race([Promise.any(sends), accepted])
                 } catch (err) {
                     // Rethrow one endpoint's error instead of the
                     // AggregateError so viem's error classification (nonce
