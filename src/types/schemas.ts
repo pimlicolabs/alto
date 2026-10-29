@@ -722,6 +722,24 @@ export const pimlicoSendUserOperationNowSchema = z.object({
     result: userOperationReceiptSchema.or(z.null())
 })
 
+export const pimlicoPrepareUserOperationSchema = z.object({
+    method: z.literal("pimlico_prepareUserOperation"),
+    params: z.tuple([userOperationSchema, addressSchema]),
+    result: z.object({ id: hexData32Schema, userOpHash: hexData32Schema })
+})
+
+export const pimlicoSendPreparedUserOperationSchema = z.object({
+    method: z.literal("pimlico_sendPreparedUserOperation"),
+    params: z.tuple([hexData32Schema]),
+    result: userOperationReceiptSchema.or(z.null())
+})
+
+export const pimlicoCancelPreparedUserOperationSchema = z.object({
+    method: z.literal("pimlico_cancelPreparedUserOperation"),
+    params: z.tuple([hexData32Schema]),
+    result: z.boolean()
+})
+
 export const pimlicoSimulateAssetChangeSchema = z.object({
     method: z.literal("pimlico_simulateAssetChange"),
     params: z.union([
@@ -777,6 +795,9 @@ export const bundlerRequestSchema = z.discriminatedUnion("method", [
     pimlicoGetUserOperationStatusSchema.omit({ result: true }),
     pimlicoGetUserOperationGasPriceSchema.omit({ result: true }),
     pimlicoSendUserOperationNowSchema.omit({ result: true }),
+    pimlicoPrepareUserOperationSchema.omit({ result: true }),
+    pimlicoSendPreparedUserOperationSchema.omit({ result: true }),
+    pimlicoCancelPreparedUserOperationSchema.omit({ result: true }),
     pimlicoSimulateAssetChangeSchema.omit({ result: true })
 ])
 export type BundlerRequest = z.infer<typeof bundlerRequestSchema>
@@ -801,6 +822,9 @@ export const bundlerRpcSchema = z.union([
     pimlicoGetUserOperationStatusSchema,
     pimlicoGetUserOperationGasPriceSchema,
     pimlicoSendUserOperationNowSchema,
+    pimlicoPrepareUserOperationSchema,
+    pimlicoSendPreparedUserOperationSchema,
+    pimlicoCancelPreparedUserOperationSchema,
     pimlicoSimulateAssetChangeSchema
 ])
 
