@@ -86,10 +86,13 @@ export const createRedisSenderManager = async ({
     wallets: Account[]
     version: EntryPointVersion
 }): Promise<WalletPool> => {
-    metrics.walletsTotal.set({ pool: version }, wallets.length)
-    metrics.walletsAvailable.set({ pool: version }, wallets.length)
+    metrics.walletsTotal.set({ entrypoint_version: version }, wallets.length)
+    metrics.walletsAvailable.set(
+        { entrypoint_version: version },
+        wallets.length
+    )
     const logger = config.getLogger(
-        { module: "redis-sender-manager", pool: version },
+        { module: "redis-sender-manager", entryPointVersion: version },
         {
             level: config.executorLogLevel || config.logLevel
         }
@@ -138,7 +141,7 @@ export const createRedisSenderManager = async ({
         )
 
         await walletPool.size().then((len) => {
-            metrics.walletsAvailable.set({ pool: version }, len)
+            metrics.walletsAvailable.set({ entrypoint_version: version }, len)
         })
 
         return wallet
@@ -178,7 +181,10 @@ export const createRedisSenderManager = async ({
             if (activeWallets.delete(wallet)) {
                 await walletPool.push(wallet.address)
                 const len = await walletPool.size()
-                metrics.walletsAvailable.set({ pool: version }, len)
+                metrics.walletsAvailable.set(
+                    { entrypoint_version: version },
+                    len
+                )
             } else {
                 logger.warn(
                     { executor: wallet.address },

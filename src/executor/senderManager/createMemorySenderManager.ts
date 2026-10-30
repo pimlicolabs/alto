@@ -20,12 +20,15 @@ export const createMemorySenderManager = ({
 
     const semaphore: Semaphore = new Semaphore(availableWallets.length)
     const logger = config.getLogger(
-        { module: "sender-manager", pool: version },
+        { module: "sender-manager", entryPointVersion: version },
         { level: config.executorLogLevel || config.logLevel }
     )
 
-    metrics.walletsTotal.set({ pool: version }, wallets.length)
-    metrics.walletsAvailable.set({ pool: version }, wallets.length)
+    metrics.walletsTotal.set({ entrypoint_version: version }, wallets.length)
+    metrics.walletsAvailable.set(
+        { entrypoint_version: version },
+        wallets.length
+    )
 
     // Call after acquiring the semaphore.
     const takeWallet = (): Account => {
@@ -43,7 +46,10 @@ export const createMemorySenderManager = ({
             "got wallet from sender manager"
         )
 
-        metrics.walletsAvailable.set({ pool: version }, availableWallets.length)
+        metrics.walletsAvailable.set(
+            { entrypoint_version: version },
+            availableWallets.length
+        )
 
         return wallet
     }
@@ -93,7 +99,7 @@ export const createMemorySenderManager = ({
             )
 
             metrics.walletsAvailable.set(
-                { pool: version },
+                { entrypoint_version: version },
                 availableWallets.length
             )
         },
@@ -108,7 +114,7 @@ export const createMemorySenderManager = ({
             }
 
             metrics.walletsAvailable.set(
-                { pool: version },
+                { entrypoint_version: version },
                 availableWallets.length
             )
         },
