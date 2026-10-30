@@ -142,7 +142,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Highest maxFeePerGas and maxPriorityFeePerGas accepted for a userOperation, as a percentage of the current network gas price. 0 disables the check",
         type: "string",
         require: false,
-        default: "20000"
+        default: "2500"
     },
     "max-pre-verification-gas-multiplier": {
         description:
