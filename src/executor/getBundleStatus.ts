@@ -3,6 +3,7 @@ import type { Logger } from "pino"
 import type { Hex, PublicClient } from "viem"
 import type { SubmittedBundleInfo } from "../types/mempool"
 import { parseUserOpReceipt } from "../utils/userop"
+import { checkUnexpectedSponsorships } from "./checkUnexpectedSponsorships"
 
 export type BundleIncluded = {
     status: "included"
@@ -42,7 +43,8 @@ export type BundleStatus<
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
-    submittedBundle
+    submittedBundle,
+    logger
 }: {
     submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient
@@ -71,6 +73,12 @@ export const getBundleStatus = async ({
         for (const { userOpHash } of userOps) {
             userOpDetails[userOpHash] = parseUserOpReceipt(userOpHash, included)
         }
+
+        checkUnexpectedSponsorships({
+            receipt: included,
+            userOps,
+            logger
+        })
 
         return {
             status: "included",
