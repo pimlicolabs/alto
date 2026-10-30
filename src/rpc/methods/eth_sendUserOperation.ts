@@ -2,22 +2,22 @@ import {
     type Address,
     type ApiVersion,
     ERC7769Errors,
-    EntryPointV06Abi,
-    EntryPointV07Abi,
     RpcError,
     type UserOpInfo,
     type UserOperation,
     sendUserOperationSchema
 } from "@alto/types"
-import {
-    getAAError,
-    getAuthorizationStateOverrides,
-    scaleBigIntByPercent
-} from "@alto/utils"
-import { type Hex, getAbiItem, slice, toFunctionSelector } from "viem"
+import { getAAError, scaleBigIntByPercent } from "@alto/utils"
+import { BaseError, type Hex, slice, toFunctionSelector, toHex } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 import { encodeHandleOpsCalldata } from "../../executor/utils"
+import { getEip7702DelegationOverrides } from "../../utils/eip7702"
+import {
+    NESTED_HANDLE_OPS_DETECTOR,
+    getNestedHandleOpsSimulation,
+    supportsNestedHandleOpsDetector
+} from "../../utils/entryPointOverrides"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
@@ -32,7 +32,6 @@ import {
     getMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
-import { debug_traceCall } from "../validation/tracer"
 
 const validateChainRules = async ({
     rpcHandler,
@@ -233,53 +232,41 @@ export const validateMaxPvg = async ({
     return [true, ""]
 }
 
-// Selectors that run userOperations on an EntryPoint. v0.8 and v0.9 share
-// v0.7's.
-const HANDLE_OPS_SELECTORS = new Set<Hex>([
-    toFunctionSelector(
-        getAbiItem({ abi: EntryPointV06Abi, name: "handleOps" })
-    ),
-    toFunctionSelector(
-        getAbiItem({ abi: EntryPointV06Abi, name: "handleAggregatedOps" })
-    ),
-    toFunctionSelector(
-        getAbiItem({ abi: EntryPointV07Abi, name: "handleOps" })
-    ),
-    toFunctionSelector(
-        getAbiItem({ abi: EntryPointV07Abi, name: "handleAggregatedOps" })
-    )
-])
+// Revert data of a handleOps simulated with getNestedHandleOpsSimulation when
+// a nested handleOps landed.
+const NESTED_HANDLE_OPS_REVERTS = [
+    // NestedHandleOpsDetector's error, wrapped in FailedSendToBeneficiary by
+    // v0.9.
+    toFunctionSelector("NestedHandleOps()"),
+    // v0.6 to v0.8 revert with this when the beneficiary reverts.
+    toHex("AA91 failed send to beneficiary")
+].map((data) => data.slice(2).toLowerCase())
 
-// A call frame returned by geth's callTracer.
-type CallFrame = {
-    type: string
-    from: Address
-    to?: Address
-    input?: Hex
-    calls?: CallFrame[]
-}
-
-const findHandleOpsCall = (frames: CallFrame[]): CallFrame | undefined => {
-    for (const frame of frames) {
-        const selector = frame.input?.slice(0, 10).toLowerCase() as Hex
-        if (HANDLE_OPS_SELECTORS.has(selector)) {
-            return frame
-        }
-
-        const nestedFrame = findHandleOpsCall(frame.calls ?? [])
-        if (nestedFrame) {
-            return nestedFrame
-        }
+const getRevertData = (err: unknown): Hex | undefined => {
+    if (!(err instanceof BaseError)) {
+        return undefined
     }
 
-    return undefined
+    let revertData: Hex | undefined
+    err.walk((e) => {
+        const data = (e as { data?: unknown }).data
+        const match =
+            typeof data === "string" ? data.match(/0x[a-fA-F0-9]*/) : null
+        if (match) {
+            revertData = match[0] as Hex
+            return true
+        }
+        return false
+    })
+    return revertData
 }
 
-// Rejects userOps that call handleOps while they run, on this EntryPoint or
-// another one. The nested userOperations are paid for by their own paymasters
-// and pay out to a beneficiary the sender picks, so a sponsored userOp can
-// drain paymasters on other EntryPoints. Runs the userOp through handleOps
-// with geth's callTracer, from an EOA so v0.8+'s reentrancy guard passes.
+// Rejects userOps that call handleOps on another EntryPoint while they run
+// (each EntryPoint blocks reentrant handleOps). The nested userOperations are
+// paid for by their own paymasters and pay a beneficiary the sender picks, so
+// a sponsored userOp can drain paymasters on other EntryPoints. Simulates
+// handleOps with eth_call and the overrides of getNestedHandleOpsSimulation,
+// from an EOA so v0.9's reentrancy guard passes.
 export const validateNoNestedUserOps = async ({
     rpcHandler,
     userOp,
@@ -295,52 +282,69 @@ export const validateNoNestedUserOps = async ({
 }): Promise<[boolean, string]> => {
     const {
         rejectNestedUserOperations,
+        codeOverrideSupport,
         dangerousSkipUserOperationValidation,
         publicClient,
         fixedGasLimitForEstimation,
-        utilityWalletAddress
+        utilityWalletAddress,
+        entrypoints
     } = rpcHandler.config
 
-    if (!rejectNestedUserOperations || dangerousSkipUserOperationValidation) {
+    if (
+        !rejectNestedUserOperations ||
+        !codeOverrideSupport ||
+        dangerousSkipUserOperationValidation ||
+        !(await supportsNestedHandleOpsDetector(publicClient))
+    ) {
         return [true, ""]
     }
 
     // Queued userOps go first so the userOp's nonce is valid.
     const userOps = [...queuedUserOps, userOp]
-    const trace: CallFrame = await debug_traceCall(
+    const simulation = await getNestedHandleOpsSimulation({
         publicClient,
-        {
-            from: utilityWalletAddress,
+        entryPoint,
+        supportedEntryPoints: entrypoints
+    })
+
+    try {
+        await publicClient.call({
+            account: utilityWalletAddress,
             to: entryPoint,
             gas: fixedGasLimitForEstimation,
             data: encodeHandleOpsCalldata({
                 userOps,
-                beneficiary: utilityWalletAddress
-            })
-        },
-        {
-            tracer: "callTracer",
-            stateOverrides: getAuthorizationStateOverrides({ userOps })
+                beneficiary: NESTED_HANDLE_OPS_DETECTOR
+            }),
+            stateOverride: [
+                ...(getEip7702DelegationOverrides(userOps) ?? []),
+                ...simulation.stateOverride
+            ],
+            accessList: simulation.accessList
+        })
+    } catch (err) {
+        const revertData = getRevertData(err)?.toLowerCase()
+        if (revertData === undefined) {
+            throw err
         }
-    )
 
-    // The top-level frame is the handleOps call above, so only search below it.
-    const handleOpsCall = findHandleOpsCall(trace.calls ?? [])
-    if (handleOpsCall) {
-        rpcHandler.logger.warn(
-            {
-                userOpHash,
-                entryPoint,
-                sender: userOp.sender,
-                caller: handleOpsCall.from,
-                nestedEntryPoint: handleOpsCall.to
-            },
-            "Rejected userOperation that calls handleOps"
-        )
-        return [
-            false,
-            `userOperation calls handleOps on ${handleOpsCall.to}, nested userOperations are not allowed`
-        ]
+        if (
+            NESTED_HANDLE_OPS_REVERTS.some((nestedRevert) =>
+                revertData.includes(nestedRevert)
+            )
+        ) {
+            rpcHandler.logger.warn(
+                { userOpHash, entryPoint, sender: userOp.sender },
+                "Rejected userOperation that calls handleOps"
+            )
+            return [
+                false,
+                "userOperation calls handleOps on another EntryPoint, nested userOperations are not allowed"
+            ]
+        }
+
+        // Any other revert is a failed validation, which validateUserOp
+        // reports.
     }
 
     return [true, ""]

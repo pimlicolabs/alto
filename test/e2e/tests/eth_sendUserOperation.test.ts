@@ -1800,6 +1800,51 @@ describe.each([
             }
         })
 
+        test("Should accept userOp that deposits to another EntryPoint", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const otherEntryPointVersion: EntryPointVersion =
+                entryPointVersion === "0.6" ? "0.7" : "0.6"
+            const otherEntryPoint =
+                otherEntryPointVersion === "0.6"
+                    ? entryPoint06Address
+                    : entryPoint07Address
+            const otherEntryPointContract = getContract({
+                address: otherEntryPoint,
+                abi: getEntryPointAbi(otherEntryPointVersion),
+                client: { public: publicClient }
+            })
+            const depositBefore = await otherEntryPointContract.read.balanceOf([
+                TO_ADDRESS
+            ])
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: otherEntryPoint,
+                        value: VALUE,
+                        data: encodeFunctionData({
+                            abi: getEntryPointAbi(otherEntryPointVersion),
+                            functionName: "depositTo",
+                            args: [TO_ADDRESS]
+                        })
+                    }
+                ]
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+            expect(receipt.success).toBe(true)
+
+            expect(
+                await otherEntryPointContract.read.balanceOf([TO_ADDRESS])
+            ).toBe(depositBefore + VALUE)
+        })
+
         test("Should reject userOp that calls handleOps on another EntryPoint", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,

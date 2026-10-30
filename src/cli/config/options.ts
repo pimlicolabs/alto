@@ -153,7 +153,7 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
     },
     "reject-nested-user-operations": {
         description:
-            "Reject userOperations that call handleOps on an EntryPoint while executing. Traces each userOperation with debug_traceCall",
+            "Reject userOperations that call handleOps on another EntryPoint while executing. Needs --code-override-support",
         type: "boolean",
         require: false,
         default: true
