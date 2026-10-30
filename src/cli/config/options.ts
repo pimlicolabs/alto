@@ -142,14 +142,14 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Highest maxFeePerGas and maxPriorityFeePerGas accepted for a userOperation, as a percentage of the current network gas price. 0 disables the check",
         type: "string",
         require: false,
-        default: "400"
+        default: "20000"
     },
     "max-pre-verification-gas-multiplier": {
         description:
             "Highest preVerificationGas accepted for a userOperation, as a percentage of the preVerificationGas returned by eth_estimateUserOperationGas. 0 disables the check",
         type: "string",
         require: false,
-        default: "200"
+        default: "1000"
     },
     "rpc-methods": {
         description: "Supported RPC methods split by commas",
