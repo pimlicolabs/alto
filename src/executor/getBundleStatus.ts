@@ -1,8 +1,9 @@
 import type { UserOperationReceipt } from "@alto/types"
-import type { Logger } from "pino"
+import type { Logger, Metrics } from "@alto/utils"
 import type { Hex, PublicClient } from "viem"
 import type { SubmittedBundleInfo } from "../types/mempool"
 import { parseUserOpReceipt } from "../utils/userop"
+import { checkUnexpectedSponsorships } from "./checkUnexpectedSponsorships"
 
 export type BundleIncluded = {
     status: "included"
@@ -42,11 +43,14 @@ export type BundleStatus<
 // Return the status of the bundling transaction.
 export const getBundleStatus = async ({
     publicClient,
-    submittedBundle
+    submittedBundle,
+    logger,
+    metrics
 }: {
     submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient
     logger: Logger
+    metrics: Metrics
 }): Promise<BundleStatus> => {
     const {
         transactionHash: currentHash,
@@ -71,6 +75,13 @@ export const getBundleStatus = async ({
         for (const { userOpHash } of userOps) {
             userOpDetails[userOpHash] = parseUserOpReceipt(userOpHash, included)
         }
+
+        checkUnexpectedSponsorships({
+            receipt: included,
+            userOps,
+            logger,
+            metrics
+        })
 
         return {
             status: "included",
