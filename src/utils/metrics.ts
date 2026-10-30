@@ -56,14 +56,14 @@ export function createMetrics(registry: Registry, register = true) {
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
         help: "Number of available executor wallets used to bundle",
-        labelNames: [] as const,
+        labelNames: ["pool"] as const,
         registers
     })
 
     const walletsTotal = new Gauge({
         name: "alto_executor_wallets_total_count",
         help: "Number of total executor wallets used to bundle",
-        labelNames: [] as const,
+        labelNames: ["pool"] as const,
         registers
     })
 

@@ -413,11 +413,6 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             require: true,
             default: "2000000"
         },
-        "eth-call-sender-address": {
-            description:
-                "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
-            type: "string"
-        },
         "split-simulation-calls": {
             description:
                 "Should the bundler split estimation simulations into smaller calls.",
@@ -551,15 +546,51 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
-    "executor-private-keys": {
-        description: "Private keys of the executor accounts split by commas",
-        type: "string",
-        alias: "x",
-        require: true
-    },
-    "max-executors": {
+    "v6-executor-private-keys": {
         description:
-            "Maximum number of executor accounts to use from the list of executor private keys",
+            "Private keys of the executor accounts that bundle EntryPoint 0.6 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v6-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.6 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v7-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.7 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v7-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.7 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v8-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.8 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v8-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.8 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v9-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.9 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v9-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.9 executor private keys",
         type: "number",
         require: false
     },

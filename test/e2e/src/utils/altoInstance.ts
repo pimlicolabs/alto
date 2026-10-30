@@ -1,5 +1,7 @@
 import { resolve } from "node:path"
 import { defineInstance } from "prool"
+import { type Hex, toHex } from "viem"
+import { mnemonicToAccount } from "viem/accounts"
 import altoConfig from "../../alto-config.json" with { type: "json" }
 import { execa } from "./execa.js"
 
@@ -109,12 +111,16 @@ export const alto = defineInstance(
     }
 )
 
-// Anvil accounts 7-9 (the global instance uses 0-5), so a second instance
-// never races the global one for executor nonces
-const FLAGGED_UTILITY_PRIVATE_KEY =
-    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"
-const FLAGGED_EXECUTOR_PRIVATE_KEYS =
-    "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97,0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6"
+const getAnvilPrivateKey = (addressIndex: number): Hex => {
+    const { privateKey } = mnemonicToAccount(
+        "test test test test test test test test test test test junk",
+        { addressIndex }
+    ).getHdKey()
+    if (!privateKey) {
+        throw new Error(`No private key for anvil account ${addressIndex}`)
+    }
+    return toHex(privateKey)
+}
 
 // Starts an extra alto instance against the shared anvil with extra flags
 export const startAltoWithFlags = async ({
@@ -130,8 +136,14 @@ export const startAltoWithFlags = async ({
         anvilRpc,
         port,
         extraConfig: {
-            "utility-private-key": FLAGGED_UTILITY_PRIVATE_KEY,
-            "executor-private-keys": FLAGGED_EXECUTOR_PRIVATE_KEYS,
+            // Anvil accounts 6-10 (the global instance in alto-config.json
+            // uses 0-5), so a second instance never races the global one for
+            // executor nonces
+            "utility-private-key": getAnvilPrivateKey(7),
+            "v6-executor-private-keys": getAnvilPrivateKey(6),
+            "v7-executor-private-keys": getAnvilPrivateKey(8),
+            "v8-executor-private-keys": getAnvilPrivateKey(9),
+            "v9-executor-private-keys": getAnvilPrivateKey(10),
             "bundling-mode": "auto",
             ...flags
         }

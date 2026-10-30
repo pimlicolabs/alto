@@ -12,6 +12,9 @@ export default async function setup({ provide }) {
         chainId: foundry.id,
         port: 8545,
         hardfork: "Prague",
+        // Executor and utility keys are default anvil mnemonic accounts:
+        // 0-5 for alto-config.json, 6-10 for startAltoWithFlags
+        accounts: 11,
         codeSizeLimit: 1000_000,
         gasLimit: 30_000_000
     })

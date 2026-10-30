@@ -8,12 +8,14 @@ import {
     pimlicoSimulationsAbi
 } from "@alto/types"
 import {
+    getViemEntryPointVersion,
     isVersion06,
     isVersion07,
     isVersion08,
     toPackedUserOp
 } from "@alto/utils"
 import { type Address, type StateOverride, getContract } from "viem"
+import { getEthCallSender } from "../../executor/senderManager"
 import { getFilterOpsStateOverride } from "../../utils/entryPointOverrides"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -46,6 +48,10 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
 
         const is07 = isVersion07(userOp as UserOperation)
         const is08 = isVersion08(userOp as UserOperation, entryPoint)
+        const ethCallSender = getEthCallSender({
+            config: rpcHandler.config,
+            version: getViemEntryPointVersion(userOp, entryPoint)
+        })
 
         const pimlicoSimulation = getContract({
             abi: [...pimlicoSimulationsAbi, ...simulationErrors],
@@ -99,6 +105,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            account: ethCallSender,
                             gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
@@ -123,6 +130,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            account: ethCallSender,
                             gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }
@@ -138,6 +146,7 @@ export const pimlicoSimulateAssetChangeHandler = createMethodHandler({
                             tokens
                         ],
                         {
+                            account: ethCallSender,
                             gas: rpcHandler.config.fixedGasLimitForEstimation,
                             stateOverride
                         }

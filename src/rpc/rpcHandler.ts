@@ -1,7 +1,8 @@
 import {
     type Executor,
     type ExecutorManager,
-    calculateAA95GasFloor
+    calculateAA95GasFloor,
+    getExecutorPrivateKeys
 } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
@@ -24,6 +25,7 @@ import {
     type Logger,
     type Metrics,
     getNonceKeyAndSequence,
+    getViemEntryPointVersion,
     isVersion06,
     isVersion07,
     scaleBigIntByPercent,
@@ -170,6 +172,14 @@ export class RpcHandler {
         // Skip gas/field checks during estimation
         if (isEstimation) {
             return [true, ""]
+        }
+
+        const version = getViemEntryPointVersion(userOp, entryPoint)
+        if (!getExecutorPrivateKeys({ config: this.config, version })?.length) {
+            return [
+                false,
+                `No executors configured for EntryPoint ${version} userOperations`
+            ]
         }
 
         // Validate paymaster signature for EntryPoint 0.9
