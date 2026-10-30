@@ -136,14 +136,14 @@ export const startAltoWithFlags = async ({
         anvilRpc,
         port,
         extraConfig: {
-            // Anvil accounts 6-10 (the global instance in alto-config.json
-            // uses 0-5), so a second instance never races the global one for
+            // Anvil accounts 13-17 (the global instance in alto-config.json
+            // uses 0-12), so a second instance never races the global one for
             // executor nonces
-            "utility-private-key": getAnvilPrivateKey(7),
-            "v6-executor-private-keys": getAnvilPrivateKey(6),
-            "v7-executor-private-keys": getAnvilPrivateKey(8),
-            "v8-executor-private-keys": getAnvilPrivateKey(9),
-            "v9-executor-private-keys": getAnvilPrivateKey(10),
+            "utility-private-key": getAnvilPrivateKey(13),
+            "v6-executor-private-keys": getAnvilPrivateKey(14),
+            "v7-executor-private-keys": getAnvilPrivateKey(15),
+            "v8-executor-private-keys": getAnvilPrivateKey(16),
+            "v9-executor-private-keys": getAnvilPrivateKey(17),
             "bundling-mode": "auto",
             ...flags
         }
