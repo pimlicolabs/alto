@@ -6,14 +6,7 @@ import { createMemorySenderManager } from "./createMemorySenderManager"
 import { createRedisSenderManager } from "./createRedisSenderManager"
 
 // Each EntryPoint version is bundled by its own set of executors.
-export type ExecutorPool = "v6" | "v7" | "v8" | "v9"
-
-const EXECUTOR_POOLS: Record<EntryPointVersion, ExecutorPool> = {
-    "0.6": "v6",
-    "0.7": "v7",
-    "0.8": "v8",
-    "0.9": "v9"
-}
+const ENTRYPOINT_VERSIONS: EntryPointVersion[] = ["0.6", "0.7", "0.8", "0.9"]
 
 export const getExecutorPrivateKeys = ({
     config,
@@ -119,25 +112,22 @@ export const getSenderManager = async ({
             return undefined
         }
 
-        const pool = EXECUTOR_POOLS[version]
-
         if (config.enableHorizontalScaling && config.redisEndpoint) {
             return await createRedisSenderManager({
                 config,
                 metrics,
                 redisEndpoint: config.redisEndpoint,
                 wallets,
-                pool
+                version
             })
         }
 
-        return createMemorySenderManager({ config, metrics, wallets, pool })
+        return createMemorySenderManager({ config, metrics, wallets, version })
     }
 
-    const versions = Object.keys(EXECUTOR_POOLS) as EntryPointVersion[]
     const walletPools = new Map<EntryPointVersion, WalletPool>()
     await Promise.all(
-        versions.map(async (version) => {
+        ENTRYPOINT_VERSIONS.map(async (version) => {
             const walletPool = await createWalletPool(version)
             if (walletPool) {
                 walletPools.set(version, walletPool)

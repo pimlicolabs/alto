@@ -1,7 +1,8 @@
 import type { Logger, Metrics } from "@alto/utils"
 import Redis from "ioredis"
 import type { Account } from "viem"
-import type { ExecutorPool, WalletPool } from "."
+import type { EntryPointVersion } from "viem/account-abstraction"
+import type { WalletPool } from "."
 import type { AltoConfig } from "../../createConfig"
 
 // Lua script for atomic wallet registration.
@@ -35,15 +36,15 @@ async function createRedisWalletPool({
     config,
     logger,
     entries,
-    pool
+    version
 }: {
     redis: Redis
     config: AltoConfig
     logger: Logger
     entries: string[]
-    pool: ExecutorPool
+    version: EntryPointVersion
 }) {
-    const keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:wallet-pool:${pool}`
+    const keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:wallet-pool:${version}`
     const availableKey = `${keyPrefix}:available`
     const registeredKey = `${keyPrefix}:registered`
 
@@ -77,18 +78,18 @@ export const createRedisSenderManager = async ({
     metrics,
     redisEndpoint,
     wallets,
-    pool
+    version
 }: {
     config: AltoConfig
     metrics: Metrics
     redisEndpoint: string
     wallets: Account[]
-    pool: ExecutorPool
+    version: EntryPointVersion
 }): Promise<WalletPool> => {
-    metrics.walletsTotal.set({ pool }, wallets.length)
-    metrics.walletsAvailable.set({ pool }, wallets.length)
+    metrics.walletsTotal.set({ pool: version }, wallets.length)
+    metrics.walletsAvailable.set({ pool: version }, wallets.length)
     const logger = config.getLogger(
-        { module: "redis-sender-manager", pool },
+        { module: "redis-sender-manager", pool: version },
         {
             level: config.executorLogLevel || config.logLevel
         }
@@ -100,7 +101,7 @@ export const createRedisSenderManager = async ({
         config,
         logger,
         entries: wallets.map((w) => w.address),
-        pool
+        version
     })
 
     // Track active wallets for this instance
@@ -137,7 +138,7 @@ export const createRedisSenderManager = async ({
         )
 
         await walletPool.size().then((len) => {
-            metrics.walletsAvailable.set({ pool }, len)
+            metrics.walletsAvailable.set({ pool: version }, len)
         })
 
         return wallet
@@ -177,7 +178,7 @@ export const createRedisSenderManager = async ({
             if (activeWallets.delete(wallet)) {
                 await walletPool.push(wallet.address)
                 const len = await walletPool.size()
-                metrics.walletsAvailable.set({ pool }, len)
+                metrics.walletsAvailable.set({ pool: version }, len)
             } else {
                 logger.warn(
                     { executor: wallet.address },
