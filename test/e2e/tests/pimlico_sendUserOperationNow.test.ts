@@ -785,7 +785,7 @@ describe("pimlico_sendUserOperationNow without a free executor", () => {
             port: 8097,
             flags: {
                 "instant-bundling-timeout": 1_000,
-                "max-executors": 1
+                "v7-max-executors": 1
             }
         })
     })

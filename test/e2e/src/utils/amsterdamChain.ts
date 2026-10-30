@@ -1,6 +1,7 @@
 import { anvil } from "prool/instances"
 import { foundry } from "viem/chains"
 import { setupContracts } from "../../deploy-contracts/index.js"
+import { ANVIL_ACCOUNT_COUNT } from "./altoInstance.js"
 
 // Starts an extra anvil on the Amsterdam (Glamsterdam) hardfork with the
 // ERC-4337 contracts deployed. Needs a Foundry nightly with Amsterdam gas
@@ -14,6 +15,7 @@ export const startAmsterdamChain = async ({
         chainId: foundry.id,
         port,
         hardfork: "Amsterdam",
+        accounts: ANVIL_ACCOUNT_COUNT,
         codeSizeLimit: 1000_000,
         gasLimit: 1_000_000_000
     })

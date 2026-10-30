@@ -120,6 +120,22 @@ export const bundlerArgsSchema = z.object({
     "receipt-cache-ttl": z.number().int().min(0).optional().default(60000) // Default to 1 minute
 })
 
+const executorPrivateKeysSchema = z.union([
+    z
+        .array(hexData32Schema)
+        .transform((vals) =>
+            vals.map((val) => privateKeyToAccount(val) satisfies Account)
+        ),
+    z
+        .string()
+        .regex(/^0x(?:[0-9a-f]{2}){32}(?:,0x(?:[0-9a-f]{2}){32})*$/)
+        .transform((val) =>
+            val
+                .split(",")
+                .map((val) => privateKeyToAccount(val as Hex) satisfies Account)
+        )
+])
+
 export const executorArgsSchema = z.object({
     "max-bundle-count": z.number().int().min(1).optional(),
     "resubmit-stuck-timeout": z.number().int().min(0).default(15_000),
@@ -134,25 +150,14 @@ export const executorArgsSchema = z.object({
         )
         .optional()
         .default("4337"),
-    "executor-private-keys": z.union([
-        z
-            .array(hexData32Schema)
-            .transform((vals) =>
-                vals.map((val) => privateKeyToAccount(val) satisfies Account)
-            ),
-        z
-            .string()
-            .regex(/^0x(?:[0-9a-f]{2}){32}(?:,0x(?:[0-9a-f]{2}){32})*$/)
-            .transform((val) =>
-                val
-                    .split(",")
-                    .map(
-                        (val) =>
-                            privateKeyToAccount(val as Hex) satisfies Account
-                    )
-            )
-    ]),
-    "max-executors": z.number().int().min(0).optional(),
+    "v6-executor-private-keys": executorPrivateKeysSchema.optional(),
+    "v6-max-executors": z.number().int().min(1).optional(),
+    "v7-executor-private-keys": executorPrivateKeysSchema.optional(),
+    "v7-max-executors": z.number().int().min(1).optional(),
+    "v8-executor-private-keys": executorPrivateKeysSchema.optional(),
+    "v8-max-executors": z.number().int().min(1).optional(),
+    "v9-executor-private-keys": executorPrivateKeysSchema.optional(),
+    "v9-max-executors": z.number().int().min(1).optional(),
     "min-executor-balance": z.string().transform(BigInt).optional(),
     "executor-gas-multiplier": z.string().transform(BigInt).default("105"),
     "send-handle-ops-retry-count": z.number().int().default(3),
@@ -347,7 +352,6 @@ export const gasEstimationArgsSchema = z.object({
     "simulation-verification-gas-limit": z.string().transform(BigInt),
     "simulation-paymaster-verification-gas-limit": z.string().transform(BigInt),
     "simulation-paymaster-post-op-gas-limit": z.string().transform(BigInt),
-    "eth-call-sender-address": addressSchema.optional(),
     "split-simulation-calls": z.boolean(),
     "call-gas-limit-floor": z.string().transform(BigInt).default("50000")
 })
@@ -444,6 +448,13 @@ export type IRedisArgsInput = z.input<typeof redisArgsSchema>
 // gasleft() can't see
 const GLAMSTERDAM_SIMULATION_GAS_LIMIT = 16_777_216n
 
+const EXECUTOR_PRIVATE_KEYS_ARGS = [
+    "v6-executor-private-keys",
+    "v7-executor-private-keys",
+    "v8-executor-private-keys",
+    "v9-executor-private-keys"
+] as const
+
 export const optionArgsSchema = z
     .object({
         ...bundlerArgsSchema.shape,
@@ -460,6 +471,21 @@ export const optionArgsSchema = z
         ...preVerificationGasArgsSchema.shape,
         ...glamsterdamArgsSchema.shape
     })
+    .refine(
+        (args) =>
+            EXECUTOR_PRIVATE_KEYS_ARGS.some((arg) => args[arg] !== undefined),
+        `At least one of ${EXECUTOR_PRIVATE_KEYS_ARGS.join(", ")} must be set`
+    )
+    // A wallet in two pools could be picked for two bundles at once.
+    .refine(
+        (args) => {
+            const executors = EXECUTOR_PRIVATE_KEYS_ARGS.flatMap(
+                (arg) => args[arg]?.map((account) => account.address) ?? []
+            )
+            return new Set(executors).size === executors.length
+        },
+        `${EXECUTOR_PRIVATE_KEYS_ARGS.join(", ")} must not share keys`
+    )
     // --glamsterdam-enabled turns on every Glamsterdam EIP alto handles.
     // Each EIP flag can still be set on its own.
     //

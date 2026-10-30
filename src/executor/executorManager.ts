@@ -439,8 +439,11 @@ export class ExecutorManager {
             name: "bundle.wallet_acquire",
             fn: () =>
                 instant
-                    ? this.senderManager.tryGetWallet(walletTimeoutMs ?? 0)
-                    : this.senderManager.getWallet()
+                    ? this.senderManager.tryGetWallet(
+                          version,
+                          walletTimeoutMs ?? 0
+                      )
+                    : this.senderManager.getWallet(version)
         })
         // Nothing was done with the userOps yet, the caller decides what
         // happens to them.

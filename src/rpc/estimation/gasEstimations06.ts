@@ -3,6 +3,7 @@ import type { Logger } from "@alto/utils"
 import { type Address, getContract, zeroAddress } from "viem"
 import { entryPoint06Abi } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
+import { getEthCallSender } from "../../executor/senderManager"
 import type { SimulateHandleOpResult } from "./types"
 import {
     decodeSimulateHandleOpError,
@@ -40,7 +41,6 @@ export class GasEstimator06 {
         const {
             publicClient,
             //blockTagSupport,
-            utilityWalletAddress,
             fixedGasLimitForEstimation
         } = this.config
 
@@ -62,7 +62,10 @@ export class GasEstimator06 {
             await entryPointContract.simulate.simulateHandleOp(
                 [userOp, zeroAddress, "0x"],
                 {
-                    account: utilityWalletAddress,
+                    account: getEthCallSender({
+                        config: this.config,
+                        version: "0.6"
+                    }),
                     gas: fixedGasLimitForEstimation,
                     stateOverride: viemStateOverride
                 }

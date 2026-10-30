@@ -22,6 +22,7 @@ import {
     getContract
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import { getEthCallSender } from "../../executor/senderManager"
 import { packUserOps } from "../../executor/utils"
 import {
     BinarySearchResultType,
@@ -69,6 +70,7 @@ type SimulationParams = {
     packedQueuedUserOps: PackedUserOperation[]
     packedTargetUserOp: PackedUserOperation
     stateOverride?: StateOverride
+    ethCallSender?: Address
 }
 
 type SimulateHandleOpSuccessResult = {
@@ -126,6 +128,7 @@ export class GasEstimator07 {
         return {
             pimlicoSimulation: getPimlicoSimulation(this.config),
             entryPointSimulationsAddress,
+            ethCallSender: getEthCallSender({ config: this.config, version }),
             entryPoint,
             packedQueuedUserOps: packUserOps(queuedUserOps),
             packedTargetUserOp: toPackedUserOp(userOp),
@@ -164,7 +167,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -179,6 +183,7 @@ export class GasEstimator07 {
                     gasAllowance ?? this.config.binarySearchGasAllowance
                 ],
                 {
+                    account: ethCallSender,
                     stateOverride,
                     gas: this.config.fixedGasLimitForEstimation
                 }
@@ -245,7 +250,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -257,6 +263,7 @@ export class GasEstimator07 {
                     packedTargetUserOp
                 ],
                 {
+                    account: ethCallSender,
                     stateOverride,
                     gas: this.config.fixedGasLimitForEstimation
                 }
@@ -297,7 +304,8 @@ export class GasEstimator07 {
             entryPoint,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -313,6 +321,7 @@ export class GasEstimator07 {
                         this.config.binarySearchGasAllowance
                     ],
                     {
+                        account: ethCallSender,
                         stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
@@ -424,7 +433,8 @@ export class GasEstimator07 {
             entryPointSimulationsAddress,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            ethCallSender
         } = this.getSimulationParams({
             entryPoint,
             userOp,
@@ -446,6 +456,7 @@ export class GasEstimator07 {
                         packedTargetUserOp
                     ],
                     {
+                        account: ethCallSender,
                         stateOverride,
                         gas: this.config.fixedGasLimitForEstimation
                     }
