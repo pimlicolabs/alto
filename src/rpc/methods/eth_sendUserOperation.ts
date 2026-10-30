@@ -10,14 +10,15 @@ import {
     type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
-import { getAAError } from "@alto/utils"
+import { getAAError, scaleBigIntByPercent } from "@alto/utils"
 import { type Hex, slice } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
-    getViemEntryPointVersion
+    getViemEntryPointVersion,
+    isVersion06
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -91,6 +92,46 @@ const validateChainRules = async ({
     return [true, ""]
 }
 
+// The preVerificationGas the userOp needs. With validate, the L2 fee inputs
+// are the most lenient seen recently (the floor eth_sendUserOperation
+// enforces). Without, they are the current ones, as used by
+// eth_estimateUserOperationGas.
+const getPvg = async ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    validate
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    validate: boolean
+}): Promise<bigint> => {
+    const { config, gasPriceManager } = rpcHandler
+
+    if (config.chainType === "monad") {
+        // Monad consumes the entire gasLimit, so PVG is calculated differently
+        return await getMonadPvg({ userOp, config, entryPoint, validate })
+    }
+
+    const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
+        getDynamicPvgComponent({ userOp, entryPoint, config }),
+        getL2PvgComponent({
+            config,
+            userOp,
+            entryPoint,
+            gasPriceManager,
+            validate
+        })
+    ])
+    const basePvgComponent = getBasePvgComponent({
+        userOp,
+        config,
+        dynamicPvgComponent
+    })
+    return basePvgComponent + l2PvgComponent
+}
+
 const validatePvg = async ({
     apiVersion,
     rpcHandler,
@@ -113,43 +154,74 @@ const validatePvg = async ({
         return [true, ""]
     }
 
-    let requiredPvg: bigint
-
-    if (config.chainType === "monad") {
-        // Monad consumes the entire gasLimit, so PVG is calculated differently
-        requiredPvg = await getMonadPvg({
-            userOp,
-            config,
-            entryPoint,
-            validate: true
-        })
-    } else {
-        const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
-            getDynamicPvgComponent({
-                userOp,
-                entryPoint,
-                config: rpcHandler.config
-            }),
-            getL2PvgComponent({
-                config: rpcHandler.config,
-                userOp,
-                entryPoint,
-                gasPriceManager: rpcHandler.gasPriceManager,
-                validate: true
-            })
-        ])
-        const basePvgComponent = getBasePvgComponent({
-            userOp,
-            config: rpcHandler.config,
-            dynamicPvgComponent
-        })
-        requiredPvg = basePvgComponent + l2PvgComponent
-    }
+    const requiredPvg = await getPvg({
+        rpcHandler,
+        userOp,
+        entryPoint,
+        validate: true
+    })
 
     if (requiredPvg > userOp.preVerificationGas) {
         return [
             false,
             `preVerificationGas is not enough, required: ${requiredPvg}, got: ${userOp.preVerificationGas}`
+        ]
+    }
+
+    return [true, ""]
+}
+
+// Caps preVerificationGas at --max-pre-verification-gas-multiplier of what
+// eth_estimateUserOperationGas returns. preVerificationGas is charged in full
+// whatever the userOp uses, so an inflated value drains the paymaster
+// sponsoring it. Enforced on every apiVersion, as the sender picks it.
+export const validateMaxPvg = async ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    isBoosted = false
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    isBoosted?: boolean
+}): Promise<[boolean, string]> => {
+    const {
+        maxPreVerificationGasMultiplier,
+        emergencyMode,
+        v6PreVerificationGasLimitMultiplier,
+        v7PreVerificationGasLimitMultiplier
+    } = rpcHandler.config
+
+    // Boosted userOps pay no gas. Emergency mode skips it for the same
+    // reason as validatePvg.
+    if (maxPreVerificationGasMultiplier === 0n || isBoosted || emergencyMode) {
+        return [true, ""]
+    }
+
+    const pvg = await getPvg({
+        rpcHandler,
+        userOp,
+        entryPoint,
+        validate: false
+    })
+
+    // Same multipliers as eth_estimateUserOperationGas.
+    const estimatedPvg = scaleBigIntByPercent(
+        pvg,
+        isVersion06(userOp)
+            ? v6PreVerificationGasLimitMultiplier
+            : v7PreVerificationGasLimitMultiplier
+    )
+    const maxPvg = scaleBigIntByPercent(
+        estimatedPvg,
+        maxPreVerificationGasMultiplier
+    )
+
+    if (userOp.preVerificationGas > maxPvg) {
+        return [
+            false,
+            `preVerificationGas is too high, max: ${maxPvg}, got: ${userOp.preVerificationGas}`
         ]
     }
 
@@ -247,6 +319,7 @@ export async function addToMempoolIfValid({
         { queuedUserOps, validationResult },
         currentNonceSeq,
         [isPvgValid, pvgError],
+        [isPvgBelowMax, maxPvgError],
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
         [isChainRulesValid, chainRulesError]
@@ -261,6 +334,7 @@ export async function addToMempoolIfValid({
             isBoosted,
             config: rpcHandler.config
         }),
+        validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted }),
         rpcHandler.validateUserOpGasPrice({ userOp, apiVersion, isBoosted }),
         rpcHandler.validateEip7702Auth({
             userOp,
@@ -293,6 +367,11 @@ export async function addToMempoolIfValid({
     if (!isPvgValid) {
         rpcHandler.eventManager.emitFailedValidation(userOpHash, pvgError)
         throw new RpcError(pvgError, ERC7769Errors.SimulateValidation)
+    }
+
+    if (!isPvgBelowMax) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, maxPvgError)
+        throw new RpcError(maxPvgError, ERC7769Errors.InvalidFields)
     }
 
     // Nonce validation

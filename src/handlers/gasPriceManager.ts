@@ -729,6 +729,23 @@ export class GasPriceManager {
         return minMaxPriorityFeePerGas
     }
 
+    // Highest gas prices seen within the gas price expiry window.
+    public async getHighestValidGasPrices() {
+        let highestMaxFeePerGas = await this.getHighestMaxFeePerGas()
+        let highestMaxPriorityFeePerGas =
+            await this.getHighestMaxPriorityFeePerGas()
+
+        if (this.config.chainType === "hedera") {
+            highestMaxFeePerGas /= 10n ** 9n
+            highestMaxPriorityFeePerGas /= 10n ** 9n
+        }
+
+        return {
+            highestMaxFeePerGas,
+            highestMaxPriorityFeePerGas
+        }
+    }
+
     public async getLowestValidGasPrices() {
         let lowestMaxFeePerGas = await this.getMinMaxFeePerGas()
         let lowestMaxPriorityFeePerGas = await this.getMinMaxPriorityFeePerGas()

@@ -241,14 +241,22 @@ export class RpcHandler {
         apiVersion: ApiVersion
         isBoosted?: boolean
     }): Promise<[boolean, string]> {
-        // Skipped in emergency mode: the gas price floor is derived from RPC
-        // reads that may be stale or replaced by the emergency fallback.
-        if (
-            apiVersion === "v1" ||
-            this.config.safeMode ||
-            this.config.emergencyMode ||
-            isBoosted
-        ) {
+        // Skipped in emergency mode: the gas price bounds are derived from
+        // RPC reads that may be stale or replaced by the emergency fallback.
+        if (this.config.emergencyMode || isBoosted) {
+            return [true, ""]
+        }
+
+        // Enforced on every apiVersion: the sender picks the apiVersion, and
+        // an inflated gas price drains the paymaster sponsoring the userOp.
+        const [isBelowMax, maxError] = await this.validateMaxUserOpGasPrice({
+            userOp
+        })
+        if (!isBelowMax) {
+            return [false, maxError]
+        }
+
+        if (apiVersion === "v1" || this.config.safeMode) {
             return [true, ""]
         }
 
@@ -269,6 +277,45 @@ export class RpcHandler {
             return [
                 false,
                 `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        return [true, ""]
+    }
+
+    private async validateMaxUserOpGasPrice({
+        userOp
+    }: {
+        userOp: UserOperation
+    }): Promise<[boolean, string]> {
+        const { maxGasPriceMultiplier, isGasFreeChain } = this.config
+        if (maxGasPriceMultiplier === 0n || isGasFreeChain) {
+            return [true, ""]
+        }
+
+        const { highestMaxFeePerGas, highestMaxPriorityFeePerGas } =
+            await this.gasPriceManager.getHighestValidGasPrices()
+
+        const maxAllowedMaxFeePerGas = scaleBigIntByPercent(
+            highestMaxFeePerGas,
+            maxGasPriceMultiplier
+        )
+        const maxAllowedMaxPriorityFeePerGas = scaleBigIntByPercent(
+            highestMaxPriorityFeePerGas,
+            maxGasPriceMultiplier
+        )
+
+        if (userOp.maxFeePerGas > maxAllowedMaxFeePerGas) {
+            return [
+                false,
+                `maxFeePerGas must be at most ${maxAllowedMaxFeePerGas} (current maxFeePerGas: ${userOp.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        if (userOp.maxPriorityFeePerGas > maxAllowedMaxPriorityFeePerGas) {
+            return [
+                false,
+                `maxPriorityFeePerGas must be at most ${maxAllowedMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${userOp.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             ]
         }
 
