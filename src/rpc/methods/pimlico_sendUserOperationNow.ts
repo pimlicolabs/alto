@@ -23,7 +23,11 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
-import { addToMempoolIfValid, validateMaxPvg } from "./eth_sendUserOperation"
+import {
+    addToMempoolIfValid,
+    validateMaxPvg,
+    validateNoNestedUserOps
+} from "./eth_sendUserOperation"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -250,21 +254,34 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             chainId: rpcHandler.config.chainId
         })
 
-        // Validate gas price and preVerificationGas (async)
-        const [[gasPriceValid, gasPriceError], [isPvgBelowMax, maxPvgError]] =
-            await Promise.all([
-                rpcHandler.validateUserOpGasPrice({
-                    userOp,
-                    apiVersion,
-                    isBoosted
-                }),
-                validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted })
-            ])
+        // Validate gas price, preVerificationGas and nested userOps (async)
+        const [
+            [gasPriceValid, gasPriceError],
+            [isPvgBelowMax, maxPvgError],
+            [isNestedUserOpsValid, nestedUserOpsError]
+        ] = await Promise.all([
+            rpcHandler.validateUserOpGasPrice({
+                userOp,
+                apiVersion,
+                isBoosted
+            }),
+            validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted }),
+            validateNoNestedUserOps({
+                rpcHandler,
+                userOp,
+                userOpHash,
+                queuedUserOps: [],
+                entryPoint
+            })
+        ])
         if (!gasPriceValid) {
             return reject(gasPriceError)
         }
         if (!isPvgBelowMax) {
             return reject(maxPvgError)
+        }
+        if (!isNestedUserOpsValid) {
+            return reject(nestedUserOpsError)
         }
 
         // Prepare bundle
