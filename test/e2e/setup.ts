@@ -1,7 +1,7 @@
 import { anvil } from "prool/instances"
 import { foundry } from "viem/chains"
 import { setupContracts } from "./deploy-contracts/index.js"
-import { alto } from "./src/utils/altoInstance.js"
+import { ANVIL_ACCOUNT_COUNT, alto } from "./src/utils/altoInstance.js"
 
 // biome-ignore lint/style/noDefaultExport: vitest needs this
 export default async function setup({ provide }) {
@@ -12,11 +12,7 @@ export default async function setup({ provide }) {
         chainId: foundry.id,
         port: 8545,
         hardfork: "Prague",
-        // Executor and utility keys are default anvil mnemonic accounts:
-        // 0-12 for alto-config.json (3 executors per EntryPoint version so
-        // back to back instant bundles don't wait on the previous one's
-        // executor), 13-17 for startAltoWithFlags
-        accounts: 18,
+        accounts: ANVIL_ACCOUNT_COUNT,
         codeSizeLimit: 1000_000,
         gasLimit: 30_000_000
     })

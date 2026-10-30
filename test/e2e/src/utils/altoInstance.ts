@@ -111,6 +111,12 @@ export const alto = defineInstance(
     }
 )
 
+// Executor and utility keys are default anvil mnemonic accounts: 0-12 for
+// alto-config.json (3 executors per EntryPoint version so back to back
+// instant bundles don't wait on the previous one's executor), 13-17 for
+// startAltoWithFlags
+export const ANVIL_ACCOUNT_COUNT = 18
+
 const getAnvilPrivateKey = (addressIndex: number): Hex => {
     const { privateKey } = mnemonicToAccount(
         "test test test test test test test test test test test junk",
