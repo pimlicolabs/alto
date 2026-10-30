@@ -2,18 +2,22 @@ import {
     type Address,
     type ApiVersion,
     ERC7769Errors,
-    type ReferencedCodeHashes,
+    EntryPointV06Abi,
+    EntryPointV07Abi,
     RpcError,
-    type StorageMap,
     type UserOpInfo,
     type UserOperation,
-    type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
-import { getAAError, scaleBigIntByPercent } from "@alto/utils"
-import { type Hex, slice } from "viem"
+import {
+    getAAError,
+    getAuthorizationStateOverrides,
+    scaleBigIntByPercent
+} from "@alto/utils"
+import { type Hex, getAbiItem, slice, toFunctionSelector } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
+import { encodeHandleOpsCalldata } from "../../executor/utils"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
@@ -28,6 +32,7 @@ import {
     getMonadPvg
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
+import { debug_traceCall } from "../validation/tracer"
 
 const validateChainRules = async ({
     rpcHandler,
@@ -228,7 +233,120 @@ export const validateMaxPvg = async ({
     return [true, ""]
 }
 
-const getUserOpValidationResult = async ({
+// Selectors that run userOperations on an EntryPoint. v0.8 and v0.9 share
+// v0.7's.
+const HANDLE_OPS_SELECTORS = new Set<Hex>([
+    toFunctionSelector(
+        getAbiItem({ abi: EntryPointV06Abi, name: "handleOps" })
+    ),
+    toFunctionSelector(
+        getAbiItem({ abi: EntryPointV06Abi, name: "handleAggregatedOps" })
+    ),
+    toFunctionSelector(
+        getAbiItem({ abi: EntryPointV07Abi, name: "handleOps" })
+    ),
+    toFunctionSelector(
+        getAbiItem({ abi: EntryPointV07Abi, name: "handleAggregatedOps" })
+    )
+])
+
+// A call frame returned by geth's callTracer.
+type CallFrame = {
+    type: string
+    from: Address
+    to?: Address
+    input?: Hex
+    calls?: CallFrame[]
+}
+
+const findHandleOpsCall = (frames: CallFrame[]): CallFrame | undefined => {
+    for (const frame of frames) {
+        const selector = frame.input?.slice(0, 10).toLowerCase() as Hex
+        if (HANDLE_OPS_SELECTORS.has(selector)) {
+            return frame
+        }
+
+        const nestedFrame = findHandleOpsCall(frame.calls ?? [])
+        if (nestedFrame) {
+            return nestedFrame
+        }
+    }
+
+    return undefined
+}
+
+// Rejects userOps that call handleOps while they run, on this EntryPoint or
+// another one. The nested userOperations are paid for by their own paymasters
+// and pay out to a beneficiary the sender picks, so a sponsored userOp can
+// drain paymasters on other EntryPoints. Runs the userOp through handleOps
+// with geth's callTracer, from an EOA so v0.8+'s reentrancy guard passes.
+export const validateNoNestedUserOps = async ({
+    rpcHandler,
+    userOp,
+    userOpHash,
+    queuedUserOps,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    userOpHash: Hex
+    queuedUserOps: UserOperation[]
+    entryPoint: Address
+}): Promise<[boolean, string]> => {
+    const {
+        rejectNestedUserOperations,
+        dangerousSkipUserOperationValidation,
+        publicClient,
+        fixedGasLimitForEstimation,
+        utilityWalletAddress
+    } = rpcHandler.config
+
+    if (!rejectNestedUserOperations || dangerousSkipUserOperationValidation) {
+        return [true, ""]
+    }
+
+    // Queued userOps go first so the userOp's nonce is valid.
+    const userOps = [...queuedUserOps, userOp]
+    const trace: CallFrame = await debug_traceCall(
+        publicClient,
+        {
+            from: utilityWalletAddress,
+            to: entryPoint,
+            gas: fixedGasLimitForEstimation,
+            data: encodeHandleOpsCalldata({
+                userOps,
+                beneficiary: utilityWalletAddress
+            })
+        },
+        {
+            tracer: "callTracer",
+            stateOverrides: getAuthorizationStateOverrides({ userOps })
+        }
+    )
+
+    // The top-level frame is the handleOps call above, so only search below it.
+    const handleOpsCall = findHandleOpsCall(trace.calls ?? [])
+    if (handleOpsCall) {
+        rpcHandler.logger.warn(
+            {
+                userOpHash,
+                entryPoint,
+                sender: userOp.sender,
+                caller: handleOpsCall.from,
+                nestedEntryPoint: handleOpsCall.to
+            },
+            "Rejected userOperation that calls handleOps"
+        )
+        return [
+            false,
+            `userOperation calls handleOps on ${handleOpsCall.to}, nested userOperations are not allowed`
+        ]
+    }
+
+    return [true, ""]
+}
+
+const getQueuedUserOps = async ({
     rpcHandler,
     userOp,
     entryPoint
@@ -236,13 +354,7 @@ const getUserOpValidationResult = async ({
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
-}): Promise<{
-    queuedUserOps: UserOperation[]
-    validationResult: ValidationResult & {
-        storageMap: StorageMap
-        referencedContracts?: ReferencedCodeHashes
-    }
-}> => {
+}): Promise<UserOperation[]> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
             userOp,
@@ -262,16 +374,7 @@ const getUserOpValidationResult = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
-    const validationResult = await rpcHandler.validator.validateUserOp({
-        userOp,
-        queuedUserOps,
-        entryPoint
-    })
-
-    return {
-        queuedUserOps,
-        validationResult
-    }
+    return queuedUserOps
 }
 
 export async function addToMempoolIfValid({
@@ -314,9 +417,16 @@ export async function addToMempoolIfValid({
         submissionAttempts: 0
     }
 
+    const queuedUserOps = await getQueuedUserOps({
+        rpcHandler,
+        userOp,
+        entryPoint
+    })
+
     // Execute multiple async operations in parallel
     const [
-        { queuedUserOps, validationResult },
+        validationResult,
+        [isNestedUserOpsValid, nestedUserOpsError],
         currentNonceSeq,
         [isPvgValid, pvgError],
         [isPvgBelowMax, maxPvgError],
@@ -324,7 +434,18 @@ export async function addToMempoolIfValid({
         [isEip7702AuthValid, eip7702AuthError],
         [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
-        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        rpcHandler.validator.validateUserOp({
+            userOp,
+            queuedUserOps,
+            entryPoint
+        }),
+        validateNoNestedUserOps({
+            rpcHandler,
+            userOp,
+            userOpHash,
+            queuedUserOps,
+            entryPoint
+        }),
         rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
@@ -347,6 +468,14 @@ export async function addToMempoolIfValid({
             config: rpcHandler.config
         })
     ])
+
+    if (!isNestedUserOpsValid) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            nestedUserOpsError
+        )
+        throw new RpcError(nestedUserOpsError, ERC7769Errors.OpcodeValidation)
+    }
 
     // Validate eip7702Auth
     if (!isEip7702AuthValid) {

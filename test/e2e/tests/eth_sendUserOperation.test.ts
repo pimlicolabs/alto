@@ -1800,6 +1800,53 @@ describe.each([
             }
         })
 
+        test("Should reject userOp that calls handleOps on another EntryPoint", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // A nested handleOps runs userOperations whose paymasters pay a
+            // beneficiary picked by the sender.
+            const nestedEntryPointVersion: EntryPointVersion =
+                entryPointVersion === "0.6" ? "0.7" : "0.6"
+            const nestedEntryPoint =
+                nestedEntryPointVersion === "0.6"
+                    ? entryPoint06Address
+                    : entryPoint07Address
+
+            try {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: nestedEntryPoint,
+                            value: 0n,
+                            data: encodeFunctionData({
+                                abi: getEntryPointAbi(nestedEntryPointVersion),
+                                functionName: "handleOps",
+                                args: [[], TO_ADDRESS]
+                            })
+                        }
+                    ]
+                })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(
+                    /nested userOperations are not allowed/
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.OpcodeValidation)
+            }
+        })
+
         test("Should throw AA32: paymaster expired or not due", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,

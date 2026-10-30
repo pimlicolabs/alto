@@ -151,6 +151,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "1000"
     },
+    "reject-nested-user-operations": {
+        description:
+            "Reject userOperations that call handleOps on an EntryPoint while executing. Traces each userOperation with debug_traceCall",
+        type: "boolean",
+        require: false,
+        default: true
+    },
     "rpc-methods": {
         description: "Supported RPC methods split by commas",
         type: "string",
