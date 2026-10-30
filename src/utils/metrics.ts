@@ -168,15 +168,6 @@ export function createMetrics(registry: Registry, register = true) {
         registers
     })
 
-    const unexpectedSponsoredUserOps = new Counter({
-        name: "alto_unexpected_sponsored_user_operations_total",
-        help: "Number of UserOperationSponsored events in an included bundle for userOperations that were not in the bundle",
-        // One series per offending transaction, so alerts carry the hash.
-        // Bounded: this should never fire.
-        labelNames: ["paymaster", "transaction_hash"] as const,
-        registers
-    })
-
     const userOpsResubmitted = new Counter({
         name: "alto_user_operations_resubmitted_total",
         help: "Number of user operations resubmitted",
@@ -322,7 +313,6 @@ export function createMetrics(registry: Registry, register = true) {
         verificationGasLimitEstimationTime,
         verificationGasLimitEstimationCount,
         replacedTransactions,
-        unexpectedSponsoredUserOps,
         userOpsResubmitted,
         userOpsDropped,
         utilityWalletBalance,

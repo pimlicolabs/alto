@@ -117,8 +117,7 @@ export class BundleManager {
                         return await getBundleStatus({
                             submittedBundle: bundle,
                             publicClient: this.config.publicClient,
-                            logger: this.logger,
-                            metrics: this.metrics
+                            logger: this.logger
                         })
                     } catch (err) {
                         sentry.captureException(err)

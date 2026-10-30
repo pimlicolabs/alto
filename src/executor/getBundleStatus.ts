@@ -1,5 +1,5 @@
 import type { UserOperationReceipt } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "pino"
 import type { Hex, PublicClient } from "viem"
 import type { SubmittedBundleInfo } from "../types/mempool"
 import { parseUserOpReceipt } from "../utils/userop"
@@ -44,13 +44,11 @@ export type BundleStatus<
 export const getBundleStatus = async ({
     publicClient,
     submittedBundle,
-    logger,
-    metrics
+    logger
 }: {
     submittedBundle: SubmittedBundleInfo
     publicClient: PublicClient
     logger: Logger
-    metrics: Metrics
 }): Promise<BundleStatus> => {
     const {
         transactionHash: currentHash,
@@ -79,8 +77,7 @@ export const getBundleStatus = async ({
         checkUnexpectedSponsorships({
             receipt: included,
             userOps,
-            logger,
-            metrics
+            logger
         })
 
         return {

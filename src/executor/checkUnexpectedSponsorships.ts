@@ -1,5 +1,5 @@
 import type { UserOpInfo } from "@alto/types"
-import type { Logger, Metrics } from "@alto/utils"
+import type { Logger } from "@alto/utils"
 import {
     type Hex,
     type TransactionReceipt,
@@ -24,13 +24,11 @@ const USER_OPERATION_SPONSORED_TOPIC = toEventSelector(
 export const checkUnexpectedSponsorships = ({
     receipt,
     userOps,
-    logger,
-    metrics
+    logger
 }: {
     receipt: TransactionReceipt
     userOps: UserOpInfo[]
     logger: Logger
-    metrics: Metrics
 }) => {
     const bundleUserOpHashes = getUserOpHashes(userOps)
     const expectedUserOpHashes = new Set(
@@ -47,15 +45,11 @@ export const checkUnexpectedSponsorships = ({
             continue
         }
 
-        const paymaster = getAddress(log.address)
-        metrics.unexpectedSponsoredUserOps
-            .labels({ paymaster, transaction_hash: receipt.transactionHash })
-            .inc()
-        logger.error(
+        logger.warn(
             {
                 transactionHash: receipt.transactionHash,
                 blockNumber: receipt.blockNumber.toString(),
-                paymaster,
+                paymaster: getAddress(log.address),
                 userOpHash,
                 user: user ? getAddress(slice(user, 12)) : undefined,
                 bundleUserOpHashes
