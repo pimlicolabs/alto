@@ -865,22 +865,6 @@ export class Mempool {
 
                 const { userOp } = currentUserOp
 
-                // Nodes reject transactions above a size limit, a userOp
-                // that doesn't fit in a bundle on its own can never land.
-                const userOpCalldataSize = getUserOpCalldataSize(userOp)
-                if (
-                    getHandleOpsCalldataSize([]) + userOpCalldataSize >
-                    this.config.maxBundleCalldataSize
-                ) {
-                    await this.dropUserOps(entryPoint, [
-                        {
-                            ...currentUserOp,
-                            reason: "userOperation exceeds the max bundle calldata size"
-                        }
-                    ])
-                    continue
-                }
-
                 // Check if we should skip this operation
                 const skipResult = await this.shouldSkip({
                     userOpInfo: currentUserOp,
@@ -921,6 +905,7 @@ export class Mempool {
                 // so the final transaction stays within maxGasLimit.
                 // Same for the calldata size, a transaction above
                 // maxBundleCalldataSize is rejected by the node.
+                const userOpCalldataSize = getUserOpCalldataSize(userOp)
                 if (
                     currentBundle.userOps.length > 0 &&
                     (scaleBigIntByPercent(
