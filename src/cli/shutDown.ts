@@ -422,7 +422,9 @@ export async function restoreShutdownState({
                             restored: true
                         })
                         if (senderManager.lockWallet) {
-                            senderManager.lockWallet(submittedBundle.executor)
+                            void senderManager.lockWallet(
+                                submittedBundle.executor
+                            )
                         }
                     }
 

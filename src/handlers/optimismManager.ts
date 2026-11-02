@@ -16,6 +16,6 @@ export class OptimismManager {
     }
 
     public saveL1FeeValue(l1Fee: bigint) {
-        this.l1FeeQueue.saveValue(l1Fee)
+        void this.l1FeeQueue.saveValue(l1Fee)
     }
 }

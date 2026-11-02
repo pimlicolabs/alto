@@ -18,11 +18,11 @@ export class ArbitrumManager {
     }
 
     public saveL1BaseFee(baseFee: bigint) {
-        this.l1BaseFeeQueue.saveValue(baseFee)
+        void this.l1BaseFeeQueue.saveValue(baseFee)
     }
 
     public saveL2BaseFee(baseFee: bigint) {
-        this.l2BaseFeeQueue.saveValue(baseFee)
+        void this.l2BaseFeeQueue.saveValue(baseFee)
     }
 
     public async getMinL1BaseFee() {

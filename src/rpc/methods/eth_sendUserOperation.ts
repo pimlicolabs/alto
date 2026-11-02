@@ -251,7 +251,7 @@ const getRevertData = (err: unknown): Hex | undefined => {
     err.walk((e) => {
         const data = (e as { data?: unknown }).data
         const match =
-            typeof data === "string" ? data.match(/0x[a-fA-F0-9]*/) : null
+            typeof data === "string" ? /0x[a-fA-F0-9]*/.exec(data) : null
         if (match) {
             revertData = match[0] as Hex
             return true
@@ -524,7 +524,7 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        rpcHandler.mempool.add({ userOpInfo, entryPoint })
+        void rpcHandler.mempool.add({ userOpInfo, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }

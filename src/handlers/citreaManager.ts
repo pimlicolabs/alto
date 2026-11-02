@@ -16,6 +16,6 @@ export class CitreaManager {
     }
 
     public saveL1FeeRate(l1FeeRate: bigint) {
-        this.l1FeeRateQueue.saveValue(l1FeeRate)
+        void this.l1FeeRateQueue.saveValue(l1FeeRate)
     }
 }

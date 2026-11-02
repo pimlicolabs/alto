@@ -325,4 +325,4 @@ const main = async () => {
     console.log("Done!")
 }
 
-main().then(() => process.exit(0))
+void main().then(() => process.exit(0))

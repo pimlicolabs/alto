@@ -52,11 +52,11 @@ describe.each([
             expect(
                 slow.maxFeePerGas === standard.maxFeePerGas &&
                     standard.maxFeePerGas === fast.maxFeePerGas
-            )
+            ).toBe(true)
             expect(
                 slow.maxPriorityFeePerGas === standard.maxPriorityFeePerGas &&
                     standard.maxPriorityFeePerGas === fast.maxPriorityFeePerGas
-            )
+            ).toBe(true)
             expect(networkPrices.maxFeePerGas).toBeLessThanOrEqual(
                 slow.maxFeePerGas
             )

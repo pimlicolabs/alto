@@ -311,7 +311,7 @@ export const setupServer = async ({
         config.flushStuckTransactionsDuringStartup &&
         !config.enableHorizontalScaling
     ) {
-        flushOnStartUp({
+        void flushOnStartUp({
             senderManager,
             gasPriceManager,
             config
@@ -346,7 +346,7 @@ export const setupServer = async ({
 
     // Ignore when horizontal scaling is enabled, because state is already saved between shutdowns.
     if (!config.enableHorizontalScaling) {
-        restoreShutdownState({
+        void restoreShutdownState({
             mempool,
             bundleManager,
             statusManager,

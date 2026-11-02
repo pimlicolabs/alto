@@ -176,7 +176,7 @@ export class Mempool {
                         ...resubmittedUserOp,
                         reason: failureReason
                     }
-                    this.dropUserOps(entryPoint, [rejectedUserOp])
+                    void this.dropUserOps(entryPoint, [rejectedUserOp])
                 }
             })
         )
@@ -660,7 +660,7 @@ export class Mempool {
                 "2nd Validation error"
             )
             await this.store.removeOutstanding({ entryPoint, userOpHash })
-            this.reputationManager.decreaseUserOpSeenStatus(
+            void this.reputationManager.decreaseUserOpSeenStatus(
                 userOp,
                 entryPoint,
                 e instanceof RpcError ? e.message : JSON.stringify(e)
@@ -982,7 +982,7 @@ export class Mempool {
 
     clear(): void {
         for (const entryPoint of this.config.entrypoints) {
-            this.store.clearOutstanding(entryPoint)
+            void this.store.clearOutstanding(entryPoint)
         }
     }
 

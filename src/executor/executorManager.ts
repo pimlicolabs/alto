@@ -76,7 +76,7 @@ export class ExecutorManager {
     private opsCount: number[] = []
     private bundlingMode: BundlingMode
     private unWatch: WatchBlocksReturnType | undefined
-    private redisBlockCache: {
+    private readonly redisBlockCache: {
         redis: Redis
         blockNumberKey: string
         refreshGuardKey: string
@@ -137,7 +137,7 @@ export class ExecutorManager {
 
     start(): void {
         if (this.bundlingMode === "auto") {
-            this.autoScalingBundling()
+            void this.autoScalingBundling()
         }
     }
 
@@ -178,7 +178,7 @@ export class ExecutorManager {
 
         // Send bundles to executor
         for (const bundle of bundles) {
-            this.sendBundleToExecutor(bundle)
+            void this.sendBundleToExecutor(bundle)
         }
 
         const rpm = this.opsCount.length
@@ -734,7 +734,7 @@ export class ExecutorManager {
 
         // Make reorg check if configured.
         if (this.config.reorgConfirmationDepth > 0) {
-            this.bundleManager.checkIncludedBundles({
+            void this.bundleManager.checkIncludedBundles({
                 blockNumber,
                 reorgConfirmationDepth: BigInt(
                     this.config.reorgConfirmationDepth
@@ -857,7 +857,7 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceBundle({
+            void this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
@@ -866,7 +866,7 @@ export class ExecutorManager {
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            this.replaceBundle({
+            void this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,

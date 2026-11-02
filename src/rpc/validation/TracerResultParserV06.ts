@@ -459,13 +459,13 @@ export function tracerResultParserV06(
     }
 
     // [OP-061]
-    const illegalNonZeroValueCall = callStack.find(
+    const hasIllegalNonZeroValueCall = callStack.some(
         (call) =>
             call.to !== entryPointAddress &&
             hexToBigInt(call.value ?? "0x0") !== 0n
     )
 
-    if (illegalNonZeroValueCall) {
+    if (hasIllegalNonZeroValueCall) {
         throw new RpcError(
             "May not may CALL with value",
             ERC7769Errors.OpcodeValidation

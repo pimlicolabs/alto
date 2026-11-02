@@ -47,9 +47,11 @@ export class MantleManager {
         rollupDataGasAndOverhead: bigint
         l1GasPrice: bigint
     }) {
-        this.tokenRatioQueue.saveValue(tokenRatio)
-        this.scalarQueue.saveValue(scalar)
-        this.rollupDataGasAndOverheadQueue.saveValue(rollupDataGasAndOverhead)
-        this.l1GasPriceQueue.saveValue(l1GasPrice)
+        void this.tokenRatioQueue.saveValue(tokenRatio)
+        void this.scalarQueue.saveValue(scalar)
+        void this.rollupDataGasAndOverheadQueue.saveValue(
+            rollupDataGasAndOverhead
+        )
+        void this.l1GasPriceQueue.saveValue(l1GasPrice)
     }
 }

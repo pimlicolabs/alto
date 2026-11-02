@@ -548,7 +548,7 @@ export class GasPriceManager {
             }
 
             const baseFee = latestBlock.baseFeePerGas
-            this.baseFeePerGasQueue.saveValue(baseFee)
+            void this.baseFeePerGasQueue.saveValue(baseFee)
 
             return baseFee
         } catch (e) {
@@ -610,7 +610,7 @@ export class GasPriceManager {
             this.logger.error(e, "Failed to get base fee, returning 0n")
 
             // Save 0n to the queue for the missing baseFee case
-            this.baseFeePerGasQueue.saveValue(0n)
+            void this.baseFeePerGasQueue.saveValue(0n)
             return 0n
         }
     }
@@ -621,8 +621,10 @@ export class GasPriceManager {
             forExecutor: false
         })
 
-        this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
-        this.maxPriorityFeePerGasQueue.saveValue(gasPrice.maxPriorityFeePerGas)
+        void this.maxFeePerGasQueue.saveValue(gasPrice.maxFeePerGas)
+        void this.maxPriorityFeePerGasQueue.saveValue(
+            gasPrice.maxPriorityFeePerGas
+        )
 
         return gasPrice
     }
