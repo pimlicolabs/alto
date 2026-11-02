@@ -74,11 +74,13 @@ export const bundlerArgsSchema = z.object({
     "enforce-unique-senders-per-bundle": z.boolean().default(true),
     "max-gas-per-user-op": z.string().transform(BigInt).default("16000000"),
     "max-gas-per-bundle": z.string().transform(BigInt).default("16000000"),
+    "max-bundle-calldata-size": z.number().int().min(1).default(90000),
     "max-gas-price-multiplier": z.string().transform(BigInt).default("20000"),
     "max-pre-verification-gas-multiplier": z
         .string()
         .transform(BigInt)
         .default("1000"),
+    "reject-nested-user-operations": z.boolean().default(true),
     "rpc-methods": z
         .string()
         .nullable()

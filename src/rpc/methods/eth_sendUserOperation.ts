@@ -2,18 +2,22 @@ import {
     type Address,
     type ApiVersion,
     ERC7769Errors,
-    type ReferencedCodeHashes,
     RpcError,
-    type StorageMap,
     type UserOpInfo,
     type UserOperation,
-    type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
 import { getAAError, scaleBigIntByPercent } from "@alto/utils"
-import { type Hex, slice } from "viem"
+import { BaseError, type Hex, slice, toFunctionSelector, toHex } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
+import { encodeHandleOpsCalldata } from "../../executor/utils"
+import { getEip7702DelegationOverrides } from "../../utils/eip7702"
+import {
+    NESTED_HANDLE_OPS_DETECTOR,
+    getNestedHandleOpsSimulation,
+    supportsNestedHandleOpsDetector
+} from "../../utils/entryPointOverrides"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
@@ -228,7 +232,125 @@ export const validateMaxPvg = async ({
     return [true, ""]
 }
 
-const getUserOpValidationResult = async ({
+// Revert data of a handleOps simulated with getNestedHandleOpsSimulation when
+// a nested handleOps landed.
+const NESTED_HANDLE_OPS_REVERTS = [
+    // NestedHandleOpsDetector's error, wrapped in FailedSendToBeneficiary by
+    // v0.9.
+    toFunctionSelector("NestedHandleOps()"),
+    // v0.6 to v0.8 revert with this when the beneficiary reverts.
+    toHex("AA91 failed send to beneficiary")
+].map((data) => data.slice(2).toLowerCase())
+
+const getRevertData = (err: unknown): Hex | undefined => {
+    if (!(err instanceof BaseError)) {
+        return undefined
+    }
+
+    let revertData: Hex | undefined
+    err.walk((e) => {
+        const data = (e as { data?: unknown }).data
+        const match =
+            typeof data === "string" ? data.match(/0x[a-fA-F0-9]*/) : null
+        if (match) {
+            revertData = match[0] as Hex
+            return true
+        }
+        return false
+    })
+    return revertData
+}
+
+// Rejects userOps that call handleOps on another EntryPoint while they run
+// (each EntryPoint blocks reentrant handleOps). The nested userOperations are
+// paid for by their own paymasters and pay a beneficiary the sender picks, so
+// a sponsored userOp can drain paymasters on other EntryPoints. Simulates
+// handleOps with eth_call and the overrides of getNestedHandleOpsSimulation,
+// from an EOA so v0.9's reentrancy guard passes.
+export const validateNoNestedUserOps = async ({
+    rpcHandler,
+    userOp,
+    userOpHash,
+    queuedUserOps,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    userOpHash: Hex
+    queuedUserOps: UserOperation[]
+    entryPoint: Address
+}): Promise<[boolean, string]> => {
+    const {
+        rejectNestedUserOperations,
+        codeOverrideSupport,
+        dangerousSkipUserOperationValidation,
+        publicClient,
+        fixedGasLimitForEstimation,
+        utilityWalletAddress,
+        entrypoints
+    } = rpcHandler.config
+
+    if (
+        !rejectNestedUserOperations ||
+        !codeOverrideSupport ||
+        dangerousSkipUserOperationValidation ||
+        !(await supportsNestedHandleOpsDetector(publicClient))
+    ) {
+        return [true, ""]
+    }
+
+    // Queued userOps go first so the userOp's nonce is valid.
+    const userOps = [...queuedUserOps, userOp]
+    const simulation = await getNestedHandleOpsSimulation({
+        publicClient,
+        entryPoint,
+        supportedEntryPoints: entrypoints
+    })
+
+    try {
+        await publicClient.call({
+            account: utilityWalletAddress,
+            to: entryPoint,
+            gas: fixedGasLimitForEstimation,
+            data: encodeHandleOpsCalldata({
+                userOps,
+                beneficiary: NESTED_HANDLE_OPS_DETECTOR
+            }),
+            stateOverride: [
+                ...(getEip7702DelegationOverrides(userOps) ?? []),
+                ...simulation.stateOverride
+            ],
+            accessList: simulation.accessList
+        })
+    } catch (err) {
+        const revertData = getRevertData(err)?.toLowerCase()
+        if (revertData === undefined) {
+            throw err
+        }
+
+        if (
+            NESTED_HANDLE_OPS_REVERTS.some((nestedRevert) =>
+                revertData.includes(nestedRevert)
+            )
+        ) {
+            rpcHandler.logger.warn(
+                { userOpHash, entryPoint, sender: userOp.sender },
+                "Rejected userOperation that calls handleOps"
+            )
+            return [
+                false,
+                "userOperation calls handleOps on another EntryPoint, nested userOperations are not allowed"
+            ]
+        }
+
+        // Any other revert is a failed validation, which validateUserOp
+        // reports.
+    }
+
+    return [true, ""]
+}
+
+const getQueuedUserOps = async ({
     rpcHandler,
     userOp,
     entryPoint
@@ -236,13 +358,7 @@ const getUserOpValidationResult = async ({
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
-}): Promise<{
-    queuedUserOps: UserOperation[]
-    validationResult: ValidationResult & {
-        storageMap: StorageMap
-        referencedContracts?: ReferencedCodeHashes
-    }
-}> => {
+}): Promise<UserOperation[]> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
             userOp,
@@ -262,16 +378,7 @@ const getUserOpValidationResult = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
-    const validationResult = await rpcHandler.validator.validateUserOp({
-        userOp,
-        queuedUserOps,
-        entryPoint
-    })
-
-    return {
-        queuedUserOps,
-        validationResult
-    }
+    return queuedUserOps
 }
 
 export async function addToMempoolIfValid({
@@ -314,9 +421,16 @@ export async function addToMempoolIfValid({
         submissionAttempts: 0
     }
 
+    const queuedUserOps = await getQueuedUserOps({
+        rpcHandler,
+        userOp,
+        entryPoint
+    })
+
     // Execute multiple async operations in parallel
     const [
-        { queuedUserOps, validationResult },
+        validationResult,
+        [isNestedUserOpsValid, nestedUserOpsError],
         currentNonceSeq,
         [isPvgValid, pvgError],
         [isPvgBelowMax, maxPvgError],
@@ -324,7 +438,18 @@ export async function addToMempoolIfValid({
         [isEip7702AuthValid, eip7702AuthError],
         [isChainRulesValid, chainRulesError]
     ] = await Promise.all([
-        getUserOpValidationResult({ rpcHandler, userOp, entryPoint }),
+        rpcHandler.validator.validateUserOp({
+            userOp,
+            queuedUserOps,
+            entryPoint
+        }),
+        validateNoNestedUserOps({
+            rpcHandler,
+            userOp,
+            userOpHash,
+            queuedUserOps,
+            entryPoint
+        }),
         rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
             apiVersion,
@@ -347,6 +472,14 @@ export async function addToMempoolIfValid({
             config: rpcHandler.config
         })
     ])
+
+    if (!isNestedUserOpsValid) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            nestedUserOpsError
+        )
+        throw new RpcError(nestedUserOpsError, ERC7769Errors.OpcodeValidation)
+    }
 
     // Validate eip7702Auth
     if (!isEip7702AuthValid) {
