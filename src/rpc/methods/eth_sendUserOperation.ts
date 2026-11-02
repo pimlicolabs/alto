@@ -2,12 +2,9 @@ import {
     type Address,
     type ApiVersion,
     ERC7769Errors,
-    type ReferencedCodeHashes,
     RpcError,
-    type StorageMap,
     type UserOpInfo,
     type UserOperation,
-    type ValidationResult,
     sendUserOperationSchema
 } from "@alto/types"
 import {
@@ -16,14 +13,22 @@ import {
     minBigInt,
     scaleBigIntByPercent
 } from "@alto/utils"
-import { type Hex, slice } from "viem"
+import { BaseError, type Hex, slice, toFunctionSelector, toHex } from "viem"
 import type { AltoConfig } from "../../createConfig"
 import { getFilterOpsResult } from "../../executor/filterOpsAndEstimateGas"
+import { encodeHandleOpsCalldata } from "../../executor/utils"
+import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { TX_MAX_GAS_LIMIT } from "../../utils/eip8037"
+import {
+    NESTED_HANDLE_OPS_DETECTOR,
+    getNestedHandleOpsSimulation,
+    supportsNestedHandleOpsDetector
+} from "../../utils/entryPointOverrides"
 import {
     getNonceKeyAndSequence,
     getUserOpHash,
-    getViemEntryPointVersion
+    getViemEntryPointVersion,
+    isVersion06
 } from "../../utils/userop"
 import { createMethodHandler } from "../createMethodHandler"
 import {
@@ -113,6 +118,46 @@ const validateChainRules = async ({
     return { valid: true }
 }
 
+// The preVerificationGas the userOp needs. With validate, the L2 fee inputs
+// are the most lenient seen recently (the floor eth_sendUserOperation
+// enforces). Without, they are the current ones, as used by
+// eth_estimateUserOperationGas.
+const getPvg = async ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    validate
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    validate: boolean
+}): Promise<bigint> => {
+    const { config, gasPriceManager } = rpcHandler
+
+    if (config.chainType === "monad") {
+        // Monad consumes the entire gasLimit, so PVG is calculated differently
+        return await getMonadPvg({ userOp, config, entryPoint, validate })
+    }
+
+    const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
+        getDynamicPvgComponent({ userOp, entryPoint, config }),
+        getL2PvgComponent({
+            config,
+            userOp,
+            entryPoint,
+            gasPriceManager,
+            validate
+        })
+    ])
+    const basePvgComponent = getBasePvgComponent({
+        userOp,
+        config,
+        dynamicPvgComponent
+    })
+    return basePvgComponent + l2PvgComponent
+}
+
 const validatePvg = async ({
     apiVersion,
     rpcHandler,
@@ -137,38 +182,12 @@ const validatePvg = async ({
         return { valid: true, requiredPvg: 0n }
     }
 
-    let requiredPvg: bigint
-
-    if (config.chainType === "monad") {
-        // Monad consumes the entire gasLimit, so PVG is calculated differently
-        requiredPvg = await getMonadPvg({
-            userOp,
-            config,
-            entryPoint,
-            validate: true
-        })
-    } else {
-        const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
-            getDynamicPvgComponent({
-                userOp,
-                entryPoint,
-                config: rpcHandler.config
-            }),
-            getL2PvgComponent({
-                config: rpcHandler.config,
-                userOp,
-                entryPoint,
-                gasPriceManager: rpcHandler.gasPriceManager,
-                validate: true
-            })
-        ])
-        const basePvgComponent = getBasePvgComponent({
-            userOp,
-            config: rpcHandler.config,
-            dynamicPvgComponent
-        })
-        requiredPvg = basePvgComponent + l2PvgComponent
-    }
+    const requiredPvg = await getPvg({
+        rpcHandler,
+        userOp,
+        entryPoint,
+        validate: true
+    })
 
     if (requiredPvg > userOp.preVerificationGas) {
         return {
@@ -180,25 +199,194 @@ const validatePvg = async ({
     return { valid: true, requiredPvg }
 }
 
-const getUserOpValidationResult = async ({
+// Caps preVerificationGas at --max-pre-verification-gas-multiplier of what
+// eth_estimateUserOperationGas returns. preVerificationGas is charged in full
+// whatever the userOp uses, so an inflated value drains the paymaster
+// sponsoring it. Enforced on every apiVersion, as the sender picks it.
+export const validateMaxPvg = async ({
     rpcHandler,
     userOp,
     entryPoint,
-    isBoosted
+    isBoosted = false,
+    reservoirGas = 0n
 }: {
     rpcHandler: RpcHandler
     userOp: UserOperation
     entryPoint: Address
-    isBoosted: boolean
-}): Promise<{
-    queuedUserOps: UserOperation[]
-    validationResult: ValidationResult & {
-        storageMap: StorageMap
-        referencedContracts?: ReferencedCodeHashes
-    }
-    minReservoirGas?: bigint
+    isBoosted?: boolean
+    // EIP-8037 state gas reservoir, which eth_estimateUserOperationGas adds
+    // to the preVerificationGas of a userOp that pays
     reservoirGas?: bigint
-}> => {
+}): Promise<[boolean, string]> => {
+    const {
+        maxPreVerificationGasMultiplier,
+        emergencyMode,
+        v6PreVerificationGasLimitMultiplier,
+        v7PreVerificationGasLimitMultiplier
+    } = rpcHandler.config
+
+    // Boosted userOps pay no gas. Emergency mode skips it for the same
+    // reason as validatePvg.
+    if (maxPreVerificationGasMultiplier === 0n || isBoosted || emergencyMode) {
+        return [true, ""]
+    }
+
+    const pvg = await getPvg({
+        rpcHandler,
+        userOp,
+        entryPoint,
+        validate: false
+    })
+
+    // Same multipliers as eth_estimateUserOperationGas.
+    const estimatedPvg = scaleBigIntByPercent(
+        pvg,
+        isVersion06(userOp)
+            ? v6PreVerificationGasLimitMultiplier
+            : v7PreVerificationGasLimitMultiplier
+    )
+    const maxPvg = scaleBigIntByPercent(
+        estimatedPvg + reservoirGas,
+        maxPreVerificationGasMultiplier
+    )
+
+    if (userOp.preVerificationGas > maxPvg) {
+        return [
+            false,
+            `preVerificationGas is too high, max: ${maxPvg}, got: ${userOp.preVerificationGas}`
+        ]
+    }
+
+    return [true, ""]
+}
+
+// Revert data of a handleOps simulated with getNestedHandleOpsSimulation when
+// a nested handleOps landed.
+const NESTED_HANDLE_OPS_REVERTS = [
+    // NestedHandleOpsDetector's error, wrapped in FailedSendToBeneficiary by
+    // v0.9.
+    toFunctionSelector("NestedHandleOps()"),
+    // v0.6 to v0.8 revert with this when the beneficiary reverts.
+    toHex("AA91 failed send to beneficiary")
+].map((data) => data.slice(2).toLowerCase())
+
+const getRevertData = (err: unknown): Hex | undefined => {
+    if (!(err instanceof BaseError)) {
+        return undefined
+    }
+
+    let revertData: Hex | undefined
+    err.walk((e) => {
+        const data = (e as { data?: unknown }).data
+        const match =
+            typeof data === "string" ? data.match(/0x[a-fA-F0-9]*/) : null
+        if (match) {
+            revertData = match[0] as Hex
+            return true
+        }
+        return false
+    })
+    return revertData
+}
+
+// Rejects userOps that call handleOps on another EntryPoint while they run
+// (each EntryPoint blocks reentrant handleOps). The nested userOperations are
+// paid for by their own paymasters and pay a beneficiary the sender picks, so
+// a sponsored userOp can drain paymasters on other EntryPoints. Simulates
+// handleOps with eth_call and the overrides of getNestedHandleOpsSimulation,
+// from an EOA so v0.9's reentrancy guard passes.
+export const validateNoNestedUserOps = async ({
+    rpcHandler,
+    userOp,
+    userOpHash,
+    queuedUserOps,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    userOpHash: Hex
+    queuedUserOps: UserOperation[]
+    entryPoint: Address
+}): Promise<[boolean, string]> => {
+    const {
+        rejectNestedUserOperations,
+        codeOverrideSupport,
+        dangerousSkipUserOperationValidation,
+        publicClient,
+        fixedGasLimitForEstimation,
+        utilityWalletAddress,
+        entrypoints
+    } = rpcHandler.config
+
+    if (
+        !rejectNestedUserOperations ||
+        !codeOverrideSupport ||
+        dangerousSkipUserOperationValidation ||
+        !(await supportsNestedHandleOpsDetector(publicClient))
+    ) {
+        return [true, ""]
+    }
+
+    // Queued userOps go first so the userOp's nonce is valid.
+    const userOps = [...queuedUserOps, userOp]
+    const simulation = await getNestedHandleOpsSimulation({
+        publicClient,
+        entryPoint,
+        supportedEntryPoints: entrypoints
+    })
+
+    try {
+        await publicClient.call({
+            account: utilityWalletAddress,
+            to: entryPoint,
+            gas: fixedGasLimitForEstimation,
+            data: encodeHandleOpsCalldata({
+                userOps,
+                beneficiary: NESTED_HANDLE_OPS_DETECTOR
+            }),
+            stateOverride: [
+                ...(getEip7702DelegationOverrides(userOps) ?? []),
+                ...simulation.stateOverride
+            ],
+            accessList: simulation.accessList
+        })
+    } catch (err) {
+        const revertData = getRevertData(err)?.toLowerCase()
+        if (revertData === undefined) {
+            throw err
+        }
+
+        if (
+            NESTED_HANDLE_OPS_REVERTS.some((nestedRevert) =>
+                revertData.includes(nestedRevert)
+            )
+        ) {
+            rpcHandler.logger.warn(
+                { userOpHash, entryPoint, sender: userOp.sender },
+                "Rejected userOperation that calls handleOps"
+            )
+            return [
+                false,
+                "userOperation calls handleOps on another EntryPoint, nested userOperations are not allowed"
+            ]
+        }
+
+        // Any other revert is a failed validation, which validateUserOp
+        // reports.
+    }
+
+    return [true, ""]
+}
+
+const getQueuedUserOps = async ({
+    rpcHandler,
+    userOp,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+}): Promise<UserOperation[]> => {
     const queuedUserOps: UserOperation[] =
         await rpcHandler.mempool.getQueuedOutstandingUserOps({
             userOp,
@@ -218,6 +406,22 @@ const getUserOpValidationResult = async ({
         rpcHandler.logger.info({ queuedHashes }, "Found queuedUserOps")
     }
 
+    return queuedUserOps
+}
+
+const getUserOpValidationResult = async ({
+    rpcHandler,
+    userOp,
+    entryPoint,
+    queuedUserOps,
+    isBoosted
+}: {
+    rpcHandler: RpcHandler
+    userOp: UserOperation
+    entryPoint: Address
+    queuedUserOps: UserOperation[]
+    isBoosted: boolean
+}) => {
     // A userOp that needs more than TX_MAX_GAS_LIMIT including EIP-8037
     // state gas is bundled with a state gas reservoir.
     //
@@ -261,7 +465,6 @@ const getUserOpValidationResult = async ({
     return {
         minReservoirGas,
         reservoirGas,
-        queuedUserOps,
         validationResult
     }
 }
@@ -306,20 +509,51 @@ export async function addToMempoolIfValid({
         submissionAttempts: 0
     }
 
+    const queuedUserOps = await getQueuedUserOps({
+        rpcHandler,
+        userOp,
+        entryPoint
+    })
+
     // Execute multiple async operations in parallel
     const [
-        { queuedUserOps, validationResult, minReservoirGas, reservoirGas },
+        {
+            validationResult,
+            minReservoirGas,
+            reservoirGas,
+            maxPvgResult: [isPvgBelowMax, maxPvgError]
+        },
+        [isNestedUserOpsValid, nestedUserOpsError],
         currentNonceSeq,
         pvgResult,
         [isGasPriceValid, gasPriceError],
         [isEip7702AuthValid, eip7702AuthError],
         chainRulesResult
     ] = await Promise.all([
+        // The max preVerificationGas allows for the reservoir, so it waits
+        // for the reservoir search
         getUserOpValidationResult({
             rpcHandler,
             userOp,
             entryPoint,
+            queuedUserOps,
             isBoosted
+        }).then(async (result) => ({
+            ...result,
+            maxPvgResult: await validateMaxPvg({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                isBoosted,
+                reservoirGas: result.minReservoirGas
+            })
+        })),
+        validateNoNestedUserOps({
+            rpcHandler,
+            userOp,
+            userOpHash,
+            queuedUserOps,
+            entryPoint
         }),
         rpcHandler.getNonceSeq({ userOp, entryPoint }),
         validatePvg({
@@ -342,6 +576,14 @@ export async function addToMempoolIfValid({
             config: rpcHandler.config
         })
     ])
+
+    if (!isNestedUserOpsValid) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpHash,
+            nestedUserOpsError
+        )
+        throw new RpcError(nestedUserOpsError, ERC7769Errors.OpcodeValidation)
+    }
 
     // Validate eip7702Auth
     if (!isEip7702AuthValid) {
@@ -386,6 +628,11 @@ export async function addToMempoolIfValid({
         !isBoosted && reservoirGas
             ? minBigInt(reservoirGas, userOp.preVerificationGas - requiredPvg)
             : reservoirGas
+
+    if (!isPvgBelowMax) {
+        rpcHandler.eventManager.emitFailedValidation(userOpHash, maxPvgError)
+        throw new RpcError(maxPvgError, ERC7769Errors.InvalidFields)
+    }
 
     // Nonce validation
     const [, userOpNonceSeq] = getNonceKeyAndSequence(userOp.nonce)

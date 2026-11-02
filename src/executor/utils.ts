@@ -26,7 +26,9 @@ import {
     encodeFunctionData,
     hexToNumber,
     isHex,
-    toBytes
+    size,
+    toBytes,
+    zeroAddress
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { EIP2780_MAX_AUTH_GAS, getEip7702AuthAddress } from "../utils/eip7702"
@@ -327,6 +329,30 @@ export const encodeHandleOpsCalldata = ({
         args: [packedUserOps, beneficiary]
     })
 }
+
+// handleOps(ops, beneficiary) calldata starts with the 4 byte selector,
+// then the ops array offset, the beneficiary and the array length (32 bytes
+// each).
+const HANDLE_OPS_BASE_CALLDATA_SIZE = 4 + 3 * 32
+
+// Bytes a userOp adds to the handleOps calldata: its 32 byte offset in the
+// ops array plus its own encoding. This does not depend on the other userOps
+// in the bundle, so a bundle's size is the base size plus the size of each of
+// its userOps.
+export const getUserOpCalldataSize = (userOp: UserOperation): number =>
+    size(
+        encodeHandleOpsCalldata({
+            userOps: [userOp],
+            beneficiary: zeroAddress
+        })
+    ) - HANDLE_OPS_BASE_CALLDATA_SIZE
+
+// Size in bytes of the handleOps calldata that bundles these userOps.
+export const getHandleOpsCalldataSize = (userOps: UserOperation[]): number =>
+    userOps.reduce(
+        (total, userOp) => total + getUserOpCalldataSize(userOp),
+        HANDLE_OPS_BASE_CALLDATA_SIZE
+    )
 
 export const getAuthorizationListFromUserOps = (
     userOps: UserOperation[]

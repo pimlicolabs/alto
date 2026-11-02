@@ -56,14 +56,14 @@ export function createMetrics(registry: Registry, register = true) {
     const walletsAvailable = new Gauge({
         name: "alto_executor_wallets_available_count",
         help: "Number of available executor wallets used to bundle",
-        labelNames: [] as const,
+        labelNames: ["entrypoint_version"] as const,
         registers
     })
 
     const walletsTotal = new Gauge({
         name: "alto_executor_wallets_total_count",
         help: "Number of total executor wallets used to bundle",
-        labelNames: [] as const,
+        labelNames: ["entrypoint_version"] as const,
         registers
     })
 
@@ -333,12 +333,15 @@ export function createMetrics(registry: Registry, register = true) {
 }
 
 // rejected: the userOp was invalid. failed: we couldn't send the bundle.
+// queued: the userOp went to the mempool instead, as no executor was free or
+// --skip-instant-bundling is set.
 export type InstantOutcome =
     | "included"
     | "reverted"
     | "timeout"
     | "rejected"
     | "failed"
+    | "queued"
 
 export type UserOpStage =
     | "validation"

@@ -15,10 +15,12 @@ import {
     encodeFunctionData,
     getAddress,
     getContract,
+    keccak256,
     pad,
     parseEther,
     parseGwei,
     slice,
+    toHex,
     zeroAddress
 } from "viem"
 import {
@@ -52,6 +54,7 @@ import {
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
+    getPimlicoClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
@@ -80,6 +83,11 @@ describe.each([
     ({ entryPoint, entryPointVersion }) => {
         const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const VALUE = parseEther("0.15")
+        const LARGE_USER_OP_GAS_LIMITS = {
+            callGasLimit: 1_000_000n,
+            verificationGasLimit: 1_000_000n,
+            preVerificationGas: 2_000_000n
+        }
         let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
@@ -283,6 +291,95 @@ describe.each([
             expect(
                 await publicClient.getBalance({ address: TO_ADDRESS })
             ).toBeGreaterThanOrEqual(VALUE * 2n)
+        })
+
+        test("Should split userOperations that exceed the max bundle calldata size", async () => {
+            const firstClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+            const secondClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            // Each userOperation fits in a bundle on its own, both together
+            // exceed the default max bundle calldata size of 90000 bytes.
+            const largeCall = {
+                to: TO_ADDRESS,
+                value: 0n,
+                data: toHex(new Uint8Array(50_000).fill(1))
+            } as const
+
+            // Explicit gas limits skip gas estimation, which is slow for
+            // userOperations this large on EntryPoint 0.7+.
+            const firstHash = await firstClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+            const secondHash = await secondClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+
+            await sendBundleNow({ altoRpc })
+            await sendBundleNow({ altoRpc })
+
+            const firstReceipt = await firstClient.waitForUserOperationReceipt({
+                hash: firstHash
+            })
+            const secondReceipt =
+                await secondClient.waitForUserOperationReceipt({
+                    hash: secondHash
+                })
+
+            expect(firstReceipt.success).toEqual(true)
+            expect(secondReceipt.success).toEqual(true)
+            expect(firstReceipt.receipt.transactionHash).not.toEqual(
+                secondReceipt.receipt.transactionHash
+            )
+        })
+
+        test("Should reject userOperation that exceeds the max bundle calldata size", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            try {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: 0n,
+                            data: toHex(new Uint8Array(95_000).fill(1))
+                        }
+                    ],
+                    ...LARGE_USER_OP_GAS_LIMITS
+                })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(
+                    /userOperation is too large to be bundled/
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Send parallel UserOperations", async () => {
@@ -1699,6 +1796,193 @@ describe.each([
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
                 expect(rpcError.code).toBe(ERC7769Errors.PaymasterDepositTooLow)
+            }
+        })
+
+        test("Should drop userOp if paymaster deposit is drained before bundling", async () => {
+            await setBundlingMode({ mode: "manual", altoRpc })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                fundAccount: false
+            })
+
+            // Fresh paymaster so draining it doesn't affect other tests
+            const drainedPaymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc,
+                salt: pad(privateKeyToAddress(generatePrivateKey()))
+            })
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ],
+                ...(entryPointVersion === "0.6"
+                    ? {
+                          paymasterAndData: concat([
+                              drainedPaymaster,
+                              encodePaymasterData()
+                          ])
+                      }
+                    : {
+                          paymaster: drainedPaymaster,
+                          paymasterData: encodePaymasterData(),
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 50_000n
+                      })
+            })
+
+            // StakeManager.deposits is the EntryPoint's first storage slot
+            await anvilClient.setStorageAt({
+                address: entryPoint,
+                index: keccak256(
+                    concat([pad(drainedPaymaster), pad(toHex(0))])
+                ),
+                value: pad(toHex(0))
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: { public: publicClient }
+            })
+            expect(
+                await entryPointContract.read.balanceOf([drainedPaymaster])
+            ).toBe(0n)
+
+            const blockBefore = await publicClient.getBlockNumber()
+
+            await sendBundleNow({ altoRpc })
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            const pimlicoClient = getPimlicoClient({
+                entryPointVersion,
+                altoRpc
+            })
+            const status = await pimlicoClient.getUserOperationStatus({
+                hash
+            })
+            expect(status.status).toBe("rejected")
+
+            await expect(
+                client.getUserOperationReceipt({ hash })
+            ).rejects.toThrow(UserOperationReceiptNotFoundError)
+
+            // No bundle was sent for the dropped userOp
+            const blockAfter = await publicClient.getBlockNumber()
+            for (
+                let blockNumber = blockBefore + 1n;
+                blockNumber <= blockAfter;
+                blockNumber++
+            ) {
+                const block = await publicClient.getBlock({
+                    blockNumber,
+                    includeTransactions: true
+                })
+                expect(
+                    block.transactions.filter(
+                        (tx) => tx.to && getAddress(tx.to) === entryPoint
+                    )
+                ).toEqual([])
+            }
+        })
+
+        test("Should accept userOp that deposits to another EntryPoint", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            const otherEntryPointVersion: EntryPointVersion =
+                entryPointVersion === "0.6" ? "0.7" : "0.6"
+            const otherEntryPoint =
+                otherEntryPointVersion === "0.6"
+                    ? entryPoint06Address
+                    : entryPoint07Address
+            const otherEntryPointContract = getContract({
+                address: otherEntryPoint,
+                abi: getEntryPointAbi(otherEntryPointVersion),
+                client: { public: publicClient }
+            })
+            const depositBefore = await otherEntryPointContract.read.balanceOf([
+                TO_ADDRESS
+            ])
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: otherEntryPoint,
+                        value: VALUE,
+                        data: encodeFunctionData({
+                            abi: getEntryPointAbi(otherEntryPointVersion),
+                            functionName: "depositTo",
+                            args: [TO_ADDRESS]
+                        })
+                    }
+                ]
+            })
+
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+            const receipt = await client.waitForUserOperationReceipt({ hash })
+            expect(receipt.success).toBe(true)
+
+            expect(
+                await otherEntryPointContract.read.balanceOf([TO_ADDRESS])
+            ).toBe(depositBefore + VALUE)
+        })
+
+        test("Should reject userOp that calls handleOps on another EntryPoint", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            // A nested handleOps runs userOperations whose paymasters pay a
+            // beneficiary picked by the sender.
+            const nestedEntryPointVersion: EntryPointVersion =
+                entryPointVersion === "0.6" ? "0.7" : "0.6"
+            const nestedEntryPoint =
+                nestedEntryPointVersion === "0.6"
+                    ? entryPoint06Address
+                    : entryPoint07Address
+
+            try {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: nestedEntryPoint,
+                            value: 0n,
+                            data: encodeFunctionData({
+                                abi: getEntryPointAbi(nestedEntryPointVersion),
+                                functionName: "handleOps",
+                                args: [[], TO_ADDRESS]
+                            })
+                        }
+                    ]
+                })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(
+                    /nested userOperations are not allowed/
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.OpcodeValidation)
             }
         })
 

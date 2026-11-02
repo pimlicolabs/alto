@@ -27,7 +27,11 @@ import {
 } from "@alto/utils"
 import { type Hex, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
-import { calculateAA95GasFloor } from "../executor/utils"
+import {
+    calculateAA95GasFloor,
+    getHandleOpsCalldataSize,
+    getUserOpCalldataSize
+} from "../executor/utils"
 import { getEip7702AuthAddress } from "../utils/eip7702"
 import {
     type InterfaceReputationManager,
@@ -847,6 +851,7 @@ export class Mempool {
                 submissionAttempts: 0
             }
             let gasUsed = 0n
+            let calldataSize = getHandleOpsCalldataSize([])
             let touchedEip7702Auth = new Map<Address, Address>()
             let paymasterDeposit: { [paymaster: string]: bigint } = {}
             let stakedEntityCount: { [addr: string]: number } = {}
@@ -909,17 +914,24 @@ export class Mempool {
                 // The executor scales the bundle's tx.gasLimit by
                 // executorGasMultiplier, compare against the scaled value
                 // so the final transaction stays within maxGasLimit.
+                // Same for the calldata size, a transaction above
+                // maxBundleCalldataSize is rejected by the node.
+                const userOpCalldataSize = getUserOpCalldataSize(userOp)
                 if (
                     currentBundle.userOps.length > 0 &&
-                    scaleBigIntByPercent(
+                    (scaleBigIntByPercent(
                         gasUsed,
                         this.config.executorGasMultiplier
-                    ) > maxGasLimit
+                    ) > maxGasLimit ||
+                        calldataSize + userOpCalldataSize >
+                            this.config.maxBundleCalldataSize)
                 ) {
                     // Put current op back to front of unused for next bundle
                     unusedUserOps.unshift(currentUserOp)
                     break
                 }
+
+                calldataSize += userOpCalldataSize
 
                 // Update state based on skip result
                 paymasterDeposit = skipResult.paymasterDeposit
