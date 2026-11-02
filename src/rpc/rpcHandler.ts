@@ -1,7 +1,8 @@
 import {
     type Executor,
     type ExecutorManager,
-    calculateAA95GasFloor
+    calculateAA95GasFloor,
+    getHandleOpsCalldataSize
 } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
@@ -226,6 +227,16 @@ export class RpcHandler {
             return [
                 false,
                 `User operation gas limits exceed the max gas per userOp: ${txGasLimit} > ${this.config.maxGasPerUserOp}`
+            ]
+        }
+
+        // Nodes reject transactions above a size limit, a userOp that
+        // doesn't fit in a bundle on its own can never be included.
+        const calldataSize = getHandleOpsCalldataSize([userOp])
+        if (calldataSize > this.config.maxBundleCalldataSize) {
+            return [
+                false,
+                `userOperation is too large to be bundled: handleOps calldata of ${calldataSize} bytes exceeds the max of ${this.config.maxBundleCalldataSize} bytes`
             ]
         }
 
