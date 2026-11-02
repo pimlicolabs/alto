@@ -83,6 +83,11 @@ describe.each([
     ({ entryPoint, entryPointVersion }) => {
         const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const VALUE = parseEther("0.15")
+        const LARGE_USER_OP_GAS_LIMITS = {
+            callGasLimit: 1_000_000n,
+            verificationGasLimit: 1_000_000n,
+            preVerificationGas: 2_000_000n
+        }
         let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
@@ -286,6 +291,95 @@ describe.each([
             expect(
                 await publicClient.getBalance({ address: TO_ADDRESS })
             ).toBeGreaterThanOrEqual(VALUE * 2n)
+        })
+
+        test("Should split userOperations that exceed the max bundle calldata size", async () => {
+            const firstClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+            const secondClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            // Each userOperation fits in a bundle on its own, both together
+            // exceed the default max bundle calldata size of 90000 bytes.
+            const largeCall = {
+                to: TO_ADDRESS,
+                value: 0n,
+                data: toHex(new Uint8Array(50_000).fill(1))
+            } as const
+
+            // Explicit gas limits skip gas estimation, which is slow for
+            // userOperations this large on EntryPoint 0.7+.
+            const firstHash = await firstClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+            const secondHash = await secondClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+
+            await sendBundleNow({ altoRpc })
+            await sendBundleNow({ altoRpc })
+
+            const firstReceipt = await firstClient.waitForUserOperationReceipt({
+                hash: firstHash
+            })
+            const secondReceipt =
+                await secondClient.waitForUserOperationReceipt({
+                    hash: secondHash
+                })
+
+            expect(firstReceipt.success).toEqual(true)
+            expect(secondReceipt.success).toEqual(true)
+            expect(firstReceipt.receipt.transactionHash).not.toEqual(
+                secondReceipt.receipt.transactionHash
+            )
+        })
+
+        test("Should reject userOperation that exceeds the max bundle calldata size", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            try {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: 0n,
+                            data: toHex(new Uint8Array(95_000).fill(1))
+                        }
+                    ],
+                    ...LARGE_USER_OP_GAS_LIMITS
+                })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(
+                    /userOperation is too large to be bundled/
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
         })
 
         test("Send parallel UserOperations", async () => {

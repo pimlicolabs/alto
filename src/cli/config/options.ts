@@ -137,6 +137,13 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "16000000"
     },
+    "max-bundle-calldata-size": {
+        description:
+            "Maximum size in bytes of a bundle's handleOps calldata. Nodes reject larger transactions (128KB on geth based chains, 95000 bytes on the Arbitrum sequencer by default)",
+        type: "number",
+        require: false,
+        default: 90000
+    },
     "max-gas-price-multiplier": {
         description:
             "Highest maxFeePerGas and maxPriorityFeePerGas accepted for a userOperation, as a percentage of the current network gas price. 0 disables the check",
