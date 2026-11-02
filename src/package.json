@@ -37,8 +37,8 @@
         "lint:fix": "eslint src/**/*.ts --fix"
     },
     "dependencies": {
-        "@fastify/cors": "8.4.2",
-        "@fastify/websocket": "^10.0.1",
+        "@fastify/cors": "^10.1.0",
+        "@fastify/websocket": "^11.0.0",
         "@opentelemetry/api": "~1.9.1",
         "@opentelemetry/core": "~2.9.0",
         "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
@@ -59,7 +59,7 @@
         "async-mutex": "^0.4.0",
         "bull": "^4.15.1",
         "dotenv": "^16.0.3",
-        "fastify": "^4.25.2",
+        "fastify": "^5.12.5",
         "import-in-the-middle": "^1.14.2",
         "ioredis": "^5.4.1",
         "opentelemetry-instrumentation-fetch-node": "^1.2.3",
