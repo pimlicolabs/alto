@@ -467,7 +467,7 @@ export class BundleManager {
             // Fire and forget
             // Check if any rejected userOps were frontruns, if not mark as reverted onchain.
             for (const userOpInfo of rejectedUserOps) {
-                void (async () => {
+                ;(async () => {
                     const status = await this.getUserOpStatus({
                         userOpInfo,
                         entryPoint: submittedBundle.bundle.entryPoint,
@@ -504,7 +504,13 @@ export class BundleManager {
                             .labels({ status: "reverted" })
                             .inc(1)
                     }
-                })()
+                })().catch((err) => {
+                    this.logger.error(
+                        { err, userOpHash: userOpInfo.userOpHash },
+                        "Failed to check status of rejected userOp"
+                    )
+                    sentry.captureException(err)
+                })
             }
         })()
     }

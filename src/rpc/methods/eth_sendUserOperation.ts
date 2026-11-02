@@ -524,7 +524,18 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        void rpcHandler.mempool.add({ userOpInfo, entryPoint })
+        const [isMempoolAddSuccess, mempoolAddError] =
+            await rpcHandler.mempool.add({ userOpInfo, entryPoint })
+
+        if (!isMempoolAddSuccess) {
+            rpcHandler.eventManager.emitFailedValidation(
+                userOpHash,
+                mempoolAddError,
+                getAAError(mempoolAddError)
+            )
+            throw new RpcError(mempoolAddError, ERC7769Errors.InvalidFields)
+        }
+
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }

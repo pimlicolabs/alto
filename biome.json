@@ -30,9 +30,6 @@
             "suspicious": {
                 "noExplicitAny": "warn"
             },
-            "complexity": {
-                "noVoid": "off"
-            },
             "style": {
                 "useNamingConvention": "off"
             },

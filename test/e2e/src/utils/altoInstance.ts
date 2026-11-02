@@ -95,10 +95,10 @@ export const alto = defineInstance(
                             // })
                             process.stderr.on("end", () => {
                                 // console.log("Alto stderr ended")
-                                void reject("stderr ended")
+                                reject("stderr ended").catch(console.error)
                             })
                             process.on("error", (error) => {
-                                void reject(error.message)
+                                reject(error.message).catch(console.error)
                             })
                         }
                     }

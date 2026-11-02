@@ -1,12 +1,18 @@
+import type { Logger } from "@alto/utils"
 import { maxUint128 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class ArbitrumManager {
+    private readonly logger: Logger
     private readonly l1BaseFeeQueue: MinMaxQueue
     private readonly l2BaseFeeQueue: MinMaxQueue
 
     constructor({ config }: { config: AltoConfig }) {
+        this.logger = config.getLogger(
+            { module: "arbitrum_manager" },
+            { level: config.logLevel }
+        )
         this.l1BaseFeeQueue = createMinMaxQueue({
             queueName: "l1-base-fee-queue",
             config
@@ -18,11 +24,15 @@ export class ArbitrumManager {
     }
 
     public saveL1BaseFee(baseFee: bigint) {
-        void this.l1BaseFeeQueue.saveValue(baseFee)
+        this.l1BaseFeeQueue.saveValue(baseFee).catch((err) => {
+            this.logger.error({ err }, "Failed to save L1 base fee")
+        })
     }
 
     public saveL2BaseFee(baseFee: bigint) {
-        void this.l2BaseFeeQueue.saveValue(baseFee)
+        this.l2BaseFeeQueue.saveValue(baseFee).catch((err) => {
+            this.logger.error({ err }, "Failed to save L2 base fee")
+        })
     }
 
     public async getMinL1BaseFee() {

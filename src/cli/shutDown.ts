@@ -10,6 +10,7 @@ import {
     recoverableJsonParseWithBigint,
     recoverableJsonStringifyWithBigint
 } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import Queue from "bull"
 import Redis from "ioredis"
 import type { Logger } from "pino"
@@ -422,9 +423,19 @@ export async function restoreShutdownState({
                             restored: true
                         })
                         if (senderManager.lockWallet) {
-                            void senderManager.lockWallet(
-                                submittedBundle.executor
-                            )
+                            senderManager
+                                .lockWallet(submittedBundle.executor)
+                                .catch((err) => {
+                                    logger.error(
+                                        {
+                                            err,
+                                            executor:
+                                                submittedBundle.executor.address
+                                        },
+                                        "Failed to lock restored executor wallet"
+                                    )
+                                    sentry.captureException(err)
+                                })
                         }
                     }
 

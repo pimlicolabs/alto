@@ -137,7 +137,10 @@ export class ExecutorManager {
 
     start(): void {
         if (this.bundlingMode === "auto") {
-            void this.autoScalingBundling()
+            this.autoScalingBundling().catch((err) => {
+                this.logger.error({ err }, "Auto bundling failed")
+                sentry.captureException(err)
+            })
         }
     }
 
@@ -163,22 +166,32 @@ export class ExecutorManager {
             (timestamp) => now - timestamp < RPM_WINDOW
         )
 
-        const bundles = await this.mempool.getBundles(
-            this.config.maxBundleCount
-        )
-
-        if (bundles.length > 0) {
-            // Count total ops and add timestamps
-            const totalOps = bundles.reduce(
-                (sum, bundle) => sum + bundle.userOps.length,
-                0
+        // A failure here must not stop the loop, the next run is always
+        // scheduled below.
+        try {
+            const bundles = await this.mempool.getBundles(
+                this.config.maxBundleCount
             )
-            this.opsCount.push(...new Array(totalOps).fill(Date.now()))
-        }
 
-        // Send bundles to executor
-        for (const bundle of bundles) {
-            void this.sendBundleToExecutor(bundle)
+            if (bundles.length > 0) {
+                // Count total ops and add timestamps
+                const totalOps = bundles.reduce(
+                    (sum, bundle) => sum + bundle.userOps.length,
+                    0
+                )
+                this.opsCount.push(...new Array(totalOps).fill(Date.now()))
+            }
+
+            // Send bundles to executor
+            for (const bundle of bundles) {
+                this.sendBundleToExecutor(bundle).catch((err) => {
+                    this.logger.error({ err }, "Failed to send bundle")
+                    sentry.captureException(err)
+                })
+            }
+        } catch (err) {
+            this.logger.error({ err }, "Failed to get bundles from mempool")
+            sentry.captureException(err)
         }
 
         const rpm = this.opsCount.length
@@ -734,13 +747,21 @@ export class ExecutorManager {
 
         // Make reorg check if configured.
         if (this.config.reorgConfirmationDepth > 0) {
-            void this.bundleManager.checkIncludedBundles({
-                blockNumber,
-                reorgConfirmationDepth: BigInt(
-                    this.config.reorgConfirmationDepth
-                ),
-                blockReceivedTimestamp
-            })
+            this.bundleManager
+                .checkIncludedBundles({
+                    blockNumber,
+                    reorgConfirmationDepth: BigInt(
+                        this.config.reorgConfirmationDepth
+                    ),
+                    blockReceivedTimestamp
+                })
+                .catch((err) => {
+                    this.logger.error(
+                        { err },
+                        "Failed to check included bundles"
+                    )
+                    sentry.captureException(err)
+                })
         }
 
         if (pendingBundles.length === 0) {
@@ -857,21 +878,33 @@ export class ExecutorManager {
 
         if (isGasPriceTooLow) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            void this.replaceBundle({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
                 networkBaseFee,
                 reason: "gas_price"
+            }).catch((err) => {
+                this.logger.error(
+                    { err, txHash: submittedBundle.transactionHash },
+                    "Failed to replace bundle"
+                )
+                sentry.captureException(err)
             })
         } else if (isStuck) {
             this.bundleManager.stopTrackingBundle(submittedBundle)
-            void this.replaceBundle({
+            this.replaceBundle({
                 blockReceivedTimestamp,
                 submittedBundle,
                 networkGasPrice,
                 networkBaseFee,
                 reason: "stuck"
+            }).catch((err) => {
+                this.logger.error(
+                    { err, txHash: submittedBundle.transactionHash },
+                    "Failed to replace bundle"
+                )
+                sentry.captureException(err)
             })
         }
     }

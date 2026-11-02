@@ -25,6 +25,7 @@ import {
     observeDurationMs,
     scaleBigIntByPercent
 } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import { type Hex, getAddress, getContract } from "viem"
 import type { AltoConfig } from "../createConfig"
 import {
@@ -176,7 +177,15 @@ export class Mempool {
                         ...resubmittedUserOp,
                         reason: failureReason
                     }
-                    void this.dropUserOps(entryPoint, [rejectedUserOp])
+                    this.dropUserOps(entryPoint, [rejectedUserOp]).catch(
+                        (err) => {
+                            this.logger.error(
+                                { err, userOpHash },
+                                "Failed to drop user operation"
+                            )
+                            sentry.captureException(err)
+                        }
+                    )
                 }
             })
         )
@@ -660,11 +669,19 @@ export class Mempool {
                 "2nd Validation error"
             )
             await this.store.removeOutstanding({ entryPoint, userOpHash })
-            void this.reputationManager.decreaseUserOpSeenStatus(
-                userOp,
-                entryPoint,
-                e instanceof RpcError ? e.message : JSON.stringify(e)
-            )
+            this.reputationManager
+                .decreaseUserOpSeenStatus(
+                    userOp,
+                    entryPoint,
+                    e instanceof RpcError ? e.message : JSON.stringify(e)
+                )
+                .catch((err) => {
+                    this.logger.error(
+                        { err, userOpHash },
+                        "Failed to decrease userOp seen status"
+                    )
+                    sentry.captureException(err)
+                })
             return {
                 skip: true,
                 paymasterDeposit,
@@ -982,7 +999,13 @@ export class Mempool {
 
     clear(): void {
         for (const entryPoint of this.config.entrypoints) {
-            void this.store.clearOutstanding(entryPoint)
+            this.store.clearOutstanding(entryPoint).catch((err) => {
+                this.logger.error(
+                    { err, entryPoint },
+                    "Failed to clear outstanding user operations"
+                )
+                sentry.captureException(err)
+            })
         }
     }
 
