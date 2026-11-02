@@ -108,7 +108,9 @@ export class SafeValidator
             args: [addresses]
         })
 
-        const wallet = await this.senderManager.getWallet()
+        // Only the sender of an eth_call, so the wallet isn't taken from
+        // its pool.
+        const [wallet] = this.senderManager.getAllWallets()
 
         let hash = ""
 
@@ -122,8 +124,6 @@ export class SafeValidator
             // biome-ignore lint/suspicious/noExplicitAny: it's a generic type
             hash = (error.walk() as any).data
         }
-
-        this.senderManager.markWalletProcessed(wallet)
 
         return {
             hash,

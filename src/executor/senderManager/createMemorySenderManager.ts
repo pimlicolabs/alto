@@ -1,24 +1,34 @@
 import type { Metrics } from "@alto/utils"
 import { E_TIMEOUT, Semaphore, withTimeout } from "async-mutex"
 import type { Account } from "viem"
-import { type SenderManager, getAvailableWallets } from "."
+import type { EntryPointVersion } from "viem/account-abstraction"
+import type { WalletPool } from "."
 import type { AltoConfig } from "../../createConfig"
 
 export const createMemorySenderManager = ({
     config,
-    metrics
-}: { config: AltoConfig; metrics: Metrics }): SenderManager => {
-    const wallets = getAvailableWallets(config)
+    metrics,
+    wallets,
+    version
+}: {
+    config: AltoConfig
+    metrics: Metrics
+    wallets: Account[]
+    version: EntryPointVersion
+}): WalletPool => {
     const availableWallets = [...wallets]
 
     const semaphore: Semaphore = new Semaphore(availableWallets.length)
     const logger = config.getLogger(
-        { module: "sender-manager" },
+        { module: "sender-manager", entryPointVersion: version },
         { level: config.executorLogLevel || config.logLevel }
     )
 
-    metrics.walletsTotal.set(wallets.length)
-    metrics.walletsAvailable.set(wallets.length)
+    metrics.walletsTotal.set({ entrypoint_version: version }, wallets.length)
+    metrics.walletsAvailable.set(
+        { entrypoint_version: version },
+        wallets.length
+    )
 
     // Call after acquiring the semaphore.
     const takeWallet = (): Account => {
@@ -36,7 +46,10 @@ export const createMemorySenderManager = ({
             "got wallet from sender manager"
         )
 
-        metrics.walletsAvailable.set(availableWallets.length)
+        metrics.walletsAvailable.set(
+            { entrypoint_version: version },
+            availableWallets.length
+        )
 
         return wallet
     }
@@ -85,7 +98,10 @@ export const createMemorySenderManager = ({
                 "locked wallet in sender manager"
             )
 
-            metrics.walletsAvailable.set(availableWallets.length)
+            metrics.walletsAvailable.set(
+                { entrypoint_version: version },
+                availableWallets.length
+            )
         },
         markWalletProcessed: async (wallet: Account) => {
             if (!availableWallets.some((w) => w.address === wallet.address)) {
@@ -97,7 +113,10 @@ export const createMemorySenderManager = ({
                 )
             }
 
-            metrics.walletsAvailable.set(availableWallets.length)
+            metrics.walletsAvailable.set(
+                { entrypoint_version: version },
+                availableWallets.length
+            )
         },
         getActiveWallets: () => {
             // Active wallets are those that are in the total pool but not in the available pool
