@@ -7,12 +7,10 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
-    type CallParameters,
     type Chain,
     createPublicClient,
     createWalletClient,
-    fallback,
-    publicActions
+    fallback
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
@@ -158,7 +156,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         experimental_preconfirmationTime: args.flashblocksPreconfirmationTime
     }
 
-    let publicClient = createPublicClient({
+    const publicClient = createPublicClient({
         transport: customTransport(args.rpcUrl, {
             logger: logger.child(
                 { module: "public_client" },
@@ -170,25 +168,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         pollingInterval: args.blockPollingInterval ?? args.blockTime / 2,
         chain
     })
-
-    // Some permissioned chains require a whitelisted address to make deployments.
-    // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
-    if (args.ethCallSenderAddress) {
-        const whitelistedSender = args.ethCallSenderAddress
-        const withEthCallSender = (client: typeof publicClient) => ({
-            async call(args: CallParameters) {
-                return await client.call({
-                    ...args,
-                    account: whitelistedSender
-                })
-            }
-        })
-
-        publicClient = publicClient
-            .extend(withEthCallSender)
-            .extend(publicActions)
-            .extend(withEthCallSender)
-    }
 
     const createWalletTransport = (url: string) =>
         customTransport(url, {
