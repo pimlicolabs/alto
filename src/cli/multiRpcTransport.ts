@@ -21,6 +21,16 @@ const isUnsupportedMethodError = (err: unknown): boolean =>
         )
     )
 
+// "already known" means the endpoint's pool holds this exact transaction, so
+// it was broadcast no matter what the other endpoints answered.
+const isAlreadyKnownError = (err: unknown): boolean =>
+    err instanceof BaseError &&
+    Boolean(
+        err.walk((e) =>
+            (e as Error).message?.toLowerCase().includes("already known")
+        )
+    )
+
 // Fans out every request to all urls in parallel, resolving with the first
 // successful response and rejecting only if every endpoint fails. Fanning out
 // non-send methods too keeps a lagging or method-restricted endpoint (e.g. a
@@ -82,12 +92,17 @@ export function multiRpcTransport(
                     // too low, underpriced, ...) keeps working. Skip
                     // endpoints that don't support the method (e.g. a
                     // sequencer rejecting eth_sendRawTransactionSync), their
-                    // error says nothing about the transaction.
+                    // error says nothing about the transaction. Prefer
+                    // "already known": it proves the transaction was
+                    // broadcast, which the caller must not treat as a failed
+                    // send.
                     if (err instanceof AggregateError) {
                         throw (
+                            err.errors.find(isAlreadyKnownError) ??
                             err.errors.find(
                                 (error) => !isUnsupportedMethodError(error)
-                            ) ?? err.errors[0]
+                            ) ??
+                            err.errors[0]
                         )
                     }
                     throw err
