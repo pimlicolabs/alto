@@ -123,7 +123,7 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Should have 2 entries for ETH changes
-            expect(result.length).toBe(2)
+            expect(result).toHaveLength(2)
 
             // Find the changes for sender and recipient
             const senderChange = result.find(
@@ -189,7 +189,7 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Verify ERC20 changes
-            expect(result.length).toBe(2)
+            expect(result).toHaveLength(2)
 
             const senderErc20Change = result.find(
                 (r) => r.address === smartAccountClient.account.address
@@ -269,7 +269,7 @@ describe.each([
             // 3. Sender ERC20 change (sent tokens)
             // 4. Recipient2 ERC20 change (received tokens)
             if (entryPointVersion !== "0.6") {
-                expect(nonZeroChanges.length).toBe(4)
+                expect(nonZeroChanges).toHaveLength(4)
 
                 // Verify recipient1 received ETH
                 const recipient1EthChange = result.find(
@@ -323,7 +323,7 @@ describe.each([
                 // 1. Sender ETH change (gas)
                 // 2. Sender ERC20 change (sent tokens)
                 // 3. Recipient2 ERC20 change (received tokens)
-                expect(nonZeroChanges.length).toBe(3)
+                expect(nonZeroChanges).toHaveLength(3)
 
                 // Verify recipient2 received tokens
                 const recipient2TokenChange = result.find(
@@ -389,7 +389,7 @@ describe.each([
             expect(Array.isArray(result)).toBe(true)
 
             // Should be empty since we're not tracking any changes
-            expect(result.length).toBe(0)
+            expect(result).toHaveLength(0)
         })
 
         test("should simulate asset changes with no monitored addresses", async () => {
@@ -422,7 +422,7 @@ describe.each([
 
             expect(result).toBeDefined()
             expect(Array.isArray(result)).toBe(true)
-            expect(result.length).toBe(0) // No changes reported when no addresses monitored
+            expect(result).toHaveLength(0) // No changes reported when no addresses monitored
         })
 
         test("should handle invalid user operation", async () => {

@@ -134,30 +134,28 @@ let supportsDetectorPromise: Promise<boolean> | undefined
 export const supportsNestedHandleOpsDetector = (
     publicClient: PublicClient
 ): Promise<boolean> => {
-    if (!supportsDetectorPromise) {
-        supportsDetectorPromise = publicClient
-            .call({
-                to: NESTED_HANDLE_OPS_DETECTOR,
-                data: encodeFunctionData({
-                    abi: nestedHandleOpsDetector.abi,
-                    functionName: "handleOpsCalled"
-                }),
-                stateOverride: [nestedHandleOpsDetectorOverride]
-            })
-            .then(({ data }) => data !== undefined)
-            .catch((err) => {
-                // Only a revert means the opcodes are missing, retry on
-                // anything else (e.g. a network error).
-                if (
-                    err instanceof BaseError &&
-                    err.walk((e) => e instanceof RawContractError)
-                ) {
-                    return false
-                }
-                supportsDetectorPromise = undefined
-                throw err
-            })
-    }
+    supportsDetectorPromise ??= publicClient
+        .call({
+            to: NESTED_HANDLE_OPS_DETECTOR,
+            data: encodeFunctionData({
+                abi: nestedHandleOpsDetector.abi,
+                functionName: "handleOpsCalled"
+            }),
+            stateOverride: [nestedHandleOpsDetectorOverride]
+        })
+        .then(({ data }) => data !== undefined)
+        .catch((err) => {
+            // Only a revert means the opcodes are missing, retry on
+            // anything else (e.g. a network error).
+            if (
+                err instanceof BaseError &&
+                err.walk((e) => e instanceof RawContractError)
+            ) {
+                return false
+            }
+            supportsDetectorPromise = undefined
+            throw err
+        })
     return supportsDetectorPromise
 }
 

@@ -351,7 +351,6 @@ export class SafeValidator
                 paymaster = undefined
             }
 
-            // eslint-disable-next-line
             const msg: string =
                 errorResult.errorArgs[1] ?? errorResult.toString()
 

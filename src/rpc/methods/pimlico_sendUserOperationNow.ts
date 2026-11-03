@@ -303,10 +303,19 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             version,
             submissionAttempts: 0
         }
-        rpcHandler.mempool.store.addProcessing({
-            entryPoint,
-            userOpInfos: [userOpInfo]
-        })
+        // Not awaited to keep latency low. The store logs and reports its own
+        // errors, and writes are applied in order before any removeProcessing.
+        rpcHandler.mempool.store
+            .addProcessing({
+                entryPoint,
+                userOpInfos: [userOpInfo]
+            })
+            .catch((err) => {
+                rpcHandler.logger.error(
+                    { err, userOpHash },
+                    "Failed to mark userOp as processing"
+                )
+            })
 
         const sendStart = Date.now()
         const result = await rpcHandler.executorManager.sendBundleNow({

@@ -251,7 +251,7 @@ const getRevertData = (err: unknown): Hex | undefined => {
     err.walk((e) => {
         const data = (e as { data?: unknown }).data
         const match =
-            typeof data === "string" ? data.match(/0x[a-fA-F0-9]*/) : null
+            typeof data === "string" ? /0x[a-fA-F0-9]*/.exec(data) : null
         if (match) {
             revertData = match[0] as Hex
             return true
@@ -379,6 +379,30 @@ const getQueuedUserOps = async ({
     }
 
     return queuedUserOps
+}
+
+// Adds the userOp to the mempool, throws if the mempool rejects it
+const addToMempoolOrThrow = async ({
+    rpcHandler,
+    userOpInfo,
+    entryPoint
+}: {
+    rpcHandler: RpcHandler
+    userOpInfo: UserOpInfo
+    entryPoint: Address
+}): Promise<void> => {
+    const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
+        { userOpInfo, entryPoint }
+    )
+
+    if (!isMempoolAddSuccess) {
+        rpcHandler.eventManager.emitFailedValidation(
+            userOpInfo.userOpHash,
+            mempoolAddError,
+            getAAError(mempoolAddError)
+        )
+        throw new RpcError(mempoolAddError, ERC7769Errors.InvalidFields)
+    }
 }
 
 export async function addToMempoolIfValid({
@@ -524,7 +548,7 @@ export async function addToMempoolIfValid({
     }
 
     if (userOpNonceSeq > currentNonceSeq + BigInt(queuedUserOps.length)) {
-        rpcHandler.mempool.add({ userOpInfo, entryPoint })
+        await addToMempoolOrThrow({ rpcHandler, userOpInfo, entryPoint })
         rpcHandler.eventManager.emitQueued(userOpHash)
         return { result: "queued", userOpHash }
     }
@@ -540,17 +564,7 @@ export async function addToMempoolIfValid({
 
     // userOp validation
     if (rpcHandler.config.dangerousSkipUserOperationValidation) {
-        const [isMempoolAddSuccess, mempoolAddError] =
-            await rpcHandler.mempool.add({ userOpInfo, entryPoint })
-
-        if (!isMempoolAddSuccess) {
-            rpcHandler.eventManager.emitFailedValidation(
-                userOpHash,
-                mempoolAddError,
-                getAAError(mempoolAddError)
-            )
-            throw new RpcError(mempoolAddError, ERC7769Errors.InvalidFields)
-        }
+        await addToMempoolOrThrow({ rpcHandler, userOpInfo, entryPoint })
         return { result: "added", userOpHash }
     }
 
@@ -567,21 +581,7 @@ export async function addToMempoolIfValid({
     )
 
     // Finally, add to mempool
-    const [isMempoolAddSuccess, mempoolAddError] = await rpcHandler.mempool.add(
-        {
-            userOpInfo,
-            entryPoint
-        }
-    )
-
-    if (!isMempoolAddSuccess) {
-        rpcHandler.eventManager.emitFailedValidation(
-            userOpHash,
-            mempoolAddError,
-            getAAError(mempoolAddError)
-        )
-        throw new RpcError(mempoolAddError, ERC7769Errors.InvalidFields)
-    }
+    await addToMempoolOrThrow({ rpcHandler, userOpInfo, entryPoint })
 
     return { result: "added", userOpHash }
 }

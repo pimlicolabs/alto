@@ -16,7 +16,7 @@ export const startAmsterdamChain = async ({
         port,
         hardfork: "Amsterdam",
         accounts: ANVIL_ACCOUNT_COUNT,
-        codeSizeLimit: 1000_000,
+        codeSizeLimit: 1_000_000,
         gasLimit: 1_000_000_000
     })
     await instance.start()
