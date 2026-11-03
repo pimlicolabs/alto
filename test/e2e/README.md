@@ -9,14 +9,10 @@ E2E test will reconstruct a close to mainnet environment by deploying the follow
 
 ## Testing locally
 
-Run mock environment
+The tests start their own anvil and alto instances. They need
+[Foundry](https://getfoundry.sh) installed and the contracts built:
 
 ```
-docker-compose up
-```
-
-Run test cases
-
-```
+pnpm run build:contracts
 pnpm run test
 ```
