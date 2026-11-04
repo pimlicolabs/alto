@@ -4,8 +4,6 @@ import { z } from "zod"
 import { hexData32Pattern } from "@alto/types"
 import type { IOptionsInput } from "./config"
 
-const ARMOR_HEADER = "-----BEGIN AGE ENCRYPTED FILE-----"
-
 const KEY_ARGS = [
     "utility-private-key",
     "v6-executor-private-keys",
@@ -47,7 +45,7 @@ async function decryptKeySet({
     keySetFile: string
     identity: string
 }): Promise<KeySet> {
-    const ciphertext = await readFile(keySetFile)
+    const ciphertext = await readFile(keySetFile, "utf8")
 
     const identities = parseIdentities(identity)
     if (identities.length === 0) {
@@ -59,10 +57,14 @@ async function decryptKeySet({
         decrypter.addIdentity(line)
     }
 
-    const text = ciphertext.toString("utf8")
-    const file = text.trimStart().startsWith(ARMOR_HEADER)
-        ? armor.decode(text)
-        : new Uint8Array(ciphertext)
+    let file: Uint8Array
+    try {
+        file = armor.decode(ciphertext)
+    } catch {
+        throw new Error(
+            "key-set-file is not an ASCII-armored age file (encrypt with age -a)"
+        )
+    }
 
     const plaintext = await decrypter.decrypt(file, "text")
 

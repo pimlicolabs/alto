@@ -562,7 +562,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     },
     "key-set-file": {
         description:
-            "Path to an age-encrypted JSON file holding the utility and executor private keys. Takes priority over utility-private-key and the v6-v9 executor-private-keys",
+            "Path to an ASCII-armored (age -a) age-encrypted JSON file holding the utility and executor private keys. Takes priority over utility-private-key and the v6-v9 executor-private-keys",
         type: "string",
         require: false
     },
