@@ -78,7 +78,10 @@ async function decryptKeySet({
 
     const parsed = keySetSchema.safeParse(json)
     if (!parsed.success) {
-        const paths = parsed.error.issues.map((issue) => issue.path.join("."))
+        // Paths and zod messages only, never the received values
+        const paths = parsed.error.issues.map((issue) =>
+            issue.path.length > 0 ? issue.path.join(".") : issue.message
+        )
         throw new Error(`Invalid key set format at: ${paths.join(", ")}`)
     }
 
