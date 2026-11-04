@@ -18,7 +18,7 @@ import { getSenderManager } from "../executor/senderManager/index"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { applyKeySet } from "./keySet"
+import { applyEncryptedKeys } from "./encryptedKeys"
 import { multiRpcTransport } from "./multiRpcTransport"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
@@ -116,8 +116,8 @@ const getViemChain = ({
 }
 
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
-    const { args: keySetArgs, overriddenArgs } = await applyKeySet(args_)
-    const args = parseArgs(keySetArgs)
+    const { args: keyArgs, overriddenArgs } = await applyEncryptedKeys(args_)
+    const args = parseArgs(keyArgs)
     const enableCors = args.enableCors
     const logger = args.json
         ? initProductionLogger(args.logLevel)
@@ -126,7 +126,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
     if (overriddenArgs.length > 0) {
         logger.warn(
             { overriddenArgs },
-            "key-set-file is set, ignoring private key args"
+            "Encrypted key files are set, ignoring private key args"
         )
     }
 

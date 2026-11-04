@@ -152,9 +152,9 @@ export const executorArgsSchema = z.object({
         )
         .optional()
         .default("4337"),
-    "key-set-file": z.string().optional(),
-    "key-set-identity": z.string().optional(),
-    "key-set-addresses-file": z.string().optional(),
+    "executor-keys-file": z.string().optional(),
+    "executor-addresses-file": z.string().optional(),
+    "keys-identity": z.string().optional(),
     "v6-executor-private-keys": executorPrivateKeysSchema.optional(),
     "v6-max-executors": z.number().int().min(1).optional(),
     "v7-executor-private-keys": executorPrivateKeysSchema.optional(),
@@ -178,6 +178,7 @@ export const executorArgsSchema = z.object({
 })
 
 export const utilityArgsSchema = z.object({
+    "utility-key-file": z.string().optional(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),

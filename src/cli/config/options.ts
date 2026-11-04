@@ -560,21 +560,21 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
-    "key-set-file": {
+    "executor-keys-file": {
         description:
-            "Path to an ASCII-armored (age -a) age-encrypted JSON file holding the utility and executor private keys. Takes priority over utility-private-key and the v6-v9 executor-private-keys",
+            "Path to an ASCII-armored age file of the executor private keys ({ version: 1, v6?, v7?, v8?, v9? }). Takes priority over the v6-v9 executor-private-keys",
         type: "string",
         require: false
     },
-    "key-set-identity": {
+    "executor-addresses-file": {
         description:
-            "age identity (AGE-SECRET-KEY-1...) used to decrypt key-set-file",
+            "Path to a plaintext JSON file of the addresses expected from executor-keys-file (same shape). Startup fails if they differ",
         type: "string",
         require: false
     },
-    "key-set-addresses-file": {
+    "keys-identity": {
         description:
-            "Path to a plaintext JSON file with the addresses expected from key-set-file (same shape). Startup fails if they differ",
+            "age identity (AGE-SECRET-KEY-1...) used to decrypt executor-keys-file and utility-key-file",
         type: "string",
         require: false
     },
@@ -687,6 +687,12 @@ export const utilityOptions: CliCommandOptions<IUtilityArgsInput> = {
         description: "Private key of the utility account",
         type: "string",
         alias: "u",
+        require: false
+    },
+    "utility-key-file": {
+        description:
+            "Path to an ASCII-armored age file of the utility private key. Takes priority over utility-private-key",
+        type: "string",
         require: false
     },
     "refilling-wallets": {
