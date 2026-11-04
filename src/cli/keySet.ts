@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
+import { hexData32Pattern } from "@alto/types"
 import { Decrypter, armor } from "age-encryption"
 import { z } from "zod"
-import { hexData32Pattern } from "@alto/types"
 import type { IOptionsInput } from "./config"
 
 const KEY_ARGS = [
