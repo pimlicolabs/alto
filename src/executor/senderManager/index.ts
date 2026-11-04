@@ -136,6 +136,19 @@ export const getSenderManager = async ({
     )
     const allWalletPools = [...walletPools.values()]
 
+    config.getLogger({ module: "sender-manager" }).info(
+        {
+            utility: config.utilityPrivateKey?.address,
+            executors: Object.fromEntries(
+                [...walletPools].map(([version, walletPool]) => [
+                    version,
+                    walletPool.getAllWallets().map((wallet) => wallet.address)
+                ])
+            )
+        },
+        "Loaded wallets"
+    )
+
     const getWalletPool = (version: EntryPointVersion): WalletPool => {
         const walletPool = walletPools.get(version)
         if (!walletPool) {

@@ -152,6 +152,8 @@ export const executorArgsSchema = z.object({
         )
         .optional()
         .default("4337"),
+    "key-set-file": z.string().optional(),
+    "key-set-identity": z.string().optional(),
     "v6-executor-private-keys": executorPrivateKeysSchema.optional(),
     "v6-max-executors": z.number().int().min(1).optional(),
     "v7-executor-private-keys": executorPrivateKeysSchema.optional(),

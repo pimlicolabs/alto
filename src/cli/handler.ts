@@ -18,6 +18,7 @@ import { getSenderManager } from "../executor/senderManager/index"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
+import { applyKeySet } from "./keySet"
 import { multiRpcTransport } from "./multiRpcTransport"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
@@ -115,11 +116,19 @@ const getViemChain = ({
 }
 
 export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
-    const args = parseArgs(args_)
+    const { args: keySetArgs, overriddenArgs } = await applyKeySet(args_)
+    const args = parseArgs(keySetArgs)
     const enableCors = args.enableCors
     const logger = args.json
         ? initProductionLogger(args.logLevel)
         : initDebugLogger(args.logLevel)
+
+    if (overriddenArgs.length > 0) {
+        logger.warn(
+            { overriddenArgs },
+            "key-set-file is set, ignoring private key args"
+        )
+    }
 
     const getChainId = async () => {
         const client = createPublicClient({

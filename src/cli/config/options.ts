@@ -560,6 +560,18 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
+    "key-set-file": {
+        description:
+            "Path to an age-encrypted JSON file holding the utility and executor private keys. Takes priority over utility-private-key and the v6-v9 executor-private-keys",
+        type: "string",
+        require: false
+    },
+    "key-set-identity": {
+        description:
+            "age identity (AGE-SECRET-KEY-1...) used to decrypt key-set-file",
+        type: "string",
+        require: false
+    },
     "v6-executor-private-keys": {
         description:
             "Private keys of the executor accounts that bundle EntryPoint 0.6 userOperations, split by commas",
