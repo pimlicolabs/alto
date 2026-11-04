@@ -572,6 +572,12 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false
     },
+    "key-set-addresses-file": {
+        description:
+            "Path to a plaintext JSON file with the addresses expected from key-set-file (same shape). Startup fails if they differ",
+        type: "string",
+        require: false
+    },
     "v6-executor-private-keys": {
         description:
             "Private keys of the executor accounts that bundle EntryPoint 0.6 userOperations, split by commas",
