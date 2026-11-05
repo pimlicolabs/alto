@@ -80,7 +80,6 @@ export const bundlerArgsSchema = z.object({
         .string()
         .transform(BigInt)
         .default("1000"),
-    "reject-nested-user-operations": z.boolean().default(true),
     "rpc-methods": z
         .string()
         .nullable()
