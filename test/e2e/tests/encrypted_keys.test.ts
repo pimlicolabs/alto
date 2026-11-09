@@ -81,20 +81,19 @@ describe("Encrypted key files", () => {
                 executorKeysFile,
                 await encrypt({
                     recipient,
-                    plaintext: JSON.stringify({ version: 1, ...EXECUTOR_KEYS })
+                    plaintext: JSON.stringify(EXECUTOR_KEYS)
                 })
             ),
             writeFile(
                 executorAddressesFile,
-                JSON.stringify({
-                    version: 1,
-                    ...Object.fromEntries(
+                JSON.stringify(
+                    Object.fromEntries(
                         Object.entries(EXECUTOR_KEYS).map(([version, keys]) => [
                             version,
                             keys.map((key) => privateKeyToAddress(key))
                         ])
                     )
-                })
+                )
             ),
             writeFile(
                 utilityKeyFile,

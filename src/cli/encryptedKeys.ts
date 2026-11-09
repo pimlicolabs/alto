@@ -14,7 +14,6 @@ const privateKeySchema = z.string().regex(hexData32Pattern)
 function executorsShape<T extends z.ZodTypeAny>(entry: T) {
     return z
         .object({
-            version: z.literal(1),
             v6: z.array(entry).optional(),
             v7: z.array(entry).optional(),
             v8: z.array(entry).optional(),

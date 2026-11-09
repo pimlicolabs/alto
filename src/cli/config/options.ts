@@ -562,7 +562,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
     },
     "executor-keys-file": {
         description:
-            "Path to an ASCII-armored age file of the executor private keys ({ version: 1, v6?, v7?, v8?, v9? }). Takes priority over the v6-v9 executor-private-keys",
+            "Path to an ASCII-armored age file of the executor private keys ({ v6?, v7?, v8?, v9? }). Takes priority over the v6-v9 executor-private-keys",
         type: "string",
         require: false
     },
