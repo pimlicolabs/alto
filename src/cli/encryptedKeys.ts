@@ -88,7 +88,7 @@ async function loadExecutorKeys({
 }: {
     decrypter: Decrypter
     file: string
-    addressesFile: string | undefined
+    addressesFile: string
 }): Promise<ExecutorKeys> {
     const plaintext = await decryptFile({
         decrypter,
@@ -118,12 +118,10 @@ async function loadExecutorKeys({
         throw new Error("executor-keys-file contains the same key twice")
     }
 
-    if (addressesFile) {
-        verifyExecutorAddresses({
-            keys: parsed.data,
-            addresses: await readExecutorAddresses(addressesFile)
-        })
-    }
+    verifyExecutorAddresses({
+        keys: parsed.data,
+        addresses: await readExecutorAddresses(addressesFile)
+    })
 
     return parsed.data
 }
@@ -209,14 +207,18 @@ export async function applyEncryptedKeys(args: IOptionsInput): Promise<{
             "executor-keys-file and utility-key-file require age-identity"
         )
     }
+    const addressesFile = args["executor-addresses-file"]
+    if (executorKeysFile && !addressesFile) {
+        throw new Error("executor-keys-file requires executor-addresses-file")
+    }
     const decrypter = createDecrypter(identity)
 
     const [executorKeys, utilityKey] = await Promise.all([
-        executorKeysFile
+        executorKeysFile && addressesFile
             ? loadExecutorKeys({
                   decrypter,
                   file: executorKeysFile,
-                  addressesFile: args["executor-addresses-file"]
+                  addressesFile
               })
             : undefined,
         utilityKeyFile
