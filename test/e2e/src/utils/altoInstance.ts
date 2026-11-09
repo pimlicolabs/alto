@@ -117,7 +117,7 @@ export const alto = defineInstance(
 // startAltoWithFlags
 export const ANVIL_ACCOUNT_COUNT = 18
 
-const getAnvilPrivateKey = (addressIndex: number): Hex => {
+export const getAnvilPrivateKey = (addressIndex: number): Hex => {
     const { privateKey } = mnemonicToAccount(
         "test test test test test test test test test test test junk",
         { addressIndex }
