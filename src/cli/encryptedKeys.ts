@@ -44,7 +44,7 @@ function createDecrypter(identity: string): Decrypter {
         .map((line) => line.trim())
         .filter((line) => line !== "" && !line.startsWith("#"))
     if (identities.length === 0) {
-        throw new Error("keys-identity contains no age identity")
+        throw new Error("age-identity contains no age identity")
     }
 
     const decrypter = new Decrypter()
@@ -203,10 +203,10 @@ export async function applyEncryptedKeys(args: IOptionsInput): Promise<{
         return { args, overriddenArgs: [] }
     }
 
-    const identity = args["keys-identity"]
+    const identity = args["age-identity"]
     if (!identity) {
         throw new Error(
-            "executor-keys-file and utility-key-file require keys-identity"
+            "executor-keys-file and utility-key-file require age-identity"
         )
     }
     const decrypter = createDecrypter(identity)
@@ -224,7 +224,7 @@ export async function applyEncryptedKeys(args: IOptionsInput): Promise<{
             : undefined
     ])
 
-    const { "keys-identity": _, ...rest } = args
+    const { "age-identity": _, ...rest } = args
     const result: IOptionsInput = { ...rest }
     const overriddenArgs: string[] = []
 

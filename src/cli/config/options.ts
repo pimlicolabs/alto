@@ -572,7 +572,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false
     },
-    "keys-identity": {
+    "age-identity": {
         description:
             "age identity (AGE-SECRET-KEY-1...) used to decrypt executor-keys-file and utility-key-file",
         type: "string",
