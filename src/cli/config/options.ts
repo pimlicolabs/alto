@@ -566,7 +566,7 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         require: false
     },
-    "executor-addresses-file": {
+    "expected-executor-addresses-file": {
         description:
             "Path to a plaintext JSON file of the addresses expected from executor-keys-age-file (same shape). Required with executor-keys-age-file, startup fails if they differ",
         type: "string",
