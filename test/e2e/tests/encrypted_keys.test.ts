@@ -72,13 +72,13 @@ describe("Encrypted key files", () => {
         const recipient = await identityToRecipient(identity)
 
         keysDir = await mkdtemp(join(tmpdir(), "alto-encrypted-keys-"))
-        const executorKeysFile = join(keysDir, "executors.age")
+        const executorKeysAgeFile = join(keysDir, "executors.age")
         const executorAddressesFile = join(keysDir, "executors.json")
-        const utilityKeyFile = join(keysDir, "utility.age")
+        const utilityKeyAgeFile = join(keysDir, "utility.age")
 
         await Promise.all([
             writeFile(
-                executorKeysFile,
+                executorKeysAgeFile,
                 await encrypt({
                     recipient,
                     plaintext: JSON.stringify(EXECUTOR_KEYS)
@@ -96,7 +96,7 @@ describe("Encrypted key files", () => {
                 )
             ),
             writeFile(
-                utilityKeyFile,
+                utilityKeyAgeFile,
                 await encrypt({ recipient, plaintext: UTILITY_KEY })
             )
         ])
@@ -111,9 +111,9 @@ describe("Encrypted key files", () => {
                 "v7-executor-private-keys": undefined,
                 "v8-executor-private-keys": undefined,
                 "v9-executor-private-keys": undefined,
-                "executor-keys-file": executorKeysFile,
+                "executor-keys-age-file": executorKeysAgeFile,
                 "executor-addresses-file": executorAddressesFile,
-                "utility-key-file": utilityKeyFile,
+                "utility-key-age-file": utilityKeyAgeFile,
                 "age-identity": identity
             }
         })

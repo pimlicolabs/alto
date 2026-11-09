@@ -92,7 +92,7 @@ async function loadExecutorKeys({
     const plaintext = await decryptFile({
         decrypter,
         file,
-        option: "executor-keys-file"
+        option: "executor-keys-age-file"
     })
 
     // JSON.parse errors quote the input, which here is private keys
@@ -100,13 +100,13 @@ async function loadExecutorKeys({
     try {
         json = JSON.parse(plaintext)
     } catch {
-        throw new Error("Decrypted executor-keys-file is not valid JSON")
+        throw new Error("Decrypted executor-keys-age-file is not valid JSON")
     }
 
     const parsed = executorKeysSchema.safeParse(json)
     if (!parsed.success) {
         throw new Error(
-            `Invalid executor-keys-file at: ${formatIssues(parsed.error)}`
+            `Invalid executor-keys-age-file at: ${formatIssues(parsed.error)}`
         )
     }
 
@@ -114,7 +114,7 @@ async function loadExecutorKeys({
         (version) => parsed.data[version] ?? []
     ).map((key) => key.toLowerCase())
     if (new Set(keys).size !== keys.length) {
-        throw new Error("executor-keys-file contains the same key twice")
+        throw new Error("executor-keys-age-file contains the same key twice")
     }
 
     verifyExecutorAddresses({
@@ -160,7 +160,7 @@ function verifyExecutorAddresses({
 
     if (mismatched.length > 0) {
         throw new Error(
-            `executor-keys-file does not match executor-addresses-file at: ${mismatched.join(", ")}`
+            `executor-keys-age-file does not match executor-addresses-file at: ${mismatched.join(", ")}`
         )
     }
 }
@@ -175,13 +175,13 @@ async function loadUtilityKey({
     const plaintext = await decryptFile({
         decrypter,
         file,
-        option: "utility-key-file"
+        option: "utility-key-age-file"
     })
 
     const key = plaintext.trim()
     if (!privateKeySchema.safeParse(key).success) {
         throw new Error(
-            "Decrypted utility-key-file is not a 32-byte hex private key"
+            "Decrypted utility-key-age-file is not a 32-byte hex private key"
         )
     }
 
@@ -194,34 +194,36 @@ export async function applyEncryptedKeys(args: IOptionsInput): Promise<{
     args: IOptionsInput
     overriddenArgs: string[]
 }> {
-    const executorKeysFile = args["executor-keys-file"]
-    const utilityKeyFile = args["utility-key-file"]
-    if (!executorKeysFile && !utilityKeyFile) {
+    const executorKeysAgeFile = args["executor-keys-age-file"]
+    const utilityKeyAgeFile = args["utility-key-age-file"]
+    if (!executorKeysAgeFile && !utilityKeyAgeFile) {
         return { args, overriddenArgs: [] }
     }
 
     const identity = args["age-identity"]
     if (!identity) {
         throw new Error(
-            "executor-keys-file and utility-key-file require age-identity"
+            "executor-keys-age-file and utility-key-age-file require age-identity"
         )
     }
     const addressesFile = args["executor-addresses-file"]
-    if (executorKeysFile && !addressesFile) {
-        throw new Error("executor-keys-file requires executor-addresses-file")
+    if (executorKeysAgeFile && !addressesFile) {
+        throw new Error(
+            "executor-keys-age-file requires executor-addresses-file"
+        )
     }
     const decrypter = createDecrypter(identity)
 
     const [executorKeys, utilityKey] = await Promise.all([
-        executorKeysFile && addressesFile
+        executorKeysAgeFile && addressesFile
             ? loadExecutorKeys({
                   decrypter,
-                  file: executorKeysFile,
+                  file: executorKeysAgeFile,
                   addressesFile
               })
             : undefined,
-        utilityKeyFile
-            ? loadUtilityKey({ decrypter, file: utilityKeyFile })
+        utilityKeyAgeFile
+            ? loadUtilityKey({ decrypter, file: utilityKeyAgeFile })
             : undefined
     ])
 

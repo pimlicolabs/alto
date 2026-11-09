@@ -152,7 +152,7 @@ export const executorArgsSchema = z.object({
         )
         .optional()
         .default("4337"),
-    "executor-keys-file": z.string().optional(),
+    "executor-keys-age-file": z.string().optional(),
     "executor-addresses-file": z.string().optional(),
     "age-identity": z.string().optional(),
     "v6-executor-private-keys": executorPrivateKeysSchema.optional(),
@@ -178,7 +178,7 @@ export const executorArgsSchema = z.object({
 })
 
 export const utilityArgsSchema = z.object({
-    "utility-key-file": z.string().optional(),
+    "utility-key-age-file": z.string().optional(),
     "utility-private-key": hexData32Schema
         .transform((val) => privateKeyToAccount(val) satisfies Account)
         .optional(),
