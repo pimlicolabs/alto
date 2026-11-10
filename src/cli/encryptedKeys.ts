@@ -83,16 +83,16 @@ function toAddress(key: string): string {
 async function loadExecutorKeys({
     decrypter,
     file,
-    expectedAddressesPath
+    executorAddressesPath
 }: {
     decrypter: Decrypter
     file: string
-    expectedAddressesPath: string
+    executorAddressesPath: string
 }): Promise<ExecutorKeys> {
     const plaintext = await decryptFile({
         decrypter,
         file,
-        option: "executor-keys-age-file"
+        option: "age-executor-keys-path"
     })
 
     // JSON.parse errors quote the input, which here is private keys
@@ -100,13 +100,13 @@ async function loadExecutorKeys({
     try {
         json = JSON.parse(plaintext)
     } catch {
-        throw new Error("Decrypted executor-keys-age-file is not valid JSON")
+        throw new Error("Decrypted age-executor-keys-path is not valid JSON")
     }
 
     const parsed = executorKeysSchema.safeParse(json)
     if (!parsed.success) {
         throw new Error(
-            `Invalid executor-keys-age-file at: ${formatIssues(parsed.error)}`
+            `Invalid age-executor-keys-path at: ${formatIssues(parsed.error)}`
         )
     }
 
@@ -114,27 +114,27 @@ async function loadExecutorKeys({
         (version) => parsed.data[version] ?? []
     ).map((key) => key.toLowerCase())
     if (new Set(keys).size !== keys.length) {
-        throw new Error("executor-keys-age-file contains the same key twice")
+        throw new Error("age-executor-keys-path contains the same key twice")
     }
 
     verifyExecutorAddresses({
         keys: parsed.data,
-        addresses: await readExecutorAddresses(expectedAddressesPath)
+        addresses: await readExecutorAddresses(executorAddressesPath)
     })
 
     return parsed.data
 }
 
 async function readExecutorAddresses(
-    expectedAddressesPath: string
+    executorAddressesPath: string
 ): Promise<ExecutorAddresses> {
     const json: unknown = JSON.parse(
-        await readFile(expectedAddressesPath, "utf8")
+        await readFile(executorAddressesPath, "utf8")
     )
     const parsed = executorAddressesSchema.safeParse(json)
     if (!parsed.success) {
         throw new Error(
-            `Invalid expected-executor-addresses-path at: ${formatIssues(parsed.error)}`
+            `Invalid age-executor-addresses-path at: ${formatIssues(parsed.error)}`
         )
     }
     return parsed.data
@@ -162,7 +162,7 @@ function verifyExecutorAddresses({
 
     if (mismatched.length > 0) {
         throw new Error(
-            `executor-keys-age-file does not match expected-executor-addresses-path at: ${mismatched.join(", ")}`
+            `age-executor-keys-path does not match age-executor-addresses-path at: ${mismatched.join(", ")}`
         )
     }
 }
@@ -177,13 +177,13 @@ async function loadUtilityKey({
     const plaintext = await decryptFile({
         decrypter,
         file,
-        option: "utility-key-age-file"
+        option: "age-utility-key-path"
     })
 
     const key = plaintext.trim()
     if (!privateKeySchema.safeParse(key).success) {
         throw new Error(
-            "Decrypted utility-key-age-file is not a 32-byte hex private key"
+            "Decrypted age-utility-key-path is not a 32-byte hex private key"
         )
     }
 
@@ -196,36 +196,36 @@ export async function applyEncryptedKeys(args: IOptionsInput): Promise<{
     args: IOptionsInput
     overriddenArgs: string[]
 }> {
-    const executorKeysAgeFile = args["executor-keys-age-file"]
-    const utilityKeyAgeFile = args["utility-key-age-file"]
-    if (!executorKeysAgeFile && !utilityKeyAgeFile) {
+    const executorKeysPath = args["age-executor-keys-path"]
+    const utilityKeyPath = args["age-utility-key-path"]
+    if (!executorKeysPath && !utilityKeyPath) {
         return { args, overriddenArgs: [] }
     }
 
     const identity = args["age-identity"]
     if (!identity) {
         throw new Error(
-            "executor-keys-age-file and utility-key-age-file require age-identity"
+            "age-executor-keys-path and age-utility-key-path require age-identity"
         )
     }
-    const expectedAddressesPath = args["expected-executor-addresses-path"]
-    if (executorKeysAgeFile && !expectedAddressesPath) {
+    const executorAddressesPath = args["age-executor-addresses-path"]
+    if (executorKeysPath && !executorAddressesPath) {
         throw new Error(
-            "executor-keys-age-file requires expected-executor-addresses-path"
+            "age-executor-keys-path requires age-executor-addresses-path"
         )
     }
     const decrypter = createDecrypter(identity)
 
     const [executorKeys, utilityKey] = await Promise.all([
-        executorKeysAgeFile && expectedAddressesPath
+        executorKeysPath && executorAddressesPath
             ? loadExecutorKeys({
                   decrypter,
-                  file: executorKeysAgeFile,
-                  expectedAddressesPath
+                  file: executorKeysPath,
+                  executorAddressesPath
               })
             : undefined,
-        utilityKeyAgeFile
-            ? loadUtilityKey({ decrypter, file: utilityKeyAgeFile })
+        utilityKeyPath
+            ? loadUtilityKey({ decrypter, file: utilityKeyPath })
             : undefined
     ])
 

@@ -72,20 +72,20 @@ describe("Encrypted key files", () => {
         const recipient = await identityToRecipient(identity)
 
         keysDir = await mkdtemp(join(tmpdir(), "alto-encrypted-keys-"))
-        const executorKeysAgeFile = join(keysDir, "executors.age")
-        const expectedExecutorAddressesPath = join(keysDir, "executors.json")
-        const utilityKeyAgeFile = join(keysDir, "utility.age")
+        const executorKeysPath = join(keysDir, "executors.age")
+        const executorAddressesPath = join(keysDir, "executors.json")
+        const utilityKeyPath = join(keysDir, "utility.age")
 
         await Promise.all([
             writeFile(
-                executorKeysAgeFile,
+                executorKeysPath,
                 await encrypt({
                     recipient,
                     plaintext: JSON.stringify(EXECUTOR_KEYS)
                 })
             ),
             writeFile(
-                expectedExecutorAddressesPath,
+                executorAddressesPath,
                 JSON.stringify(
                     Object.fromEntries(
                         Object.entries(EXECUTOR_KEYS).map(([version, keys]) => [
@@ -96,7 +96,7 @@ describe("Encrypted key files", () => {
                 )
             ),
             writeFile(
-                utilityKeyAgeFile,
+                utilityKeyPath,
                 await encrypt({ recipient, plaintext: UTILITY_KEY })
             )
         ])
@@ -111,10 +111,9 @@ describe("Encrypted key files", () => {
                 "v7-executor-private-keys": undefined,
                 "v8-executor-private-keys": undefined,
                 "v9-executor-private-keys": undefined,
-                "executor-keys-age-file": executorKeysAgeFile,
-                "expected-executor-addresses-path":
-                    expectedExecutorAddressesPath,
-                "utility-key-age-file": utilityKeyAgeFile,
+                "age-executor-keys-path": executorKeysPath,
+                "age-executor-addresses-path": executorAddressesPath,
+                "age-utility-key-path": utilityKeyPath,
                 "age-identity": identity
             }
         })

@@ -560,21 +560,21 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
-    "executor-keys-age-file": {
+    "age-executor-keys-path": {
         description:
             "Path to an ASCII-armored age file of the executor private keys ({ v6?, v7?, v8?, v9? }). Takes priority over the v6-v9 executor-private-keys",
         type: "string",
         require: false
     },
-    "expected-executor-addresses-path": {
+    "age-executor-addresses-path": {
         description:
-            "Path to a plaintext JSON file of the addresses expected from executor-keys-age-file (same shape). Required with executor-keys-age-file, startup fails if they differ",
+            "Path to a plaintext JSON file of the addresses expected from age-executor-keys-path (same shape). Required with age-executor-keys-path, startup fails if they differ",
         type: "string",
         require: false
     },
     "age-identity": {
         description:
-            "age identity (AGE-SECRET-KEY-1...) used to decrypt executor-keys-age-file and utility-key-age-file",
+            "age identity (AGE-SECRET-KEY-1...) used to decrypt age-executor-keys-path and age-utility-key-path",
         type: "string",
         require: false
     },
@@ -689,7 +689,7 @@ export const utilityOptions: CliCommandOptions<IUtilityArgsInput> = {
         alias: "u",
         require: false
     },
-    "utility-key-age-file": {
+    "age-utility-key-path": {
         description:
             "Path to an ASCII-armored age file of the utility private key. Takes priority over utility-private-key",
         type: "string",
