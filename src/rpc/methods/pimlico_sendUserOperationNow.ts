@@ -178,6 +178,15 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             })
         }
 
+        const recordReceived = (status: "added" | "queued") => {
+            metrics.userOpsReceived
+                .labels({
+                    status,
+                    type: userOp.eip7702Auth ? "7702" : "regular"
+                })
+                .inc()
+        }
+
         const reject = (message: string): never => {
             recordOutcome("rejected")
             throw new RpcError(message, ERC7769Errors.InvalidFields)
@@ -211,12 +220,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 throw err
             })
             rpcHandler.eventManager.emitReceived(userOpHash)
-            metrics.userOpsReceived
-                .labels({
-                    status: result,
-                    type: userOp.eip7702Auth ? "7702" : "regular"
-                })
-                .inc()
+            recordReceived(result)
 
             recordOutcome("queued")
             rpcHandler.logger.info(
@@ -341,6 +345,9 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         if (!result.success) {
             return reject(`bundle submission failed: ${result.reason}`)
         }
+
+        // Count directly submitted userOps as received, like mempool ones.
+        recordReceived("added")
 
         const { transactionHash, send } = result
 
