@@ -197,6 +197,7 @@ export const compatibilityArgsSchema = z.object({
         "tempo"
     ]),
     "legacy-transactions": z.boolean(),
+    "charges-full-gas-limit": z.boolean(),
     "supports-eip7966": z.boolean(),
     "api-version": z
         .string()

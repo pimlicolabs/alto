@@ -24,8 +24,8 @@ import { createMethodHandler } from "../createMethodHandler"
 import {
     getBasePvgComponent,
     getDynamicPvgComponent,
-    getL2PvgComponent,
-    getMonadPvg
+    getFullGasLimitPvg,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -109,9 +109,14 @@ const getPvg = async ({
 }): Promise<bigint> => {
     const { config, gasPriceManager } = rpcHandler
 
-    if (config.chainType === "monad") {
-        // Monad consumes the entire gasLimit, so PVG is calculated differently
-        return await getMonadPvg({ userOp, config, entryPoint, validate })
+    if (config.chargesFullGasLimit) {
+        // The chain charges the entire gasLimit, so PVG is calculated differently
+        return await getFullGasLimitPvg({
+            userOp,
+            config,
+            entryPoint,
+            validate
+        })
     }
 
     const [dynamicPvgComponent, l2PvgComponent] = await Promise.all([
