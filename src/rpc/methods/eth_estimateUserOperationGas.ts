@@ -18,8 +18,8 @@ import { createMethodHandler } from "../createMethodHandler"
 import {
     getBasePvgComponent,
     getDynamicPvgComponent,
-    getL2PvgComponent,
-    getMonadPvg
+    getFullGasLimitPvg,
+    getL2PvgComponent
 } from "../estimation/preVerificationGas"
 import type { RpcHandler } from "../rpcHandler"
 
@@ -281,7 +281,7 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
         const {
             v7PreVerificationGasLimitMultiplier,
             v6PreVerificationGasLimitMultiplier,
-            chainType
+            chargesFullGasLimit
         } = rpcHandler.config
 
         // Validate userOp fields (sync - fail fast before async checks)
@@ -387,8 +387,8 @@ export const ethEstimateUserOperationGasHandler = createMethodHandler({
             paymasterPostOpGasLimit
         } = finalGasLimits
 
-        if (chainType === "monad") {
-            preVerificationGas = await getMonadPvg({
+        if (chargesFullGasLimit) {
+            preVerificationGas = await getFullGasLimitPvg({
                 config: rpcHandler.config,
                 userOp: {
                     ...userOp,

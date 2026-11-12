@@ -61,17 +61,22 @@ export const deployPaymaster = async ({
             anvilRpc
         })
 
-        await walletClient.sendTransaction({
+        const deployHash = await walletClient.sendTransaction({
             data: concat([salt, createBytecode, pad(entryPoint)]),
             to: "0x4e59b44847b379578588920ca78fbf26c0b4956c"
         })
+        // anvil returns the hash before the block is mined
+        await publicClient.waitForTransactionReceipt({ hash: deployHash })
 
         // deposit 100ETH to the deployed paymaster if funded flag is true
         if (funded) {
-            await walletClient.sendTransaction({
+            const depositHash = await walletClient.sendTransaction({
                 to: counterFactual,
                 value: parseEther("100"),
                 data: "0xd0e30db0" /* sig for deposit() */
+            })
+            await publicClient.waitForTransactionReceipt({
+                hash: depositHash
             })
         }
     }

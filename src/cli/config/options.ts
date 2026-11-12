@@ -746,6 +746,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: "v1,v2"
         },
+        "charges-full-gas-limit": {
+            description:
+                "Indicates if the chain charges the full transaction gasLimit without refunding unused gas (e.g. Injective). Always enabled for chain-type monad",
+            type: "boolean",
+            default: false
+        },
         "is-gas-free-chain": {
             description:
                 "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
