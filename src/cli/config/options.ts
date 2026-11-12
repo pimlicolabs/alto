@@ -553,6 +553,24 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
+    "age-executor-keys-path": {
+        description:
+            "Path to an ASCII-armored age file of the executor private keys ({ v6?, v7?, v8?, v9? }). Takes priority over the v6-v9 executor-private-keys",
+        type: "string",
+        require: false
+    },
+    "age-executor-addresses-path": {
+        description:
+            "Path to a plaintext JSON file of the addresses expected from age-executor-keys-path (same shape). Required with age-executor-keys-path, startup fails if they differ",
+        type: "string",
+        require: false
+    },
+    "age-identity": {
+        description:
+            "age identity (AGE-SECRET-KEY-1...) used to decrypt age-executor-keys-path and age-utility-key-path",
+        type: "string",
+        require: false
+    },
     "v6-executor-private-keys": {
         description:
             "Private keys of the executor accounts that bundle EntryPoint 0.6 userOperations, split by commas",
@@ -662,6 +680,12 @@ export const utilityOptions: CliCommandOptions<IUtilityArgsInput> = {
         description: "Private key of the utility account",
         type: "string",
         alias: "u",
+        require: false
+    },
+    "age-utility-key-path": {
+        description:
+            "Path to an ASCII-armored age file of the utility private key. Takes priority over utility-private-key",
+        type: "string",
         require: false
     },
     "refilling-wallets": {
