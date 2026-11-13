@@ -77,6 +77,8 @@ const rpcResult = async ({
 //   eth_sendRawTransaction.
 // - rejectSyncMethod: eth_sendRawTransactionSync is rejected as not allowed,
 //   like a sequencer that only accepts eth_sendRawTransaction.
+// - failSyncSends: eth_sendRawTransactionSync gets a 503, like an endpoint
+//   that is down.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
@@ -85,6 +87,7 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         inflateNextNonce: boolean
         rejectSends: boolean
         rejectSyncMethod: boolean
+        failSyncSends: boolean
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
@@ -93,6 +96,7 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         inflateNextNonce: false,
         rejectSends: false,
         rejectSyncMethod: false,
+        failSyncSends: false,
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -133,6 +137,11 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         if (!Array.isArray(parsed) && isSyncSend && state.rejectSyncMethod) {
             const error = { code: -32601, message: "rpc method is not allowed" }
             res.end(JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error }))
+            return
+        }
+        if (isSyncSend && state.failSyncSends) {
+            res.statusCode = 503
+            res.end(JSON.stringify({ message: "service unavailable" }))
             return
         }
         const isRejectedSend =
@@ -764,6 +773,120 @@ describe("pimlico_sendUserOperationNow with send-transaction-sync-rpc-url", () =
         expect(sequencer.state.methods).toContain("eth_sendRawTransaction")
         expect(syncRpc.state.methods).not.toContain("eth_sendRawTransaction")
         expect(syncRpc.state.methods).not.toContain(
+            "eth_sendRawTransactionSync"
+        )
+    })
+})
+
+describe("pimlico_sendUserOperationNow with several send-transaction-sync-rpc-url", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPoint = entryPoint07Address
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    let rpc: Awaited<ReturnType<typeof startRpcProxy>>
+    let firstSyncRpc: Awaited<ReturnType<typeof startRpcProxy>>
+    let secondSyncRpc: Awaited<ReturnType<typeof startRpcProxy>>
+    let syncAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    beforeAll(async () => {
+        rpc = await startRpcProxy({ upstream: anvilRpc })
+        firstSyncRpc = await startRpcProxy({ upstream: anvilRpc })
+        secondSyncRpc = await startRpcProxy({ upstream: anvilRpc })
+        syncAlto = await startAltoWithFlags({
+            anvilRpc: rpc.url,
+            port: 8099,
+            flags: {
+                "instant-bundling-timeout": PROXIED_ALTO_INSTANT_TIMEOUT_MS,
+                "instant-bundling-executor-wait": PROXIED_ALTO_EXECUTOR_WAIT_MS,
+                "supports-eip7966": true,
+                "send-transaction-sync-rpc-url": [
+                    firstSyncRpc.url,
+                    secondSyncRpc.url
+                ].join(",")
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await syncAlto?.stop()
+        await secondSyncRpc?.stop()
+        await firstSyncRpc?.stop()
+        await rpc?.stop()
+    })
+
+    beforeEach(async () => {
+        firstSyncRpc.state.rejectSends = false
+        firstSyncRpc.state.failSyncSends = false
+        firstSyncRpc.state.rejectSyncMethod = false
+        await clearBundlerState({ altoRpc: syncAlto.altoRpc })
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+    })
+
+    const sendNow = async () => {
+        const op = await prepareSignedUserOp({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: syncAlto.altoRpc
+        })
+        firstSyncRpc.state.methods = []
+        secondSyncRpc.state.methods = []
+
+        return await rawRpc({
+            url: syncAlto.altoRpc,
+            method: "pimlico_sendUserOperationNow",
+            params: [deepHexlify(op), entryPoint]
+        })
+    }
+
+    test("Sends to the first url only", async () => {
+        const { result, error } = await sendNow()
+
+        expect(error).toBeUndefined()
+        expect((result as UserOperationReceipt).success).toEqual(true)
+        expect(firstSyncRpc.state.methods).toContain(
+            "eth_sendRawTransactionSync"
+        )
+        expect(secondSyncRpc.state.methods).toEqual([])
+    })
+
+    test.each([
+        { name: "is down", flag: "failSyncSends" as const },
+        {
+            name: "doesn't support the method",
+            flag: "rejectSyncMethod" as const
+        }
+    ])(
+        "Falls back to the second url when the first $name",
+        async ({ flag }) => {
+            firstSyncRpc.state[flag] = true
+
+            const { result, error } = await sendNow()
+
+            expect(error).toBeUndefined()
+            expect((result as UserOperationReceipt).success).toEqual(true)
+            expect(firstSyncRpc.state.methods).toContain(
+                "eth_sendRawTransactionSync"
+            )
+            expect(secondSyncRpc.state.methods).toContain(
+                "eth_sendRawTransactionSync"
+            )
+        }
+    )
+
+    test("Doesn't fall back when the first url rejects the transaction", async () => {
+        firstSyncRpc.state.nonceGapCode = 6
+        firstSyncRpc.state.rejectSends = true
+        firstSyncRpc.state.nonceRejections = 0
+
+        const { result, error } = await sendNow()
+
+        expect(result).toBeUndefined()
+        expect(error?.message).toEqual(
+            "internal error while submitting the userOperation"
+        )
+        expect(firstSyncRpc.state.nonceRejections).toEqual(1)
+        expect(secondSyncRpc.state.methods).not.toContain(
             "eth_sendRawTransactionSync"
         )
     })
