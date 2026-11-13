@@ -224,6 +224,10 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                       args.sendTransactionSyncRpcUrl.map(createWalletTransport),
                       {
                           rank: false,
+                          // Only throw real errors from the node (e.g.
+                          // nonce too low, nonce gap, underpriced,
+                          // insufficient funds), anything else moves to
+                          // the next url.
                           shouldThrow: (err) =>
                               err instanceof BaseError &&
                               Boolean(
