@@ -7,7 +7,9 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
+    BaseError,
     type Chain,
+    RpcRequestError,
     createPublicClient,
     createWalletClient,
     fallback
@@ -18,7 +20,10 @@ import { getSenderManager } from "../executor/senderManager/index"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { multiRpcTransport } from "./multiRpcTransport"
+import {
+    isUnsupportedMethodError,
+    multiRpcTransport
+} from "./multiRpcTransport"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
 
@@ -208,13 +213,28 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             transport: createWalletTransport(args.rpcUrl),
             chain
         }),
-        // No rpc-url fallback: it would only resend the signed transaction
-        // every sync endpoint rejected, delaying the executor's retry by a
-        // round trip.
+        // Sends to the first url, moving to the next one only when an
+        // endpoint is unreachable or doesn't support the method. A rejection
+        // is thrown as is. No rpc-url fallback: it would only resend the
+        // signed transaction every sync endpoint rejected, delaying the
+        // executor's retry by a round trip.
         sync: args.sendTransactionSyncRpcUrl
             ? createWalletClient({
-                  transport: createMultiRpcTransport(
-                      args.sendTransactionSyncRpcUrl
+                  transport: fallback(
+                      args.sendTransactionSyncRpcUrl.map(createWalletTransport),
+                      {
+                          rank: false,
+                          // Only throw real errors from the node (e.g.
+                          // nonce too low, nonce gap, underpriced,
+                          // insufficient funds), anything else moves to
+                          // the next url.
+                          shouldThrow: (err) =>
+                              err instanceof BaseError &&
+                              Boolean(
+                                  err.walk((e) => e instanceof RpcRequestError)
+                              ) &&
+                              !isUnsupportedMethodError(err)
+                      }
                   ),
                   chain
               })
