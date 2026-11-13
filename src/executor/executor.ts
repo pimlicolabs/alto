@@ -320,7 +320,12 @@ export class Executor {
                     },
                     fn: async () => {
                         if (!useSyncSend) {
-                            return await walletClient.sendTransaction(request)
+                            return await this.sendRawTransaction({
+                                walletClient,
+                                account,
+                                request,
+                                childLogger
+                            })
                         }
 
                         const result = await this.sendTransactionSync({
@@ -559,6 +564,93 @@ export class Executor {
         }
     }
 
+    // Signs locally so the transaction hash is known before it is broadcast.
+    async signTransaction({
+        walletClient,
+        account,
+        request
+    }: {
+        walletClient: WalletClient<Transport, Chain>
+        account: Account
+        request: SendTransactionParameters<Chain>
+    }): Promise<{ serializedTransaction: Hex; transactionHash: Hex }> {
+        // Executor wallets are always local accounts.
+        if (account.type !== "local") {
+            throw new Error(
+                `executor ${account.address} is not a local account, can't sign locally`
+            )
+        }
+
+        const preparedRequest =
+            await walletClient.prepareTransactionRequest(request)
+        const serializedTransaction = await account.signTransaction(
+            preparedRequest as TransactionSerializable,
+            { serializer: walletClient.chain.serializers?.transaction }
+        )
+
+        return {
+            serializedTransaction,
+            transactionHash: keccak256(serializedTransaction)
+        }
+    }
+
+    // Sends with eth_sendRawTransaction. "already known" means a node already
+    // holds this exact transaction (an earlier attempt, a relay forwarding our
+    // other send, or a preconfirmed but not yet sealed transaction), so it was
+    // broadcast and is returned as sent. Treating it as a failed send would
+    // free the executor while the transaction can still land, and the next
+    // bundle on that executor would collide with it.
+    async sendRawTransaction({
+        walletClient,
+        account,
+        request,
+        childLogger
+    }: {
+        walletClient: WalletClient<Transport, Chain>
+        account: Account
+        request: SendTransactionParameters<Chain>
+        childLogger: Logger
+    }): Promise<Hex> {
+        try {
+            const { serializedTransaction, transactionHash } =
+                await this.signTransaction({ walletClient, account, request })
+
+            try {
+                return await walletClient.sendRawTransaction({
+                    serializedTransaction
+                })
+            } catch (err) {
+                if (
+                    err instanceof BaseError &&
+                    isTransactionPendingError(err)
+                ) {
+                    childLogger.info(
+                        { txHash: transactionHash, nonce: request.nonce },
+                        "transaction already known, treating as submitted"
+                    )
+                    return transactionHash
+                }
+
+                childLogger.warn(
+                    { txHash: transactionHash, nonce: request.nonce },
+                    "bundle transaction send attempt failed"
+                )
+                throw err
+            }
+        } catch (err) {
+            // Wrap like sendTransaction so the caller's nonce and gas retry
+            // handling applies.
+            throw getTransactionError(
+                err as BaseError,
+                {
+                    ...request,
+                    account,
+                    chain: walletClient.chain
+                } as GetTransactionErrorParameters
+            )
+        }
+    }
+
     // Sends with eth_sendRawTransactionSync (EIP-7966), which responds with
     // the receipt once the transaction is included. Waits up to one block
     // (at least instantBundlingMinSendWait) for the response so rejections
@@ -581,21 +673,9 @@ export class Executor {
         const { blockTime, instantBundlingMinSendWait } = this.config
         const waitMs = Math.max(blockTime, instantBundlingMinSendWait)
 
-        // Executor wallets are always local accounts.
-        if (account.type !== "local") {
-            throw new Error(
-                `executor ${account.address} is not a local account, can't sign for eth_sendRawTransactionSync`
-            )
-        }
-
         try {
-            const preparedRequest =
-                await walletClient.prepareTransactionRequest(request)
-            const serializedTransaction = await account.signTransaction(
-                preparedRequest as TransactionSerializable,
-                { serializer: walletClient.chain.serializers?.transaction }
-            )
-            const transactionHash = keccak256(serializedTransaction)
+            const { serializedTransaction, transactionHash } =
+                await this.signTransaction({ walletClient, account, request })
 
             // No timeout param: clients disagree on its encoding (anvil
             // rejects hex), so the node's default applies.
