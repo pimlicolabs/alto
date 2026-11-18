@@ -23,6 +23,19 @@ const isUnsupportedMethodError = (err: unknown): boolean =>
 
 // "already known" means the endpoint's pool holds this exact transaction, so
 // it was broadcast no matter what the other endpoints answered.
+//
+// go-ethereum: https://github.com/ethereum/go-ethereum/blob/b05eff/core/txpool/errors.go#L26
+//     ErrAlreadyKnown = errors.New("already known")
+// op-geth: https://github.com/ethereum-optimism/op-geth/blob/79e9d2/core/txpool/errors.go#L26
+//     ErrAlreadyKnown = errors.New("already known")
+// bsc: https://github.com/bnb-chain/bsc/blob/4bd1c7/core/txpool/errors.go#L26
+//     ErrAlreadyKnown = errors.New("already known")
+// reth: https://github.com/paradigmxyz/reth/blob/6af8cd/crates/rpc/rpc-eth-types/src/error/mod.rs#L968
+//     #[error("already known")]
+// erigon: https://github.com/erigontech/erigon/blob/cfd011/txnprovider/txpool/txpoolcfg/txpoolcfg.go#L146
+//     return "already known"
+// nethermind: https://github.com/NethermindEth/nethermind/blob/93c1f9/src/Nethermind/Nethermind.TxPool/TxPoolErrorMessages.cs#L12
+//     public const string AlreadyKnown = "already known";
 const isAlreadyKnownError = (err: unknown): boolean =>
     err instanceof BaseError &&
     Boolean(
