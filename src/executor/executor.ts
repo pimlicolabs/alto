@@ -19,13 +19,13 @@ import {
 import { SpanStatusCode } from "@opentelemetry/api"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     BaseError,
     type Chain,
     ContractFunctionExecutionError,
     type Hex,
     InsufficientFundsError,
     IntrinsicGasTooLowError,
+    type LocalAccount,
     NonceTooHighError,
     NonceTooLowError,
     type SendTransactionErrorType,
@@ -63,7 +63,7 @@ import {
 
 type HandleOpsTxParams = {
     gas: bigint
-    account: Account
+    account: LocalAccount
     nonce: number
     userOps: UserOpInfo[]
     entryPoint: Address
@@ -571,16 +571,9 @@ export class Executor {
         request
     }: {
         walletClient: WalletClient<Transport, Chain>
-        account: Account
+        account: LocalAccount
         request: SendTransactionParameters<Chain>
     }): Promise<{ serializedTransaction: Hex; transactionHash: Hex }> {
-        // Executor wallets are always local accounts.
-        if (account.type !== "local") {
-            throw new Error(
-                `executor ${account.address} is not a local account, can't sign locally`
-            )
-        }
-
         const preparedRequest =
             await walletClient.prepareTransactionRequest(request)
         const serializedTransaction = await account.signTransaction(
@@ -607,7 +600,7 @@ export class Executor {
         childLogger
     }: {
         walletClient: WalletClient<Transport, Chain>
-        account: Account
+        account: LocalAccount
         request: SendTransactionParameters<Chain>
         childLogger: Logger
     }): Promise<Hex> {
@@ -664,7 +657,7 @@ export class Executor {
         request
     }: {
         walletClient: WalletClient<Transport, Chain>
-        account: Account
+        account: LocalAccount
         request: SendTransactionParameters<Chain>
     }): Promise<{
         transactionHash: Hex
@@ -790,7 +783,7 @@ export class Executor {
         isReplacement,
         sendSync
     }: {
-        executor: Account
+        executor: LocalAccount
         userOpBundle: UserOperationBundle
         // Result of filterOps for this bundle.
         filterOpsResult: FilterOpsResult

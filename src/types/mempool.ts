@@ -1,7 +1,7 @@
 import type { HexData32, UserOpInfo } from "@alto/types"
 import type { Address, Hex, Prettify, TransactionReceipt } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
-import type { Account } from "viem/accounts"
+import type { LocalAccount } from "viem/accounts"
 
 export type SubmittedBundleInfo = {
     uid: string
@@ -13,7 +13,7 @@ export type SubmittedBundleInfo = {
         nonce: number
     }
     bundle: UserOperationBundle
-    executor: Account
+    executor: LocalAccount
     lastReplaced: number
 }
 
