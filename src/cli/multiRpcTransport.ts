@@ -36,7 +36,7 @@ export const isUnsupportedMethodError = (err: unknown): boolean =>
 //     return "already known"
 // nethermind: https://github.com/NethermindEth/nethermind/blob/93c1f9/src/Nethermind/Nethermind.TxPool/TxPoolErrorMessages.cs#L12
 //     public const string AlreadyKnown = "already known";
-const isAlreadyKnownError = (err: unknown): boolean =>
+export const isAlreadyKnownError = (err: unknown): boolean =>
     err instanceof BaseError &&
     Boolean(
         err.walk((e) =>

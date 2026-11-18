@@ -79,6 +79,12 @@ const rpcResult = async ({
 //   like a sequencer that only accepts eth_sendRawTransaction.
 // - failSyncSends: eth_sendRawTransactionSync gets a 503, like an endpoint
 //   that is down.
+// - sendRawError: eth_sendRawTransaction is answered with this error. With
+//   broadcastBeforeSendRawError the transaction is forwarded first, like a
+//   node that already holds it.
+// - failSendRaw: eth_sendRawTransaction gets a 503, like an endpoint that is
+//   down.
+// sendRawNonces records the nonce of every eth_sendRawTransaction received.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
@@ -88,6 +94,10 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         rejectSends: boolean
         rejectSyncMethod: boolean
         failSyncSends: boolean
+        sendRawError: { code: number; message: string } | undefined
+        broadcastBeforeSendRawError: boolean
+        failSendRaw: boolean
+        sendRawNonces: number[]
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
@@ -97,6 +107,10 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         rejectSends: false,
         rejectSyncMethod: false,
         failSyncSends: false,
+        sendRawError: undefined,
+        broadcastBeforeSendRawError: false,
+        failSendRaw: false,
+        sendRawNonces: [],
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -143,6 +157,36 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
             res.statusCode = 503
             res.end(JSON.stringify({ message: "service unavailable" }))
             return
+        }
+        if (
+            !Array.isArray(parsed) &&
+            parsed.method === "eth_sendRawTransaction"
+        ) {
+            const { nonce } = parseTransaction(parsed.params?.[0] as Hex)
+            state.sendRawNonces.push(Number(nonce))
+
+            if (state.failSendRaw) {
+                res.statusCode = 503
+                res.end(JSON.stringify({ message: "service unavailable" }))
+                return
+            }
+            if (state.sendRawError) {
+                if (state.broadcastBeforeSendRawError) {
+                    await fetch(upstream, {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body
+                    })
+                }
+                res.end(
+                    JSON.stringify({
+                        jsonrpc: "2.0",
+                        id: parsed.id,
+                        error: state.sendRawError
+                    })
+                )
+                return
+            }
         }
         const isRejectedSend =
             !Array.isArray(parsed) &&
@@ -889,6 +933,140 @@ describe("pimlico_sendUserOperationNow with several send-transaction-sync-rpc-ur
         expect(secondSyncRpc.state.methods).not.toContain(
             "eth_sendRawTransactionSync"
         )
+    })
+})
+
+describe("eth_sendUserOperation with send-transaction-rpc-url errors", () => {
+    const anvilRpc = inject("anvilRpc")
+    const altoRpc = inject("altoRpc")
+    const entryPointVersion = "0.7" as EntryPointVersion
+
+    // sequencer and relay are the send-transaction-rpc-url endpoints, rpc is
+    // the rpc-url they fall back to.
+    let rpc: Awaited<ReturnType<typeof startRpcProxy>>
+    let sequencer: Awaited<ReturnType<typeof startRpcProxy>>
+    let relay: Awaited<ReturnType<typeof startRpcProxy>>
+    let multiRpcAlto: Awaited<ReturnType<typeof startAltoWithFlags>>
+
+    const ALREADY_KNOWN = { code: -32000, message: "already known" }
+    const NONCE_TOO_LOW = { code: -32000, message: "nonce too low" }
+
+    const sendUserOp = async () => {
+        const smartAccountClient = await getSmartAccountClient({
+            entryPointVersion,
+            anvilRpc,
+            altoRpc: multiRpcAlto.altoRpc
+        })
+        const hash = await smartAccountClient.sendUserOperation({
+            calls: [
+                {
+                    to: "0x0000000000000000000000000000000000000000",
+                    value: parseEther("0.15"),
+                    data: "0x"
+                }
+            ]
+        })
+        return { smartAccountClient, hash }
+    }
+
+    beforeAll(async () => {
+        rpc = await startRpcProxy({ upstream: anvilRpc })
+        sequencer = await startRpcProxy({ upstream: anvilRpc })
+        relay = await startRpcProxy({ upstream: anvilRpc })
+        multiRpcAlto = await startAltoWithFlags({
+            anvilRpc: rpc.url,
+            port: 8100,
+            flags: {
+                "send-transaction-rpc-url": `${sequencer.url},${relay.url}`
+            }
+        })
+    })
+
+    afterAll(async () => {
+        await multiRpcAlto?.stop()
+        await relay?.stop()
+        await sequencer?.stop()
+        await rpc?.stop()
+    })
+
+    beforeEach(async () => {
+        for (const { state } of [rpc, sequencer, relay]) {
+            state.sendRawError = undefined
+            state.broadcastBeforeSendRawError = false
+            state.failSendRaw = false
+        }
+        await clearBundlerState({ altoRpc: multiRpcAlto.altoRpc })
+        await beforeEachCleanUp({ anvilRpc, altoRpc })
+        for (const { state } of [rpc, sequencer, relay]) {
+            state.sendRawNonces = []
+        }
+    })
+
+    test("Sends when one send-transaction-rpc-url accepts", async () => {
+        relay.state.failSendRaw = true
+
+        const { smartAccountClient, hash } = await sendUserOp()
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash
+        })
+
+        expect(receipt.success).toEqual(true)
+        expect(sequencer.state.sendRawNonces).toHaveLength(1)
+        expect(rpc.state.sendRawNonces).toHaveLength(0)
+    })
+
+    test("Treats 'already known' from a send-transaction-rpc-url as sent", async () => {
+        sequencer.state.sendRawError = ALREADY_KNOWN
+        sequencer.state.broadcastBeforeSendRawError = true
+        relay.state.failSendRaw = true
+        // The transaction landed by the time rpc-url would see it.
+        rpc.state.sendRawError = NONCE_TOO_LOW
+
+        const { smartAccountClient, hash } = await sendUserOp()
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash
+        })
+
+        expect(receipt.success).toEqual(true)
+        expect(sequencer.state.sendRawNonces).toHaveLength(1)
+        expect(rpc.state.sendRawNonces).toHaveLength(0)
+    })
+
+    test("Treats 'already known' from rpc-url as sent", async () => {
+        sequencer.state.sendRawError = {
+            code: -32000,
+            message: "failed to call backend endpoint"
+        }
+        relay.state.failSendRaw = true
+        rpc.state.sendRawError = { code: -32003, message: "already known" }
+        rpc.state.broadcastBeforeSendRawError = true
+
+        const { smartAccountClient, hash } = await sendUserOp()
+        const receipt = await smartAccountClient.waitForUserOperationReceipt({
+            hash
+        })
+
+        expect(receipt.success).toEqual(true)
+        expect(sequencer.state.sendRawNonces).toHaveLength(1)
+        expect(rpc.state.sendRawNonces).toHaveLength(1)
+    })
+
+    test("Retries with the next nonce when every endpoint answers 'nonce too low'", async () => {
+        sequencer.state.sendRawError = NONCE_TOO_LOW
+        relay.state.sendRawError = NONCE_TOO_LOW
+        rpc.state.sendRawError = NONCE_TOO_LOW
+
+        await sendUserOp()
+
+        await expect
+            .poll(() => rpc.state.sendRawNonces.length, { timeout: 10_000 })
+            .toBeGreaterThanOrEqual(2)
+        const [firstNonce, secondNonce] = rpc.state.sendRawNonces
+        expect(secondNonce).toEqual(firstNonce + 1)
+        expect(sequencer.state.sendRawNonces.slice(0, 2)).toEqual([
+            firstNonce,
+            secondNonce
+        ])
     })
 })
 
