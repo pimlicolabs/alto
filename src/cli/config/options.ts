@@ -158,13 +158,6 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "1000"
     },
-    "reject-nested-user-operations": {
-        description:
-            "Reject userOperations that call handleOps on another EntryPoint while executing. Needs --code-override-support",
-        type: "boolean",
-        require: false,
-        default: true
-    },
     "rpc-methods": {
         description: "Supported RPC methods split by commas",
         type: "string",
@@ -753,6 +746,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: "v1,v2"
         },
+        "charges-full-gas-limit": {
+            description:
+                "Indicates if the chain charges the full transaction gasLimit without refunding unused gas (e.g. Injective). Always enabled for chain-type monad",
+            type: "boolean",
+            default: false
+        },
         "is-gas-free-chain": {
             description:
                 "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
@@ -876,7 +875,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "send-transaction-sync-rpc-url": {
         description:
-            "Comma separated list of RPC urls to send eth_sendRawTransactionSync (EIP-7966) transactions to, in parallel, without falling back to rpc-url. Use when an endpoint in send-transaction-rpc-url doesn't support it (e.g. a sequencer). Defaults to send-transaction-rpc-url",
+            "Comma separated list of RPC urls for eth_sendRawTransactionSync (EIP-7966), tried in order until one succeeds. Defaults to send-transaction-rpc-url",
         type: "string",
         require: false
     },

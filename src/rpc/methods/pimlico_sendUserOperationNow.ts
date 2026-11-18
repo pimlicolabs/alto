@@ -23,11 +23,7 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
-import {
-    addToMempoolIfValid,
-    validateMaxPvg,
-    validateNoNestedUserOps
-} from "./eth_sendUserOperation"
+import { addToMempoolIfValid, validateMaxPvg } from "./eth_sendUserOperation"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -182,6 +178,15 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             })
         }
 
+        const recordReceived = (status: "added" | "queued") => {
+            metrics.userOpsReceived
+                .labels({
+                    status,
+                    type: userOp.eip7702Auth ? "7702" : "regular"
+                })
+                .inc()
+        }
+
         const reject = (message: string): never => {
             recordOutcome("rejected")
             throw new RpcError(message, ERC7769Errors.InvalidFields)
@@ -215,12 +220,7 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
                 throw err
             })
             rpcHandler.eventManager.emitReceived(userOpHash)
-            metrics.userOpsReceived
-                .labels({
-                    status: result,
-                    type: userOp.eip7702Auth ? "7702" : "regular"
-                })
-                .inc()
+            recordReceived(result)
 
             recordOutcome("queued")
             rpcHandler.logger.info(
@@ -254,34 +254,21 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             chainId: rpcHandler.config.chainId
         })
 
-        // Validate gas price, preVerificationGas and nested userOps (async)
-        const [
-            [gasPriceValid, gasPriceError],
-            [isPvgBelowMax, maxPvgError],
-            [isNestedUserOpsValid, nestedUserOpsError]
-        ] = await Promise.all([
-            rpcHandler.validateUserOpGasPrice({
-                userOp,
-                apiVersion,
-                isBoosted
-            }),
-            validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted }),
-            validateNoNestedUserOps({
-                rpcHandler,
-                userOp,
-                userOpHash,
-                queuedUserOps: [],
-                entryPoint
-            })
-        ])
+        // Validate gas price and preVerificationGas (async)
+        const [[gasPriceValid, gasPriceError], [isPvgBelowMax, maxPvgError]] =
+            await Promise.all([
+                rpcHandler.validateUserOpGasPrice({
+                    userOp,
+                    apiVersion,
+                    isBoosted
+                }),
+                validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted })
+            ])
         if (!gasPriceValid) {
             return reject(gasPriceError)
         }
         if (!isPvgBelowMax) {
             return reject(maxPvgError)
-        }
-        if (!isNestedUserOpsValid) {
-            return reject(nestedUserOpsError)
         }
 
         // Prepare bundle
@@ -303,10 +290,19 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             version,
             submissionAttempts: 0
         }
-        rpcHandler.mempool.store.addProcessing({
-            entryPoint,
-            userOpInfos: [userOpInfo]
-        })
+        // Not awaited to keep latency low. The store logs and reports its own
+        // errors, and writes are applied in order before any removeProcessing.
+        rpcHandler.mempool.store
+            .addProcessing({
+                entryPoint,
+                userOpInfos: [userOpInfo]
+            })
+            .catch((err) => {
+                rpcHandler.logger.error(
+                    { err, userOpHash },
+                    "Failed to mark userOp as processing"
+                )
+            })
 
         const sendStart = Date.now()
         const result = await rpcHandler.executorManager.sendBundleNow({
@@ -349,6 +345,9 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         if (!result.success) {
             return reject(`bundle submission failed: ${result.reason}`)
         }
+
+        // Count directly submitted userOps as received, like mempool ones.
+        recordReceived("added")
 
         const { transactionHash, send } = result
 

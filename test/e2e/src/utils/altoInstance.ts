@@ -55,7 +55,7 @@ export const alto = defineInstance(
                         ...altoConfig,
                         ...args.extraConfig
                     }).map(([key, value]) => [
-                        `ALTO_${key.toUpperCase().replace(/-/g, "_")}`,
+                        `ALTO_${key.toUpperCase().replaceAll("-", "_")}`,
                         value
                     ])
                 )
@@ -95,10 +95,10 @@ export const alto = defineInstance(
                             // })
                             process.stderr.on("end", () => {
                                 // console.log("Alto stderr ended")
-                                reject("stderr ended")
+                                reject("stderr ended").catch(console.error)
                             })
                             process.on("error", (error) => {
-                                reject(error.message)
+                                reject(error.message).catch(console.error)
                             })
                         }
                     }

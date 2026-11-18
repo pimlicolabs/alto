@@ -405,8 +405,8 @@ export async function filterOpsAndEstimateGas({
         })
 
         let bundleGasUsed: bigint
-        if (config.chainType === "monad") {
-            // Monad uses the entire tx.gasLimit.
+        if (config.chargesFullGasLimit) {
+            // The chain charges the entire tx.gasLimit.
             bundleGasUsed = bundleGasLimit
         } else {
             // Find overhead that can't be calculated onchain.

@@ -41,6 +41,9 @@ export function createConfig(
 
     return {
         ...rest,
+        // Monad charges the entire tx.gasLimit
+        chargesFullGasLimit:
+            config.chargesFullGasLimit || config.chainType === "monad",
         chainId: config.publicClient.chain.id,
         utilityWalletAddress:
             config.utilityPrivateKey?.address ??

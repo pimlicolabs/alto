@@ -80,7 +80,6 @@ export const bundlerArgsSchema = z.object({
         .string()
         .transform(BigInt)
         .default("1000"),
-    "reject-nested-user-operations": z.boolean().default(true),
     "rpc-methods": z
         .string()
         .nullable()
@@ -198,6 +197,7 @@ export const compatibilityArgsSchema = z.object({
         "tempo"
     ]),
     "legacy-transactions": z.boolean(),
+    "charges-full-gas-limit": z.boolean(),
     "supports-eip7966": z.boolean(),
     "api-version": z
         .string()

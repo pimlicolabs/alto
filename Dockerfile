@@ -1,3 +1,7 @@
+# Official Node.js image, used as the source of the Node.js binaries for the
+# contracts build stage
+FROM node:24.22.1-bookworm-slim AS node
+
 # Stage 1: Build Contracts using Foundry and Node/pnpm
 FROM ghcr.io/foundry-rs/foundry:v1.1.0 AS builder
 
@@ -7,18 +11,18 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* .gitmodules ./
 
 COPY contracts ./contracts
 
-# --- FIX: Switch to root user to install packages ---
+# Switch to root user to install Node.js
 USER root
-# ----------------------------------------------------
 
-RUN apt-get update && \
-    apt-get install -y ca-certificates curl gnupg && \
-    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/* && \
+# Copy Node.js and corepack from the official image instead of downloading
+# and executing a remote setup script
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/corepack
+
+RUN ln -s ../lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack && \
     corepack enable
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 RUN pnpm run build:contracts
 
@@ -28,8 +32,6 @@ RUN pnpm run build:contracts
 FROM node:24.22.1-alpine3.24 AS production
 
 WORKDIR /app
-
-RUN npm install -g typescript
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
 
@@ -41,7 +43,7 @@ COPY --from=builder /build/src/contracts ./src/contracts
 
 RUN pnpm fetch
 
-RUN pnpm install -r --offline --frozen-lockfile
+RUN pnpm install -r --offline --frozen-lockfile --ignore-scripts
 
 RUN pnpm build
 

@@ -479,10 +479,10 @@ describe.each([
             expect(new Set(bundleNonceKeys)).toEqual(new Set(sortedNonceKeys))
         })
 
-        test("Send queued UserOperations", async () => {
+        test("Send queued UserOperations", async ({ skip }) => {
             // Doesn't work with v0.6 userops
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             await setBundlingMode({
@@ -648,7 +648,7 @@ describe.each([
             const receipt =
                 await smartAccountClient.waitForUserOperationReceipt({ hash })
 
-            expect(receipt.success)
+            expect(receipt.success).toBe(true)
         })
 
         test.each([
@@ -1173,11 +1173,13 @@ describe.each([
         // Tests that verify proper error handling and AA error codes
         // ============================================================
 
-        test("Should throw AA10: sender already constructed", async () => {
+        test("Should throw AA10: sender already constructed", async ({
+            skip
+        }) => {
             if (entryPointVersion === "0.9") {
                 // AA10 is no longer thrown for 0.9 since
                 // source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.9/contracts/core/EntryPoint.sol#L529-L537
-                return
+                skip()
             }
 
             const privateKey = generatePrivateKey()
@@ -1617,10 +1619,12 @@ describe.each([
             }
         })
 
-        test("Should throw AA26: over verificationGasLimit", async () => {
+        test("Should throw AA26: over verificationGasLimit", async ({
+            skip
+        }) => {
             // Skip for v0.6 - this is a 0.7 only error
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const privateKey = generatePrivateKey()
@@ -1894,98 +1898,6 @@ describe.each([
             }
         })
 
-        test("Should accept userOp that deposits to another EntryPoint", async () => {
-            const client = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-
-            const otherEntryPointVersion: EntryPointVersion =
-                entryPointVersion === "0.6" ? "0.7" : "0.6"
-            const otherEntryPoint =
-                otherEntryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address
-            const otherEntryPointContract = getContract({
-                address: otherEntryPoint,
-                abi: getEntryPointAbi(otherEntryPointVersion),
-                client: { public: publicClient }
-            })
-            const depositBefore = await otherEntryPointContract.read.balanceOf([
-                TO_ADDRESS
-            ])
-
-            const hash = await client.sendUserOperation({
-                calls: [
-                    {
-                        to: otherEntryPoint,
-                        value: VALUE,
-                        data: encodeFunctionData({
-                            abi: getEntryPointAbi(otherEntryPointVersion),
-                            functionName: "depositTo",
-                            args: [TO_ADDRESS]
-                        })
-                    }
-                ]
-            })
-
-            await new Promise((resolve) => setTimeout(resolve, 1500))
-            const receipt = await client.waitForUserOperationReceipt({ hash })
-            expect(receipt.success).toBe(true)
-
-            expect(
-                await otherEntryPointContract.read.balanceOf([TO_ADDRESS])
-            ).toBe(depositBefore + VALUE)
-        })
-
-        test("Should reject userOp that calls handleOps on another EntryPoint", async () => {
-            const client = await getSmartAccountClient({
-                entryPointVersion,
-                anvilRpc,
-                altoRpc
-            })
-
-            // A nested handleOps runs userOperations whose paymasters pay a
-            // beneficiary picked by the sender.
-            const nestedEntryPointVersion: EntryPointVersion =
-                entryPointVersion === "0.6" ? "0.7" : "0.6"
-            const nestedEntryPoint =
-                nestedEntryPointVersion === "0.6"
-                    ? entryPoint06Address
-                    : entryPoint07Address
-
-            try {
-                await client.sendUserOperation({
-                    calls: [
-                        {
-                            to: nestedEntryPoint,
-                            value: 0n,
-                            data: encodeFunctionData({
-                                abi: getEntryPointAbi(nestedEntryPointVersion),
-                                functionName: "handleOps",
-                                args: [[], TO_ADDRESS]
-                            })
-                        }
-                    ]
-                })
-                expect.fail("Must throw")
-            } catch (err) {
-                expect(err).toBeInstanceOf(BaseError)
-                const error = err as BaseError
-
-                expect(error.details).toMatch(
-                    /nested userOperations are not allowed/
-                )
-
-                const rpcError = error.walk(
-                    (e) => e instanceof RpcRequestError
-                ) as RpcRequestError
-                expect(rpcError).toBeDefined()
-                expect(rpcError.code).toBe(ERC7769Errors.OpcodeValidation)
-            }
-        })
-
         test("Should throw AA32: paymaster expired or not due", async () => {
             const client = await getSmartAccountClient({
                 entryPointVersion,
@@ -2164,10 +2076,12 @@ describe.each([
             }
         })
 
-        test("Should throw AA36: over paymasterVerificationGasLimit", async () => {
+        test("Should throw AA36: over paymasterVerificationGasLimit", async ({
+            skip
+        }) => {
             // Skip for v0.6 - this is a 0.7 only error
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const client = await getSmartAccountClient({
@@ -2218,10 +2132,12 @@ describe.each([
             }
         })
 
-        test("Should throw if paymasterData contains PAYMASTER_SIG_MAGIC (EntryPoint 0.9 only)", async () => {
+        test("Should throw if paymasterData contains PAYMASTER_SIG_MAGIC (EntryPoint 0.9 only)", async ({
+            skip
+        }) => {
             // This validation only applies to EntryPoint 0.9
             if (entryPointVersion !== "0.9") {
-                return
+                skip()
             }
 
             const client = await getSmartAccountClient({
