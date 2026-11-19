@@ -31,6 +31,7 @@ import {
 } from "viem"
 import { fromZodError } from "zod-validation-error"
 import type { AltoConfig } from "../../createConfig"
+import { getEthCallSender } from "../../executor/senderManager"
 import { getEip7702DelegationOverrides } from "../../utils/eip7702"
 import { GasEstimator06 } from "../estimation/gasEstimations06"
 import { GasEstimator07 } from "../estimation/gasEstimations07"
@@ -346,6 +347,10 @@ export class UnsafeValidator implements InterfaceValidator {
 
         const simulateValidationPromise = entryPointContract.simulate
             .simulateValidation([userOp], {
+                account: getEthCallSender({
+                    config: this.config,
+                    version: "0.6"
+                }),
                 gas: this.simulationGasLimit,
                 ...(eip7702Override ? { stateOverride: eip7702Override } : {})
             })

@@ -1,9 +1,9 @@
 import type { Logger, Metrics } from "@alto/utils"
 import Redis from "ioredis"
 import type { Account } from "viem"
-import { getAvailableWallets } from "."
+import type { EntryPointVersion } from "viem/account-abstraction"
+import type { WalletPool } from "."
 import type { AltoConfig } from "../../createConfig"
-import type { SenderManager } from "../senderManager"
 
 // Lua script for atomic wallet registration.
 // Only adds wallets to the available pool if they haven't been registered before.
@@ -35,14 +35,16 @@ async function createRedisWalletPool({
     redis,
     config,
     logger,
-    entries
+    entries,
+    version
 }: {
     redis: Redis
     config: AltoConfig
     logger: Logger
     entries: string[]
+    version: EntryPointVersion
 }) {
-    const keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:wallet-pool`
+    const keyPrefix = `${config.redisKeyPrefix}:${config.chainId}:wallet-pool:${version}`
     const availableKey = `${keyPrefix}:available`
     const registeredKey = `${keyPrefix}:registered`
 
@@ -74,17 +76,23 @@ const delay = async (delay: number) => {
 export const createRedisSenderManager = async ({
     config,
     metrics,
-    redisEndpoint
+    redisEndpoint,
+    wallets,
+    version
 }: {
     config: AltoConfig
     metrics: Metrics
     redisEndpoint: string
-}): Promise<SenderManager> => {
-    const wallets = getAvailableWallets(config)
-    metrics.walletsTotal.set(wallets.length)
-    metrics.walletsAvailable.set(wallets.length)
+    wallets: Account[]
+    version: EntryPointVersion
+}): Promise<WalletPool> => {
+    metrics.walletsTotal.set({ entrypoint_version: version }, wallets.length)
+    metrics.walletsAvailable.set(
+        { entrypoint_version: version },
+        wallets.length
+    )
     const logger = config.getLogger(
-        { module: "redis-sender-manager" },
+        { module: "redis-sender-manager", entryPointVersion: version },
         {
             level: config.executorLogLevel || config.logLevel
         }
@@ -95,11 +103,49 @@ export const createRedisSenderManager = async ({
         redis,
         config,
         logger,
-        entries: wallets.map((w) => w.address)
+        entries: wallets.map((w) => w.address),
+        version
     })
 
     // Track active wallets for this instance
     const activeWallets = new Set<Account>()
+
+    const popWallet = async (): Promise<Account | undefined> => {
+        const walletAddress = await walletPool.pop()
+        if (!walletAddress) {
+            return undefined
+        }
+
+        const wallet = wallets.find((w) => w.address === walletAddress)
+
+        // Can happen during a rolling deploy when a newer instance
+        // registered wallets this instance doesn't have a key for. Return it
+        // so it isn't lost from the pool.
+        if (!wallet) {
+            await walletPool.push(walletAddress)
+            logger.warn(
+                { executor: walletAddress },
+                "popped unknown wallet from pool, returning it"
+            )
+        }
+
+        return wallet
+    }
+
+    const activateWallet = async (wallet: Account): Promise<Account> => {
+        activeWallets.add(wallet)
+
+        logger.trace(
+            { executor: wallet.address },
+            "got wallet from sender manager"
+        )
+
+        await walletPool.size().then((len) => {
+            metrics.walletsAvailable.set({ entrypoint_version: version }, len)
+        })
+
+        return wallet
+    }
     return {
         getAllWallets: () => [...wallets],
         getWallet: async () => {
@@ -108,23 +154,7 @@ export const createRedisSenderManager = async ({
             let wallet: Account | undefined
 
             while (!wallet) {
-                const walletAddress = await walletPool.pop()
-
-                if (walletAddress) {
-                    wallet = wallets.find((w) => w.address === walletAddress)
-
-                    // Can happen during a rolling deploy when a newer
-                    // instance registered wallets this instance doesn't
-                    // have a key for. Return it so it isn't lost from the
-                    // pool and keep waiting for a wallet we can use.
-                    if (!wallet) {
-                        await walletPool.push(walletAddress)
-                        logger.warn(
-                            { executor: walletAddress },
-                            "popped unknown wallet from pool, returning it"
-                        )
-                    }
-                }
+                wallet = await popWallet()
 
                 // Pool empty or unknown wallet, small backoff then poll again
                 if (!wallet) {
@@ -132,24 +162,29 @@ export const createRedisSenderManager = async ({
                 }
             }
 
-            activeWallets.add(wallet)
+            return await activateWallet(wallet)
+        },
+        tryGetWallet: async (timeoutMs) => {
+            logger.trace({ timeoutMs }, "waiting for wallet ")
 
-            logger.trace(
-                { executor: wallet.address },
-                "got wallet from sender manager"
-            )
+            const deadline = Date.now() + timeoutMs
+            let wallet = await popWallet()
 
-            await walletPool.size().then((len) => {
-                metrics.walletsAvailable.set(len)
-            })
+            while (!wallet && Date.now() < deadline) {
+                await delay(Math.min(100, deadline - Date.now()))
+                wallet = await popWallet()
+            }
 
-            return wallet
+            return wallet ? await activateWallet(wallet) : undefined
         },
         markWalletProcessed: async (wallet: Account) => {
             if (activeWallets.delete(wallet)) {
                 await walletPool.push(wallet.address)
                 const len = await walletPool.size()
-                metrics.walletsAvailable.set(len)
+                metrics.walletsAvailable.set(
+                    { entrypoint_version: version },
+                    len
+                )
             } else {
                 logger.warn(
                     { executor: wallet.address },

@@ -11,7 +11,7 @@ import {
 } from "viem"
 import { customTransport } from "./customTransport"
 
-const isUnsupportedMethodError = (err: unknown): boolean =>
+export const isUnsupportedMethodError = (err: unknown): boolean =>
     err instanceof BaseError &&
     Boolean(
         err.walk(

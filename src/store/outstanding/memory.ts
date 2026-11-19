@@ -1,11 +1,7 @@
 import type { HexData32, UserOpInfo, UserOperation } from "@alto/types"
 import type { Logger } from "@alto/utils"
 import type { AltoConfig } from "../../createConfig"
-import {
-    getNonceKeyAndSequence,
-    isDeployment,
-    isVersion07
-} from "../../utils/userop"
+import { getNonceKeyAndSequence, isDeployment } from "../../utils/userop"
 import type { ConflictingOutstandingType, OutstandingStore } from "./types"
 
 const senderNonceSlot = (userOp: UserOperation) => {
@@ -242,35 +238,11 @@ export class MemoryOutstanding implements OutstandingStore {
             const [mempoolNonceKey, mempoolNonceSequence] =
                 getNonceKeyAndSequence(mempoolUserOp.nonce)
 
-            const isSameSender = mempoolUserOp.sender === userOp.sender
-            const isSameNonceKey = mempoolNonceKey === nonceKey
-            const isSameNonce = mempoolNonceSequence === nonceSequence
-
-            // Skip the same userOp.
-            if (isSameSender && isSameNonceKey && isSameNonce) {
-                return false
-            }
-
-            // Include userOps from same sender with lower nonce.
-            if (isSameSender && isSameNonceKey) {
-                return mempoolNonceSequence < nonceSequence
-            }
-
-            // For v0.7+, include ops with same paymaster (unless ignored).
-            if (isVersion07(userOp) && isVersion07(mempoolUserOp)) {
-                const hasSamePaymaster =
-                    userOp.paymaster !== null &&
-                    mempoolUserOp.paymaster !== null &&
-                    mempoolUserOp.paymaster === userOp.paymaster
-
-                const isPaymasterIgnored =
-                    userOp.paymaster !== null &&
-                    this.config.ignoredPaymasters.includes(userOp.paymaster)
-
-                return hasSamePaymaster && !isPaymasterIgnored
-            }
-
-            return false
+            return (
+                mempoolUserOp.sender === userOp.sender &&
+                mempoolNonceKey === nonceKey &&
+                mempoolNonceSequence < nonceSequence
+            )
         })
 
         return outstanding

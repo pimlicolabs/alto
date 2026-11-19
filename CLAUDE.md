@@ -70,7 +70,7 @@ pnpm run build:contracts-v08
 - `src/validator/validator.ts`: User operation validation logic
 
 ## Technical Stack
-- **Runtime**: Node.js 18+ with ESM modules
+- **Runtime**: Node.js 24 with ESM modules
 - **Language**: TypeScript 5.x with strict mode
 - **Web Framework**: Fastify for HTTP/WebSocket
 - **Smart Contracts**: Solidity with Foundry toolchain

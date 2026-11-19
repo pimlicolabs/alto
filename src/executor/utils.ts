@@ -26,7 +26,9 @@ import {
     encodeFunctionData,
     hexToNumber,
     isHex,
-    toBytes
+    size,
+    toBytes,
+    zeroAddress
 } from "viem"
 import type { AltoConfig } from "../createConfig"
 import { EIP2780_MAX_AUTH_GAS, getEip7702AuthAddress } from "../utils/eip7702"
@@ -319,6 +321,30 @@ export const encodeHandleOpsCalldata = ({
     })
 }
 
+// handleOps(ops, beneficiary) calldata starts with the 4 byte selector,
+// then the ops array offset, the beneficiary and the array length (32 bytes
+// each).
+const HANDLE_OPS_BASE_CALLDATA_SIZE = 4 + 3 * 32
+
+// Bytes a userOp adds to the handleOps calldata: its 32 byte offset in the
+// ops array plus its own encoding. This does not depend on the other userOps
+// in the bundle, so a bundle's size is the base size plus the size of each of
+// its userOps.
+export const getUserOpCalldataSize = (userOp: UserOperation): number =>
+    size(
+        encodeHandleOpsCalldata({
+            userOps: [userOp],
+            beneficiary: zeroAddress
+        })
+    ) - HANDLE_OPS_BASE_CALLDATA_SIZE
+
+// Size in bytes of the handleOps calldata that bundles these userOps.
+export const getHandleOpsCalldataSize = (userOps: UserOperation[]): number =>
+    userOps.reduce(
+        (total, userOp) => total + getUserOpCalldataSize(userOp),
+        HANDLE_OPS_BASE_CALLDATA_SIZE
+    )
+
 export const getAuthorizationListFromUserOps = (
     userOps: UserOperation[]
 ): SignedAuthorizationList | undefined => {
@@ -342,6 +368,29 @@ export const getAuthorizationListFromUserOps = (
 
     const authList = Array.from(authMap.values()) as SignedAuthorizationList
     return authList.length > 0 ? authList : undefined
+}
+
+// The nonce for an executor's next bundle. Under flashblocks an executor is
+// freed once its transaction is preconfirmed, before the block including it
+// is sealed, so "latest" can still return the nonce that transaction used.
+// On a flashblocks node "pending" is the sealed nonce plus the sender's
+// preconfirmed transactions and leaves out the mempool, so a transaction
+// that isn't preconfirmed is never counted.
+//
+// ref
+// - https://github.com/base/base/blob/bcd96e/crates/execution/flashblocks/src/rpc/eth.rs#L316-L331
+// - https://github.com/base/base/blob/bcd96e/crates/execution/flashblocks/src/processor.rs#L664-L669
+export function getExecutorNonce({
+    config,
+    address
+}: {
+    config: AltoConfig
+    address: Address
+}): Promise<number> {
+    return config.publicClient.getTransactionCount({
+        address,
+        blockTag: config.flashblocksPreconfirmationTime ? "pending" : "latest"
+    })
 }
 
 export async function flushStuckTransaction({

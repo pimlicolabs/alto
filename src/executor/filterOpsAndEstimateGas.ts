@@ -25,6 +25,7 @@ import { getArbitrumL1GasEstimate } from "../rpc/estimation/preVerificationGas"
 import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
+import { getEthCallSender } from "./senderManager"
 import { getBundleGasLimit } from "./utils"
 
 export type FilterOpsResult =
@@ -179,6 +180,7 @@ export const getFilterOpsResult = async ({
     ]
 
     const callResult = await publicClient.call({
+        account: getEthCallSender({ config, version }),
         to: pimlicoSimulationContract,
         gas: fixedGasLimitForEstimation,
         data,
@@ -403,8 +405,8 @@ export async function filterOpsAndEstimateGas({
         })
 
         let bundleGasUsed: bigint
-        if (config.chainType === "monad") {
-            // Monad uses the entire tx.gasLimit.
+        if (config.chargesFullGasLimit) {
+            // The chain charges the entire tx.gasLimit.
             bundleGasUsed = bundleGasLimit
         } else {
             // Find overhead that can't be calculated onchain.

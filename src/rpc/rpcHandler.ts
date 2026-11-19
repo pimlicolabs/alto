@@ -1,7 +1,9 @@
 import {
     type Executor,
     type ExecutorManager,
-    calculateAA95GasFloor
+    calculateAA95GasFloor,
+    getExecutorPrivateKeys,
+    getHandleOpsCalldataSize
 } from "@alto/executor"
 import type { EventManager, GasPriceManager } from "@alto/handlers"
 import type {
@@ -24,6 +26,7 @@ import {
     type Logger,
     type Metrics,
     getNonceKeyAndSequence,
+    getViemEntryPointVersion,
     isVersion06,
     isVersion07,
     scaleBigIntByPercent,
@@ -172,6 +175,14 @@ export class RpcHandler {
             return [true, ""]
         }
 
+        const version = getViemEntryPointVersion(userOp, entryPoint)
+        if (!getExecutorPrivateKeys({ config: this.config, version })?.length) {
+            return [
+                false,
+                `No executors configured for EntryPoint ${version} userOperations`
+            ]
+        }
+
         // Validate paymaster signature for EntryPoint 0.9
         const paymasterSignatureError = validatePaymasterSignature({
             userOp,
@@ -229,6 +240,16 @@ export class RpcHandler {
             ]
         }
 
+        // Nodes reject transactions above a size limit, a userOp that
+        // doesn't fit in a bundle on its own can never be included.
+        const calldataSize = getHandleOpsCalldataSize([userOp])
+        if (calldataSize > this.config.maxBundleCalldataSize) {
+            return [
+                false,
+                `userOperation is too large to be bundled: handleOps calldata of ${calldataSize} bytes exceeds the max of ${this.config.maxBundleCalldataSize} bytes`
+            ]
+        }
+
         return [true, ""]
     }
 
@@ -241,14 +262,22 @@ export class RpcHandler {
         apiVersion: ApiVersion
         isBoosted?: boolean
     }): Promise<[boolean, string]> {
-        // Skipped in emergency mode: the gas price floor is derived from RPC
-        // reads that may be stale or replaced by the emergency fallback.
-        if (
-            apiVersion === "v1" ||
-            this.config.safeMode ||
-            this.config.emergencyMode ||
-            isBoosted
-        ) {
+        // Skipped in emergency mode: the gas price bounds are derived from
+        // RPC reads that may be stale or replaced by the emergency fallback.
+        if (this.config.emergencyMode || isBoosted) {
+            return [true, ""]
+        }
+
+        // Enforced on every apiVersion: the sender picks the apiVersion, and
+        // an inflated gas price drains the paymaster sponsoring the userOp.
+        const [isBelowMax, maxError] = await this.validateMaxUserOpGasPrice({
+            userOp
+        })
+        if (!isBelowMax) {
+            return [false, maxError]
+        }
+
+        if (apiVersion === "v1" || this.config.safeMode) {
             return [true, ""]
         }
 
@@ -269,6 +298,45 @@ export class RpcHandler {
             return [
                 false,
                 `maxPriorityFeePerGas must be at least ${lowestMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        return [true, ""]
+    }
+
+    private async validateMaxUserOpGasPrice({
+        userOp
+    }: {
+        userOp: UserOperation
+    }): Promise<[boolean, string]> {
+        const { maxGasPriceMultiplier, isGasFreeChain } = this.config
+        if (maxGasPriceMultiplier === 0n || isGasFreeChain) {
+            return [true, ""]
+        }
+
+        const { highestMaxFeePerGas, highestMaxPriorityFeePerGas } =
+            await this.gasPriceManager.getHighestValidGasPrices()
+
+        const maxAllowedMaxFeePerGas = scaleBigIntByPercent(
+            highestMaxFeePerGas,
+            maxGasPriceMultiplier
+        )
+        const maxAllowedMaxPriorityFeePerGas = scaleBigIntByPercent(
+            highestMaxPriorityFeePerGas,
+            maxGasPriceMultiplier
+        )
+
+        if (userOp.maxFeePerGas > maxAllowedMaxFeePerGas) {
+            return [
+                false,
+                `maxFeePerGas must be at most ${maxAllowedMaxFeePerGas} (current maxFeePerGas: ${userOp.maxFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
+            ]
+        }
+
+        if (userOp.maxPriorityFeePerGas > maxAllowedMaxPriorityFeePerGas) {
+            return [
+                false,
+                `maxPriorityFeePerGas must be at most ${maxAllowedMaxPriorityFeePerGas} (current maxPriorityFeePerGas: ${userOp.maxPriorityFeePerGas}) - use pimlico_getUserOperationGasPrice to get the current gas price`
             ]
         }
 

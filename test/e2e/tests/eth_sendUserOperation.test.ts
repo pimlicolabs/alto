@@ -15,10 +15,12 @@ import {
     encodeFunctionData,
     getAddress,
     getContract,
+    keccak256,
     pad,
     parseEther,
     parseGwei,
     slice,
+    toHex,
     zeroAddress
 } from "viem"
 import {
@@ -52,6 +54,7 @@ import {
 import { getEntryPointAbi } from "../src/utils/entrypoint.js"
 import {
     beforeEachCleanUp,
+    getPimlicoClient,
     getSimple7702AccountImplementationAddress,
     getSmartAccountClient,
     sendBundleNow,
@@ -80,6 +83,11 @@ describe.each([
     ({ entryPoint, entryPointVersion }) => {
         const TO_ADDRESS = "0x23B608675a2B2fB1890d3ABBd85c5775c51691d5"
         const VALUE = parseEther("0.15")
+        const LARGE_USER_OP_GAS_LIMITS = {
+            callGasLimit: 1_000_000n,
+            verificationGasLimit: 1_000_000n,
+            preVerificationGas: 2_000_000n
+        }
         let paymaster: Address
 
         const anvilRpc = inject("anvilRpc")
@@ -285,6 +293,95 @@ describe.each([
             ).toBeGreaterThanOrEqual(VALUE * 2n)
         })
 
+        test("Should split userOperations that exceed the max bundle calldata size", async () => {
+            const firstClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+            const secondClient = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            await setBundlingMode({
+                mode: "manual",
+                altoRpc
+            })
+
+            // Each userOperation fits in a bundle on its own, both together
+            // exceed the default max bundle calldata size of 90000 bytes.
+            const largeCall = {
+                to: TO_ADDRESS,
+                value: 0n,
+                data: toHex(new Uint8Array(50_000).fill(1))
+            } as const
+
+            // Explicit gas limits skip gas estimation, which is slow for
+            // userOperations this large on EntryPoint 0.7+.
+            const firstHash = await firstClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+            const secondHash = await secondClient.sendUserOperation({
+                calls: [largeCall],
+                ...LARGE_USER_OP_GAS_LIMITS
+            })
+
+            await sendBundleNow({ altoRpc })
+            await sendBundleNow({ altoRpc })
+
+            const firstReceipt = await firstClient.waitForUserOperationReceipt({
+                hash: firstHash
+            })
+            const secondReceipt =
+                await secondClient.waitForUserOperationReceipt({
+                    hash: secondHash
+                })
+
+            expect(firstReceipt.success).toEqual(true)
+            expect(secondReceipt.success).toEqual(true)
+            expect(firstReceipt.receipt.transactionHash).not.toEqual(
+                secondReceipt.receipt.transactionHash
+            )
+        })
+
+        test("Should reject userOperation that exceeds the max bundle calldata size", async () => {
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc
+            })
+
+            try {
+                await client.sendUserOperation({
+                    calls: [
+                        {
+                            to: TO_ADDRESS,
+                            value: 0n,
+                            data: toHex(new Uint8Array(95_000).fill(1))
+                        }
+                    ],
+                    ...LARGE_USER_OP_GAS_LIMITS
+                })
+                expect.fail("Must throw")
+            } catch (err) {
+                expect(err).toBeInstanceOf(BaseError)
+                const error = err as BaseError
+
+                expect(error.details).toMatch(
+                    /userOperation is too large to be bundled/
+                )
+
+                const rpcError = error.walk(
+                    (e) => e instanceof RpcRequestError
+                ) as RpcRequestError
+                expect(rpcError).toBeDefined()
+                expect(rpcError.code).toBe(ERC7769Errors.InvalidFields)
+            }
+        })
+
         test("Send parallel UserOperations", async () => {
             const nonceKeys = [10n, 12n, 4n, 1n]
 
@@ -382,10 +479,10 @@ describe.each([
             expect(new Set(bundleNonceKeys)).toEqual(new Set(sortedNonceKeys))
         })
 
-        test("Send queued UserOperations", async () => {
+        test("Send queued UserOperations", async ({ skip }) => {
             // Doesn't work with v0.6 userops
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             await setBundlingMode({
@@ -551,7 +648,7 @@ describe.each([
             const receipt =
                 await smartAccountClient.waitForUserOperationReceipt({ hash })
 
-            expect(receipt.success)
+            expect(receipt.success).toBe(true)
         })
 
         test.each([
@@ -1076,11 +1173,13 @@ describe.each([
         // Tests that verify proper error handling and AA error codes
         // ============================================================
 
-        test("Should throw AA10: sender already constructed", async () => {
+        test("Should throw AA10: sender already constructed", async ({
+            skip
+        }) => {
             if (entryPointVersion === "0.9") {
                 // AA10 is no longer thrown for 0.9 since
                 // source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.9/contracts/core/EntryPoint.sol#L529-L537
-                return
+                skip()
             }
 
             const privateKey = generatePrivateKey()
@@ -1520,10 +1619,12 @@ describe.each([
             }
         })
 
-        test("Should throw AA26: over verificationGasLimit", async () => {
+        test("Should throw AA26: over verificationGasLimit", async ({
+            skip
+        }) => {
             // Skip for v0.6 - this is a 0.7 only error
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const privateKey = generatePrivateKey()
@@ -1699,6 +1800,101 @@ describe.each([
                 ) as RpcRequestError
                 expect(rpcError).toBeDefined()
                 expect(rpcError.code).toBe(ERC7769Errors.PaymasterDepositTooLow)
+            }
+        })
+
+        test("Should drop userOp if paymaster deposit is drained before bundling", async () => {
+            await setBundlingMode({ mode: "manual", altoRpc })
+
+            const client = await getSmartAccountClient({
+                entryPointVersion,
+                anvilRpc,
+                altoRpc,
+                fundAccount: false
+            })
+
+            // Fresh paymaster so draining it doesn't affect other tests
+            const drainedPaymaster = await deployPaymaster({
+                entryPoint,
+                anvilRpc,
+                salt: pad(privateKeyToAddress(generatePrivateKey()))
+            })
+
+            const hash = await client.sendUserOperation({
+                calls: [
+                    {
+                        to: TO_ADDRESS,
+                        value: 0n,
+                        data: "0x"
+                    }
+                ],
+                ...(entryPointVersion === "0.6"
+                    ? {
+                          paymasterAndData: concat([
+                              drainedPaymaster,
+                              encodePaymasterData()
+                          ])
+                      }
+                    : {
+                          paymaster: drainedPaymaster,
+                          paymasterData: encodePaymasterData(),
+                          paymasterVerificationGasLimit: 100_000n,
+                          paymasterPostOpGasLimit: 50_000n
+                      })
+            })
+
+            // StakeManager.deposits is the EntryPoint's first storage slot
+            await anvilClient.setStorageAt({
+                address: entryPoint,
+                index: keccak256(
+                    concat([pad(drainedPaymaster), pad(toHex(0))])
+                ),
+                value: pad(toHex(0))
+            })
+
+            const entryPointContract = getContract({
+                address: entryPoint,
+                abi: getEntryPointAbi(entryPointVersion),
+                client: { public: publicClient }
+            })
+            expect(
+                await entryPointContract.read.balanceOf([drainedPaymaster])
+            ).toBe(0n)
+
+            const blockBefore = await publicClient.getBlockNumber()
+
+            await sendBundleNow({ altoRpc })
+            await new Promise((resolve) => setTimeout(resolve, 1500))
+
+            const pimlicoClient = getPimlicoClient({
+                entryPointVersion,
+                altoRpc
+            })
+            const status = await pimlicoClient.getUserOperationStatus({
+                hash
+            })
+            expect(status.status).toBe("rejected")
+
+            await expect(
+                client.getUserOperationReceipt({ hash })
+            ).rejects.toThrow(UserOperationReceiptNotFoundError)
+
+            // No bundle was sent for the dropped userOp
+            const blockAfter = await publicClient.getBlockNumber()
+            for (
+                let blockNumber = blockBefore + 1n;
+                blockNumber <= blockAfter;
+                blockNumber++
+            ) {
+                const block = await publicClient.getBlock({
+                    blockNumber,
+                    includeTransactions: true
+                })
+                expect(
+                    block.transactions.filter(
+                        (tx) => tx.to && getAddress(tx.to) === entryPoint
+                    )
+                ).toEqual([])
             }
         })
 
@@ -1885,10 +2081,12 @@ describe.each([
             }
         })
 
-        test("Should throw AA36: over paymasterVerificationGasLimit", async () => {
+        test("Should throw AA36: over paymasterVerificationGasLimit", async ({
+            skip
+        }) => {
             // Skip for v0.6 - this is a 0.7 only error
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const client = await getSmartAccountClient({
@@ -1939,10 +2137,12 @@ describe.each([
             }
         })
 
-        test("Should throw if paymasterData contains PAYMASTER_SIG_MAGIC (EntryPoint 0.9 only)", async () => {
+        test("Should throw if paymasterData contains PAYMASTER_SIG_MAGIC (EntryPoint 0.9 only)", async ({
+            skip
+        }) => {
             // This validation only applies to EntryPoint 0.9
             if (entryPointVersion !== "0.9") {
-                return
+                skip()
             }
 
             const client = await getSmartAccountClient({

@@ -87,7 +87,7 @@ export class Server {
         )
 
         this.fastify = Fastify({
-            logger: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
+            loggerInstance: logger as FastifyBaseLogger, // workaround for https://github.com/fastify/fastify/issues/4960
             requestTimeout: config.timeout,
             disableRequestLogging: true
         })
@@ -105,7 +105,9 @@ export class Server {
 
         this.fastify.addHook("onResponse", (request, reply) => {
             const ignoredRoutes = ["/health", "/metrics"]
-            if (ignoredRoutes.includes(request.routeOptions.url)) {
+            // url is undefined for requests that match no route
+            const route = request.routeOptions.url
+            if (route && ignoredRoutes.includes(route)) {
                 return
             }
 
@@ -113,7 +115,7 @@ export class Server {
                 route: request.routeOptions.url,
                 code: reply.statusCode,
                 method: request.method,
-                rpc_method: request.rpcMethod,
+                rpc_method: request.rpcMethod ?? "null",
                 rpc_status: reply.rpcStatus
             }
 

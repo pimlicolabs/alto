@@ -137,6 +137,27 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
         require: false,
         default: "16000000"
     },
+    "max-bundle-calldata-size": {
+        description:
+            "Maximum size in bytes of a bundle's handleOps calldata. Nodes reject larger transactions (128KB on geth based chains, 95000 bytes on the Arbitrum sequencer by default)",
+        type: "number",
+        require: false,
+        default: 90000
+    },
+    "max-gas-price-multiplier": {
+        description:
+            "Highest maxFeePerGas and maxPriorityFeePerGas accepted for a userOperation, as a percentage of the current network gas price. 0 disables the check",
+        type: "string",
+        require: false,
+        default: "20000"
+    },
+    "max-pre-verification-gas-multiplier": {
+        description:
+            "Highest preVerificationGas accepted for a userOperation, as a percentage of the preVerificationGas returned by eth_estimateUserOperationGas. 0 disables the check",
+        type: "string",
+        require: false,
+        default: "1000"
+    },
     "rpc-methods": {
         description: "Supported RPC methods split by commas",
         type: "string",
@@ -160,6 +181,18 @@ export const bundlerOptions: CliCommandOptions<IBundlerArgsInput> = {
             "Minimum time in ms a pimlico_sendUserOperationNow eth_sendRawTransactionSync send is awaited (at least block-time) before the bundle is tracked as pending. A rejection arriving after this wait is not retried",
         type: "number",
         default: 1000
+    },
+    "instant-bundling-executor-wait": {
+        description:
+            "Maximum time in ms pimlico_sendUserOperationNow waits for a free executor. If none frees up, the userOperation is added to the mempool and an error is returned",
+        type: "number",
+        default: 50
+    },
+    "skip-instant-bundling": {
+        description:
+            "Make pimlico_sendUserOperationNow always add the userOperation to the mempool and return an error with its hash, instead of sending it right away",
+        type: "boolean",
+        default: false
     },
     "skip-local-gas-calculations": {
         description:
@@ -260,12 +293,6 @@ export const mempoolOptions: CliCommandOptions<IMempoolArgsInput> = {
         type: "boolean",
         require: false,
         default: true
-    },
-    "ignored-paymasters": {
-        description:
-            "Comma-separated list of paymaster addresses to ignore when checking for queued user operations",
-        type: "string",
-        require: false
     }
 }
 
@@ -392,11 +419,6 @@ export const gasEstimationOptions: CliCommandOptions<IGasEstimationArgsInput> =
             type: "string",
             require: true,
             default: "2000000"
-        },
-        "eth-call-sender-address": {
-            description:
-                "For permissioned chains, eth_call simulations require a whitelisted address as the sender",
-            type: "string"
         },
         "split-simulation-calls": {
             description:
@@ -538,15 +560,51 @@ export const executorOptions: CliCommandOptions<IExecutorArgsInput> = {
         type: "string",
         default: "105"
     },
-    "executor-private-keys": {
-        description: "Private keys of the executor accounts split by commas",
-        type: "string",
-        alias: "x",
-        require: true
-    },
-    "max-executors": {
+    "v6-executor-private-keys": {
         description:
-            "Maximum number of executor accounts to use from the list of executor private keys",
+            "Private keys of the executor accounts that bundle EntryPoint 0.6 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v6-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.6 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v7-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.7 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v7-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.7 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v8-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.8 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v8-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.8 executor private keys",
+        type: "number",
+        require: false
+    },
+    "v9-executor-private-keys": {
+        description:
+            "Private keys of the executor accounts that bundle EntryPoint 0.9 userOperations, split by commas",
+        type: "string",
+        require: false
+    },
+    "v9-max-executors": {
+        description:
+            "Maximum number of executor accounts to use from the list of EntryPoint 0.9 executor private keys",
         type: "number",
         require: false
     },
@@ -695,6 +753,12 @@ export const compatibilityOptions: CliCommandOptions<ICompatibilityArgsInput> =
             require: true,
             default: "v1,v2"
         },
+        "charges-full-gas-limit": {
+            description:
+                "Indicates if the chain charges the full transaction gasLimit without refunding unused gas (e.g. Injective). Always enabled for chain-type monad",
+            type: "boolean",
+            default: false
+        },
         "is-gas-free-chain": {
             description:
                 "Indicates if the chain uses 0 for maxFee/maxPriorityFee",
@@ -818,7 +882,7 @@ export const rpcOptions: CliCommandOptions<IRpcArgsInput> = {
     },
     "send-transaction-sync-rpc-url": {
         description:
-            "Comma separated list of RPC urls to send eth_sendRawTransactionSync (EIP-7966) transactions to, in parallel, without falling back to rpc-url. Use when an endpoint in send-transaction-rpc-url doesn't support it (e.g. a sequencer). Defaults to send-transaction-rpc-url",
+            "Comma separated list of RPC urls for eth_sendRawTransactionSync (EIP-7966), tried in order until one succeeds. Defaults to send-transaction-rpc-url",
         type: "string",
         require: false
     },

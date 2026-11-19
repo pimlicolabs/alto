@@ -22,6 +22,7 @@ import {
     getContract
 } from "viem"
 import type { AltoConfig } from "../../createConfig"
+import { getEthCallSender } from "../../executor/senderManager"
 import { packUserOps } from "../../executor/utils"
 import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import {
@@ -71,6 +72,7 @@ type SimulationParams = {
     packedQueuedUserOps: PackedUserOperation[]
     packedTargetUserOp: PackedUserOperation
     stateOverride?: StateOverride
+    ethCallSender?: Address
     // Gas limit for the simulation calls, undefined uses the node's default
     simulationGasLimit: bigint | undefined
 }
@@ -132,6 +134,7 @@ export class GasEstimator07 {
         return {
             pimlicoSimulation: getPimlicoSimulation(this.config),
             entryPointSimulationsAddress,
+            ethCallSender: getEthCallSender({ config: this.config, version }),
             entryPoint,
             packedQueuedUserOps: packUserOps(queuedUserOps),
             packedTargetUserOp: toPackedUserOp(userOp),
@@ -172,7 +175,8 @@ export class GasEstimator07 {
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride,
-            simulationGasLimit
+            simulationGasLimit,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -187,6 +191,7 @@ export class GasEstimator07 {
                     gasAllowance ?? this.config.binarySearchGasAllowance
                 ],
                 {
+                    account: ethCallSender,
                     stateOverride,
                     gas: simulationGasLimit
                 }
@@ -254,7 +259,8 @@ export class GasEstimator07 {
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride,
-            simulationGasLimit
+            simulationGasLimit,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -266,6 +272,7 @@ export class GasEstimator07 {
                     packedTargetUserOp
                 ],
                 {
+                    account: ethCallSender,
                     stateOverride,
                     gas: simulationGasLimit
                 }
@@ -307,7 +314,8 @@ export class GasEstimator07 {
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride,
-            simulationGasLimit
+            simulationGasLimit,
+            ethCallSender
         } = simulationParams
 
         try {
@@ -323,6 +331,7 @@ export class GasEstimator07 {
                         this.config.binarySearchGasAllowance
                     ],
                     {
+                        account: ethCallSender,
                         stateOverride,
                         gas: simulationGasLimit
                     }
@@ -441,7 +450,8 @@ export class GasEstimator07 {
             packedQueuedUserOps,
             packedTargetUserOp,
             stateOverride,
-            simulationGasLimit
+            simulationGasLimit,
+            ethCallSender
         } = this.getSimulationParams({
             entryPoint,
             userOp,
@@ -465,7 +475,11 @@ export class GasEstimator07 {
                     packedQueuedUserOps,
                     packedTargetUserOp
                 ],
-                { stateOverride, gas: simulationGasLimit }
+                {
+                    account: ethCallSender,
+                    stateOverride,
+                    gas: simulationGasLimit
+                }
             )
             return getReservoirGas(gas)
         } catch (err) {
@@ -493,7 +507,8 @@ export class GasEstimator07 {
             entryPointSimulationsAddress,
             packedQueuedUserOps,
             packedTargetUserOp,
-            stateOverride
+            stateOverride,
+            ethCallSender
         } = this.getSimulationParams({
             entryPoint,
             userOp,
@@ -516,6 +531,7 @@ export class GasEstimator07 {
                         packedTargetUserOp
                     ],
                     {
+                        account: ethCallSender,
                         stateOverride,
                         gas: simulationGasLimit
                     }

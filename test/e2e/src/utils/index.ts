@@ -131,10 +131,11 @@ export const getSmartAccountClient = async ({
         })
 
         account.address = privateKeyToAddress(privateKey)
-        account.getFactoryArgs = async () => ({
-            factory: undefined,
-            factoryData: undefined
-        })
+        account.getFactoryArgs = () =>
+            Promise.resolve({
+                factory: undefined,
+                factoryData: undefined
+            })
     } else if (entryPointVersion === "0.9") {
         account = await toSimpleSmartAccount({
             client: publicClient,
