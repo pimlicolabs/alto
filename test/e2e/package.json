@@ -9,7 +9,7 @@
     },
     "dependencies": {
         "@pimlico/alto": "workspace:./src/",
-        "@types/node": "^18.16.3",
+        "@types/node": "^24.19.2",
         "dotenv": "^16.0.3",
         "e2e": "link:",
         "eventemitter3": "^5.0.1",
@@ -18,7 +18,7 @@
         "prool": "^0.0.16",
         "ts-node": "^10.9.2",
         "viem": "^2.43.3",
-        "vitest": "^3.2.4",
+        "vitest": "^4.1.12",
         "wait-port": "^1.1.0"
     }
 }

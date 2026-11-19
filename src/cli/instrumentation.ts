@@ -17,7 +17,6 @@ import { createAddHookMessageChannel } from "import-in-the-middle"
 
 const { registerOptions, waitForAllMessagesAcknowledged } =
     createAddHookMessageChannel()
-// @ts-ignore —  @types/node needs to be updated first
 module.register(
     "import-in-the-middle/hook.mjs",
     import.meta.url,

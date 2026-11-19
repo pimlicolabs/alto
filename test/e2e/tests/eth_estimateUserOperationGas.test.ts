@@ -148,9 +148,11 @@ describe.each([
 
         // error occurs when calling contract that doesn't exist or due to low level evm revert.
         // both of these scenarios return 0x when calling simulateHandleOp.
-        test("Gracefully handles cannot decode zero bytes 0x error", async () => {
+        test("Gracefully handles cannot decode zero bytes 0x error", async ({
+            skip
+        }) => {
             if (entryPointVersion !== "0.6") {
-                return
+                skip()
             }
 
             const smartAccountClient = await getSmartAccountClient({
@@ -177,9 +179,11 @@ describe.each([
             }
         })
 
-        test("Empty paymaster data results in zero paymaster limits", async () => {
+        test("Empty paymaster data results in zero paymaster limits", async ({
+            skip
+        }) => {
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const smartAccountClient = await getSmartAccountClient({
@@ -203,9 +207,11 @@ describe.each([
             expect(estimation.paymasterVerificationGasLimit).toBe(0n)
         })
 
-        test("No paymaster should result in zero paymaster gas limits", async () => {
+        test("No paymaster should result in zero paymaster gas limits", async ({
+            skip
+        }) => {
             if (entryPointVersion === "0.6") {
-                return
+                skip()
             }
 
             const bundlerClient = createBundlerClient({
@@ -608,11 +614,13 @@ describe.each([
         // Tests that verify proper error handling and AA error codes
         // ============================================================
 
-        test("Should throw AA10: sender already constructed", async () => {
+        test("Should throw AA10: sender already constructed", async ({
+            skip
+        }) => {
             if (entryPointVersion === "0.9") {
                 // AA10 is no longer thrown for 0.9 since
                 // source: https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.9/contracts/core/EntryPoint.sol#L529-L537
-                return
+                skip()
             }
 
             const privateKey = generatePrivateKey()

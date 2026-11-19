@@ -12,6 +12,7 @@ import entryPointOverride from "../../contracts/EntryPointGasEstimationOverride.
     type: "json"
 }
 import type { AltoConfig } from "../../createConfig"
+import { getEthCallSender } from "../../executor/senderManager"
 import { TX_MAX_GAS_LIMIT, getReservoirGas } from "../../utils/eip8037"
 import type { SimulateHandleOpResult } from "./types"
 import {
@@ -62,7 +63,10 @@ export class GasEstimator06 {
 
         try {
             const gas = await this.config.publicClient.estimateGas({
-                account: this.config.utilityWalletAddress,
+                account: getEthCallSender({
+                    config: this.config,
+                    version: "0.6"
+                }),
                 to: entryPoint,
                 data: encodeFunctionData({
                     abi: entryPointOverride.abi as Abi,
@@ -96,9 +100,8 @@ export class GasEstimator06 {
         simulationGasLimit: bigint | undefined
     }): Promise<SimulateHandleOpResult> {
         const {
-            publicClient,
+            publicClient
             //blockTagSupport,
-            utilityWalletAddress
         } = this.config
 
         const viemStateOverride = await prepareSimulationOverrides06({
@@ -119,7 +122,10 @@ export class GasEstimator06 {
             await entryPointContract.simulate.simulateHandleOp(
                 [userOp, zeroAddress, "0x"],
                 {
-                    account: utilityWalletAddress,
+                    account: getEthCallSender({
+                        config: this.config,
+                        version: "0.6"
+                    }),
                     gas: simulationGasLimit,
                     stateOverride: viemStateOverride
                 }

@@ -33,7 +33,7 @@ jobs:
         uses: ./.github/actions/install-dependencies
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Create Version Pull Request
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
@@ -61,7 +61,7 @@ jobs:
         uses: ./.github/actions/install-dependencies
 
       - name: Install test dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Setup .npmrc file
         uses: actions/setup-node@v3
@@ -100,7 +100,7 @@ jobs:
         uses: ./.github/actions/install-dependencies
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Setup .npmrc for provenance
         uses: actions/setup-node@v3

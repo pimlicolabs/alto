@@ -26,6 +26,7 @@ import { pimlicoSimulationsAbi } from "../types/contracts/PimlicoSimulations"
 import { getEip7702DelegationOverrides } from "../utils/eip7702"
 import { TX_MAX_GAS_LIMIT } from "../utils/eip8037"
 import { getFilterOpsStateOverride } from "../utils/entryPointOverrides"
+import { getEthCallSender } from "./senderManager"
 import { getBundleGasLimit, getBundleReservoirGas } from "./utils"
 
 export type FilterOpsResult =
@@ -182,6 +183,7 @@ export const getFilterOpsResult = async ({
     const reservoirGas = getBundleReservoirGas(userOps)
 
     const callResult = await publicClient.call({
+        account: getEthCallSender({ config, version }),
         to: pimlicoSimulationContract,
         gas:
             reservoirGas > 0n
@@ -414,8 +416,8 @@ export async function filterOpsAndEstimateGas({
                   })
 
         let bundleGasUsed: bigint
-        if (config.chainType === "monad") {
-            // Monad uses the entire tx.gasLimit.
+        if (config.chargesFullGasLimit) {
+            // The chain charges the entire tx.gasLimit.
             bundleGasUsed = bundleGasLimit
         } else {
             // Find overhead that can't be calculated onchain.

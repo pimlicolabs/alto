@@ -11,6 +11,7 @@ import { RpcHandler, SafeValidator, Server, UnsafeValidator } from "@alto/rpc"
 import { createMempoolStore } from "@alto/store"
 import type { InterfaceValidator } from "@alto/types"
 import { type Metrics, asyncCallWithTimeout } from "@alto/utils"
+import * as sentry from "@sentry/node"
 import type { Registry } from "prom-client"
 import type { AltoConfig } from "../createConfig"
 import { BundleManager } from "../executor/bundleManager"
@@ -305,6 +306,11 @@ export const setupServer = async ({
         eventManager
     })
 
+    const rootLogger = config.getLogger(
+        { module: "root" },
+        { level: config.logLevel }
+    )
+
     // we disable flushing for hs because it tries to flush transactions
     // of wallets that are in use by other servers
     if (
@@ -315,13 +321,11 @@ export const setupServer = async ({
             senderManager,
             gasPriceManager,
             config
+        }).catch((err) => {
+            rootLogger.error({ err }, "Failed to flush stuck transactions")
+            sentry.captureException(err)
         })
     }
-
-    const rootLogger = config.getLogger(
-        { module: "root" },
-        { level: config.logLevel }
-    )
 
     if (config.enableHorizontalScaling) {
         await mempool.clearProcessing()
@@ -353,6 +357,9 @@ export const setupServer = async ({
             config,
             logger: shutdownLogger,
             senderManager
+        }).catch((err) => {
+            shutdownLogger.error({ err }, "Failed to restore shutdown state")
+            sentry.captureException(err)
         })
     }
 

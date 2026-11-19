@@ -8,9 +8,10 @@ import {
 } from "@alto/utils"
 import type { AltoConfig } from "../../../createConfig"
 
-// Monad consumes the entire gasLimit set by TX. To account for this, we need to know the gasLimit
-// the bundler sets for this userOp.
-export async function getMonadPvg({
+// Some chains (e.g. Monad, Injective) charge the entire tx.gasLimit without
+// refunding unused gas. To account for this, we need to know the gasLimit the
+// bundler sets for this userOp.
+export async function getFullGasLimitPvg({
     userOp,
     config,
     entryPoint,
@@ -78,7 +79,7 @@ export async function getMonadPvg({
             realPaymasterPostOpGasLimit
     }
 
-    // Monad uses the entire tx.gasLimit.
+    // The chain charges the entire tx.gasLimit.
     let burnedGas = bundlerGasLimit - scaleBigIntByPercent(gasUsedByUserOp, 70n)
 
     if (validate) {

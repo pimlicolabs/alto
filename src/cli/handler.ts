@@ -7,12 +7,12 @@ import {
 } from "@alto/utils"
 import { Registry } from "prom-client"
 import {
-    type CallParameters,
+    BaseError,
     type Chain,
+    RpcRequestError,
     createPublicClient,
     createWalletClient,
-    fallback,
-    publicActions
+    fallback
 } from "viem"
 import * as chains from "viem/chains"
 import { type AltoConfig, createConfig } from "../createConfig"
@@ -20,7 +20,10 @@ import { getSenderManager } from "../executor/senderManager/index"
 import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
-import { multiRpcTransport } from "./multiRpcTransport"
+import {
+    isUnsupportedMethodError,
+    multiRpcTransport
+} from "./multiRpcTransport"
 import { parseArgs } from "./parseArgs"
 import { setupServer } from "./setupServer"
 
@@ -158,7 +161,7 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         experimental_preconfirmationTime: args.flashblocksPreconfirmationTime
     }
 
-    let publicClient = createPublicClient({
+    const publicClient = createPublicClient({
         transport: customTransport(args.rpcUrl, {
             logger: logger.child(
                 { module: "public_client" },
@@ -170,25 +173,6 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
         pollingInterval: args.blockPollingInterval ?? args.blockTime / 2,
         chain
     })
-
-    // Some permissioned chains require a whitelisted address to make deployments.
-    // In order for simulations to work, we need to make our eth_call's from a whitelisted address.
-    if (args.ethCallSenderAddress) {
-        const whitelistedSender = args.ethCallSenderAddress
-        const withEthCallSender = (client: typeof publicClient) => ({
-            async call(args: CallParameters) {
-                return await client.call({
-                    ...args,
-                    account: whitelistedSender
-                })
-            }
-        })
-
-        publicClient = publicClient
-            .extend(withEthCallSender)
-            .extend(publicActions)
-            .extend(withEthCallSender)
-    }
 
     const createWalletTransport = (url: string) =>
         customTransport(url, {
@@ -229,13 +213,28 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
             transport: createWalletTransport(args.rpcUrl),
             chain
         }),
-        // No rpc-url fallback: it would only resend the signed transaction
-        // every sync endpoint rejected, delaying the executor's retry by a
-        // round trip.
+        // Sends to the first url, moving to the next one only when an
+        // endpoint is unreachable or doesn't support the method. A rejection
+        // is thrown as is. No rpc-url fallback: it would only resend the
+        // signed transaction every sync endpoint rejected, delaying the
+        // executor's retry by a round trip.
         sync: args.sendTransactionSyncRpcUrl
             ? createWalletClient({
-                  transport: createMultiRpcTransport(
-                      args.sendTransactionSyncRpcUrl
+                  transport: fallback(
+                      args.sendTransactionSyncRpcUrl.map(createWalletTransport),
+                      {
+                          rank: false,
+                          // Only throw real errors from the node (e.g.
+                          // nonce too low, nonce gap, underpriced,
+                          // insufficient funds), anything else moves to
+                          // the next url.
+                          shouldThrow: (err) =>
+                              err instanceof BaseError &&
+                              Boolean(
+                                  err.walk((e) => e instanceof RpcRequestError)
+                              ) &&
+                              !isUnsupportedMethodError(err)
+                      }
                   ),
                   chain
               })

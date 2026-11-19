@@ -504,7 +504,13 @@ export class BundleManager {
                             .labels({ status: "reverted" })
                             .inc(1)
                     }
-                })()
+                })().catch((err) => {
+                    this.logger.error(
+                        { err, userOpHash: userOpInfo.userOpHash },
+                        "Failed to check status of rejected userOp"
+                    )
+                    sentry.captureException(err)
+                })
             }
         })()
     }

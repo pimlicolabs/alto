@@ -2,7 +2,8 @@ import type { FastifyPluginCallback, FastifyReply } from "fastify"
 
 declare module "fastify" {
     interface FastifyRequest {
-        rpcMethod: string
+        // null until the request reaches an RPC handler
+        rpcMethod: string | null
     }
 
     interface FastifyReply {

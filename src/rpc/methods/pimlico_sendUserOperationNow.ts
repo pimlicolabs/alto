@@ -23,6 +23,7 @@ import {
 import { createMethodHandler } from "../createMethodHandler"
 import type { RpcHandler } from "../rpcHandler"
 import { getBoostedUserOpError } from "./boost_sendUserOperation"
+import { addToMempoolIfValid, validateMaxPvg } from "./eth_sendUserOperation"
 
 type ReceiptWaitResult =
     | { status: "included"; userOpReceipt: UserOperationReceipt }
@@ -177,6 +178,15 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             })
         }
 
+        const recordReceived = (status: "added" | "queued") => {
+            metrics.userOpsReceived
+                .labels({
+                    status,
+                    type: userOp.eip7702Auth ? "7702" : "regular"
+                })
+                .inc()
+        }
+
         const reject = (message: string): never => {
             recordOutcome("rejected")
             throw new RpcError(message, ERC7769Errors.InvalidFields)
@@ -196,6 +206,38 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             }
         }
 
+        // Adds the userOp to the mempool like eth_sendUserOperation (with
+        // full validation) and tells the client to track it.
+        const addToMempool = async (reason: string): Promise<never> => {
+            const { result, userOpHash } = await addToMempoolIfValid({
+                rpcHandler,
+                userOp,
+                entryPoint,
+                apiVersion,
+                isBoosted
+            }).catch((err: unknown) => {
+                recordOutcome(err instanceof RpcError ? "rejected" : "failed")
+                throw err
+            })
+            rpcHandler.eventManager.emitReceived(userOpHash)
+            recordReceived(result)
+
+            recordOutcome("queued")
+            rpcHandler.logger.info(
+                { userOpHash, reason },
+                "pimlico_sendUserOperationNow added userOperation to the mempool"
+            )
+            throw new RpcError(
+                "userOperation was added to the mempool. Track it with eth_getUserOperationReceipt",
+                ERC7769Errors.InvalidFields,
+                { userOpHash }
+            )
+        }
+
+        if (rpcHandler.config.skipInstantBundling) {
+            return await addToMempool("skip-instant-bundling")
+        }
+
         // Validate userOp fields (sync - fail fast before expensive async checks)
         const [fieldsValid, fieldsError] = rpcHandler.validateUserOpFields({
             userOp,
@@ -212,15 +254,21 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             chainId: rpcHandler.config.chainId
         })
 
-        // Validate gas price (async)
-        const [gasPriceValid, gasPriceError] =
-            await rpcHandler.validateUserOpGasPrice({
-                userOp,
-                apiVersion,
-                isBoosted
-            })
+        // Validate gas price and preVerificationGas (async)
+        const [[gasPriceValid, gasPriceError], [isPvgBelowMax, maxPvgError]] =
+            await Promise.all([
+                rpcHandler.validateUserOpGasPrice({
+                    userOp,
+                    apiVersion,
+                    isBoosted
+                }),
+                validateMaxPvg({ rpcHandler, userOp, entryPoint, isBoosted })
+            ])
         if (!gasPriceValid) {
             return reject(gasPriceError)
+        }
+        if (!isPvgBelowMax) {
+            return reject(maxPvgError)
         }
 
         // Prepare bundle
@@ -242,18 +290,45 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
             version,
             submissionAttempts: 0
         }
-        rpcHandler.mempool.store.addProcessing({
-            entryPoint,
-            userOpInfos: [userOpInfo]
-        })
+        // Not awaited to keep latency low. The store logs and reports its own
+        // errors, and writes are applied in order before any removeProcessing.
+        rpcHandler.mempool.store
+            .addProcessing({
+                entryPoint,
+                userOpInfos: [userOpInfo]
+            })
+            .catch((err) => {
+                rpcHandler.logger.error(
+                    { err, userOpHash },
+                    "Failed to mark userOp as processing"
+                )
+            })
 
         const sendStart = Date.now()
-        const result = await rpcHandler.executorManager.sendBundleNow(bundle)
+        const result = await rpcHandler.executorManager.sendBundleNow({
+            userOpBundle: bundle,
+            walletTimeoutMs: Math.max(
+                0,
+                Math.min(
+                    rpcHandler.config.instantBundlingExecutorWait,
+                    deadline - sendStart
+                )
+            )
+        })
         observeDurationMs({
             histogram: metrics.instantDuration.labels({ stage: "send" }),
             startMs: sendStart,
             endMs: Date.now()
         })
+
+        // No executor freed up in time.
+        if (result && !result.success && result.status === "no_executor") {
+            await rpcHandler.mempool.store.removeProcessing({
+                entryPoint,
+                userOpInfos: [userOpInfo]
+            })
+            return await addToMempool("no free executor")
+        }
 
         // Failures on our side are server errors: the RPC server reports
         // non-RpcErrors to Sentry and logs them, and the client only gets a
@@ -270,6 +345,9 @@ export const pimlicoSendUserOperationNowHandler = createMethodHandler({
         if (!result.success) {
             return reject(`bundle submission failed: ${result.reason}`)
         }
+
+        // Count directly submitted userOps as received, like mempool ones.
+        recordReceived("added")
 
         const { transactionHash, send } = result
 

@@ -1,10 +1,16 @@
+import type { Logger } from "@alto/utils"
 import type { AltoConfig } from "../createConfig"
 import { type MinMaxQueue, createMinMaxQueue } from "../utils/minMaxQueue"
 
 export class CitreaManager {
+    private readonly logger: Logger
     private readonly l1FeeRateQueue: MinMaxQueue
 
     constructor({ config }: { config: AltoConfig }) {
+        this.logger = config.getLogger(
+            { module: "citrea_manager" },
+            { level: config.logLevel }
+        )
         this.l1FeeRateQueue = createMinMaxQueue({
             queueName: "citrea-l1-fee-rate-queue",
             config
@@ -16,6 +22,8 @@ export class CitreaManager {
     }
 
     public saveL1FeeRate(l1FeeRate: bigint) {
-        this.l1FeeRateQueue.saveValue(l1FeeRate)
+        this.l1FeeRateQueue.saveValue(l1FeeRate).catch((err) => {
+            this.logger.error({ err }, "Failed to save L1 fee rate")
+        })
     }
 }

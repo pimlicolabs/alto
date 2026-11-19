@@ -17,7 +17,7 @@ jobs:
         uses: ./.github/actions/install-dependencies
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Run format check
         run: pnpm run lint:fix && pnpm run lint
