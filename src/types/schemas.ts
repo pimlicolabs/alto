@@ -922,7 +922,11 @@ export const userOpInfoSchema = z.preprocess(
         // them during rollouts. Observations are skipped when they are missing.
         enteredMempoolAt: z.number().optional(), // last added to the outstanding mempool (reset on resubmit)
         poppedFromMempoolAt: z.number().optional(), // last popped into a bundle
-        firstSubmittedAt: z.number().optional() // first bundle tx of the current attempt accepted by the node (kept on replacement)
+        firstSubmittedAt: z.number().optional(), // first bundle tx of the current attempt accepted by the node (kept on replacement)
+        // EIP-8037 state gas reservoir the bundle must provide above
+        // TX_MAX_GAS_LIMIT. Set for boosted userOps that need more than
+        // TX_MAX_GAS_LIMIT including state gas; they are bundled alone.
+        reservoirGas: hexNumberSchema.optional()
     })
 )
 
