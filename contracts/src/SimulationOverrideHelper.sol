@@ -9,6 +9,7 @@ library SimulationOverrideHelper {
     bytes32 private constant SENDER_CREATOR_SLOT = keccak256("SENDER_CREATOR");
     bytes32 private constant BLOCK_BASE_FEE_PER_GAS_SLOT = keccak256("BLOCK_BASE_FEE_PER_GAS");
     bytes32 private constant BLOCK_TIMESTAMP_SLOT = keccak256("BLOCK_TIMESTAMP");
+    bytes32 private constant USE_CALL_GAS_LIMIT_SLOT = keccak256("USE_CALL_GAS_LIMIT");
 
     // Default sender creator addresses for each version (set defaults for chains with no StateOverride support)
     address private constant DEFAULT_SENDER_CREATOR_06 = 0x7fc98430eAEdbb6070B35B39D798725049088348;
@@ -52,5 +53,10 @@ library SimulationOverrideHelper {
     function getBlockTimestamp() internal view returns (uint256) {
         uint256 timestamp = StorageSlot.getUint256Slot(BLOCK_TIMESTAMP_SLOT).value;
         return timestamp == 0 ? block.timestamp : timestamp;
+    }
+
+    // Whether gas estimation should run the call phase with callGasLimit like the real EntryPoint
+    function useCallGasLimit() internal view returns (bool) {
+        return StorageSlot.getBooleanSlot(USE_CALL_GAS_LIMIT_SLOT).value;
     }
 }
