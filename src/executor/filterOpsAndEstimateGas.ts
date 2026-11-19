@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto"
 import type {
     RejectedUserOp,
     UserOpInfo,
@@ -16,7 +17,9 @@ import {
     type StateOverride,
     decodeAbiParameters,
     decodeErrorResult,
-    encodeFunctionData
+    encodeFunctionData,
+    getAddress,
+    toHex
 } from "viem"
 import { entryPoint07Abi } from "viem/account-abstraction"
 import { formatAbiItemWithArgs } from "viem/utils"
@@ -75,13 +78,11 @@ const getChainSpecificOverhead = async ({
 export const getFilterOpsResult = async ({
     config,
     userOpBundle,
-    networkBaseFee,
-    beneficiary
+    networkBaseFee
 }: {
     userOpBundle: UserOperationBundle
     config: AltoConfig
     networkBaseFee: bigint
-    beneficiary: Address
 }): Promise<{
     gasUsed: bigint
     balanceChange: bigint
@@ -103,17 +104,26 @@ export const getFilterOpsResult = async ({
 
     const { userOps, version, entryPoint } = userOpBundle
 
+    // Use a fresh beneficiary per simulation so that balanceChange only
+    // measures the fees paid out by the EntryPoint.
+    const beneficiary = getAddress(toHex(randomBytes(20)))
+
     // Get EIP-7702 stateOverrides.
     const eip7702Override: StateOverride | undefined =
         getEip7702DelegationOverrides(userOps.map(({ userOp }) => userOp))
 
     let simulationOverrides: StateOverride | undefined
     if (codeOverrideSupport) {
-        simulationOverrides = getFilterOpsStateOverride({
-            version,
-            entryPoint,
-            baseFeePerGas: networkBaseFee
-        })
+        simulationOverrides = [
+            ...getFilterOpsStateOverride({
+                version,
+                entryPoint,
+                baseFeePerGas: networkBaseFee
+            }),
+            // Paying an empty account costs extra new account gas that the
+            // funded onchain beneficiary doesn't incur.
+            { address: beneficiary, balance: 1n }
+        ]
     }
 
     // Create promises for parallel execution
@@ -286,7 +296,7 @@ export async function filterOpsAndEstimateGas({
     logger: Logger
     networkBaseFee: bigint
 }): Promise<FilterOpsResult> {
-    const { utilityWalletAddress: beneficiary, publicClient } = config
+    const { utilityWalletAddress, publicClient } = config
     const { userOps, entryPoint } = userOpBundle
 
     try {
@@ -315,8 +325,7 @@ export async function filterOpsAndEstimateGas({
         const filterOpsPromise = getFilterOpsResult({
             userOpBundle: { ...userOpBundle, userOps: validUserOps },
             config,
-            networkBaseFee,
-            beneficiary
+            networkBaseFee
         })
 
         // Start chain-specific overhead calculation in parallel
@@ -401,7 +410,7 @@ export async function filterOpsAndEstimateGas({
             config,
             userOps: userOpsToBundle.map(({ userOp }) => userOp),
             entryPoint,
-            executorAddress: beneficiary
+            executorAddress: utilityWalletAddress
         })
 
         let bundleGasUsed: bigint
