@@ -21,6 +21,7 @@ import {
     type BaseError,
     FeeCapTooLowError,
     type Hex,
+    NonceTooLowError,
     RpcRequestError,
     type SignedAuthorizationList,
     encodeFunctionData,
@@ -169,6 +170,14 @@ export const isTransactionPendingError = (e: BaseError) => {
     })
     return pendingError !== null
 }
+
+// A node's nonce too low error, wrapped or not.
+export const isNonceTooLowError = (e: BaseError) =>
+    e.walk(
+        (err) =>
+            err instanceof NonceTooLowError ||
+            /nonce too low/i.test((err as Error).message ?? "")
+    ) !== null
 
 // eth_sendRawTransactionSync rejections that left the transaction out of the
 // pool because it can't execute at its nonce (EIP-7966): code 5 when it isn't

@@ -79,6 +79,15 @@ const rpcResult = async ({
 //   like a sequencer that only accepts eth_sendRawTransaction.
 // - failSyncSends: eth_sendRawTransactionSync gets a 503, like an endpoint
 //   that is down.
+// - holdSyncResponseMs: eth_sendRawTransactionSync is forwarded at once, but
+//   its response is held this long, like an endpoint that answers well after
+//   the transaction is in a block.
+// - alreadyKnownAfterForward: eth_sendRawTransactionSync is forwarded (and
+//   lands), then answered with "already known", like an endpoint that
+//   answers before the transaction lands.
+// - nonceTooLowAfterLanding: eth_sendRawTransactionSync is forwarded (and
+//   lands), then answered with "nonce too low", like an endpoint that resends
+//   the transaction and finds its own nonce taken.
 // eth_sendRawTransactionSync rejects transactions with a nonce gap like an
 // EIP-7966 node: nonceGapCode 6 with the expected nonce, or 5.
 const startRpcProxy = async ({ upstream }: { upstream: string }) => {
@@ -88,6 +97,9 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         rejectSends: boolean
         rejectSyncMethod: boolean
         failSyncSends: boolean
+        holdSyncResponseMs: number
+        nonceTooLowAfterLanding: boolean
+        alreadyKnownAfterForward: boolean
         nonceGapCode: 5 | 6
         nonceRejections: number
         methods: string[]
@@ -97,6 +109,9 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         rejectSends: false,
         rejectSyncMethod: false,
         failSyncSends: false,
+        holdSyncResponseMs: 0,
+        nonceTooLowAfterLanding: false,
+        alreadyKnownAfterForward: false,
         nonceGapCode: 6,
         nonceRejections: 0,
         methods: []
@@ -142,6 +157,43 @@ const startRpcProxy = async ({ upstream }: { upstream: string }) => {
         if (isSyncSend && state.failSyncSends) {
             res.statusCode = 503
             res.end(JSON.stringify({ message: "service unavailable" }))
+            return
+        }
+        if (
+            !Array.isArray(parsed) &&
+            isSyncSend &&
+            (state.holdSyncResponseMs > 0 ||
+                state.nonceTooLowAfterLanding ||
+                state.alreadyKnownAfterForward)
+        ) {
+            const upstreamRes = await fetch(upstream, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body
+            })
+            const upstreamBody = await upstreamRes.text()
+            await new Promise((resolve) =>
+                setTimeout(resolve, state.holdSyncResponseMs)
+            )
+            if (state.alreadyKnownAfterForward) {
+                const error = { code: -32000, message: "already known" }
+                res.end(
+                    JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error })
+                )
+                return
+            }
+            if (state.nonceTooLowAfterLanding) {
+                const error = {
+                    code: -32000,
+                    message: "nonce too low: next nonce 1, tx nonce 0"
+                }
+                res.end(
+                    JSON.stringify({ jsonrpc: "2.0", id: parsed.id, error })
+                )
+                return
+            }
+            res.statusCode = upstreamRes.status
+            res.end(upstreamBody)
             return
         }
         const isRejectedSend =
@@ -463,6 +515,9 @@ describe.each([
             proxy.state.dropSends = false
             proxy.state.inflateNextNonce = false
             proxy.state.rejectSends = false
+            proxy.state.holdSyncResponseMs = 0
+            proxy.state.nonceTooLowAfterLanding = false
+            proxy.state.alreadyKnownAfterForward = false
             // Clear the proxied instance so nothing left from the previous
             // test is sent during this one.
             await clearBundlerState({ altoRpc: proxiedAlto.altoRpc })
@@ -520,6 +575,90 @@ describe.each([
                 const receipt = result as UserOperationReceipt
                 expect(receipt.success).toEqual(true)
                 expect(proxy.state.nonceRejections).toEqual(1)
+            }
+        )
+
+        test.skipIf(!supportsEip7966)(
+            "Answers with a polled receipt while the sync send is held",
+            async () => {
+                const op = await prepareSignedUserOp({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc: proxiedAlto.altoRpc
+                })
+                proxy.state.holdSyncResponseMs = 2_000
+
+                const start = Date.now()
+                const { result, error } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_sendUserOperationNow",
+                    params: [deepHexlify(op), entryPoint]
+                })
+
+                expect(error).toBeUndefined()
+                const receipt = result as UserOperationReceipt
+                expect(receipt.success).toEqual(true)
+                // Well before the held response, and before
+                // instant-bundling-min-send-wait (1s) runs out
+                expect(Date.now() - start).toBeLessThan(800)
+            }
+        )
+
+        test.skipIf(!supportsEip7966)(
+            "Answers with the polled receipt after an already known answer",
+            async () => {
+                const op = await prepareSignedUserOp({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc: proxiedAlto.altoRpc
+                })
+                proxy.state.alreadyKnownAfterForward = true
+                proxy.state.methods = []
+
+                const { result, error } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_sendUserOperationNow",
+                    params: [deepHexlify(op), entryPoint]
+                })
+
+                expect(error).toBeUndefined()
+                const receipt = result as UserOperationReceipt
+                expect(receipt.success).toEqual(true)
+                expect(
+                    proxy.state.methods.filter(
+                        (method) => method === "eth_sendRawTransactionSync"
+                    )
+                ).toHaveLength(1)
+            }
+        )
+
+        test.skipIf(!supportsEip7966)(
+            "Doesn't resend a transaction that landed before a nonce too low answer",
+            async () => {
+                const op = await prepareSignedUserOp({
+                    entryPointVersion,
+                    anvilRpc,
+                    altoRpc: proxiedAlto.altoRpc
+                })
+                proxy.state.nonceTooLowAfterLanding = true
+                proxy.state.methods = []
+
+                const { result, error } = await rawRpc({
+                    url: proxiedAlto.altoRpc,
+                    method: "pimlico_sendUserOperationNow",
+                    params: [deepHexlify(op), entryPoint]
+                })
+
+                expect(error).toBeUndefined()
+                const receipt = result as UserOperationReceipt
+                expect(receipt.success).toEqual(true)
+                // Sent once: resending at the next nonce would run the
+                // userOp again and revert
+                expect(
+                    proxy.state.methods.filter(
+                        (method) => method === "eth_sendRawTransactionSync"
+                    )
+                ).toHaveLength(1)
             }
         )
 
