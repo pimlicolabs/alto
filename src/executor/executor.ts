@@ -33,6 +33,7 @@ import {
     type SignedAuthorizationList,
     TransactionExecutionError,
     type TransactionReceipt,
+    TransactionReceiptNotFoundError,
     type TransactionSerializable,
     type Transport,
     type WalletClient,
@@ -55,6 +56,7 @@ import {
     getExecutorNonce,
     getUserOpHashes,
     isFeeCapTooLowError,
+    isNonceTooLowError,
     isTransactionPendingError,
     isTransactionUnderpricedError,
     parseNonceFromError,
@@ -606,14 +608,26 @@ export class Executor {
                     (err: unknown) => ({ receipt: undefined, err })
                 )
 
+            // Some sync endpoints answer well after the transaction is in a
+            // block (on BSC, ~a block after other RPCs see it), so the
+            // receipt is also polled for meanwhile, and whichever comes
+            // first wins.
+            const polled = this.pollTransactionReceipt(transactionHash)
+
             let waitTimer: ReturnType<typeof setTimeout> | undefined
             const response = await Promise.race([
                 send,
+                polled.receipt.then((receipt) => ({
+                    receipt,
+                    err: undefined
+                })),
                 new Promise<undefined>((resolve) => {
                     waitTimer = setTimeout(() => resolve(undefined), waitMs)
                 })
             ])
             clearTimeout(waitTimer)
+            // Past this point the caller polls for the receipt itself.
+            polled.stop()
 
             // Still waiting for inclusion.
             if (!response) {
@@ -645,6 +659,27 @@ export class Executor {
                 }
             }
 
+            // A nonce too low can mean this very transaction landed while the
+            // endpoint held the request (an endpoint that resends it then
+            // finds its own nonce taken). Retrying at the next nonce would
+            // run the userOps again, so look for its receipt first.
+            if (err instanceof BaseError && isNonceTooLowError(err)) {
+                const landed = await this.findReceipt(
+                    transactionHash,
+                    Math.max(2 * blockTime, 500)
+                )
+                if (landed) {
+                    this.logger.warn(
+                        { txHash: transactionHash },
+                        "eth_sendRawTransactionSync answered nonce too low, but the transaction landed"
+                    )
+                    return {
+                        transactionHash,
+                        receipt: Promise.resolve(landed)
+                    }
+                }
+            }
+
             throw err
         } catch (err) {
             // Wrap like sendTransaction so the caller's nonce and gas retry
@@ -657,6 +692,89 @@ export class Executor {
                     chain: walletClient.chain
                 } as GetTransactionErrorParameters
             )
+        }
+    }
+
+    // Polls for a transaction's receipt for up to timeoutMs. Undefined if it
+    // doesn't show up by then.
+    async findReceipt(
+        hash: Hex,
+        timeoutMs: number
+    ): Promise<TransactionReceipt | undefined> {
+        const polled = this.pollTransactionReceipt(hash, { immediate: true })
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const receipt = await Promise.race([
+            polled.receipt,
+            new Promise<undefined>((resolve) => {
+                timer = setTimeout(() => resolve(undefined), timeoutMs)
+            })
+        ])
+        clearTimeout(timer)
+        polled.stop()
+        return receipt
+    }
+
+    // Polls the public RPC for a transaction's receipt until it's found or
+    // stop is called. receipt never rejects, and stays pending once stopped.
+    pollTransactionReceipt(
+        hash: Hex,
+        { immediate = false }: { immediate?: boolean } = {}
+    ): {
+        receipt: Promise<TransactionReceipt>
+        stop: () => void
+    } {
+        const { publicClient, blockTime } = this.config
+        // Same as pimlico_sendUserOperationNow's receipt polling.
+        const pollingInterval = Math.max(50, Math.min(100, blockTime / 4))
+
+        let stopped = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+
+        const receipt = new Promise<TransactionReceipt>((resolve) => {
+            const poll = async () => {
+                if (stopped) {
+                    return
+                }
+                try {
+                    const found = await publicClient
+                        .getTransactionReceipt({ hash })
+                        .catch((err: unknown) => {
+                            // Not mined yet.
+                            if (
+                                err instanceof BaseError &&
+                                err.walk(
+                                    (e) =>
+                                        e instanceof
+                                        TransactionReceiptNotFoundError
+                                )
+                            ) {
+                                return undefined
+                            }
+                            throw err
+                        })
+                    if (found && !stopped) {
+                        resolve(found)
+                        return
+                    }
+                } catch (err) {
+                    this.logger.debug(
+                        { err, txHash: hash },
+                        "failed to poll for eth_sendRawTransactionSync receipt"
+                    )
+                }
+                if (!stopped) {
+                    timer = setTimeout(poll, pollingInterval)
+                }
+            }
+            timer = setTimeout(poll, immediate ? 0 : pollingInterval)
+        })
+
+        return {
+            receipt,
+            stop: () => {
+                stopped = true
+                clearTimeout(timer)
+            }
         }
     }
 
