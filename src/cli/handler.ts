@@ -12,6 +12,7 @@ import {
     RpcRequestError,
     createPublicClient,
     createWalletClient,
+    shouldThrow as defaultFallbackShouldThrow,
     fallback
 } from "viem"
 import * as chains from "viem/chains"
@@ -21,6 +22,7 @@ import type { IOptionsInput } from "./config"
 import { customTransport } from "./customTransport"
 import { deploySimulationsContract } from "./deploySimulationsContract"
 import {
+    isAlreadyKnownError,
     isUnsupportedMethodError,
     multiRpcTransport
 } from "./multiRpcTransport"
@@ -200,7 +202,16 @@ export async function bundlerHandler(args_: IOptionsInput): Promise<void> {
                     createMultiRpcTransport(urls),
                     createWalletTransport(args.rpcUrl)
                 ],
-                { rank: false }
+                {
+                    rank: false,
+                    // "already known" proves the transaction was broadcast.
+                    // Resending it to rpc-url would replace that answer with
+                    // "nonce too low" once the transaction landed, which the
+                    // executor reads as a failed send.
+                    shouldThrow: (err) =>
+                        isAlreadyKnownError(err) ||
+                        defaultFallbackShouldThrow(err)
+                }
             ),
             chain
         })

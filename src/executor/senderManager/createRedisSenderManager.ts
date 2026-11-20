@@ -1,6 +1,6 @@
 import type { Logger, Metrics } from "@alto/utils"
 import Redis from "ioredis"
-import type { Account } from "viem"
+import type { LocalAccount } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { WalletPool } from "."
 import type { AltoConfig } from "../../createConfig"
@@ -83,7 +83,7 @@ export const createRedisSenderManager = async ({
     config: AltoConfig
     metrics: Metrics
     redisEndpoint: string
-    wallets: Account[]
+    wallets: LocalAccount[]
     version: EntryPointVersion
 }): Promise<WalletPool> => {
     metrics.walletsTotal.set({ entrypoint_version: version }, wallets.length)
@@ -108,9 +108,9 @@ export const createRedisSenderManager = async ({
     })
 
     // Track active wallets for this instance
-    const activeWallets = new Set<Account>()
+    const activeWallets = new Set<LocalAccount>()
 
-    const popWallet = async (): Promise<Account | undefined> => {
+    const popWallet = async (): Promise<LocalAccount | undefined> => {
         const walletAddress = await walletPool.pop()
         if (!walletAddress) {
             return undefined
@@ -132,7 +132,9 @@ export const createRedisSenderManager = async ({
         return wallet
     }
 
-    const activateWallet = async (wallet: Account): Promise<Account> => {
+    const activateWallet = async (
+        wallet: LocalAccount
+    ): Promise<LocalAccount> => {
         activeWallets.add(wallet)
 
         logger.trace(
@@ -151,7 +153,7 @@ export const createRedisSenderManager = async ({
         getWallet: async () => {
             logger.trace("waiting for wallet ")
 
-            let wallet: Account | undefined
+            let wallet: LocalAccount | undefined
 
             while (!wallet) {
                 wallet = await popWallet()
@@ -177,7 +179,7 @@ export const createRedisSenderManager = async ({
 
             return wallet ? await activateWallet(wallet) : undefined
         },
-        markWalletProcessed: async (wallet: Account) => {
+        markWalletProcessed: async (wallet: LocalAccount) => {
             if (activeWallets.delete(wallet)) {
                 await walletPool.push(wallet.address)
                 const len = await walletPool.size()

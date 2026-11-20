@@ -1,5 +1,5 @@
 import type { Metrics } from "@alto/utils"
-import type { Account, Address } from "viem"
+import type { Address, LocalAccount } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { AltoConfig } from "../../createConfig"
 import { createMemorySenderManager } from "./createMemorySenderManager"
@@ -14,7 +14,7 @@ export const getExecutorPrivateKeys = ({
 }: {
     config: AltoConfig
     version: EntryPointVersion
-}): Account[] | undefined => {
+}): LocalAccount[] | undefined => {
     switch (version) {
         case "0.6":
             return config.v6ExecutorPrivateKeys
@@ -63,7 +63,7 @@ const getPoolWallets = ({
 }: {
     config: AltoConfig
     version: EntryPointVersion
-}): Account[] => {
+}): LocalAccount[] => {
     const privateKeys = getExecutorPrivateKeys({ config, version }) ?? []
     const maxExecutors = getMaxExecutors({ config, version })
 
@@ -76,28 +76,28 @@ const getPoolWallets = ({
 
 // The wallets of a single executor pool.
 export type WalletPool = {
-    getAllWallets: () => Account[]
-    getWallet: () => Promise<Account>
+    getAllWallets: () => LocalAccount[]
+    getWallet: () => Promise<LocalAccount>
     // Like getWallet, but gives up and returns undefined if no wallet frees
     // up within timeoutMs.
-    tryGetWallet: (timeoutMs: number) => Promise<Account | undefined>
-    lockWallet?: (wallet: Account) => Promise<void>
-    markWalletProcessed: (wallet: Account) => Promise<void>
-    getActiveWallets: () => Account[]
+    tryGetWallet: (timeoutMs: number) => Promise<LocalAccount | undefined>
+    lockWallet?: (wallet: LocalAccount) => Promise<void>
+    markWalletProcessed: (wallet: LocalAccount) => Promise<void>
+    getActiveWallets: () => LocalAccount[]
 }
 
 export type SenderManager = {
-    getAllWallets: () => Account[]
-    getWallet: (version: EntryPointVersion) => Promise<Account>
+    getAllWallets: () => LocalAccount[]
+    getWallet: (version: EntryPointVersion) => Promise<LocalAccount>
     // Like getWallet, but gives up and returns undefined if no wallet frees
     // up within timeoutMs.
     tryGetWallet: (
         version: EntryPointVersion,
         timeoutMs: number
-    ) => Promise<Account | undefined>
-    lockWallet?: (wallet: Account) => Promise<void>
-    markWalletProcessed: (wallet: Account) => Promise<void>
-    getActiveWallets: () => Account[]
+    ) => Promise<LocalAccount | undefined>
+    lockWallet?: (wallet: LocalAccount) => Promise<void>
+    markWalletProcessed: (wallet: LocalAccount) => Promise<void>
+    getActiveWallets: () => LocalAccount[]
 }
 
 export const getSenderManager = async ({
@@ -144,7 +144,7 @@ export const getSenderManager = async ({
         return walletPool
     }
 
-    const findWalletPool = (wallet: Account): WalletPool | undefined =>
+    const findWalletPool = (wallet: LocalAccount): WalletPool | undefined =>
         allWalletPools.find((walletPool) =>
             walletPool.getAllWallets().some((w) => w.address === wallet.address)
         )
@@ -152,7 +152,7 @@ export const getSenderManager = async ({
     const lockWallet = allWalletPools.every(
         (walletPool) => walletPool.lockWallet !== undefined
     )
-        ? async (wallet: Account) => {
+        ? async (wallet: LocalAccount) => {
               await findWalletPool(wallet)?.lockWallet?.(wallet)
           }
         : undefined

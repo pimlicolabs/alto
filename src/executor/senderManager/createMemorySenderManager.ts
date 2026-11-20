@@ -1,6 +1,6 @@
 import type { Metrics } from "@alto/utils"
 import { E_TIMEOUT, Semaphore, withTimeout } from "async-mutex"
-import type { Account } from "viem"
+import type { LocalAccount } from "viem"
 import type { EntryPointVersion } from "viem/account-abstraction"
 import type { WalletPool } from "."
 import type { AltoConfig } from "../../createConfig"
@@ -13,7 +13,7 @@ export const createMemorySenderManager = ({
 }: {
     config: AltoConfig
     metrics: Metrics
-    wallets: Account[]
+    wallets: LocalAccount[]
     version: EntryPointVersion
 }): WalletPool => {
     const availableWallets = [...wallets]
@@ -31,7 +31,7 @@ export const createMemorySenderManager = ({
     )
 
     // Call after acquiring the semaphore.
-    const takeWallet = (): Account => {
+    const takeWallet = (): LocalAccount => {
         const wallet = availableWallets.shift()
 
         // should never happen because of semaphore
@@ -103,7 +103,7 @@ export const createMemorySenderManager = ({
                 availableWallets.length
             )
         },
-        markWalletProcessed: async (wallet: Account) => {
+        markWalletProcessed: async (wallet: LocalAccount) => {
             if (!availableWallets.some((w) => w.address === wallet.address)) {
                 availableWallets.push(wallet)
                 semaphore.release()

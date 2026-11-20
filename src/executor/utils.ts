@@ -16,11 +16,11 @@ import {
 } from "@alto/utils"
 import * as sentry from "@sentry/node"
 import {
-    type Account,
     type Address,
     type BaseError,
     FeeCapTooLowError,
     type Hex,
+    type LocalAccount,
     RpcRequestError,
     type SignedAuthorizationList,
     encodeFunctionData,
@@ -400,7 +400,7 @@ export async function flushStuckTransaction({
     logger
 }: {
     config: AltoConfig
-    wallet: Account
+    wallet: LocalAccount
     gasPrice: bigint
     logger: Logger
 }) {
