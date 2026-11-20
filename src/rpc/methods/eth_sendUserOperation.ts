@@ -43,7 +43,7 @@ const validateChainRules = async ({
     // Monad-specific validation
     if (config.chainType === "monad") {
         const { gasPriceManager } = rpcHandler
-        const { publicClient, utilityWalletAddress } = config
+        const { publicClient } = config
         const senderCode = await publicClient.getCode({
             address: userOp.sender
         })
@@ -75,8 +75,7 @@ const validateChainRules = async ({
                 await getFilterOpsResult({
                     userOpBundle,
                     config,
-                    networkBaseFee: await gasPriceManager.getBaseFee(),
-                    beneficiary: utilityWalletAddress
+                    networkBaseFee: await gasPriceManager.getBaseFee()
                 })
             } catch {
                 return [
