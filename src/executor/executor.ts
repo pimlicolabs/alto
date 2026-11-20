@@ -626,38 +626,70 @@ export class Executor {
                 })
             ])
             clearTimeout(waitTimer)
-            // Past this point the caller polls for the receipt itself.
-            polled.stop()
+
+            // While the transaction may still land, the poll keeps going and
+            // its receipt is handed to the caller, rather than the caller
+            // starting its own poll a polling interval later. It stops once
+            // the receipt is found, or after instant-bundling-timeout.
+            const keepPolling = (
+                other: Promise<TransactionReceipt | undefined>
+            ): Promise<TransactionReceipt | undefined> => {
+                let capTimer: ReturnType<typeof setTimeout> | undefined
+                return Promise.race([
+                    polled.receipt,
+                    other,
+                    new Promise<undefined>((resolve) => {
+                        capTimer = setTimeout(
+                            () => resolve(undefined),
+                            this.config.instantBundlingTimeout
+                        )
+                    })
+                ]).finally(() => {
+                    clearTimeout(capTimer)
+                    polled.stop()
+                })
+            }
 
             // Still waiting for inclusion.
             if (!response) {
                 return {
                     transactionHash,
-                    receipt: send.then(({ receipt, err }) => {
-                        if (err) {
-                            // Timeouts are expected while the transaction is
-                            // stuck, the block loop handles it either way.
-                            this.logger.debug(
-                                { err, txHash: transactionHash },
-                                "no receipt from eth_sendRawTransactionSync"
-                            )
-                        }
-                        return receipt
-                    })
+                    receipt: keepPolling(
+                        send.then(({ receipt, err }) => {
+                            if (err) {
+                                // Timeouts are expected while the transaction
+                                // is stuck, the block loop handles it either
+                                // way.
+                                this.logger.debug(
+                                    { err, txHash: transactionHash },
+                                    "no receipt from eth_sendRawTransactionSync"
+                                )
+                                // Leave it to the poll.
+                                return new Promise<undefined>(() => undefined)
+                            }
+                            return receipt
+                        })
+                    )
                 }
             }
 
             const { receipt, err } = response
             if (!err) {
+                polled.stop()
                 return { transactionHash, receipt: Promise.resolve(receipt) }
             }
 
+            // The node has the transaction but answered before it landed
+            // (e.g. "already known"): the poll carries on
             if (err instanceof BaseError && isTransactionPendingError(err)) {
                 return {
                     transactionHash,
-                    receipt: Promise.resolve(undefined)
+                    receipt: keepPolling(
+                        new Promise<undefined>(() => undefined)
+                    )
                 }
             }
+            polled.stop()
 
             // A nonce too low can mean this very transaction landed while the
             // endpoint held the request (an endpoint that resends it then
