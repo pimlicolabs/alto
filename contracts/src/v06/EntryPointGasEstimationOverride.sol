@@ -29,6 +29,8 @@ import "../SimulationOverrideHelper.sol";
 // - Hardcode senderCreator
 // - Renamed to EntryPointGasEstimationOverride
 // - Throw custom error CallPhaseReverted if callphase reverts
+// - Run the call phase with userOp.callGasLimit instead of gasleft() if USE_CALL_GAS_LIMIT is set
+// - Add simulateHandleOpNoRevert
 contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
@@ -235,6 +237,20 @@ contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceMa
         revert ExecutionResult(opInfo.preOpGas, paid, data.validAfter, data.validUntil, targetSuccess, targetResult);
     }
 
+    // simulateHandleOp always reverts, with ExecutionResult when the userOp succeeds. This returns on ExecutionResult and
+    // re-reverts with anything else, so eth_estimateGas can search for the smallest gas at which the userOp succeeds.
+    function simulateHandleOpNoRevert(UserOperation calldata op) external {
+        try this.simulateHandleOp(op, address(0), "") {}
+        catch (bytes memory reason) {
+            if (bytes4(reason) == ExecutionResult.selector) {
+                return;
+            }
+            assembly {
+                revert(add(reason, 32), mload(reason))
+            }
+        }
+    }
+
     // A memory copy of UserOp static fields only.
     // Excluding: callData, initCode and signature. Replacing paymasterAndData with paymaster.
     struct MemoryUserOp {
@@ -294,9 +310,12 @@ contract EntryPointGasEstimationOverride06 is IEntryPoint, StakeManager, NonceMa
             // ================================================================= //
             // ======= START: THIS IS CUSTOM TO THIS SIMULATION CONTRACT ======= //
             // ================================================================= //
-            // note: Calling exec with gasleft() to ensure that the call has sufficient gas to execute
+            // note: Calling exec with gasleft() to ensure that the call has sufficient gas to execute.
+            // The EIP-8037 reservoir search sets USE_CALL_GAS_LIMIT, so state gas that doesn't fit in
+            // callGasLimit isn't paid from the rest of the frame's gas.
 
-            bool success = Exec.call(mUserOp.sender, 0, callData, gasleft());
+            uint256 callGas = SimulationOverrideHelper.useCallGasLimit() ? mUserOp.callGasLimit : gasleft();
+            bool success = Exec.call(mUserOp.sender, 0, callData, callGas);
 
             // ================================================================= //
             // ======= END: THIS IS CUSTOM TO THIS SIMULATION CONTRACT  ======== //

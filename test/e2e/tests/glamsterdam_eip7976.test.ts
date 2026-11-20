@@ -40,6 +40,9 @@ beforeAll(async () => {
             "supports-eip2780": true,
             // Amsterdam anvil charges EIP-8037 state gas
             "supports-eip8037": true,
+            // Simulations above 16,777,216 get a state gas reservoir that
+            // gasleft() can't see, so the gas limits would miss state gas
+            "fixed-gas-limit-for-estimation": "16777216",
             "transaction-gas-stipend": TRANSACTION_GAS_STIPEND.toString()
         }
     })
