@@ -668,7 +668,10 @@ export class Mempool {
                 },
                 "2nd Validation error"
             )
-            await this.store.removeOutstanding({ entryPoint, userOpHash })
+            await this.statusManager.set([userOpHash], {
+                status: "rejected",
+                transactionHash: null
+            })
             this.reputationManager
                 .decreaseUserOpSeenStatus(
                     userOp,
@@ -684,6 +687,7 @@ export class Mempool {
                 })
             return {
                 skip: true,
+                removeOutstanding: true,
                 paymasterDeposit,
                 stakedEntityCount,
                 knownEntities,
